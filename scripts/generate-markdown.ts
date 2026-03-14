@@ -18,7 +18,29 @@ import path from 'path';
 
 const GENERATED_HEADER = '<!-- Generated from types/*.ts — do not edit -->\n\n';
 
+const GITHUB_REF = process.env.GITHUB_SHA || 'main';
+const GITHUB_BASE = `https://github.com/microsoft/agent-host-protocol/blob/${GITHUB_REF}`;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns a markdown-formatted source link for a declaration.
+ * e.g. `[source](https://github.com/.../types/state.ts#L42)`
+ */
+function sourceLink(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration): string {
+  const sf = node.getSourceFile();
+  const fileName = sf.getBaseName();
+  const line = node.getStartLineNumber();
+  return `<a href="${GITHUB_BASE}/types/${fileName}#L${line}" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>`;
+}
+
+/**
+ * Renders a ### heading with the type name and a source link.
+ */
+function renderHeading(name: string, node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration, level = 3): string {
+  const hashes = '#'.repeat(level);
+  return `${hashes} \`${name}\` ${sourceLink(node)}\n`;
+}
 
 function getJsDocDescription(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration): string {
   const jsDocs = node.getJsDocs();
@@ -115,7 +137,7 @@ function typeAnchor(name: string): string {
  * Handles arrays (T[]), Record<string, T>, unions (A | B), and T | undefined.
  */
 function linkifyType(typeText: string): string {
-  return typeText.replace(/\b(I[A-Z]\w+|ToolCallStatus|ConfirmationState|URI)\b/g, (match) => {
+  return typeText.replace(/\b(I[A-Z]\w+|ToolCallStatus|ToolCallConfirmationReason|StringOrMarkdown|URI)\b/g, (match) => {
     if (knownTypes.has(match)) {
       const page = typeToPage[match];
       if (page && page !== currentPage) {
@@ -223,7 +245,7 @@ function renderTypeAlias(project: Project, name: string): string {
   const desc = getJsDocDescription(ta);
   const typeText = formatType(ta.getTypeNode()?.getText() || '');
   const lines: string[] = [];
-  lines.push(`### \`${name}\`\n`);
+  lines.push(renderHeading(name, ta));
   if (desc) lines.push(desc + '\n');
   // Linkify interface references in the definition
   const linkedType = linkifyType(typeText);
@@ -339,57 +361,57 @@ function generateStateTypesPage(project: Project): string {
   // Root State
   lines.push('## Root State\n');
   const rootState = getInterface(project, 'IRootState');
-  lines.push(`### \`IRootState\`\n`);
+  lines.push(renderHeading('IRootState', rootState));
   lines.push(getJsDocDescription(rootState) + '\n');
   lines.push(renderInterfaceTable(rootState) + '\n');
 
   const agentInfo = getInterface(project, 'IAgentInfo');
-  lines.push(`### \`IAgentInfo\`\n`);
+  lines.push(renderHeading('IAgentInfo', agentInfo));
   lines.push(renderInterfaceTable(agentInfo) + '\n');
 
   const modelInfo = getInterface(project, 'ISessionModelInfo');
-  lines.push(`### \`ISessionModelInfo\`\n`);
+  lines.push(renderHeading('ISessionModelInfo', modelInfo));
   lines.push(renderInterfaceTable(modelInfo) + '\n');
 
   // Session State
   lines.push('## Session State\n');
   const sessionState = getInterface(project, 'ISessionState');
-  lines.push(`### \`ISessionState\`\n`);
+  lines.push(renderHeading('ISessionState', sessionState));
   lines.push(getJsDocDescription(sessionState) + '\n');
   lines.push(renderInterfaceTable(sessionState) + '\n');
 
   const sessionSummary = getInterface(project, 'ISessionSummary');
-  lines.push(`### \`ISessionSummary\`\n`);
+  lines.push(renderHeading('ISessionSummary', sessionSummary));
   lines.push(renderInterfaceTable(sessionSummary) + '\n');
 
   // Turn Types
   lines.push('## Turn Types\n');
   const turn = getInterface(project, 'ITurn');
-  lines.push(`### \`ITurn\`\n`);
+  lines.push(renderHeading('ITurn', turn));
   lines.push(getJsDocDescription(turn) + '\n');
   lines.push(renderInterfaceTable(turn) + '\n');
 
   const activeTurn = getInterface(project, 'IActiveTurn');
-  lines.push(`### \`IActiveTurn\`\n`);
+  lines.push(renderHeading('IActiveTurn', activeTurn));
   lines.push(getJsDocDescription(activeTurn) + '\n');
   lines.push(renderInterfaceTable(activeTurn) + '\n');
 
   const userMessage = getInterface(project, 'IUserMessage');
-  lines.push(`### \`IUserMessage\`\n`);
+  lines.push(renderHeading('IUserMessage', userMessage));
   lines.push(renderInterfaceTable(userMessage) + '\n');
 
   const messageAttachment = getInterface(project, 'IMessageAttachment');
-  lines.push(`### \`IMessageAttachment\`\n`);
+  lines.push(renderHeading('IMessageAttachment', messageAttachment));
   lines.push(renderInterfaceTable(messageAttachment) + '\n');
 
   // Response Parts
   lines.push('## Response Parts\n');
   const mdPart = getInterface(project, 'IMarkdownResponsePart');
-  lines.push(`### \`IMarkdownResponsePart\`\n`);
+  lines.push(renderHeading('IMarkdownResponsePart', mdPart));
   lines.push(renderInterfaceTable(mdPart) + '\n');
 
   const contentRef = getInterface(project, 'IContentRef');
-  lines.push(`### \`IContentRef\`\n`);
+  lines.push(renderHeading('IContentRef', contentRef));
   lines.push(getJsDocDescription(contentRef) + '\n');
   lines.push(renderInterfaceTable(contentRef) + '\n');
 
@@ -402,50 +424,50 @@ function generateStateTypesPage(project: Project): string {
   // Tool Call Types
   lines.push('## Tool Call Types\n');
 
-  const toolCallState = getInterface(project, 'IToolCallState');
-  lines.push(`### \`IToolCallState\`\n`);
-  lines.push(getJsDocDescription(toolCallState) + '\n');
-
-  // Emit remarks as a tip block
-  const toolCallRemarks = getRemarksText(toolCallState);
-  if (toolCallRemarks) {
-    lines.push('::: tip FUTURE WORK');
-    lines.push(toolCallRemarks);
-    lines.push(':::\n');
-  }
-
-  lines.push(renderInterfaceTable(toolCallState) + '\n');
-
-  // Render type aliases in the Tool Call Types category automatically
+  // Render type aliases in the Tool Call Types category (IToolCallState union, ToolCallStatus, etc.)
   const toolCallAliases = getTypeAliasesByCategory(project, 'state.ts', 'Tool Call Types');
   for (const ta of toolCallAliases) {
     const rendered = renderTypeAlias(project, ta.getName());
     if (rendered) lines.push(rendered + '\n');
   }
 
-  const completedToolCall = getInterface(project, 'ICompletedToolCall');
-  lines.push(`### \`ICompletedToolCall\`\n`);
-  lines.push(renderInterfaceTable(completedToolCall) + '\n');
+  // Render each tool call state interface
+  const toolCallInterfaces = [
+    'IToolCallResult',
+    'IToolCallStreamingState',
+    'IToolCallPendingConfirmationState',
+    'IToolCallRunningState',
+    'IToolCallPendingResultConfirmationState',
+    'IToolCallCompletedState',
+    'IToolCallCancelledState',
+  ];
+  for (const name of toolCallInterfaces) {
+    const iface = getInterface(project, name);
+    lines.push(renderHeading(name, iface));
+    const desc = getJsDocDescription(iface);
+    if (desc) lines.push(desc + '\n');
+    lines.push(renderInterfaceTable(iface) + '\n');
+  }
 
   // Permission Types
   lines.push('## Permission Types\n');
   const permReq = getInterface(project, 'IPermissionRequest');
-  lines.push(`### \`IPermissionRequest\`\n`);
+  lines.push(renderHeading('IPermissionRequest', permReq));
   lines.push(renderInterfaceTable(permReq) + '\n');
 
   // Common Types
   lines.push('## Common Types\n');
 
   const usageInfo = getInterface(project, 'IUsageInfo');
-  lines.push(`### \`IUsageInfo\`\n`);
+  lines.push(renderHeading('IUsageInfo', usageInfo));
   lines.push(renderInterfaceTable(usageInfo) + '\n');
 
   const errorInfo = getInterface(project, 'IErrorInfo');
-  lines.push(`### \`IErrorInfo\`\n`);
+  lines.push(renderHeading('IErrorInfo', errorInfo));
   lines.push(renderInterfaceTable(errorInfo) + '\n');
 
   const snapshot = getInterface(project, 'ISnapshot');
-  lines.push(`### \`ISnapshot\`\n`);
+  lines.push(renderHeading('ISnapshot', snapshot));
   lines.push(getJsDocDescription(snapshot) + '\n');
   lines.push(renderInterfaceTable(snapshot) + '\n');
 
@@ -471,8 +493,13 @@ const ACTION_ORDER: ActionMeta[] = [
   { interfaceName: 'ISessionTurnStartedAction', typeValue: 'session/turnStarted', description: 'User sent a message; server starts agent processing.', clientDispatchable: true, version: 1 },
   { interfaceName: 'ISessionDeltaAction', typeValue: 'session/delta', description: 'Streaming text chunk from the assistant.', clientDispatchable: false, version: 1 },
   { interfaceName: 'ISessionResponsePartAction', typeValue: 'session/responsePart', description: 'Structured content appended to the response.', clientDispatchable: false, version: 1 },
-  { interfaceName: 'ISessionToolStartAction', typeValue: 'session/toolStart', description: 'Tool execution began.', clientDispatchable: false, version: 1 },
-  { interfaceName: 'ISessionToolCompleteAction', typeValue: 'session/toolComplete', description: 'Tool execution finished.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'ISessionToolCallStartAction', typeValue: 'session/toolCallStart', description: 'A tool call begins — parameters are streaming from the LM.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'ISessionToolCallDeltaAction', typeValue: 'session/toolCallDelta', description: 'Streaming partial parameters for a tool call.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'ISessionToolCallReadyAction', typeValue: 'session/toolCallReady', description: 'Tool call parameters are complete.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'ISessionToolCallApprovedAction', typeValue: 'session/toolCallConfirmed (approved)', description: 'Client approves a pending tool call.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'ISessionToolCallDeniedAction', typeValue: 'session/toolCallConfirmed (denied)', description: 'Client denies a pending tool call.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'ISessionToolCallCompleteAction', typeValue: 'session/toolCallComplete', description: 'Tool execution finished.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'ISessionToolCallResultConfirmedAction', typeValue: 'session/toolCallResultConfirmed', description: 'Client approves or denies a tool result.', clientDispatchable: true, version: 1 },
   { interfaceName: 'ISessionPermissionRequestAction', typeValue: 'session/permissionRequest', description: 'Permission needed from the user to proceed.', clientDispatchable: false, version: 1 },
   { interfaceName: 'ISessionPermissionResolvedAction', typeValue: 'session/permissionResolved', description: 'Permission granted or denied.', clientDispatchable: true, version: 1 },
   { interfaceName: 'ISessionTurnCompleteAction', typeValue: 'session/turnComplete', description: 'Turn finished — the assistant is idle.', clientDispatchable: false, version: 1 },
@@ -519,17 +546,17 @@ function generateActionsPage(project: Project): string {
     }
 
     const iface = getInterface(project, meta.interfaceName);
-    lines.push(`### \`${meta.typeValue}\`\n`);
+    lines.push(`### \`${meta.typeValue}\` ${sourceLink(iface)}\n`);
 
     const prefix = meta.clientDispatchable ? '**Client-dispatchable.** ' : '';
     lines.push(prefix + getJsDocDescription(iface) + '\n');
 
     lines.push(renderInterfaceTable(iface) + '\n');
 
-    // Special case: toolComplete has a nested IToolCompleteResult
-    if (meta.typeValue === 'session/toolComplete') {
-      const resultIface = getInterface(project, 'IToolCompleteResult');
-      lines.push(`#### \`IToolCompleteResult\`\n`);
+    // Special case: toolCallComplete has a nested IToolCallResult
+    if (meta.typeValue === 'session/toolCallComplete') {
+      const resultIface = getInterface(project, 'IToolCallResult');
+      lines.push(renderHeading('IToolCallResult', resultIface, 4));
       lines.push(renderInterfaceTable(resultIface) + '\n');
     }
   }
@@ -581,7 +608,7 @@ function generateCommandsPage(project: Project): string {
     const direction = getJsDocTag(paramsIface, 'direction') || 'Client → Server';
     const messageType = getJsDocTag(paramsIface, 'messageType') || 'Request';
 
-    lines.push(`## \`${cmd.method}\`\n`);
+    lines.push(`## \`${cmd.method}\` ${sourceLink(paramsIface)}\n`);
     lines.push(desc + '\n');
     lines.push('| Property | Value |');
     lines.push('|---|---|');
@@ -680,7 +707,7 @@ function generateNotificationsPage(project: Project): string {
   lines.push('## Protocol Notifications\n');
 
   const sessionAdded = getInterface(project, 'ISessionAddedNotification');
-  lines.push(`### \`notify/sessionAdded\`\n`);
+  lines.push(`### \`notify/sessionAdded\` ${sourceLink(sessionAdded)}\n`);
   lines.push(getJsDocDescription(sessionAdded) + '\n');
   lines.push(renderInterfaceTable(sessionAdded) + '\n');
 
@@ -691,7 +718,7 @@ function generateNotificationsPage(project: Project): string {
   }
 
   const sessionRemoved = getInterface(project, 'ISessionRemovedNotification');
-  lines.push(`### \`notify/sessionRemoved\`\n`);
+  lines.push(`### \`notify/sessionRemoved\` ${sourceLink(sessionRemoved)}\n`);
   lines.push(getJsDocDescription(sessionRemoved) + '\n');
   lines.push(renderInterfaceTable(sessionRemoved) + '\n');
 

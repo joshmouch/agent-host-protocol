@@ -141,31 +141,42 @@ ContentRef {
 
 Clients fetch `ContentRef` content separately via the `fetchContent(uri)` command. This keeps the state tree small and serializable.
 
-## Tool Calls
+## Tool Call Lifecycle
 
-Tool calls track the full lifecycle of a tool invocation:
+Tool calls are represented as a discriminated union on `status`, where each state only exposes the fields valid for that phase.
 
-```typescript
-ToolCallState {
-  toolCallId: string
-  toolName: string
-  displayName: string
-  invocationMessage: string
-  toolInput?: string
-  toolKind?: 'terminal'
-  language?: string
-  toolArguments?: string
-  status: 'running' | 'pending-permission' | 'completed' | 'failed' | 'cancelled'
-  parameters?: unknown
-  confirmed?: 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped'
-  pastTenseMessage?: string
-  toolOutput?: string
-  error?: { message: string; code?: string }
-  cancellationReason?: 'denied' | 'skipped'
-}
+```mermaid
+stateDiagram-v2
+  [*] --> streaming : toolCallStart
+
+  streaming --> pending_confirmation : toolCallReady
+  streaming --> running : toolCallReady (auto‑confirmed)
+
+  pending_confirmation --> running : toolCallConfirmed (approved)
+  pending_confirmation --> cancelled : toolCallConfirmed (denied/skipped)
+
+  running --> completed : toolCallComplete
+  running --> pending_result_confirmation : toolCallComplete (requiresResultConfirmation)
+
+  pending_result_confirmation --> completed : toolCallResultConfirmed (approved)
+  pending_result_confirmation --> cancelled : toolCallResultConfirmed (denied)
+
+  completed --> [*]
+  cancelled --> [*]
 ```
 
-When a turn completes, active `ToolCallState` entries are converted to `CompletedToolCall` records in the finalized turn.
+### States
+
+| Status | Key Fields | Description |
+|---|---|---|
+| `streaming` | `partialInput?` | LM is streaming tool call parameters. `partialInput` accumulates via `toolCallDelta`. |
+| `pending-confirmation` | `invocationMessage`, `toolInput?` | Parameters complete, waiting for client to confirm execution. |
+| `running` | `confirmed` | Tool is executing. `confirmed` records how it was approved. |
+| `pending-result-confirmation` | `success`, `pastTenseMessage`, `toolOutput?` | Execution finished, waiting for client to approve the result. |
+| `completed` | `success`, `pastTenseMessage`, `toolOutput?` | Terminal state. Tool finished. |
+| `cancelled` | `reason`, `reasonMessage?`, `userSuggestion?` | Terminal state. `reason` is `'denied'`, `'skipped'`, or `'result-denied'`. |
+
+When a turn completes, only terminal-state tool calls (`completed` or `cancelled`) are preserved in the finalized `Turn.toolCalls` array.
 
 ## Permission Requests
 

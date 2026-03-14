@@ -5,7 +5,7 @@
 
 Commands are JSON-RPC requests from the client to the server. They return a result or a JSON-RPC error.
 
-## `initialize`
+## `initialize` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L25" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Establishes a new connection and negotiates the protocol version.
 This MUST be the first message sent by the client.
@@ -36,7 +36,7 @@ See [Lifecycle](/specification/lifecycle) for details.
 
 ---
 
-## `reconnect`
+## `reconnect` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L64" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Re-establishes a dropped connection. The server replays missed actions or
 provides fresh snapshots.
@@ -76,7 +76,7 @@ See [Lifecycle](/specification/lifecycle) for details.
 
 ---
 
-## `createSession`
+## `createSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L156" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Creates a new session with the specified agent provider.
 
@@ -128,7 +128,7 @@ clients.
 
 ---
 
-## `disposeSession`
+## `disposeSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L178" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Disposes a session and cleans up server-side resources.
 
@@ -151,7 +151,7 @@ The server broadcasts a `notify/sessionRemoved` notification to all clients.
 
 ---
 
-## `listSessions`
+## `listSessions` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L198" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Returns a list of session summaries. Used to populate session lists and sidebars.
 
@@ -178,7 +178,7 @@ large. Clients fetch it imperatively and maintain a local cache updated by
 
 ---
 
-## `fetchContent`
+## `fetchContent` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L236" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Fetches large content referenced by a `ContentRef` in the state tree.
 
@@ -230,7 +230,7 @@ use `utf-8` encoding.
 
 ---
 
-## `browseDirectory`
+## `browseDirectory` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L271" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Lists directory entries at a file URI on the server's filesystem.
 
@@ -267,7 +267,7 @@ server MUST return a JSON-RPC error.
 
 ---
 
-## `fetchTurns`
+## `fetchTurns` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L322" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Fetches historical turns for a session. Used for lazy loading of conversation
 history.

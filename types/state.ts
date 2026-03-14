@@ -10,6 +10,14 @@
 /** A URI string (e.g. `agenthost:/root` or `copilot:/<uuid>`). */
 export type URI = string;
 
+/**
+ * A string that may optionally be rendered as Markdown.
+ *
+ * - A plain `string` is rendered as-is (no Markdown processing).
+ * - An object with `{ markdown: string }` is rendered with Markdown formatting.
+ */
+export type StringOrMarkdown = string | { markdown: string };
+
 // ─── Root State ──────────────────────────────────────────────────────────────
 
 /**
@@ -110,8 +118,8 @@ export interface ITurn {
   responseText: string;
   /** Structured response content */
   responseParts: IResponsePart[];
-  /** Completed tool invocations */
-  toolCalls: ICompletedToolCall[];
+  /** Tool invocations in terminal states (completed or cancelled) */
+  toolCalls: (IToolCallCompletedState | IToolCallCancelledState)[];
   /** Token usage info */
   usage: IUsageInfo | undefined;
   /** How the turn ended */
@@ -201,14 +209,27 @@ export type IResponsePart = IMarkdownResponsePart | IContentRef;
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
-/** @category Tool Call Types */
-export type ToolCallStatus = 'running' | 'pending-permission' | 'completed' | 'failed' | 'cancelled';
-
-/** @category Tool Call Types */
-export type ConfirmationState = 'not-needed' | 'user-action' | 'setting' | 'denied' | 'skipped';
+/**
+ * Derived status type for the tool call lifecycle. This is the discriminant
+ * field (`status`) across all tool call state interfaces.
+ *
+ * @category Tool Call Types
+ */
+export type ToolCallStatus = IToolCallState['status'];
 
 /**
- * Full lifecycle state of a tool invocation within an active turn.
+ * How a tool call was confirmed for execution.
+ *
+ * - `'not-needed'` — No confirmation required (auto-approved)
+ * - `'user-action'` — User explicitly approved
+ * - `'setting'` — Approved by a persistent user setting
+ *
+ * @category Tool Call Types
+ */
+export type ToolCallConfirmationReason = 'not-needed' | 'user-action' | 'setting';
+
+/**
+ * Metadata common to all tool call states.
  *
  * @category Tool Call Types
  * @remarks
@@ -217,66 +238,128 @@ export type ConfirmationState = 'not-needed' | 'user-action' | 'setting' | 'deni
  * A future version may move these to a separate diagnostic channel or namespace them
  * more clearly.
  */
-export interface IToolCallState {
+interface IToolCallBase {
   /** Unique tool call identifier */
   toolCallId: string;
-  /** Internal tool name */
+  /** Internal tool name (for debugging/logging) */
   toolName: string;
   /** Human-readable tool name */
   displayName: string;
-  /** Message shown while running */
-  invocationMessage: string;
-  /** Raw tool input */
-  toolInput?: string;
-  /** Rendering hint */
-  toolKind?: 'terminal';
-  /** Language for syntax highlighting */
-  language?: string;
-  /** Serialized tool arguments */
-  toolArguments?: string;
-  /** Current status */
-  status: ToolCallStatus;
-  /** Parsed tool parameters */
-  parameters?: unknown;
-  /** How the tool was confirmed */
-  confirmed?: ConfirmationState;
-  /** Message shown after completion */
-  pastTenseMessage?: string;
-  /** Tool output text */
-  toolOutput?: string;
-  /** Error details */
-  error?: { message: string; code?: string };
-  /** Why the tool was cancelled */
-  cancellationReason?: 'denied' | 'skipped';
 }
 
 /**
+ * Properties available once tool call parameters are fully received.
+ *
  * @category Tool Call Types
  */
-export interface ICompletedToolCall {
-  /** Unique tool call identifier */
-  toolCallId: string;
-  /** Internal tool name */
-  toolName: string;
-  /** Human-readable tool name */
-  displayName: string;
-  /** Message shown during invocation */
-  invocationMessage: string;
-  /** Whether the tool succeeded */
-  success: boolean;
-  /** Message shown after completion */
-  pastTenseMessage: string;
+interface IToolCallParameterFields {
+  /** Message describing what the tool will do */
+  invocationMessage: StringOrMarkdown;
   /** Raw tool input */
   toolInput?: string;
-  /** Rendering hint */
-  toolKind?: 'terminal';
-  /** Language for syntax highlighting */
-  language?: string;
+}
+
+/**
+ * Tool execution result details, available after execution completes.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallResult {
+  /** Whether the tool succeeded */
+  success: boolean;
+  /** Past-tense description of what the tool did */
+  pastTenseMessage: StringOrMarkdown;
   /** Tool output text */
   toolOutput?: string;
-  /** Error details */
+  /** Error details if the tool failed */
   error?: { message: string; code?: string };
 }
+
+/**
+ * LM is streaming the tool call parameters.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallStreamingState extends IToolCallBase {
+  status: 'streaming';
+  /** Partial parameters accumulated so far */
+  partialInput?: string;
+  /** Progress message shown while parameters are streaming */
+  invocationMessage?: StringOrMarkdown;
+}
+
+/**
+ * Parameters are complete, waiting for client to confirm execution.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolCallParameterFields {
+  status: 'pending-confirmation';
+}
+
+/**
+ * Tool is actively executing.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallRunningState extends IToolCallBase, IToolCallParameterFields {
+  status: 'running';
+  /** How the tool was confirmed for execution */
+  confirmed: ToolCallConfirmationReason;
+}
+
+/**
+ * Tool finished executing, waiting for client to approve the result.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallPendingResultConfirmationState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+  status: 'pending-result-confirmation';
+  /** How the tool was confirmed for execution */
+  confirmed: ToolCallConfirmationReason;
+}
+
+/**
+ * Tool completed successfully or with an error.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallCompletedState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+  status: 'completed';
+  /** How the tool was confirmed for execution */
+  confirmed: ToolCallConfirmationReason;
+}
+
+/**
+ * Tool call was cancelled before execution.
+ *
+ * @category Tool Call Types
+ */
+export interface IToolCallCancelledState extends IToolCallBase, IToolCallParameterFields {
+  status: 'cancelled';
+  /** Why the tool was cancelled */
+  reason: 'denied' | 'skipped' | 'result-denied';
+  /** Optional message explaining the cancellation */
+  reasonMessage?: StringOrMarkdown;
+  /** What the user suggested doing instead */
+  userSuggestion?: IUserMessage;
+}
+
+/**
+ * Discriminated union of all tool call lifecycle states.
+ *
+ * See the [state model guide](/guide/state-model.html#tool-call-lifecycle)
+ * for the full state machine diagram.
+ *
+ * @category Tool Call Types
+ */
+export type IToolCallState =
+  | IToolCallStreamingState
+  | IToolCallPendingConfirmationState
+  | IToolCallRunningState
+  | IToolCallPendingResultConfirmationState
+  | IToolCallCompletedState
+  | IToolCallCancelledState;
 
 // ─── Permission Types ────────────────────────────────────────────────────────
 
