@@ -13,6 +13,7 @@ import type {
   IRootState,
   IAgentInfo,
   ISessionModelInfo,
+  StringOrMarkdown,
   ISessionState,
   ISessionSummary,
   ITurn,
@@ -21,8 +22,14 @@ import type {
   IMessageAttachment,
   IMarkdownResponsePart,
   IContentRef,
+  IToolCallResult,
+  IToolCallStreamingState,
+  IToolCallPendingConfirmationState,
+  IToolCallRunningState,
+  IToolCallPendingResultConfirmationState,
+  IToolCallCompletedState,
+  IToolCallCancelledState,
   IToolCallState,
-  ICompletedToolCall,
   IPermissionRequest,
   IUsageInfo,
   IErrorInfo,
@@ -32,7 +39,8 @@ import type {
 import type {
   IStateAction,
   IActionEnvelope,
-  IToolCompleteResult,
+  ISessionToolCallApprovedAction,
+  ISessionToolCallDeniedAction,
 } from '../actions.js';
 
 import type {
@@ -58,6 +66,7 @@ type AssertCompatible<Frozen, _Current extends Frozen> =
 // will surface it here.
 
 type V1_IRootState = IRootState;
+type V1_StringOrMarkdown = StringOrMarkdown;
 type V1_IAgentInfo = IAgentInfo;
 type V1_ISessionModelInfo = ISessionModelInfo;
 type V1_ISessionState = ISessionState;
@@ -68,15 +77,22 @@ type V1_IUserMessage = IUserMessage;
 type V1_IMessageAttachment = IMessageAttachment;
 type V1_IMarkdownResponsePart = IMarkdownResponsePart;
 type V1_IContentRef = IContentRef;
+type V1_IToolCallResult = IToolCallResult;
+type V1_IToolCallStreamingState = IToolCallStreamingState;
+type V1_IToolCallPendingConfirmationState = IToolCallPendingConfirmationState;
+type V1_IToolCallRunningState = IToolCallRunningState;
+type V1_IToolCallPendingResultConfirmationState = IToolCallPendingResultConfirmationState;
+type V1_IToolCallCompletedState = IToolCallCompletedState;
+type V1_IToolCallCancelledState = IToolCallCancelledState;
 type V1_IToolCallState = IToolCallState;
-type V1_ICompletedToolCall = ICompletedToolCall;
 type V1_IPermissionRequest = IPermissionRequest;
 type V1_IUsageInfo = IUsageInfo;
 type V1_IErrorInfo = IErrorInfo;
 type V1_ISnapshot = ISnapshot;
 type V1_IStateAction = IStateAction;
 type V1_IActionEnvelope = IActionEnvelope;
-type V1_IToolCompleteResult = IToolCompleteResult;
+type V1_ISessionToolCallApprovedAction = ISessionToolCallApprovedAction;
+type V1_ISessionToolCallDeniedAction = ISessionToolCallDeniedAction;
 type V1_IProtocolNotification = IProtocolNotification;
 
 // ─── Compatibility Assertions ────────────────────────────────────────────────
@@ -86,6 +102,8 @@ type V1_IProtocolNotification = IProtocolNotification;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckRootState = AssertCompatible<V1_IRootState, IRootState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckStringOrMarkdown = AssertCompatible<V1_StringOrMarkdown, StringOrMarkdown>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckAgentInfo = AssertCompatible<V1_IAgentInfo, IAgentInfo>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -107,9 +125,21 @@ type _CheckMarkdownResponsePart = AssertCompatible<V1_IMarkdownResponsePart, IMa
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckContentRef = AssertCompatible<V1_IContentRef, IContentRef>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckToolCallState = AssertCompatible<V1_IToolCallState, IToolCallState>;
+type _CheckToolCallResult = AssertCompatible<V1_IToolCallResult, IToolCallResult>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckCompletedToolCall = AssertCompatible<V1_ICompletedToolCall, ICompletedToolCall>;
+type _CheckToolCallStreamingState = AssertCompatible<V1_IToolCallStreamingState, IToolCallStreamingState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallPendingConfirmationState = AssertCompatible<V1_IToolCallPendingConfirmationState, IToolCallPendingConfirmationState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallRunningState = AssertCompatible<V1_IToolCallRunningState, IToolCallRunningState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallPendingResultConfirmationState = AssertCompatible<V1_IToolCallPendingResultConfirmationState, IToolCallPendingResultConfirmationState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallCompletedState = AssertCompatible<V1_IToolCallCompletedState, IToolCallCompletedState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallCancelledState = AssertCompatible<V1_IToolCallCancelledState, IToolCallCancelledState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallState = AssertCompatible<V1_IToolCallState, IToolCallState>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckPermissionRequest = AssertCompatible<V1_IPermissionRequest, IPermissionRequest>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -123,6 +153,8 @@ type _CheckStateAction = AssertCompatible<V1_IStateAction, IStateAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckActionEnvelope = AssertCompatible<V1_IActionEnvelope, IActionEnvelope>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckToolCompleteResult = AssertCompatible<V1_IToolCompleteResult, IToolCompleteResult>;
+type _CheckToolCallApprovedAction = AssertCompatible<V1_ISessionToolCallApprovedAction, ISessionToolCallApprovedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolCallDeniedAction = AssertCompatible<V1_ISessionToolCallDeniedAction, ISessionToolCallDeniedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;

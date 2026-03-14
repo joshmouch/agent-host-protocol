@@ -40,6 +40,29 @@
         "origin"
       ]
     },
+    "IToolCallActionBase": {
+      "type": "object",
+      "description": "Base interface for all tool-call-scoped actions, carrying the common\nsession, turn, and tool call identifiers.",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "turnId": {
+          "type": "string",
+          "description": "Turn identifier"
+        },
+        "toolCallId": {
+          "type": "string",
+          "description": "Tool call identifier"
+        }
+      },
+      "required": [
+        "session",
+        "turnId",
+        "toolCallId"
+      ]
+    },
     "IRootAgentsChangedAction": {
       "type": "object",
       "description": "Fired when available agent backends or their models change.",
@@ -198,106 +221,185 @@
         "part"
       ]
     },
-    "ISessionToolStartAction": {
+    "ISessionToolCallStartAction": {
       "type": "object",
-      "description": "Tool execution began.",
+      "description": "A tool call begins — parameters are streaming from the LM.",
       "properties": {
         "type": {
           "type": "string",
           "enum": [
-            "session/toolStart"
+            "session/toolCallStart"
           ]
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
-        "turnId": {
+        "toolName": {
           "type": "string",
-          "description": "Turn identifier"
+          "description": "Internal tool name (for debugging/logging)"
         },
-        "toolCall": {
-          "$ref": "#/$defs/IToolCallState",
-          "description": "Full tool call state"
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
         }
       },
       "required": [
         "type",
-        "session",
-        "turnId",
-        "toolCall"
+        "toolName",
+        "displayName"
       ]
     },
-    "ISessionToolCompleteAction": {
+    "ISessionToolCallDeltaAction": {
       "type": "object",
-      "description": "Tool execution finished.",
+      "description": "Streaming partial parameters for a tool call.",
       "properties": {
         "type": {
           "type": "string",
           "enum": [
-            "session/toolComplete"
+            "session/toolCallDelta"
           ]
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
-        "turnId": {
+        "content": {
           "type": "string",
-          "description": "Turn identifier"
+          "description": "Partial parameter content to append"
         },
-        "toolCallId": {
-          "type": "string",
-          "description": "Tool call to complete"
-        },
-        "result": {
-          "$ref": "#/$defs/IToolCompleteResult",
-          "description": "Completion result"
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Updated progress message"
         }
       },
       "required": [
         "type",
-        "session",
-        "turnId",
-        "toolCallId",
+        "content"
+      ]
+    },
+    "ISessionToolCallReadyAction": {
+      "type": "object",
+      "description": "Tool call parameters are complete. Transitions to `pending-confirmation`\nor directly to `running` if `confirmed` is set.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/toolCallReady"
+          ]
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
+        "confirmed": {
+          "$ref": "#/$defs/ToolCallConfirmationReason",
+          "description": "If set, the tool was auto-confirmed and transitions directly to `running`"
+        }
+      },
+      "required": [
+        "type",
+        "invocationMessage"
+      ]
+    },
+    "ISessionToolCallApprovedAction": {
+      "type": "object",
+      "description": "Client approves a pending tool call. The tool transitions to `running`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/toolCallConfirmed"
+          ]
+        },
+        "approved": {
+          "description": "The tool call was approved"
+        },
+        "confirmed": {
+          "$ref": "#/$defs/ToolCallConfirmationReason",
+          "description": "How the tool was confirmed"
+        }
+      },
+      "required": [
+        "type",
+        "approved",
+        "confirmed"
+      ]
+    },
+    "ISessionToolCallDeniedAction": {
+      "type": "object",
+      "description": "Client denies a pending tool call. The tool transitions to `cancelled`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/toolCallConfirmed"
+          ]
+        },
+        "approved": {
+          "description": "The tool call was denied"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "denied",
+            "skipped"
+          ],
+          "description": "Why the tool was cancelled"
+        },
+        "userSuggestion": {
+          "$ref": "#/$defs/IUserMessage",
+          "description": "What the user suggested doing instead"
+        },
+        "reasonMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Optional explanation for the denial"
+        }
+      },
+      "required": [
+        "type",
+        "approved",
+        "reason"
+      ]
+    },
+    "ISessionToolCallCompleteAction": {
+      "type": "object",
+      "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/toolCallComplete"
+          ]
+        },
+        "result": {
+          "$ref": "#/$defs/IToolCallResult",
+          "description": "Execution result"
+        },
+        "requiresResultConfirmation": {
+          "type": "boolean",
+          "description": "If true, the result requires client approval before finalizing"
+        }
+      },
+      "required": [
+        "type",
         "result"
       ]
     },
-    "IToolCompleteResult": {
+    "ISessionToolCallResultConfirmedAction": {
       "type": "object",
-      "description": "Completion result for a tool call.",
+      "description": "Client approves or denies a tool's result.\n\nIf `approved` is `false`, the tool transitions to `cancelled` with reason `result-denied`.",
       "properties": {
-        "success": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/toolCallResultConfirmed"
+          ]
+        },
+        "approved": {
           "type": "boolean",
-          "description": "Whether the tool succeeded"
-        },
-        "pastTenseMessage": {
-          "type": "string",
-          "description": "Past-tense description"
-        },
-        "toolOutput": {
-          "type": "string",
-          "description": "Tool output text"
-        },
-        "error": {
-          "type": "object",
-          "properties": {
-            "message": {
-              "type": "string"
-            },
-            "code": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "message"
-          ],
-          "description": "Error details"
+          "description": "Whether the result was approved"
         }
       },
       "required": [
-        "success",
-        "pastTenseMessage"
+        "type",
+        "approved"
       ]
     },
     "ISessionPermissionRequestAction": {
@@ -555,6 +657,18 @@
         "model"
       ]
     },
+    "ISessionToolCallConfirmedAction": {
+      "oneOf": [
+        {},
+        {
+          "$ref": "#/$defs/ISessionToolCallApprovedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionToolCallDeniedAction"
+        }
+      ],
+      "description": "Client confirms or denies a pending tool call."
+    },
     "IRootState": {
       "type": "object",
       "description": "Global state shared with every client subscribed to `agenthost:/root`.",
@@ -751,9 +865,16 @@
         "toolCalls": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ICompletedToolCall"
+            "oneOf": [
+              {
+                "$ref": "#/$defs/IToolCallCompletedState"
+              },
+              {
+                "$ref": "#/$defs/IToolCallCancelledState"
+              }
+            ]
           },
-          "description": "Completed tool invocations"
+          "description": "Tool invocations in terminal states (completed or cancelled)"
         },
         "usage": {
           "$ref": "#/$defs/IUsageInfo",
@@ -934,9 +1055,9 @@
         "uri"
       ]
     },
-    "IToolCallState": {
+    "IToolCallBase": {
       "type": "object",
-      "description": "Full lifecycle state of a tool invocation within an active turn.",
+      "description": "Metadata common to all tool call states.",
       "properties": {
         "toolCallId": {
           "type": "string",
@@ -944,127 +1065,47 @@
         },
         "toolName": {
           "type": "string",
-          "description": "Internal tool name"
+          "description": "Internal tool name (for debugging/logging)"
         },
         "displayName": {
           "type": "string",
           "description": "Human-readable tool name"
-        },
-        "invocationMessage": {
-          "type": "string",
-          "description": "Message shown while running"
-        },
-        "toolInput": {
-          "type": "string",
-          "description": "Raw tool input"
-        },
-        "toolKind": {
-          "type": "string",
-          "enum": [
-            "terminal"
-          ],
-          "description": "Rendering hint"
-        },
-        "language": {
-          "type": "string",
-          "description": "Language for syntax highlighting"
-        },
-        "toolArguments": {
-          "type": "string",
-          "description": "Serialized tool arguments"
-        },
-        "status": {
-          "$ref": "#/$defs/ToolCallStatus",
-          "description": "Current status"
-        },
-        "parameters": {
-          "description": "Parsed tool parameters"
-        },
-        "confirmed": {
-          "$ref": "#/$defs/ConfirmationState",
-          "description": "How the tool was confirmed"
-        },
-        "pastTenseMessage": {
-          "type": "string",
-          "description": "Message shown after completion"
-        },
-        "toolOutput": {
-          "type": "string",
-          "description": "Tool output text"
-        },
-        "error": {
-          "type": "object",
-          "properties": {
-            "message": {
-              "type": "string"
-            },
-            "code": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "message"
-          ],
-          "description": "Error details"
-        },
-        "cancellationReason": {
-          "type": "string",
-          "enum": [
-            "denied",
-            "skipped"
-          ],
-          "description": "Why the tool was cancelled"
         }
       },
       "required": [
         "toolCallId",
         "toolName",
-        "displayName",
-        "invocationMessage",
-        "status"
+        "displayName"
       ]
     },
-    "ICompletedToolCall": {
+    "IToolCallParameterFields": {
       "type": "object",
+      "description": "Properties available once tool call parameters are fully received.",
       "properties": {
-        "toolCallId": {
-          "type": "string",
-          "description": "Unique tool call identifier"
-        },
-        "toolName": {
-          "type": "string",
-          "description": "Internal tool name"
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Human-readable tool name"
-        },
         "invocationMessage": {
-          "type": "string",
-          "description": "Message shown during invocation"
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
         },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        }
+      },
+      "required": [
+        "invocationMessage"
+      ]
+    },
+    "IToolCallResult": {
+      "type": "object",
+      "description": "Tool execution result details, available after execution completes.",
+      "properties": {
         "success": {
           "type": "boolean",
           "description": "Whether the tool succeeded"
         },
         "pastTenseMessage": {
-          "type": "string",
-          "description": "Message shown after completion"
-        },
-        "toolInput": {
-          "type": "string",
-          "description": "Raw tool input"
-        },
-        "toolKind": {
-          "type": "string",
-          "enum": [
-            "terminal"
-          ],
-          "description": "Rendering hint"
-        },
-        "language": {
-          "type": "string",
-          "description": "Language for syntax highlighting"
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Past-tense description of what the tool did"
         },
         "toolOutput": {
           "type": "string",
@@ -1083,16 +1124,143 @@
           "required": [
             "message"
           ],
-          "description": "Error details"
+          "description": "Error details if the tool failed"
         }
       },
       "required": [
-        "toolCallId",
-        "toolName",
-        "displayName",
-        "invocationMessage",
         "success",
         "pastTenseMessage"
+      ]
+    },
+    "IToolCallStreamingState": {
+      "type": "object",
+      "description": "LM is streaming the tool call parameters.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "streaming"
+          ]
+        },
+        "partialInput": {
+          "type": "string",
+          "description": "Partial parameters accumulated so far"
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Progress message shown while parameters are streaming"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "IToolCallPendingConfirmationState": {
+      "type": "object",
+      "description": "Parameters are complete, waiting for client to confirm execution.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending-confirmation"
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "IToolCallRunningState": {
+      "type": "object",
+      "description": "Tool is actively executing.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "running"
+          ]
+        },
+        "confirmed": {
+          "$ref": "#/$defs/ToolCallConfirmationReason",
+          "description": "How the tool was confirmed for execution"
+        }
+      },
+      "required": [
+        "status",
+        "confirmed"
+      ]
+    },
+    "IToolCallPendingResultConfirmationState": {
+      "type": "object",
+      "description": "Tool finished executing, waiting for client to approve the result.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending-result-confirmation"
+          ]
+        },
+        "confirmed": {
+          "$ref": "#/$defs/ToolCallConfirmationReason",
+          "description": "How the tool was confirmed for execution"
+        }
+      },
+      "required": [
+        "status",
+        "confirmed"
+      ]
+    },
+    "IToolCallCompletedState": {
+      "type": "object",
+      "description": "Tool completed successfully or with an error.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed"
+          ]
+        },
+        "confirmed": {
+          "$ref": "#/$defs/ToolCallConfirmationReason",
+          "description": "How the tool was confirmed for execution"
+        }
+      },
+      "required": [
+        "status",
+        "confirmed"
+      ]
+    },
+    "IToolCallCancelledState": {
+      "type": "object",
+      "description": "Tool call was cancelled before execution.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "cancelled"
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "denied",
+            "skipped",
+            "result-denied"
+          ],
+          "description": "Why the tool was cancelled"
+        },
+        "reasonMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Optional message explaining the cancellation"
+        },
+        "userSuggestion": {
+          "$ref": "#/$defs/IUserMessage",
+          "description": "What the user suggested doing instead"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
       ]
     },
     "IPermissionRequest": {
@@ -1219,9 +1387,74 @@
         "fromSeq"
       ]
     },
+    "StringOrMarkdown": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "markdown": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "markdown"
+          ]
+        }
+      ],
+      "description": "A string that may optionally be rendered as Markdown.\n\n- A plain `string` is rendered as-is (no Markdown processing).\n- An object with `{ markdown: string }` is rendered with Markdown formatting."
+    },
+    "IResponsePart": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/IMarkdownResponsePart"
+        },
+        {
+          "$ref": "#/$defs/IContentRef"
+        }
+      ]
+    },
+    "ToolCallConfirmationReason": {
+      "type": "string",
+      "enum": [
+        "not-needed",
+        "user-action",
+        "setting"
+      ],
+      "description": "How a tool call was confirmed for execution.\n\n- `'not-needed'` — No confirmation required (auto-approved)\n- `'user-action'` — User explicitly approved\n- `'setting'` — Approved by a persistent user setting"
+    },
+    "IToolCallState": {
+      "oneOf": [
+        {},
+        {
+          "$ref": "#/$defs/IToolCallStreamingState"
+        },
+        {
+          "$ref": "#/$defs/IToolCallPendingConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/IToolCallRunningState"
+        },
+        {
+          "$ref": "#/$defs/IToolCallPendingResultConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/IToolCallCompletedState"
+        },
+        {
+          "$ref": "#/$defs/IToolCallCancelledState"
+        }
+      ],
+      "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
+    },
     "IStateAction": {
       "description": "Discriminated union of all state actions.",
       "oneOf": [
+        {
+          "$ref": "#/$defs/"
+        },
         {
           "$ref": "#/$defs/IRootAgentsChangedAction"
         },
@@ -1241,10 +1474,22 @@
           "$ref": "#/$defs/ISessionResponsePartAction"
         },
         {
-          "$ref": "#/$defs/ISessionToolStartAction"
+          "$ref": "#/$defs/ISessionToolCallStartAction"
         },
         {
-          "$ref": "#/$defs/ISessionToolCompleteAction"
+          "$ref": "#/$defs/ISessionToolCallDeltaAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionToolCallReadyAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionToolCallConfirmedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionToolCallCompleteAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionToolCallResultConfirmedAction"
         },
         {
           "$ref": "#/$defs/ISessionPermissionRequestAction"

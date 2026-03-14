@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   title: 'Agent Host Protocol',
   description: 'Documentation for the Agent Host Protocol — a synchronized, multi-client state protocol for AI agent sessions',
   base: '/agent-host-protocol/',
@@ -86,4 +87,4 @@ export default defineConfig({
       text: 'Edit this page on GitHub',
     },
   },
-})
+}))

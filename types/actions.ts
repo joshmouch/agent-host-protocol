@@ -8,11 +8,13 @@
 
 import type {
   URI,
+  StringOrMarkdown,
   IAgentInfo,
   IErrorInfo,
   IUserMessage,
   IResponsePart,
-  IToolCallState,
+  IToolCallResult,
+  ToolCallConfirmationReason,
   IUsageInfo,
   IPermissionRequest,
 } from './state.js';
@@ -30,6 +32,21 @@ export interface IActionEnvelope {
 }
 
 // ─── Root Actions ────────────────────────────────────────────────────────────
+
+/**
+ * Base interface for all tool-call-scoped actions, carrying the common
+ * session, turn, and tool call identifiers.
+ *
+ * @category Session Actions
+ */
+interface IToolCallActionBase {
+  /** Session URI */
+  session: URI;
+  /** Turn identifier */
+  turnId: string;
+  /** Tool call identifier */
+  toolCallId: string;
+}
 
 /**
  * Fired when available agent backends or their models change.
@@ -121,51 +138,123 @@ export interface ISessionResponsePartAction {
 }
 
 /**
- * Tool execution began.
+ * A tool call begins — parameters are streaming from the LM.
  *
  * @category Session Actions
  * @version 1
  */
-export interface ISessionToolStartAction {
-  type: 'session/toolStart';
-  /** Session URI */
-  session: URI;
-  /** Turn identifier */
-  turnId: string;
-  /** Full tool call state */
-  toolCall: IToolCallState;
+export interface ISessionToolCallStartAction extends IToolCallActionBase {
+  type: 'session/toolCallStart';
+  /** Internal tool name (for debugging/logging) */
+  toolName: string;
+  /** Human-readable tool name */
+  displayName: string;
 }
 
 /**
- * Tool execution finished.
+ * Streaming partial parameters for a tool call.
  *
  * @category Session Actions
  * @version 1
  */
-export interface ISessionToolCompleteAction {
-  type: 'session/toolComplete';
-  /** Session URI */
-  session: URI;
-  /** Turn identifier */
-  turnId: string;
-  /** Tool call to complete */
-  toolCallId: string;
-  /** Completion result */
-  result: IToolCompleteResult;
+export interface ISessionToolCallDeltaAction extends IToolCallActionBase {
+  type: 'session/toolCallDelta';
+  /** Partial parameter content to append */
+  content: string;
+  /** Updated progress message */
+  invocationMessage?: StringOrMarkdown;
 }
 
 /**
- * Completion result for a tool call.
+ * Tool call parameters are complete. Transitions to `pending-confirmation`
+ * or directly to `running` if `confirmed` is set.
+ *
+ * @category Session Actions
+ * @version 1
  */
-export interface IToolCompleteResult {
-  /** Whether the tool succeeded */
-  success: boolean;
-  /** Past-tense description */
-  pastTenseMessage: string;
-  /** Tool output text */
-  toolOutput?: string;
-  /** Error details */
-  error?: { message: string; code?: string };
+export interface ISessionToolCallReadyAction extends IToolCallActionBase {
+  type: 'session/toolCallReady';
+  /** Message describing what the tool will do */
+  invocationMessage: StringOrMarkdown;
+  /** Raw tool input */
+  toolInput?: string;
+  /** If set, the tool was auto-confirmed and transitions directly to `running` */
+  confirmed?: ToolCallConfirmationReason;
+}
+
+/**
+ * Client approves a pending tool call. The tool transitions to `running`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
+  type: 'session/toolCallConfirmed';
+  /** The tool call was approved */
+  approved: true;
+  /** How the tool was confirmed */
+  confirmed: ToolCallConfirmationReason;
+}
+
+/**
+ * Client denies a pending tool call. The tool transitions to `cancelled`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionToolCallDeniedAction extends IToolCallActionBase {
+  type: 'session/toolCallConfirmed';
+  /** The tool call was denied */
+  approved: false;
+  /** Why the tool was cancelled */
+  reason: 'denied' | 'skipped';
+  /** What the user suggested doing instead */
+  userSuggestion?: IUserMessage;
+  /** Optional explanation for the denial */
+  reasonMessage?: StringOrMarkdown;
+}
+
+/**
+ * Client confirms or denies a pending tool call.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export type ISessionToolCallConfirmedAction =
+  | ISessionToolCallApprovedAction
+  | ISessionToolCallDeniedAction;
+
+/**
+ * Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
+ * if `requiresResultConfirmation` is `true`.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface ISessionToolCallCompleteAction extends IToolCallActionBase {
+  type: 'session/toolCallComplete';
+  /** Execution result */
+  result: IToolCallResult;
+  /** If true, the result requires client approval before finalizing */
+  requiresResultConfirmation?: boolean;
+}
+
+/**
+ * Client approves or denies a tool's result.
+ *
+ * If `approved` is `false`, the tool transitions to `cancelled` with reason `result-denied`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionToolCallResultConfirmedAction extends IToolCallActionBase {
+  type: 'session/toolCallResultConfirmed';
+  /** Whether the result was approved */
+  approved: boolean;
 }
 
 /**
@@ -321,8 +410,12 @@ export type IStateAction =
   | ISessionTurnStartedAction
   | ISessionDeltaAction
   | ISessionResponsePartAction
-  | ISessionToolStartAction
-  | ISessionToolCompleteAction
+  | ISessionToolCallStartAction
+  | ISessionToolCallDeltaAction
+  | ISessionToolCallReadyAction
+  | ISessionToolCallConfirmedAction
+  | ISessionToolCallCompleteAction
+  | ISessionToolCallResultConfirmedAction
   | ISessionPermissionRequestAction
   | ISessionPermissionResolvedAction
   | ISessionTurnCompleteAction

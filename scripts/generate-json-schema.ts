@@ -59,9 +59,14 @@ function getPropertyType(prop: PropertySignature): string {
 // ─── Type → JSON Schema Conversion ──────────────────────────────────────────
 
 function typeTextToSchema(typeText: string, project: Project): JsonSchema {
-  const cleaned = typeText
+  let cleaned = typeText
     .replace(/import\([^)]+\)\./g, '')
     .trim();
+
+  // Strip outer parentheses: (A | B) → A | B
+  while (cleaned.startsWith('(') && cleaned.endsWith(')')) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
 
   // String literal unions: 'a' | 'b' | 'c'
   if (/^'[^']*'(\s*\|\s*'[^']*')*$/.test(cleaned)) {
@@ -263,18 +268,17 @@ function generateStateSchema(project: Project): JsonSchema {
     schema.$defs![name] = interfaceToSchema(iface, project);
   }
 
-  // Add type aliases for ToolCallStatus, ConfirmationState
+  // Add type aliases to $defs
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'state.ts');
   if (sf) {
     for (const ta of sf.getTypeAliases()) {
       const name = ta.getName();
+      // Skip simple alias like URI = string, and indexed access types like IToolCallState['status']
       const typeText = ta.getTypeNode()?.getText() || '';
-      if (typeText.includes("'")) {
-        // String literal union
-        schema.$defs![name] = typeTextToSchema(typeText, project);
-        const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
-        if (desc) schema.$defs![name].description = desc;
-      }
+      if (typeText === 'string' || typeText.includes('[')) continue;
+      schema.$defs![name] = typeTextToSchema(typeText, project);
+      const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+      if (desc) schema.$defs![name].description = desc;
     }
   }
 
@@ -297,6 +301,19 @@ function generateActionsSchema(project: Project): JsonSchema {
     schema.$defs![name] = interfaceToSchema(iface, project);
   }
 
+  // Add action type aliases (e.g. ISessionToolCallConfirmedAction union)
+  const actionSf = project.getSourceFiles().find(f => f.getBaseName() === 'actions.ts');
+  if (actionSf) {
+    for (const ta of actionSf.getTypeAliases()) {
+      const name = ta.getName();
+      if (name === 'IStateAction') continue; // handled below
+      const typeText = ta.getTypeNode()?.getText() || '';
+      schema.$defs![name] = typeTextToSchema(typeText, project);
+      const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+      if (desc) schema.$defs![name].description = desc;
+    }
+  }
+
   // Add state type interfaces needed for refs
   const stateIfaces = collectInterfacesFromFile(project, 'state.ts');
   for (const [name, iface] of stateIfaces) {
@@ -305,12 +322,29 @@ function generateActionsSchema(project: Project): JsonSchema {
     }
   }
 
-  // IStateAction as oneOf
-  const actionNames = Array.from(actionIfaces.keys())
-    .filter(name => name !== 'IActionEnvelope' && name !== 'IToolCompleteResult');
+  // Add state type aliases needed for refs
+  const stateSf = project.getSourceFiles().find(f => f.getBaseName() === 'state.ts');
+  if (stateSf) {
+    for (const ta of stateSf.getTypeAliases()) {
+      const name = ta.getName();
+      const typeText = ta.getTypeNode()?.getText() || '';
+      if (typeText === 'string' || typeText.includes('[')) continue;
+      if (!schema.$defs![name]) {
+        schema.$defs![name] = typeTextToSchema(typeText, project);
+        const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+        if (desc) schema.$defs![name].description = desc;
+      }
+    }
+  }
+
+  // IStateAction as oneOf — derive members from the IStateAction type alias itself
+  const stateActionAlias = actionSf?.getTypeAlias('IStateAction');
+  const stateActionMembers = stateActionAlias
+    ? splitUnionType(stateActionAlias.getTypeNode()?.getText() || '').map(s => s.trim())
+    : [];
   schema.$defs!['IStateAction'] = {
     description: 'Discriminated union of all state actions.',
-    oneOf: actionNames.map(name => ({ $ref: `#/$defs/${name}` })),
+    oneOf: stateActionMembers.map(name => ({ $ref: `#/$defs/${name}` })),
   };
 
   return schema;

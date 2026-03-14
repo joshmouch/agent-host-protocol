@@ -7,7 +7,7 @@ Notifications are ephemeral broadcasts that are **not** part of the state tree. 
 
 ## Protocol Notifications
 
-### `notify/sessionAdded`
+### `notify/sessionAdded` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L39" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Broadcast to all connected clients when a new session is created.
 
@@ -38,7 +38,7 @@ Broadcast to all connected clients when a new session is created.
 }
 ```
 
-### `notify/sessionRemoved`
+### `notify/sessionRemoved` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L64" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Broadcast to all connected clients when a session is disposed.
 
