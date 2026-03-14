@@ -19,6 +19,7 @@ These methods have an `id` and expect a response.
 | `listSessions` | Fetch session summaries | [Commands](/reference/commands) |
 | `fetchTurns` | Fetch historical turns for a session | [Commands](/reference/commands) |
 | `fetchContent` | Fetch large content by reference | [Commands](/reference/commands) |
+| `browseDirectory` | List directory entries on the server filesystem | [Commands](/reference/commands) |
 
 ## Client → Server Notifications
 

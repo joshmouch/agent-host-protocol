@@ -8,10 +8,10 @@ Every AHP session starts with a JSON-RPC handshake over the transport (WebSocket
 
 ```
 1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?)
-2. Server → Client:  { protocolVersion, serverSeq, snapshots[] }
+2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 
-The `initialSubscriptions` field allows the client to subscribe to root state and any previously-open sessions in the same round-trip as the handshake. The server returns snapshots for each in the response.
+The `initialSubscriptions` field allows the client to subscribe to root state and any previously-open sessions in the same round-trip as the handshake. The server returns snapshots for each in the response. The optional `defaultDirectory` field gives clients a sensible starting point for remote filesystem browsing.
 
 ## Subscribing to State
 

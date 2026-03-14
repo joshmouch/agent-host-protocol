@@ -563,6 +563,7 @@ const COMMAND_ORDER: CommandMeta[] = [
   { method: 'disposeSession', paramsInterface: 'IDisposeSessionParams', resultText: '`null` on success.' },
   { method: 'listSessions', paramsInterface: 'IListSessionsParams', resultText: '`ISessionSummary[]`' },
   { method: 'fetchContent', paramsInterface: 'IFetchContentParams', resultInterface: 'IFetchContentResult' },
+  { method: 'browseDirectory', paramsInterface: 'IBrowseDirectoryParams', resultInterface: 'IBrowseDirectoryResult' },
   { method: 'fetchTurns', paramsInterface: 'IFetchTurnsParams', resultInterface: 'IFetchTurnsResult' },
 ];
 
@@ -839,7 +840,8 @@ function generateMessagesPage(_project: Project): string {
   lines.push('| `disposeSession` | Dispose a session and clean up resources | [Commands](/reference/commands) |');
   lines.push('| `listSessions` | Fetch session summaries | [Commands](/reference/commands) |');
   lines.push('| `fetchTurns` | Fetch historical turns for a session | [Commands](/reference/commands) |');
-  lines.push('| `fetchContent` | Fetch large content by reference | [Commands](/reference/commands) |\n');
+  lines.push('| `fetchContent` | Fetch large content by reference | [Commands](/reference/commands) |');
+  lines.push('| `browseDirectory` | List directory entries on the server filesystem | [Commands](/reference/commands) |\n');
 
   lines.push('## Client → Server Notifications\n');
   lines.push('These methods have no `id` and expect no response.\n');

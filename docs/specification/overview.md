@@ -32,7 +32,7 @@ AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message fr
 | Direction | Type | Examples |
 |---|---|---|
 | Client → Server (notification) | Fire-and-forget | `unsubscribe`, `dispatchAction` |
-| Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent` |
+| Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `fetchContent`, `browseDirectory` |
 | Server → Client (notification) | Pushed | `action`, `notification` |
 | Server → Client (response) | Correlated by `id` | Success result or JSON-RPC error |
 

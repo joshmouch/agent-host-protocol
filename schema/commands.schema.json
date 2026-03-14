@@ -48,6 +48,10 @@
             "$ref": "#/$defs/ISnapshot"
           },
           "description": "Snapshots for each `initialSubscriptions` URI"
+        },
+        "defaultDirectory": {
+          "$ref": "#/$defs/URI",
+          "description": "Suggested default directory for remote filesystem browsing"
         }
       },
       "required": [
@@ -237,6 +241,57 @@
       "required": [
         "data",
         "encoding"
+      ]
+    },
+    "IBrowseDirectoryParams": {
+      "type": "object",
+      "description": "Lists directory entries at a file URI on the server's filesystem.\n\nThis is intended for remote folder pickers and similar UI that needs to let\nusers navigate the server's local filesystem.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Directory URI on the server filesystem"
+        }
+      },
+      "required": [
+        "uri"
+      ]
+    },
+    "IDirectoryEntry": {
+      "type": "object",
+      "description": "Directory entry returned by `browseDirectory`.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Base name of the entry"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "directory"
+          ],
+          "description": "Whether the entry is a file or directory"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "IBrowseDirectoryResult": {
+      "type": "object",
+      "description": "Result of the `browseDirectory` command.",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IDirectoryEntry"
+          },
+          "description": "Entries directly contained in the requested directory"
+        }
+      },
+      "required": [
+        "entries"
       ]
     },
     "IFetchTurnsParams": {

@@ -25,11 +25,12 @@ This MUST be the first message sent by the client.
 
 **Result:**
 
-| Field | Type | Description |
-|---|---|---|
-| `protocolVersion` | `number` | Protocol version the server speaks |
-| `serverSeq` | `number` | Current server sequence number |
-| `snapshots` | [ISnapshot](/reference/state-types#isnapshot)[] | Snapshots for each `initialSubscriptions` URI |
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `protocolVersion` | `number` | Yes | Protocol version the server speaks |
+| `serverSeq` | `number` | Yes | Current server sequence number |
+| `snapshots` | [ISnapshot](/reference/state-types#isnapshot)[] | Yes | Snapshots for each `initialSubscriptions` URI |
+| `defaultDirectory` | [URI](/reference/state-types#uri) | No | Suggested default directory for remote filesystem browsing |
 
 See [Lifecycle](/specification/lifecycle) for details.
 
@@ -226,6 +227,35 @@ long tool outputs) by reference rather than inline.
 
 Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
 use `utf-8` encoding.
+
+---
+
+## `browseDirectory`
+
+Lists directory entries at a file URI on the server's filesystem.
+
+This is intended for remote folder pickers and similar UI that needs to let
+users navigate the server's local filesystem.
+
+| Property | Value |
+|---|---|
+| Direction | Client → Server |
+| Type | Request |
+
+**Parameters:**
+
+| Field | Type | Description |
+|---|---|---|
+| `uri` | [URI](/reference/state-types#uri) | Directory URI on the server filesystem |
+
+**Result:**
+
+| Field | Type | Description |
+|---|---|---|
+| `entries` | [IDirectoryEntry](#idirectoryentry)[] | Entries directly contained in the requested directory |
+
+This is intended for remote folder pickers and similar UI that needs to let
+users navigate the server's local filesystem.
 
 ---
 

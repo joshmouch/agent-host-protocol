@@ -44,6 +44,8 @@ export interface IInitializeResult {
   serverSeq: number;
   /** Snapshots for each `initialSubscriptions` URI */
   snapshots: ISnapshot[];
+  /** Suggested default directory for remote filesystem browsing */
+  defaultDirectory?: URI;
 }
 
 // ─── reconnect ───────────────────────────────────────────────────────────────
@@ -246,6 +248,43 @@ export interface IFetchContentResult {
   encoding: 'base64' | 'utf-8';
   /** MIME type of the content */
   mimeType?: string;
+}
+
+// ─── browseDirectory ────────────────────────────────────────────────────────
+
+/**
+ * Lists directory entries at a file URI on the server's filesystem.
+ *
+ * This is intended for remote folder pickers and similar UI that needs to let
+ * users navigate the server's local filesystem.
+ *
+ * @category Commands
+ * @method browseDirectory
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ */
+export interface IBrowseDirectoryParams {
+  /** Directory URI on the server filesystem */
+  uri: URI;
+}
+
+/**
+ * Directory entry returned by `browseDirectory`.
+ */
+export interface IDirectoryEntry {
+  /** Base name of the entry */
+  name: string;
+  /** Whether the entry is a file or directory */
+  type: 'file' | 'directory';
+}
+
+/**
+ * Result of the `browseDirectory` command.
+ */
+export interface IBrowseDirectoryResult {
+  /** Entries directly contained in the requested directory */
+  entries: IDirectoryEntry[];
 }
 
 // ─── fetchTurns ──────────────────────────────────────────────────────────────
