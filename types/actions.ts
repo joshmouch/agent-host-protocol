@@ -14,6 +14,8 @@ import type {
   IUserMessage,
   IResponsePart,
   IToolCallResult,
+  IToolDefinition,
+  ISessionActiveClient,
   ToolCallConfirmationReason,
   IUsageInfo,
   IPermissionRequest,
@@ -140,6 +142,10 @@ export interface ISessionResponsePartAction {
 /**
  * A tool call begins — parameters are streaming from the LM.
  *
+ * For client-provided tools, the server sets `toolClientId` to identify the
+ * owning client. That client is responsible for executing the tool once it
+ * reaches the `running` state and dispatching `session/toolCallComplete`.
+ *
  * @category Session Actions
  * @version 1
  */
@@ -149,6 +155,11 @@ export interface ISessionToolCallStartAction extends IToolCallActionBase {
   toolName: string;
   /** Human-readable tool name */
   displayName: string;
+  /**
+   * If this tool is provided by a client, the `clientId` of the owning client.
+   * Absent for server-side tools.
+   */
+  toolClientId?: string;
 }
 
 /**
@@ -168,6 +179,10 @@ export interface ISessionToolCallDeltaAction extends IToolCallActionBase {
 /**
  * Tool call parameters are complete. Transitions to `pending-confirmation`
  * or directly to `running` if `confirmed` is set.
+ *
+ * For client-provided tools, the server typically sets `confirmed` to
+ * `'not-needed'` so the tool transitions directly to `running`, where the
+ * owning client can begin execution immediately.
  *
  * @category Session Actions
  * @version 1
@@ -200,6 +215,9 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
 /**
  * Client denies a pending tool call. The tool transitions to `cancelled`.
  *
+ * For client-provided tools, the owning client MUST dispatch this if it does
+ * not recognize the tool or cannot execute it.
+ *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
@@ -231,8 +249,17 @@ export type ISessionToolCallConfirmedAction =
  * Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
  * if `requiresResultConfirmation` is `true`.
  *
+ * For client-provided tools (where `toolClientId` is set on the tool call state),
+ * the owning client dispatches this action with the execution result. The server
+ * SHOULD reject this action if the dispatching client does not match `toolClientId`.
+ *
+ * Servers waiting on a client tool call MAY time out after a reasonable duration
+ * if the implementing client disconnects or becomes unresponsive, and dispatch
+ * this action with `result.success = false` and an appropriate error.
+ *
  * @category Session Actions
  * @version 1
+ * @clientDispatchable
  */
 export interface ISessionToolCallCompleteAction extends IToolCallActionBase {
   type: 'session/toolCallComplete';
@@ -398,6 +425,61 @@ export interface ISessionModelChangedAction {
   model: string;
 }
 
+/**
+ * Server tools for this session have changed.
+ *
+ * Full-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface ISessionServerToolsChangedAction {
+  type: 'session/serverToolsChanged';
+  /** Session URI */
+  session: URI;
+  /** Updated server tools list (full replacement) */
+  tools: IToolDefinition[];
+}
+
+/**
+ * The active client for this session has changed.
+ *
+ * A client dispatches this action with its own `ISessionActiveClient` to claim
+ * the active role, or with `null` to release it. The server SHOULD reject if
+ * another client is already active. The server SHOULD automatically dispatch
+ * this action with `activeClient: null` when the active client disconnects.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionActiveClientChangedAction {
+  type: 'session/activeClientChanged';
+  /** Session URI */
+  session: URI;
+  /** The new active client, or `null` to unset */
+  activeClient: ISessionActiveClient | null;
+}
+
+/**
+ * The active client's tool list has changed.
+ *
+ * Full-replacement semantics: the `tools` array replaces the active client's
+ * previous tools entirely. The server SHOULD reject if the dispatching client
+ * is not the current active client.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionActiveClientToolsChangedAction {
+  type: 'session/activeClientToolsChanged';
+  /** Session URI */
+  session: URI;
+  /** Updated client tools list (full replacement) */
+  tools: IToolDefinition[];
+}
+
 // ─── Discriminated Union ─────────────────────────────────────────────────────
 
 /**
@@ -424,4 +506,7 @@ export type IStateAction =
   | ISessionTitleChangedAction
   | ISessionUsageAction
   | ISessionReasoningAction
-  | ISessionModelChangedAction;
+  | ISessionModelChangedAction
+  | ISessionServerToolsChangedAction
+  | ISessionActiveClientChangedAction
+  | ISessionActiveClientToolsChangedAction;

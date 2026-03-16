@@ -42,6 +42,9 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
   'session/usage': 1,
   'session/reasoning': 1,
   'session/modelChanged': 1,
+  'session/serverToolsChanged': 1,
+  'session/activeClientChanged': 1,
+  'session/activeClientToolsChanged': 1,
 };
 
 /**

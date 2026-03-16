@@ -33,6 +33,12 @@ export type {
   IToolCallCompletedState,
   IToolCallCancelledState,
   IToolCallState,
+  IToolDefinition,
+  IToolAnnotations,
+  IToolResultTextContent,
+  IToolResultBinaryContent,
+  IToolResultContent,
+  ISessionActiveClient,
   IPermissionRequest,
   IUsageInfo,
   IErrorInfo,
@@ -65,6 +71,9 @@ export type {
   ISessionUsageAction,
   ISessionReasoningAction,
   ISessionModelChangedAction,
+  ISessionServerToolsChangedAction,
+  ISessionActiveClientChangedAction,
+  ISessionActiveClientToolsChangedAction,
   IStateAction,
 } from './actions.js';
 

@@ -223,7 +223,7 @@
     },
     "ISessionToolCallStartAction": {
       "type": "object",
-      "description": "A tool call begins — parameters are streaming from the LM.",
+      "description": "A tool call begins — parameters are streaming from the LM.\n\nFor client-provided tools, the server sets `toolClientId` to identify the\nowning client. That client is responsible for executing the tool once it\nreaches the `running` state and dispatching `session/toolCallComplete`.",
       "properties": {
         "type": {
           "type": "string",
@@ -238,6 +238,10 @@
         "displayName": {
           "type": "string",
           "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools."
         }
       },
       "required": [
@@ -272,7 +276,7 @@
     },
     "ISessionToolCallReadyAction": {
       "type": "object",
-      "description": "Tool call parameters are complete. Transitions to `pending-confirmation`\nor directly to `running` if `confirmed` is set.",
+      "description": "Tool call parameters are complete. Transitions to `pending-confirmation`\nor directly to `running` if `confirmed` is set.\n\nFor client-provided tools, the server typically sets `confirmed` to\n`'not-needed'` so the tool transitions directly to `running`, where the\nowning client can begin execution immediately.",
       "properties": {
         "type": {
           "type": "string",
@@ -324,7 +328,7 @@
     },
     "ISessionToolCallDeniedAction": {
       "type": "object",
-      "description": "Client denies a pending tool call. The tool transitions to `cancelled`.",
+      "description": "Client denies a pending tool call. The tool transitions to `cancelled`.\n\nFor client-provided tools, the owning client MUST dispatch this if it does\nnot recognize the tool or cannot execute it.",
       "properties": {
         "type": {
           "type": "string",
@@ -360,7 +364,7 @@
     },
     "ISessionToolCallCompleteAction": {
       "type": "object",
-      "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.",
+      "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action with the execution result. The server\nSHOULD reject this action if the dispatching client does not match `toolClientId`.\n\nServers waiting on a client tool call MAY time out after a reasonable duration\nif the implementing client disconnects or becomes unresponsive, and dispatch\nthis action with `result.success = false` and an appropriate error.",
       "properties": {
         "type": {
           "type": "string",
@@ -657,6 +661,92 @@
         "model"
       ]
     },
+    "ISessionServerToolsChangedAction": {
+      "type": "object",
+      "description": "Server tools for this session have changed.\n\nFull-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/serverToolsChanged"
+          ]
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Updated server tools list (full replacement)"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "tools"
+      ]
+    },
+    "ISessionActiveClientChangedAction": {
+      "type": "object",
+      "description": "The active client for this session has changed.\n\nA client dispatches this action with its own `ISessionActiveClient` to claim\nthe active role, or with `null` to release it. The server SHOULD reject if\nanother client is already active. The server SHOULD automatically dispatch\nthis action with `activeClient: null` when the active client disconnects.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/activeClientChanged"
+          ]
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "activeClient": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ISessionActiveClient"
+            },
+            {}
+          ],
+          "description": "The new active client, or `null` to unset"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "activeClient"
+      ]
+    },
+    "ISessionActiveClientToolsChangedAction": {
+      "type": "object",
+      "description": "The active client's tool list has changed.\n\nFull-replacement semantics: the `tools` array replaces the active client's\nprevious tools entirely. The server SHOULD reject if the dispatching client\nis not the current active client.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "session/activeClientToolsChanged"
+          ]
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Updated client tools list (full replacement)"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "tools"
+      ]
+    },
     "ISessionToolCallConfirmedAction": {
       "oneOf": [
         {},
@@ -775,6 +865,17 @@
           "$ref": "#/$defs/IErrorInfo",
           "description": "Error details if creation failed"
         },
+        "serverTools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Tools provided by the server (agent host) for this session"
+        },
+        "activeClient": {
+          "$ref": "#/$defs/ISessionActiveClient",
+          "description": "The client currently providing tools and interactive capabilities to this session"
+        },
         "turns": {
           "type": "array",
           "items": {
@@ -791,6 +892,31 @@
         "summary",
         "lifecycle",
         "turns"
+      ]
+    },
+    "ISessionActiveClient": {
+      "type": "object",
+      "description": "The client currently providing tools and interactive capabilities to a session.\n\nOnly one client may be active per session at a time. The server SHOULD\nautomatically unset the active client if that client disconnects.",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "Client identifier (matches `clientId` from `initialize`)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable client name (e.g. `\"VS Code\"`)"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Tools this client provides to the session"
+        }
+      },
+      "required": [
+        "clientId",
+        "tools"
       ]
     },
     "ISessionSummary": {
@@ -1070,6 +1196,10 @@
         "displayName": {
           "type": "string",
           "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
         }
       },
       "required": [
@@ -1107,9 +1237,17 @@
           "$ref": "#/$defs/StringOrMarkdown",
           "description": "Past-tense description of what the tool did"
         },
-        "toolOutput": {
-          "type": "string",
-          "description": "Tool output text"
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolResultContent"
+          },
+          "description": "Unstructured result content blocks.\n\nThis mirrors the `content` field of MCP `CallToolResult`."
+        },
+        "structuredContent": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional structured result object.\n\nThis mirrors the `structuredContent` field of MCP `CallToolResult`."
         },
         "error": {
           "type": "object",
@@ -1261,6 +1399,143 @@
       "required": [
         "status",
         "reason"
+      ]
+    },
+    "IToolDefinition": {
+      "type": "object",
+      "description": "Describes a tool available in a session, provided by either the server or the active client.\n\nThis type mirrors the MCP `Tool` type from the Model Context Protocol specification\n(2025-11-25 draft) and will continue to track it.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique tool identifier"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable display name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what the tool does"
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "string"
+            },
+            "required": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "JSON Schema defining the expected input parameters.\n\nOptional because client-provided tools may not have formal schemas.\nMirrors MCP `Tool.inputSchema`."
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "string"
+            },
+            "required": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "JSON Schema defining the structure of the tool's output.\n\nMirrors MCP `Tool.outputSchema`."
+        },
+        "annotations": {
+          "$ref": "#/$defs/IToolAnnotations",
+          "description": "Behavioral hints about the tool. All properties are advisory."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata.\n\nMirrors the MCP `_meta` convention."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "IToolAnnotations": {
+      "type": "object",
+      "description": "Behavioral hints about a tool. All properties are advisory and not\nguaranteed to faithfully describe tool behavior.\n\nMirrors MCP `ToolAnnotations` from the Model Context Protocol specification.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Alternate human-readable title"
+        },
+        "readOnlyHint": {
+          "type": "boolean",
+          "description": "Tool does not modify its environment (default: false)"
+        },
+        "destructiveHint": {
+          "type": "boolean",
+          "description": "Tool may perform destructive updates (default: true)"
+        },
+        "idempotentHint": {
+          "type": "boolean",
+          "description": "Repeated calls with the same arguments have no additional effect (default: false)"
+        },
+        "openWorldHint": {
+          "type": "boolean",
+          "description": "Tool may interact with external entities (default: true)"
+        }
+      }
+    },
+    "IToolResultTextContent": {
+      "type": "object",
+      "description": "Text content in a tool result.\n\nMirrors MCP `TextContent`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "description": "The text content"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ]
+    },
+    "IToolResultBinaryContent": {
+      "type": "object",
+      "description": "Base64-encoded binary content in a tool result.\n\nMirrors MCP `ImageContent` but generalized to any binary content type.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "binary"
+          ]
+        },
+        "data": {
+          "type": "string",
+          "description": "Base64-encoded data"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content type (e.g. `\"image/png\"`, `\"application/pdf\"`)"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "contentType"
       ]
     },
     "IPermissionRequest": {
@@ -1449,6 +1724,21 @@
       ],
       "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
     },
+    "IToolResultContent": {
+      "oneOf": [
+        {},
+        {
+          "$ref": "#/$defs/IToolResultTextContent"
+        },
+        {
+          "$ref": "#/$defs/IToolResultBinaryContent"
+        },
+        {
+          "$ref": "#/$defs/IContentRef"
+        }
+      ],
+      "description": "Content block in a tool result.\n\nMirrors the content blocks in MCP `CallToolResult.content`, plus `IContentRef`\nfor lazy-loading large results (an AHP extension)."
+    },
     "IStateAction": {
       "description": "Discriminated union of all state actions.",
       "oneOf": [
@@ -1517,6 +1807,15 @@
         },
         {
           "$ref": "#/$defs/ISessionModelChangedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionServerToolsChangedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionActiveClientChangedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionActiveClientToolsChangedAction"
         }
       ]
     }

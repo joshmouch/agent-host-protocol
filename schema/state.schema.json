@@ -111,6 +111,17 @@
           "$ref": "#/$defs/IErrorInfo",
           "description": "Error details if creation failed"
         },
+        "serverTools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Tools provided by the server (agent host) for this session"
+        },
+        "activeClient": {
+          "$ref": "#/$defs/ISessionActiveClient",
+          "description": "The client currently providing tools and interactive capabilities to this session"
+        },
         "turns": {
           "type": "array",
           "items": {
@@ -127,6 +138,31 @@
         "summary",
         "lifecycle",
         "turns"
+      ]
+    },
+    "ISessionActiveClient": {
+      "type": "object",
+      "description": "The client currently providing tools and interactive capabilities to a session.\n\nOnly one client may be active per session at a time. The server SHOULD\nautomatically unset the active client if that client disconnects.",
+      "properties": {
+        "clientId": {
+          "type": "string",
+          "description": "Client identifier (matches `clientId` from `initialize`)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable client name (e.g. `\"VS Code\"`)"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolDefinition"
+          },
+          "description": "Tools this client provides to the session"
+        }
+      },
+      "required": [
+        "clientId",
+        "tools"
       ]
     },
     "ISessionSummary": {
@@ -406,6 +442,10 @@
         "displayName": {
           "type": "string",
           "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
         }
       },
       "required": [
@@ -443,9 +483,17 @@
           "$ref": "#/$defs/StringOrMarkdown",
           "description": "Past-tense description of what the tool did"
         },
-        "toolOutput": {
-          "type": "string",
-          "description": "Tool output text"
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolResultContent"
+          },
+          "description": "Unstructured result content blocks.\n\nThis mirrors the `content` field of MCP `CallToolResult`."
+        },
+        "structuredContent": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional structured result object.\n\nThis mirrors the `structuredContent` field of MCP `CallToolResult`."
         },
         "error": {
           "type": "object",
@@ -597,6 +645,143 @@
       "required": [
         "status",
         "reason"
+      ]
+    },
+    "IToolDefinition": {
+      "type": "object",
+      "description": "Describes a tool available in a session, provided by either the server or the active client.\n\nThis type mirrors the MCP `Tool` type from the Model Context Protocol specification\n(2025-11-25 draft) and will continue to track it.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique tool identifier"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable display name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what the tool does"
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "string"
+            },
+            "required": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "JSON Schema defining the expected input parameters.\n\nOptional because client-provided tools may not have formal schemas.\nMirrors MCP `Tool.inputSchema`."
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "properties": {
+              "type": "string"
+            },
+            "required": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "JSON Schema defining the structure of the tool's output.\n\nMirrors MCP `Tool.outputSchema`."
+        },
+        "annotations": {
+          "$ref": "#/$defs/IToolAnnotations",
+          "description": "Behavioral hints about the tool. All properties are advisory."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata.\n\nMirrors the MCP `_meta` convention."
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "IToolAnnotations": {
+      "type": "object",
+      "description": "Behavioral hints about a tool. All properties are advisory and not\nguaranteed to faithfully describe tool behavior.\n\nMirrors MCP `ToolAnnotations` from the Model Context Protocol specification.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Alternate human-readable title"
+        },
+        "readOnlyHint": {
+          "type": "boolean",
+          "description": "Tool does not modify its environment (default: false)"
+        },
+        "destructiveHint": {
+          "type": "boolean",
+          "description": "Tool may perform destructive updates (default: true)"
+        },
+        "idempotentHint": {
+          "type": "boolean",
+          "description": "Repeated calls with the same arguments have no additional effect (default: false)"
+        },
+        "openWorldHint": {
+          "type": "boolean",
+          "description": "Tool may interact with external entities (default: true)"
+        }
+      }
+    },
+    "IToolResultTextContent": {
+      "type": "object",
+      "description": "Text content in a tool result.\n\nMirrors MCP `TextContent`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "text"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "description": "The text content"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ]
+    },
+    "IToolResultBinaryContent": {
+      "type": "object",
+      "description": "Base64-encoded binary content in a tool result.\n\nMirrors MCP `ImageContent` but generalized to any binary content type.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "binary"
+          ]
+        },
+        "data": {
+          "type": "string",
+          "description": "Base64-encoded data"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content type (e.g. `\"image/png\"`, `\"application/pdf\"`)"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "contentType"
       ]
     },
     "IPermissionRequest": {
@@ -784,6 +969,21 @@
         }
       ],
       "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
+    },
+    "IToolResultContent": {
+      "oneOf": [
+        {},
+        {
+          "$ref": "#/$defs/IToolResultTextContent"
+        },
+        {
+          "$ref": "#/$defs/IToolResultBinaryContent"
+        },
+        {
+          "$ref": "#/$defs/IContentRef"
+        }
+      ],
+      "description": "Content block in a tool result.\n\nMirrors the content blocks in MCP `CallToolResult.content`, plus `IContentRef`\nfor lazy-loading large results (an AHP extension)."
     }
   }
 }

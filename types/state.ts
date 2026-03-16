@@ -76,10 +76,31 @@ export interface ISessionState {
   lifecycle: 'creating' | 'ready' | 'creationFailed';
   /** Error details if creation failed */
   creationError?: IErrorInfo;
+  /** Tools provided by the server (agent host) for this session */
+  serverTools?: IToolDefinition[];
+  /** The client currently providing tools and interactive capabilities to this session */
+  activeClient?: ISessionActiveClient;
   /** Completed turns */
   turns: ITurn[];
   /** Currently in-progress turn */
   activeTurn?: IActiveTurn;
+}
+
+/**
+ * The client currently providing tools and interactive capabilities to a session.
+ *
+ * Only one client may be active per session at a time. The server SHOULD
+ * automatically unset the active client if that client disconnects.
+ *
+ * @category Session State
+ */
+export interface ISessionActiveClient {
+  /** Client identifier (matches `clientId` from `initialize`) */
+  clientId: string;
+  /** Human-readable client name (e.g. `"VS Code"`) */
+  displayName?: string;
+  /** Tools this client provides to the session */
+  tools: IToolDefinition[];
 }
 
 /**
@@ -245,6 +266,14 @@ interface IToolCallBase {
   toolName: string;
   /** Human-readable tool name */
   displayName: string;
+  /**
+   * If this tool is provided by a client, the `clientId` of the owning client.
+   * Absent for server-side tools.
+   *
+   * When set, the identified client is responsible for executing the tool and
+   * dispatching `session/toolCallComplete` with the result.
+   */
+  toolClientId?: string;
 }
 
 /**
@@ -269,8 +298,18 @@ export interface IToolCallResult {
   success: boolean;
   /** Past-tense description of what the tool did */
   pastTenseMessage: StringOrMarkdown;
-  /** Tool output text */
-  toolOutput?: string;
+  /**
+   * Unstructured result content blocks.
+   *
+   * This mirrors the `content` field of MCP `CallToolResult`.
+   */
+  content?: IToolResultContent[];
+  /**
+   * Optional structured result object.
+   *
+   * This mirrors the `structuredContent` field of MCP `CallToolResult`.
+   */
+  structuredContent?: Record<string, unknown>;
   /** Error details if the tool failed */
   error?: { message: string; code?: string };
 }
@@ -360,6 +399,118 @@ export type IToolCallState =
   | IToolCallPendingResultConfirmationState
   | IToolCallCompletedState
   | IToolCallCancelledState;
+
+// ─── Tool Definition Types ───────────────────────────────────────────────────
+
+/**
+ * Describes a tool available in a session, provided by either the server or the active client.
+ *
+ * This type mirrors the MCP `Tool` type from the Model Context Protocol specification
+ * (2025-11-25 draft) and will continue to track it.
+ *
+ * @category Tool Definition Types
+ */
+export interface IToolDefinition {
+  /** Unique tool identifier */
+  name: string;
+  /** Human-readable display name */
+  title?: string;
+  /** Description of what the tool does */
+  description?: string;
+  /**
+   * JSON Schema defining the expected input parameters.
+   *
+   * Optional because client-provided tools may not have formal schemas.
+   * Mirrors MCP `Tool.inputSchema`.
+   */
+  inputSchema?: {
+    type: 'object';
+    properties?: Record<string, object>;
+    required?: string[];
+  };
+  /**
+   * JSON Schema defining the structure of the tool's output.
+   *
+   * Mirrors MCP `Tool.outputSchema`.
+   */
+  outputSchema?: {
+    type: 'object';
+    properties?: Record<string, object>;
+    required?: string[];
+  };
+  /** Behavioral hints about the tool. All properties are advisory. */
+  annotations?: IToolAnnotations;
+  /**
+   * Additional provider-specific metadata.
+   *
+   * Mirrors the MCP `_meta` convention.
+   */
+  _meta?: Record<string, unknown>;
+}
+
+/**
+ * Behavioral hints about a tool. All properties are advisory and not
+ * guaranteed to faithfully describe tool behavior.
+ *
+ * Mirrors MCP `ToolAnnotations` from the Model Context Protocol specification.
+ *
+ * @category Tool Definition Types
+ */
+export interface IToolAnnotations {
+  /** Alternate human-readable title */
+  title?: string;
+  /** Tool does not modify its environment (default: false) */
+  readOnlyHint?: boolean;
+  /** Tool may perform destructive updates (default: true) */
+  destructiveHint?: boolean;
+  /** Repeated calls with the same arguments have no additional effect (default: false) */
+  idempotentHint?: boolean;
+  /** Tool may interact with external entities (default: true) */
+  openWorldHint?: boolean;
+}
+
+// ─── Tool Result Content ─────────────────────────────────────────────────────
+
+/**
+ * Text content in a tool result.
+ *
+ * Mirrors MCP `TextContent`.
+ *
+ * @category Tool Result Content
+ */
+export interface IToolResultTextContent {
+  type: 'text';
+  /** The text content */
+  text: string;
+}
+
+/**
+ * Base64-encoded binary content in a tool result.
+ *
+ * Mirrors MCP `ImageContent` but generalized to any binary content type.
+ *
+ * @category Tool Result Content
+ */
+export interface IToolResultBinaryContent {
+  type: 'binary';
+  /** Base64-encoded data */
+  data: string;
+  /** Content type (e.g. `"image/png"`, `"application/pdf"`) */
+  contentType: string;
+}
+
+/**
+ * Content block in a tool result.
+ *
+ * Mirrors the content blocks in MCP `CallToolResult.content`, plus `IContentRef`
+ * for lazy-loading large results (an AHP extension).
+ *
+ * @category Tool Result Content
+ */
+export type IToolResultContent =
+  | IToolResultTextContent
+  | IToolResultBinaryContent
+  | IContentRef;
 
 // ─── Permission Types ────────────────────────────────────────────────────────
 

@@ -16,6 +16,7 @@ import type {
   StringOrMarkdown,
   ISessionState,
   ISessionSummary,
+  ISessionActiveClient,
   ITurn,
   IActiveTurn,
   IUserMessage,
@@ -30,6 +31,10 @@ import type {
   IToolCallCompletedState,
   IToolCallCancelledState,
   IToolCallState,
+  IToolDefinition,
+  IToolAnnotations,
+  IToolResultTextContent,
+  IToolResultBinaryContent,
   IPermissionRequest,
   IUsageInfo,
   IErrorInfo,
@@ -41,6 +46,9 @@ import type {
   IActionEnvelope,
   ISessionToolCallApprovedAction,
   ISessionToolCallDeniedAction,
+  ISessionServerToolsChangedAction,
+  ISessionActiveClientChangedAction,
+  ISessionActiveClientToolsChangedAction,
 } from '../actions.js';
 
 import type {
@@ -71,6 +79,7 @@ type V1_IAgentInfo = IAgentInfo;
 type V1_ISessionModelInfo = ISessionModelInfo;
 type V1_ISessionState = ISessionState;
 type V1_ISessionSummary = ISessionSummary;
+type V1_ISessionActiveClient = ISessionActiveClient;
 type V1_ITurn = ITurn;
 type V1_IActiveTurn = IActiveTurn;
 type V1_IUserMessage = IUserMessage;
@@ -85,6 +94,10 @@ type V1_IToolCallPendingResultConfirmationState = IToolCallPendingResultConfirma
 type V1_IToolCallCompletedState = IToolCallCompletedState;
 type V1_IToolCallCancelledState = IToolCallCancelledState;
 type V1_IToolCallState = IToolCallState;
+type V1_IToolDefinition = IToolDefinition;
+type V1_IToolAnnotations = IToolAnnotations;
+type V1_IToolResultTextContent = IToolResultTextContent;
+type V1_IToolResultBinaryContent = IToolResultBinaryContent;
 type V1_IPermissionRequest = IPermissionRequest;
 type V1_IUsageInfo = IUsageInfo;
 type V1_IErrorInfo = IErrorInfo;
@@ -93,6 +106,9 @@ type V1_IStateAction = IStateAction;
 type V1_IActionEnvelope = IActionEnvelope;
 type V1_ISessionToolCallApprovedAction = ISessionToolCallApprovedAction;
 type V1_ISessionToolCallDeniedAction = ISessionToolCallDeniedAction;
+type V1_ISessionServerToolsChangedAction = ISessionServerToolsChangedAction;
+type V1_ISessionActiveClientChangedAction = ISessionActiveClientChangedAction;
+type V1_ISessionActiveClientToolsChangedAction = ISessionActiveClientToolsChangedAction;
 type V1_IProtocolNotification = IProtocolNotification;
 
 // ─── Compatibility Assertions ────────────────────────────────────────────────
@@ -156,5 +172,21 @@ type _CheckActionEnvelope = AssertCompatible<V1_IActionEnvelope, IActionEnvelope
 type _CheckToolCallApprovedAction = AssertCompatible<V1_ISessionToolCallApprovedAction, ISessionToolCallApprovedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallDeniedAction = AssertCompatible<V1_ISessionToolCallDeniedAction, ISessionToolCallDeniedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionActiveClient = AssertCompatible<V1_ISessionActiveClient, ISessionActiveClient>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolDefinition = AssertCompatible<V1_IToolDefinition, IToolDefinition>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolAnnotations = AssertCompatible<V1_IToolAnnotations, IToolAnnotations>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolResultTextContent = AssertCompatible<V1_IToolResultTextContent, IToolResultTextContent>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolResultBinaryContent = AssertCompatible<V1_IToolResultBinaryContent, IToolResultBinaryContent>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckServerToolsChangedAction = AssertCompatible<V1_ISessionServerToolsChangedAction, ISessionServerToolsChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckActiveClientChangedAction = AssertCompatible<V1_ISessionActiveClientChangedAction, ISessionActiveClientChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckActiveClientToolsChangedAction = AssertCompatible<V1_ISessionActiveClientToolsChangedAction, ISessionActiveClientToolsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;
