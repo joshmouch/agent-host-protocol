@@ -5,6 +5,7 @@
 
 import { Project } from 'ts-morph';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { generateMarkdownDocs } from './generate-markdown.js';
 import { generateJsonSchemas } from './generate-json-schema.js';
@@ -14,6 +15,7 @@ const ROOT = path.resolve(__dirname, '..');
 const TYPES_DIR = path.join(ROOT, 'types');
 const DOCS_DIR = path.join(ROOT, 'docs', 'reference');
 const SCHEMA_DIR = path.join(ROOT, 'schema');
+const SCHEMA_PUBLIC_DIR = path.join(ROOT, 'docs', 'public', 'schema');
 
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
@@ -35,6 +37,13 @@ if (generateAll || schemaOnly) {
   console.log('Generating JSON Schema...');
   generateJsonSchemas(project, SCHEMA_DIR);
   console.log(`  → schemas written to ${path.relative(ROOT, SCHEMA_DIR)}/`);
+
+  // Copy schemas to docs/public for GitHub Pages serving
+  fs.mkdirSync(SCHEMA_PUBLIC_DIR, { recursive: true });
+  for (const file of fs.readdirSync(SCHEMA_DIR)) {
+    fs.copyFileSync(path.join(SCHEMA_DIR, file), path.join(SCHEMA_PUBLIC_DIR, file));
+  }
+  console.log(`  → schemas copied to ${path.relative(ROOT, SCHEMA_PUBLIC_DIR)}/`);
 }
 
 console.log('Done.');

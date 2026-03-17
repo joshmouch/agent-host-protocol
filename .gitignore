@@ -1,3 +1,8 @@
 node_modules
 docs/.vitepress/dist
 docs/.vitepress/cache
+
+# Generated files (npm run generate)
+docs/reference/
+docs/public/schema/
+schema/

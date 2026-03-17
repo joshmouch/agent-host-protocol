@@ -257,7 +257,7 @@ function generateStateSchema(project: Project): JsonSchema {
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/state.ts — do not edit',
-    $id: 'https://github.com/microsoft/agent-host-protocol/schema/state.schema.json',
+    $id: 'https://microsoft.github.io/agent-host-protocol/schema/state.schema.json',
     title: 'AHP State Types',
     description: 'All state types in the Agent Host Protocol.',
     $defs: {},
@@ -289,7 +289,7 @@ function generateActionsSchema(project: Project): JsonSchema {
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/actions.ts — do not edit',
-    $id: 'https://github.com/microsoft/agent-host-protocol/schema/actions.schema.json',
+    $id: 'https://microsoft.github.io/agent-host-protocol/schema/actions.schema.json',
     title: 'AHP Action Types',
     description: 'All action types in the Agent Host Protocol.',
     $defs: {},
@@ -354,7 +354,7 @@ function generateCommandsSchema(project: Project): JsonSchema {
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/commands.ts — do not edit',
-    $id: 'https://github.com/microsoft/agent-host-protocol/schema/commands.schema.json',
+    $id: 'https://microsoft.github.io/agent-host-protocol/schema/commands.schema.json',
     title: 'AHP Command Types',
     description: 'All command parameter and result types in the Agent Host Protocol.',
     $defs: {},
@@ -382,7 +382,7 @@ function generateNotificationsSchema(project: Project): JsonSchema {
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/notifications.ts — do not edit',
-    $id: 'https://github.com/microsoft/agent-host-protocol/schema/notifications.schema.json',
+    $id: 'https://microsoft.github.io/agent-host-protocol/schema/notifications.schema.json',
     title: 'AHP Notification Types',
     description: 'All notification types in the Agent Host Protocol.',
     $defs: {},
@@ -415,7 +415,7 @@ function generateErrorsSchema(project: Project): JsonSchema {
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/errors.ts — do not edit',
-    $id: 'https://github.com/microsoft/agent-host-protocol/schema/errors.schema.json',
+    $id: 'https://microsoft.github.io/agent-host-protocol/schema/errors.schema.json',
     title: 'AHP Error Codes',
     description: 'Error codes used in the Agent Host Protocol.',
     $defs: {
