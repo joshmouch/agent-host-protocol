@@ -77,10 +77,7 @@
       "description": "Fired when available agent backends or their models change.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "root/agentsChanged"
-          ]
+          "$ref": "#/$defs/ActionType.RootAgentsChanged"
         },
         "agents": {
           "type": "array",
@@ -100,10 +97,7 @@
       "description": "Fired when the number of active sessions changes.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "root/activeSessionsChanged"
-          ]
+          "$ref": "#/$defs/ActionType.RootActiveSessionsChanged"
         },
         "activeSessions": {
           "type": "number",
@@ -120,10 +114,7 @@
       "description": "Session backend initialized successfully.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/ready"
-          ]
+          "$ref": "#/$defs/ActionType.SessionReady"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -140,10 +131,7 @@
       "description": "Session backend failed to initialize.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/creationFailed"
-          ]
+          "$ref": "#/$defs/ActionType.SessionCreationFailed"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -165,10 +153,7 @@
       "description": "User sent a message; server starts agent processing.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/turnStarted"
-          ]
+          "$ref": "#/$defs/ActionType.SessionTurnStarted"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -195,10 +180,7 @@
       "description": "Streaming text chunk from the assistant.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/delta"
-          ]
+          "$ref": "#/$defs/ActionType.SessionDelta"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -225,10 +207,7 @@
       "description": "Structured content appended to the response.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/responsePart"
-          ]
+          "$ref": "#/$defs/ActionType.SessionResponsePart"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -255,10 +234,7 @@
       "description": "A tool call begins — parameters are streaming from the LM.\n\nFor client-provided tools, the server sets `toolClientId` to identify the\nowning client. That client is responsible for executing the tool once it\nreaches the `running` state and dispatching `session/toolCallComplete`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallStart"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallStart"
         },
         "toolName": {
           "type": "string",
@@ -284,10 +260,7 @@
       "description": "Streaming partial parameters for a tool call.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallDelta"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallDelta"
         },
         "content": {
           "type": "string",
@@ -308,10 +281,7 @@
       "description": "Tool call parameters are complete. Transitions to `pending-confirmation`\nor directly to `running` if `confirmed` is set.\n\nFor client-provided tools, the server typically sets `confirmed` to\n`'not-needed'` so the tool transitions directly to `running`, where the\nowning client can begin execution immediately.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallReady"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallReady"
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -336,10 +306,7 @@
       "description": "Client approves a pending tool call. The tool transitions to `running`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallConfirmed"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallConfirmed"
         },
         "approved": {
           "description": "The tool call was approved"
@@ -360,19 +327,19 @@
       "description": "Client denies a pending tool call. The tool transitions to `cancelled`.\n\nFor client-provided tools, the owning client MUST dispatch this if it does\nnot recognize the tool or cannot execute it.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallConfirmed"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallConfirmed"
         },
         "approved": {
           "description": "The tool call was denied"
         },
         "reason": {
-          "type": "string",
-          "enum": [
-            "denied",
-            "skipped"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ToolCallCancellationReason.Denied"
+            },
+            {
+              "$ref": "#/$defs/ToolCallCancellationReason.Skipped"
+            }
           ],
           "description": "Why the tool was cancelled"
         },
@@ -396,10 +363,7 @@
       "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action with the execution result. The server\nSHOULD reject this action if the dispatching client does not match `toolClientId`.\n\nServers waiting on a client tool call MAY time out after a reasonable duration\nif the implementing client disconnects or becomes unresponsive, and dispatch\nthis action with `result.success = false` and an appropriate error.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallComplete"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallComplete"
         },
         "result": {
           "$ref": "#/$defs/IToolCallResult",
@@ -420,10 +384,7 @@
       "description": "Client approves or denies a tool's result.\n\nIf `approved` is `false`, the tool transitions to `cancelled` with reason `result-denied`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/toolCallResultConfirmed"
-          ]
+          "$ref": "#/$defs/ActionType.SessionToolCallResultConfirmed"
         },
         "approved": {
           "type": "boolean",
@@ -440,10 +401,7 @@
       "description": "Permission needed from the user to proceed.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/permissionRequest"
-          ]
+          "$ref": "#/$defs/ActionType.SessionPermissionRequest"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -470,10 +428,7 @@
       "description": "Permission granted or denied.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/permissionResolved"
-          ]
+          "$ref": "#/$defs/ActionType.SessionPermissionResolved"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -505,10 +460,7 @@
       "description": "Turn finished — the assistant is idle.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/turnComplete"
-          ]
+          "$ref": "#/$defs/ActionType.SessionTurnComplete"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -530,10 +482,7 @@
       "description": "Turn was aborted; server stops processing.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/turnCancelled"
-          ]
+          "$ref": "#/$defs/ActionType.SessionTurnCancelled"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -555,10 +504,7 @@
       "description": "Error during turn processing.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/error"
-          ]
+          "$ref": "#/$defs/ActionType.SessionError"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -585,10 +531,7 @@
       "description": "Session title updated (typically auto-generated from conversation).",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/titleChanged"
-          ]
+          "$ref": "#/$defs/ActionType.SessionTitleChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -610,10 +553,7 @@
       "description": "Token usage report for a turn.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/usage"
-          ]
+          "$ref": "#/$defs/ActionType.SessionUsage"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -640,10 +580,7 @@
       "description": "Reasoning/thinking text from the model.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/reasoning"
-          ]
+          "$ref": "#/$defs/ActionType.SessionReasoning"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -670,10 +607,7 @@
       "description": "Model changed for this session.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/modelChanged"
-          ]
+          "$ref": "#/$defs/ActionType.SessionModelChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -695,10 +629,7 @@
       "description": "Server tools for this session have changed.\n\nFull-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/serverToolsChanged"
-          ]
+          "$ref": "#/$defs/ActionType.SessionServerToolsChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -723,10 +654,7 @@
       "description": "The active client for this session has changed.\n\nA client dispatches this action with its own `ISessionActiveClient` to claim\nthe active role, or with `null` to release it. The server SHOULD reject if\nanother client is already active. The server SHOULD automatically dispatch\nthis action with `activeClient: null` when the active client disconnects.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/activeClientChanged"
-          ]
+          "$ref": "#/$defs/ActionType.SessionActiveClientChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -753,10 +681,7 @@
       "description": "The active client's tool list has changed.\n\nFull-replacement semantics: the `tools` array replaces the active client's\nprevious tools entirely. The server SHOULD reject if the dispatching client\nis not the current active client.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "session/activeClientToolsChanged"
-          ]
+          "$ref": "#/$defs/ActionType.SessionActiveClientToolsChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -862,12 +787,7 @@
           "description": "Whether the model supports vision"
         },
         "policyState": {
-          "type": "string",
-          "enum": [
-            "enabled",
-            "disabled",
-            "unconfigured"
-          ],
+          "$ref": "#/$defs/PolicyState",
           "description": "Policy configuration state"
         }
       },
@@ -886,12 +806,7 @@
           "description": "Lightweight session metadata"
         },
         "lifecycle": {
-          "type": "string",
-          "enum": [
-            "creating",
-            "ready",
-            "creationFailed"
-          ],
+          "$ref": "#/$defs/SessionLifecycle",
           "description": "Session initialization state"
         },
         "creationError": {
@@ -968,12 +883,7 @@
           "description": "Session title"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "idle",
-            "in-progress",
-            "error"
-          ],
+          "$ref": "#/$defs/SessionStatus",
           "description": "Current session status"
         },
         "createdAt": {
@@ -1040,12 +950,7 @@
           "description": "Token usage info"
         },
         "state": {
-          "type": "string",
-          "enum": [
-            "complete",
-            "cancelled",
-            "error"
-          ],
+          "$ref": "#/$defs/TurnState",
           "description": "How the turn ended"
         },
         "error": {
@@ -1143,12 +1048,7 @@
       "type": "object",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "file",
-            "directory",
-            "selection"
-          ],
+          "$ref": "#/$defs/AttachmentType",
           "description": "Attachment type"
         },
         "path": {
@@ -1169,10 +1069,7 @@
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "markdown"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.Markdown",
           "description": "Discriminant"
         },
         "content": {
@@ -1190,10 +1087,7 @@
       "description": "A reference to large content stored outside the state tree.",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "contentRef"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.ContentRef",
           "description": "Discriminant"
         },
         "uri": {
@@ -1313,10 +1207,7 @@
       "description": "LM is streaming the tool call parameters.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "streaming"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Streaming"
         },
         "partialInput": {
           "type": "string",
@@ -1336,10 +1227,7 @@
       "description": "Parameters are complete, waiting for client to confirm execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingConfirmation"
         }
       },
       "required": [
@@ -1351,10 +1239,7 @@
       "description": "Tool is actively executing.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "running"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Running"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -1371,10 +1256,7 @@
       "description": "Tool finished executing, waiting for client to approve the result.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-result-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingResultConfirmation"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -1391,10 +1273,7 @@
       "description": "Tool completed successfully or with an error.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "completed"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Completed"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -1411,18 +1290,10 @@
       "description": "Tool call was cancelled before execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "cancelled"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Cancelled"
         },
         "reason": {
-          "type": "string",
-          "enum": [
-            "denied",
-            "skipped",
-            "result-denied"
-          ],
+          "$ref": "#/$defs/ToolCallCancellationReason",
           "description": "Why the tool was cancelled"
         },
         "reasonMessage": {
@@ -1536,10 +1407,7 @@
       "description": "Text content in a tool result.\n\nMirrors MCP `TextContent`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "text"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Text"
         },
         "text": {
           "type": "string",
@@ -1556,10 +1424,7 @@
       "description": "Base64-encoded binary content in a tool result.\n\nMirrors MCP `ImageContent` but generalized to any binary content type.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "binary"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Binary"
         },
         "data": {
           "type": "string",
@@ -1584,14 +1449,7 @@
           "description": "Unique request identifier"
         },
         "permissionKind": {
-          "type": "string",
-          "enum": [
-            "shell",
-            "write",
-            "mcp",
-            "read",
-            "url"
-          ],
+          "$ref": "#/$defs/PermissionKind",
           "description": "Type of permission"
         },
         "toolCallId": {
@@ -1728,15 +1586,6 @@
           "$ref": "#/$defs/IContentRef"
         }
       ]
-    },
-    "ToolCallConfirmationReason": {
-      "type": "string",
-      "enum": [
-        "not-needed",
-        "user-action",
-        "setting"
-      ],
-      "description": "How a tool call was confirmed for execution.\n\n- `'not-needed'` — No confirmation required (auto-approved)\n- `'user-action'` — User explicitly approved\n- `'setting'` — Approved by a persistent user setting"
     },
     "IToolCallState": {
       "oneOf": [

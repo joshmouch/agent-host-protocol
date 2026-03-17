@@ -8,7 +8,7 @@ The client initiates the connection with an `initialize` **request**. The server
 
 ```
 1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?)
-2. Server → Client:  { protocolVersion, serverSeq, snapshots[] }
+2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 
 ### Initialize (Client → Server)
@@ -39,6 +39,7 @@ The client initiates the connection with an `initialize` **request**. The server
   "result": {
     "protocolVersion": 1,
     "serverSeq": 42,
+    "defaultDirectory": "file:///home/testuser",
     "snapshots": [
       {
         "resource": "agenthost:/root",
@@ -51,6 +52,8 @@ The client initiates the connection with an `initialize` **request**. The server
 ```
 
 The `protocolVersion` in the response tells the client what version the server speaks. The client derives `ProtocolCapabilities` from this and gates feature usage accordingly.
+
+If present, `defaultDirectory` provides a server-local starting location for remote filesystem browsing.
 
 If the server cannot accept the connection (e.g. unsupported protocol version), it MUST return a JSON-RPC error. See [Error Codes](/reference/error-codes) for defined codes.
 

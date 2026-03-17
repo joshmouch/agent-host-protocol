@@ -109,13 +109,14 @@ export type {
   IListSessionsResult,
   IFetchContentParams,
   IFetchContentResult,
+  IBrowseDirectoryParams,
+  IDirectoryEntry,
+  IBrowseDirectoryResult,
   IFetchTurnsParams,
   IFetchTurnsResult,
   IUnsubscribeParams,
   IDispatchActionParams,
-  IBrowseDirectoryParams,
   IBrowseDirectoryEntry,
-  IBrowseDirectoryResult,
 } from './commands.js';
 
 export { ReconnectResultType, ContentEncoding } from './commands.js';

@@ -7,13 +7,13 @@ Notifications are ephemeral broadcasts that are **not** part of the state tree. 
 
 ## Protocol Notifications
 
-### `notify/sessionAdded` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L39" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+### `notify/sessionAdded` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L49" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Broadcast to all connected clients when a new session is created.
 
 | Field | Type | Description |
 |---|---|---|
-| `type` | `'notify/sessionAdded'` | Discriminant |
+| `type` | `NotificationType.SessionAdded` |  |
 | `summary` | [ISessionSummary](/reference/state-types#isessionsummary) | Summary of the new session |
 
 **Example:**
@@ -38,13 +38,13 @@ Broadcast to all connected clients when a new session is created.
 }
 ```
 
-### `notify/sessionRemoved` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L64" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+### `notify/sessionRemoved` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/notifications.ts#L74" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Broadcast to all connected clients when a session is disposed.
 
 | Field | Type | Description |
 |---|---|---|
-| `type` | `'notify/sessionRemoved'` | Discriminant |
+| `type` | `NotificationType.SessionRemoved` |  |
 | `session` | [URI](/reference/state-types#uri) | URI of the removed session |
 
 **Example:**

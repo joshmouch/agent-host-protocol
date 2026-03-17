@@ -30,13 +30,13 @@ This MUST be the first message sent by the client.
 | `protocolVersion` | `number` | Yes | Protocol version the server speaks |
 | `serverSeq` | `number` | Yes | Current server sequence number |
 | `snapshots` | [ISnapshot](/reference/state-types#isnapshot)[] | Yes | Snapshots for each `initialSubscriptions` URI |
-| `defaultDirectory` | `string` | No | Default working directory for sessions, if the server has one |
+| `defaultDirectory` | [URI](/reference/state-types#uri) | No | Suggested default directory for remote filesystem browsing |
 
 See [Lifecycle](/specification/lifecycle) for details.
 
 ---
 
-## `reconnect` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L64" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `reconnect` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L74" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Re-establishes a dropped connection. The server replays missed actions or
 provides fresh snapshots.
@@ -58,14 +58,14 @@ provides fresh snapshots.
 
 | Field | Type | Description |
 |---|---|---|
-| `type` | `'replay'` | Discriminant |
+| `type` | `ReconnectResultType.Replay` | Discriminant |
 | `actions` | [IActionEnvelope](/reference/actions#iactionenvelope)[] | Missed action envelopes since `lastSeenServerSeq` |
 
 **Result (snapshot):** When the gap exceeds the replay buffer:
 
 | Field | Type | Description |
 |---|---|---|
-| `type` | `'snapshot'` | Discriminant |
+| `type` | `ReconnectResultType.Snapshot` | Discriminant |
 | `snapshots` | [ISnapshot](/reference/state-types#isnapshot)[] | Fresh snapshots for each subscription |
 
 Reconnect result when the server can replay from the requested sequence.
@@ -76,7 +76,7 @@ See [Lifecycle](/specification/lifecycle) for details.
 
 ---
 
-## `createSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L156" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `createSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L166" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Creates a new session with the specified agent provider.
 
@@ -129,7 +129,7 @@ clients.
 
 ---
 
-## `disposeSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L180" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `disposeSession` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L190" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Disposes a session and cleans up server-side resources.
 
@@ -152,7 +152,7 @@ The server broadcasts a `notify/sessionRemoved` notification to all clients.
 
 ---
 
-## `listSessions` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L200" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `listSessions` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L210" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Returns a list of session summaries. Used to populate session lists and sidebars.
 
@@ -179,7 +179,7 @@ large. Clients fetch it imperatively and maintain a local cache updated by
 
 ---
 
-## `fetchContent` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L238" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `fetchContent` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L258" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Fetches large content referenced by a `ContentRef` in the state tree.
 
@@ -205,7 +205,7 @@ use `utf-8` encoding.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `data` | `string` | Yes | Content encoded as a string |
-| `encoding` | `'base64' \| 'utf-8'` | Yes | How `data` is encoded |
+| `encoding` | `ContentEncoding` | Yes | How `data` is encoded |
 | `mimeType` | `string` | No | MIME type of the content |
 
 **Example:**
@@ -231,7 +231,44 @@ use `utf-8` encoding.
 
 ---
 
-## `fetchTurns` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L283" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+## `browseDirectory` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L293" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
+
+Lists directory entries at a file URI on the server's filesystem.
+
+This is intended for remote folder pickers and similar UI that needs to let
+users navigate the server's local filesystem.
+
+The server MUST return success only if the target exists and is a directory.
+If the target does not exist, is not a directory, or cannot be accessed, the
+server MUST return a JSON-RPC error.
+
+| Property | Value |
+|---|---|
+| Direction | Client → Server |
+| Type | Request |
+
+**Parameters:**
+
+| Field | Type | Description |
+|---|---|---|
+| `uri` | [URI](/reference/state-types#uri) | Directory URI on the server filesystem |
+
+**Result:**
+
+| Field | Type | Description |
+|---|---|---|
+| `entries` | [IDirectoryEntry](#idirectoryentry)[] | Entries directly contained in the requested directory |
+
+This is intended for remote folder pickers and similar UI that needs to let
+users navigate the server's local filesystem.
+
+The server MUST return success only if the target exists and is a directory.
+If the target does not exist, is not a directory, or cannot be accessed, the
+server MUST return a JSON-RPC error.
+
+---
+
+## `fetchTurns` <a href="https://github.com/microsoft/agent-host-protocol/blob/main/types/commands.ts#L344" title="View source" style="float:right;font-size:0.75em;opacity:0.5;text-decoration:none">📄</a>
 
 Fetches historical turns for a session. Used for lazy loading of conversation
 history.

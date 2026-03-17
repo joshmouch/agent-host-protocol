@@ -79,12 +79,7 @@
           "description": "Whether the model supports vision"
         },
         "policyState": {
-          "type": "string",
-          "enum": [
-            "enabled",
-            "disabled",
-            "unconfigured"
-          ],
+          "$ref": "#/$defs/PolicyState",
           "description": "Policy configuration state"
         }
       },
@@ -103,12 +98,7 @@
           "description": "Lightweight session metadata"
         },
         "lifecycle": {
-          "type": "string",
-          "enum": [
-            "creating",
-            "ready",
-            "creationFailed"
-          ],
+          "$ref": "#/$defs/SessionLifecycle",
           "description": "Session initialization state"
         },
         "creationError": {
@@ -185,12 +175,7 @@
           "description": "Session title"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "idle",
-            "in-progress",
-            "error"
-          ],
+          "$ref": "#/$defs/SessionStatus",
           "description": "Current session status"
         },
         "createdAt": {
@@ -257,12 +242,7 @@
           "description": "Token usage info"
         },
         "state": {
-          "type": "string",
-          "enum": [
-            "complete",
-            "cancelled",
-            "error"
-          ],
+          "$ref": "#/$defs/TurnState",
           "description": "How the turn ended"
         },
         "error": {
@@ -360,12 +340,7 @@
       "type": "object",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "file",
-            "directory",
-            "selection"
-          ],
+          "$ref": "#/$defs/AttachmentType",
           "description": "Attachment type"
         },
         "path": {
@@ -386,10 +361,7 @@
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "markdown"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.Markdown",
           "description": "Discriminant"
         },
         "content": {
@@ -407,10 +379,7 @@
       "description": "A reference to large content stored outside the state tree.",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "contentRef"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.ContentRef",
           "description": "Discriminant"
         },
         "uri": {
@@ -530,10 +499,7 @@
       "description": "LM is streaming the tool call parameters.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "streaming"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Streaming"
         },
         "partialInput": {
           "type": "string",
@@ -553,10 +519,7 @@
       "description": "Parameters are complete, waiting for client to confirm execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingConfirmation"
         }
       },
       "required": [
@@ -568,10 +531,7 @@
       "description": "Tool is actively executing.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "running"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Running"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -588,10 +548,7 @@
       "description": "Tool finished executing, waiting for client to approve the result.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-result-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingResultConfirmation"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -608,10 +565,7 @@
       "description": "Tool completed successfully or with an error.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "completed"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Completed"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -628,18 +582,10 @@
       "description": "Tool call was cancelled before execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "cancelled"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Cancelled"
         },
         "reason": {
-          "type": "string",
-          "enum": [
-            "denied",
-            "skipped",
-            "result-denied"
-          ],
+          "$ref": "#/$defs/ToolCallCancellationReason",
           "description": "Why the tool was cancelled"
         },
         "reasonMessage": {
@@ -753,10 +699,7 @@
       "description": "Text content in a tool result.\n\nMirrors MCP `TextContent`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "text"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Text"
         },
         "text": {
           "type": "string",
@@ -773,10 +716,7 @@
       "description": "Base64-encoded binary content in a tool result.\n\nMirrors MCP `ImageContent` but generalized to any binary content type.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "binary"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Binary"
         },
         "data": {
           "type": "string",
@@ -801,14 +741,7 @@
           "description": "Unique request identifier"
         },
         "permissionKind": {
-          "type": "string",
-          "enum": [
-            "shell",
-            "write",
-            "mcp",
-            "read",
-            "url"
-          ],
+          "$ref": "#/$defs/PermissionKind",
           "description": "Type of permission"
         },
         "toolCallId": {
@@ -945,15 +878,6 @@
           "$ref": "#/$defs/IContentRef"
         }
       ]
-    },
-    "ToolCallConfirmationReason": {
-      "type": "string",
-      "enum": [
-        "not-needed",
-        "user-action",
-        "setting"
-      ],
-      "description": "How a tool call was confirmed for execution.\n\n- `'not-needed'` — No confirmation required (auto-approved)\n- `'user-action'` — User explicitly approved\n- `'setting'` — Approved by a persistent user setting"
     },
     "IToolCallState": {
       "oneOf": [
