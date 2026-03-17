@@ -11,6 +11,16 @@ import type { URI, ISessionSummary } from './state.js';
 // ─── Protocol Notifications ──────────────────────────────────────────────────
 
 /**
+ * Discriminant values for all protocol notifications.
+ *
+ * @category Protocol Notifications
+ */
+export const enum NotificationType {
+  SessionAdded = 'notify/sessionAdded',
+  SessionRemoved = 'notify/sessionRemoved',
+}
+
+/**
  * Broadcast to all connected clients when a new session is created.
  *
  * @category Protocol Notifications
@@ -37,7 +47,7 @@ import type { URI, ISessionSummary } from './state.js';
  * ```
  */
 export interface ISessionAddedNotification {
-  type: 'notify/sessionAdded';
+  type: NotificationType.SessionAdded;
   /** Summary of the new session */
   summary: ISessionSummary;
 }
@@ -62,7 +72,7 @@ export interface ISessionAddedNotification {
  * ```
  */
 export interface ISessionRemovedNotification {
-  type: 'notify/sessionRemoved';
+  type: NotificationType.SessionRemoved;
   /** URI of the removed session */
   session: URI;
 }

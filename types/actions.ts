@@ -16,12 +16,56 @@ import type {
   IToolCallResult,
   IToolDefinition,
   ISessionActiveClient,
-  ToolCallConfirmationReason,
   IUsageInfo,
   IPermissionRequest,
 } from './state.js';
 
+import { ToolCallConfirmationReason, ToolCallCancellationReason } from './state.js';
+
+// ─── Action Type Enum ────────────────────────────────────────────────────────
+
+/**
+ * Discriminant values for all state actions.
+ *
+ * @category Actions
+ */
+export const enum ActionType {
+  RootAgentsChanged = 'root/agentsChanged',
+  RootActiveSessionsChanged = 'root/activeSessionsChanged',
+  SessionReady = 'session/ready',
+  SessionCreationFailed = 'session/creationFailed',
+  SessionTurnStarted = 'session/turnStarted',
+  SessionDelta = 'session/delta',
+  SessionResponsePart = 'session/responsePart',
+  SessionToolCallStart = 'session/toolCallStart',
+  SessionToolCallDelta = 'session/toolCallDelta',
+  SessionToolCallReady = 'session/toolCallReady',
+  SessionToolCallConfirmed = 'session/toolCallConfirmed',
+  SessionToolCallComplete = 'session/toolCallComplete',
+  SessionToolCallResultConfirmed = 'session/toolCallResultConfirmed',
+  SessionPermissionRequest = 'session/permissionRequest',
+  SessionPermissionResolved = 'session/permissionResolved',
+  SessionTurnComplete = 'session/turnComplete',
+  SessionTurnCancelled = 'session/turnCancelled',
+  SessionError = 'session/error',
+  SessionTitleChanged = 'session/titleChanged',
+  SessionUsage = 'session/usage',
+  SessionReasoning = 'session/reasoning',
+  SessionModelChanged = 'session/modelChanged',
+  SessionServerToolsChanged = 'session/serverToolsChanged',
+  SessionActiveClientChanged = 'session/activeClientChanged',
+  SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
+}
+
 // ─── Action Envelope ─────────────────────────────────────────────────────────
+
+/**
+ * Identifies the client that originally dispatched an action.
+ */
+export interface IActionOrigin {
+  clientId: string;
+  clientSeq: number;
+}
 
 /**
  * Every action is wrapped in an `ActionEnvelope`.
@@ -29,7 +73,7 @@ import type {
 export interface IActionEnvelope {
   readonly action: IStateAction;
   readonly serverSeq: number;
-  readonly origin: { clientId: string; clientSeq: number } | undefined;
+  readonly origin: IActionOrigin | undefined;
   readonly rejectionReason?: string;
 }
 
@@ -48,6 +92,15 @@ interface IToolCallActionBase {
   turnId: string;
   /** Tool call identifier */
   toolCallId: string;
+  /**
+   * Additional provider-specific metadata for this tool call.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI.
+   * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+   * indicates the tool operated on a terminal (both `input` and `output` may
+   * contain escape sequences).
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**
@@ -57,9 +110,21 @@ interface IToolCallActionBase {
  * @version 1
  */
 export interface IRootAgentsChangedAction {
-  type: 'root/agentsChanged';
+  type: ActionType.RootAgentsChanged;
   /** Updated agent list */
   agents: IAgentInfo[];
+}
+
+/**
+ * Fired when the number of active sessions changes.
+ *
+ * @category Root Actions
+ * @version 1
+ */
+export interface IRootActiveSessionsChangedAction {
+  type: ActionType.RootActiveSessionsChanged;
+  /** Current count of active sessions */
+  activeSessions: number;
 }
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
@@ -71,7 +136,7 @@ export interface IRootAgentsChangedAction {
  * @version 1
  */
 export interface ISessionReadyAction {
-  type: 'session/ready';
+  type: ActionType.SessionReady;
   /** Session URI */
   session: URI;
 }
@@ -83,7 +148,7 @@ export interface ISessionReadyAction {
  * @version 1
  */
 export interface ISessionCreationFailedAction {
-  type: 'session/creationFailed';
+  type: ActionType.SessionCreationFailed;
   /** Session URI */
   session: URI;
   /** Error details */
@@ -98,7 +163,7 @@ export interface ISessionCreationFailedAction {
  * @clientDispatchable
  */
 export interface ISessionTurnStartedAction {
-  type: 'session/turnStarted';
+  type: ActionType.SessionTurnStarted;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -114,7 +179,7 @@ export interface ISessionTurnStartedAction {
  * @version 1
  */
 export interface ISessionDeltaAction {
-  type: 'session/delta';
+  type: ActionType.SessionDelta;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -130,7 +195,7 @@ export interface ISessionDeltaAction {
  * @version 1
  */
 export interface ISessionResponsePartAction {
-  type: 'session/responsePart';
+  type: ActionType.SessionResponsePart;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -150,7 +215,7 @@ export interface ISessionResponsePartAction {
  * @version 1
  */
 export interface ISessionToolCallStartAction extends IToolCallActionBase {
-  type: 'session/toolCallStart';
+  type: ActionType.SessionToolCallStart;
   /** Internal tool name (for debugging/logging) */
   toolName: string;
   /** Human-readable tool name */
@@ -169,7 +234,7 @@ export interface ISessionToolCallStartAction extends IToolCallActionBase {
  * @version 1
  */
 export interface ISessionToolCallDeltaAction extends IToolCallActionBase {
-  type: 'session/toolCallDelta';
+  type: ActionType.SessionToolCallDelta;
   /** Partial parameter content to append */
   content: string;
   /** Updated progress message */
@@ -188,7 +253,7 @@ export interface ISessionToolCallDeltaAction extends IToolCallActionBase {
  * @version 1
  */
 export interface ISessionToolCallReadyAction extends IToolCallActionBase {
-  type: 'session/toolCallReady';
+  type: ActionType.SessionToolCallReady;
   /** Message describing what the tool will do */
   invocationMessage: StringOrMarkdown;
   /** Raw tool input */
@@ -205,7 +270,7 @@ export interface ISessionToolCallReadyAction extends IToolCallActionBase {
  * @clientDispatchable
  */
 export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
-  type: 'session/toolCallConfirmed';
+  type: ActionType.SessionToolCallConfirmed;
   /** The tool call was approved */
   approved: true;
   /** How the tool was confirmed */
@@ -223,11 +288,11 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
  * @clientDispatchable
  */
 export interface ISessionToolCallDeniedAction extends IToolCallActionBase {
-  type: 'session/toolCallConfirmed';
+  type: ActionType.SessionToolCallConfirmed;
   /** The tool call was denied */
   approved: false;
   /** Why the tool was cancelled */
-  reason: 'denied' | 'skipped';
+  reason: ToolCallCancellationReason.Denied | ToolCallCancellationReason.Skipped;
   /** What the user suggested doing instead */
   userSuggestion?: IUserMessage;
   /** Optional explanation for the denial */
@@ -262,7 +327,7 @@ export type ISessionToolCallConfirmedAction =
  * @clientDispatchable
  */
 export interface ISessionToolCallCompleteAction extends IToolCallActionBase {
-  type: 'session/toolCallComplete';
+  type: ActionType.SessionToolCallComplete;
   /** Execution result */
   result: IToolCallResult;
   /** If true, the result requires client approval before finalizing */
@@ -279,7 +344,7 @@ export interface ISessionToolCallCompleteAction extends IToolCallActionBase {
  * @clientDispatchable
  */
 export interface ISessionToolCallResultConfirmedAction extends IToolCallActionBase {
-  type: 'session/toolCallResultConfirmed';
+  type: ActionType.SessionToolCallResultConfirmed;
   /** Whether the result was approved */
   approved: boolean;
 }
@@ -291,7 +356,7 @@ export interface ISessionToolCallResultConfirmedAction extends IToolCallActionBa
  * @version 1
  */
 export interface ISessionPermissionRequestAction {
-  type: 'session/permissionRequest';
+  type: ActionType.SessionPermissionRequest;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -308,7 +373,7 @@ export interface ISessionPermissionRequestAction {
  * @clientDispatchable
  */
 export interface ISessionPermissionResolvedAction {
-  type: 'session/permissionResolved';
+  type: ActionType.SessionPermissionResolved;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -326,7 +391,7 @@ export interface ISessionPermissionResolvedAction {
  * @version 1
  */
 export interface ISessionTurnCompleteAction {
-  type: 'session/turnComplete';
+  type: ActionType.SessionTurnComplete;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -341,7 +406,7 @@ export interface ISessionTurnCompleteAction {
  * @clientDispatchable
  */
 export interface ISessionTurnCancelledAction {
-  type: 'session/turnCancelled';
+  type: ActionType.SessionTurnCancelled;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -355,7 +420,7 @@ export interface ISessionTurnCancelledAction {
  * @version 1
  */
 export interface ISessionErrorAction {
-  type: 'session/error';
+  type: ActionType.SessionError;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -371,7 +436,7 @@ export interface ISessionErrorAction {
  * @version 1
  */
 export interface ISessionTitleChangedAction {
-  type: 'session/titleChanged';
+  type: ActionType.SessionTitleChanged;
   /** Session URI */
   session: URI;
   /** New title */
@@ -385,7 +450,7 @@ export interface ISessionTitleChangedAction {
  * @version 1
  */
 export interface ISessionUsageAction {
-  type: 'session/usage';
+  type: ActionType.SessionUsage;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -401,7 +466,7 @@ export interface ISessionUsageAction {
  * @version 1
  */
 export interface ISessionReasoningAction {
-  type: 'session/reasoning';
+  type: ActionType.SessionReasoning;
   /** Session URI */
   session: URI;
   /** Turn identifier */
@@ -418,7 +483,7 @@ export interface ISessionReasoningAction {
  * @clientDispatchable
  */
 export interface ISessionModelChangedAction {
-  type: 'session/modelChanged';
+  type: ActionType.SessionModelChanged;
   /** Session URI */
   session: URI;
   /** New model ID */
@@ -434,7 +499,7 @@ export interface ISessionModelChangedAction {
  * @version 1
  */
 export interface ISessionServerToolsChangedAction {
-  type: 'session/serverToolsChanged';
+  type: ActionType.SessionServerToolsChanged;
   /** Session URI */
   session: URI;
   /** Updated server tools list (full replacement) */
@@ -454,7 +519,7 @@ export interface ISessionServerToolsChangedAction {
  * @clientDispatchable
  */
 export interface ISessionActiveClientChangedAction {
-  type: 'session/activeClientChanged';
+  type: ActionType.SessionActiveClientChanged;
   /** Session URI */
   session: URI;
   /** The new active client, or `null` to unset */
@@ -473,7 +538,7 @@ export interface ISessionActiveClientChangedAction {
  * @clientDispatchable
  */
 export interface ISessionActiveClientToolsChangedAction {
-  type: 'session/activeClientToolsChanged';
+  type: ActionType.SessionActiveClientToolsChanged;
   /** Session URI */
   session: URI;
   /** Updated client tools list (full replacement) */
@@ -487,6 +552,7 @@ export interface ISessionActiveClientToolsChangedAction {
  */
 export type IStateAction =
   | IRootAgentsChangedAction
+  | IRootActiveSessionsChangedAction
   | ISessionReadyAction
   | ISessionCreationFailedAction
   | ISessionTurnStartedAction

@@ -5,6 +5,9 @@
  */
 
 import type { IStateAction } from '../actions.js';
+import { ActionType } from '../actions.js';
+import type { IProtocolNotification } from '../notifications.js';
+import { NotificationType } from '../notifications.js';
 
 // ─── Protocol Version Constants ──────────────────────────────────────────────
 
@@ -21,30 +24,31 @@ export const MIN_PROTOCOL_VERSION = 1;
  * Adding a new action to `IStateAction` without adding it here is a compile error.
  */
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
-  'root/agentsChanged': 1,
-  'session/ready': 1,
-  'session/creationFailed': 1,
-  'session/turnStarted': 1,
-  'session/delta': 1,
-  'session/responsePart': 1,
-  'session/toolCallStart': 1,
-  'session/toolCallDelta': 1,
-  'session/toolCallReady': 1,
-  'session/toolCallConfirmed': 1,
-  'session/toolCallComplete': 1,
-  'session/toolCallResultConfirmed': 1,
-  'session/permissionRequest': 1,
-  'session/permissionResolved': 1,
-  'session/turnComplete': 1,
-  'session/turnCancelled': 1,
-  'session/error': 1,
-  'session/titleChanged': 1,
-  'session/usage': 1,
-  'session/reasoning': 1,
-  'session/modelChanged': 1,
-  'session/serverToolsChanged': 1,
-  'session/activeClientChanged': 1,
-  'session/activeClientToolsChanged': 1,
+  [ActionType.RootAgentsChanged]: 1,
+  [ActionType.RootActiveSessionsChanged]: 1,
+  [ActionType.SessionReady]: 1,
+  [ActionType.SessionCreationFailed]: 1,
+  [ActionType.SessionTurnStarted]: 1,
+  [ActionType.SessionDelta]: 1,
+  [ActionType.SessionResponsePart]: 1,
+  [ActionType.SessionToolCallStart]: 1,
+  [ActionType.SessionToolCallDelta]: 1,
+  [ActionType.SessionToolCallReady]: 1,
+  [ActionType.SessionToolCallConfirmed]: 1,
+  [ActionType.SessionToolCallComplete]: 1,
+  [ActionType.SessionToolCallResultConfirmed]: 1,
+  [ActionType.SessionPermissionRequest]: 1,
+  [ActionType.SessionPermissionResolved]: 1,
+  [ActionType.SessionTurnComplete]: 1,
+  [ActionType.SessionTurnCancelled]: 1,
+  [ActionType.SessionError]: 1,
+  [ActionType.SessionTitleChanged]: 1,
+  [ActionType.SessionUsage]: 1,
+  [ActionType.SessionReasoning]: 1,
+  [ActionType.SessionModelChanged]: 1,
+  [ActionType.SessionServerToolsChanged]: 1,
+  [ActionType.SessionActiveClientChanged]: 1,
+  [ActionType.SessionActiveClientToolsChanged]: 1,
 };
 
 /**
@@ -52,6 +56,25 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
  */
 export function isActionKnownToVersion(action: IStateAction, clientVersion: number): boolean {
   return ACTION_INTRODUCED_IN[action.type] <= clientVersion;
+}
+
+// ─── Exhaustive Notification → Version Map ─────────────────────────────────
+
+/**
+ * Maps every notification type to the protocol version that introduced it.
+ * Adding a new notification to `IProtocolNotification` without adding it here
+ * is a compile error.
+ */
+export const NOTIFICATION_INTRODUCED_IN: { readonly [K in IProtocolNotification['type']]: number } = {
+  [NotificationType.SessionAdded]: 1,
+  [NotificationType.SessionRemoved]: 1,
+};
+
+/**
+ * Returns whether the given notification type is known to the specified protocol version.
+ */
+export function isNotificationKnownToVersion(notification: IProtocolNotification, clientVersion: number): boolean {
+  return NOTIFICATION_INTRODUCED_IN[notification.type] <= clientVersion;
 }
 
 // ─── Capabilities ────────────────────────────────────────────────────────────

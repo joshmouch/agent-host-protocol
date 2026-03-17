@@ -21,6 +21,17 @@ export type StringOrMarkdown = string | { markdown: string };
 // ─── Root State ──────────────────────────────────────────────────────────────
 
 /**
+ * Policy configuration state for a model.
+ *
+ * @category Root State
+ */
+export const enum PolicyState {
+  Enabled = 'enabled',
+  Disabled = 'disabled',
+  Unconfigured = 'unconfigured',
+}
+
+/**
  * Global state shared with every client subscribed to `agenthost:/root`.
  *
  * @category Root State
@@ -28,6 +39,8 @@ export type StringOrMarkdown = string | { markdown: string };
 export interface IRootState {
   /** Available agent backends and their models */
   agents: IAgentInfo[];
+  /** Number of active (non-disposed) sessions on the server */
+  activeSessions?: number;
 }
 
 /**
@@ -59,10 +72,32 @@ export interface ISessionModelInfo {
   /** Whether the model supports vision */
   supportsVision?: boolean;
   /** Policy configuration state */
-  policyState?: 'enabled' | 'disabled' | 'unconfigured';
+  policyState?: PolicyState;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
+
+/**
+ * Session initialization state.
+ *
+ * @category Session State
+ */
+export const enum SessionLifecycle {
+  Creating = 'creating',
+  Ready = 'ready',
+  CreationFailed = 'creationFailed',
+}
+
+/**
+ * Current session status.
+ *
+ * @category Session State
+ */
+export const enum SessionStatus {
+  Idle = 'idle',
+  InProgress = 'in-progress',
+  Error = 'error',
+}
 
 /**
  * Full state for a single session, loaded when a client subscribes to the session's URI.
@@ -73,7 +108,7 @@ export interface ISessionState {
   /** Lightweight session metadata */
   summary: ISessionSummary;
   /** Session initialization state */
-  lifecycle: 'creating' | 'ready' | 'creationFailed';
+  lifecycle: SessionLifecycle;
   /** Error details if creation failed */
   creationError?: IErrorInfo;
   /** Tools provided by the server (agent host) for this session */
@@ -114,7 +149,7 @@ export interface ISessionSummary {
   /** Session title */
   title: string;
   /** Current session status */
-  status: 'idle' | 'in-progress' | 'error';
+  status: SessionStatus;
   /** Creation timestamp */
   createdAt: number;
   /** Last modification timestamp */
@@ -124,6 +159,28 @@ export interface ISessionSummary {
 }
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
+
+/**
+ * How a turn ended.
+ *
+ * @category Turn Types
+ */
+export const enum TurnState {
+  Complete = 'complete',
+  Cancelled = 'cancelled',
+  Error = 'error',
+}
+
+/**
+ * Type of a message attachment.
+ *
+ * @category Turn Types
+ */
+export const enum AttachmentType {
+  File = 'file',
+  Directory = 'directory',
+  Selection = 'selection',
+}
 
 /**
  * A completed request/response cycle.
@@ -144,7 +201,7 @@ export interface ITurn {
   /** Token usage info */
   usage: IUsageInfo | undefined;
   /** How the turn ended */
-  state: 'complete' | 'cancelled' | 'error';
+  state: TurnState;
   /** Error details if state is `'error'` */
   error?: IErrorInfo;
 }
@@ -188,7 +245,7 @@ export interface IUserMessage {
  */
 export interface IMessageAttachment {
   /** Attachment type */
-  type: 'file' | 'directory' | 'selection';
+  type: AttachmentType;
   /** File/directory path */
   path: string;
   /** Display name */
@@ -198,11 +255,21 @@ export interface IMessageAttachment {
 // ─── Response Parts ──────────────────────────────────────────────────────────
 
 /**
+ * Discriminant for response part types.
+ *
+ * @category Response Parts
+ */
+export const enum ResponsePartKind {
+  Markdown = 'markdown',
+  ContentRef = 'contentRef',
+}
+
+/**
  * @category Response Parts
  */
 export interface IMarkdownResponsePart {
   /** Discriminant */
-  kind: 'markdown';
+  kind: ResponsePartKind.Markdown;
   /** Markdown content */
   content: string;
 }
@@ -214,13 +281,13 @@ export interface IMarkdownResponsePart {
  */
 export interface IContentRef {
   /** Discriminant */
-  kind: 'contentRef';
+  kind: ResponsePartKind.ContentRef;
   /** Content URI */
   uri: string;
   /** Approximate size in bytes */
   sizeHint?: number;
   /** Content MIME type */
-  mimeType?: string;
+  contentType?: string;
 }
 
 /**
@@ -231,23 +298,44 @@ export type IResponsePart = IMarkdownResponsePart | IContentRef;
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
 /**
- * Derived status type for the tool call lifecycle. This is the discriminant
- * field (`status`) across all tool call state interfaces.
+ * Status of a tool call in the lifecycle state machine.
  *
  * @category Tool Call Types
  */
-export type ToolCallStatus = IToolCallState['status'];
+export const enum ToolCallStatus {
+  Streaming = 'streaming',
+  PendingConfirmation = 'pending-confirmation',
+  Running = 'running',
+  PendingResultConfirmation = 'pending-result-confirmation',
+  Completed = 'completed',
+  Cancelled = 'cancelled',
+}
 
 /**
  * How a tool call was confirmed for execution.
  *
- * - `'not-needed'` — No confirmation required (auto-approved)
- * - `'user-action'` — User explicitly approved
- * - `'setting'` — Approved by a persistent user setting
+ * - `NotNeeded` — No confirmation required (auto-approved)
+ * - `UserAction` — User explicitly approved
+ * - `Setting` — Approved by a persistent user setting
  *
  * @category Tool Call Types
  */
-export type ToolCallConfirmationReason = 'not-needed' | 'user-action' | 'setting';
+export const enum ToolCallConfirmationReason {
+  NotNeeded = 'not-needed',
+  UserAction = 'user-action',
+  Setting = 'setting',
+}
+
+/**
+ * Why a tool call was cancelled.
+ *
+ * @category Tool Call Types
+ */
+export const enum ToolCallCancellationReason {
+  Denied = 'denied',
+  Skipped = 'skipped',
+  ResultDenied = 'result-denied',
+}
 
 /**
  * Metadata common to all tool call states.
@@ -274,6 +362,15 @@ interface IToolCallBase {
    * dispatching `session/toolCallComplete` with the result.
    */
   toolClientId?: string;
+  /**
+   * Additional provider-specific metadata for this tool call.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI.
+   * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+   * indicates the tool operated on a terminal (both `input` and `output` may
+   * contain escape sequences).
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**
@@ -320,7 +417,7 @@ export interface IToolCallResult {
  * @category Tool Call Types
  */
 export interface IToolCallStreamingState extends IToolCallBase {
-  status: 'streaming';
+  status: ToolCallStatus.Streaming;
   /** Partial parameters accumulated so far */
   partialInput?: string;
   /** Progress message shown while parameters are streaming */
@@ -333,7 +430,7 @@ export interface IToolCallStreamingState extends IToolCallBase {
  * @category Tool Call Types
  */
 export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolCallParameterFields {
-  status: 'pending-confirmation';
+  status: ToolCallStatus.PendingConfirmation;
 }
 
 /**
@@ -342,7 +439,7 @@ export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolC
  * @category Tool Call Types
  */
 export interface IToolCallRunningState extends IToolCallBase, IToolCallParameterFields {
-  status: 'running';
+  status: ToolCallStatus.Running;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
 }
@@ -353,7 +450,7 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
  * @category Tool Call Types
  */
 export interface IToolCallPendingResultConfirmationState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
-  status: 'pending-result-confirmation';
+  status: ToolCallStatus.PendingResultConfirmation;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
 }
@@ -364,7 +461,7 @@ export interface IToolCallPendingResultConfirmationState extends IToolCallBase, 
  * @category Tool Call Types
  */
 export interface IToolCallCompletedState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
-  status: 'completed';
+  status: ToolCallStatus.Completed;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
 }
@@ -375,9 +472,9 @@ export interface IToolCallCompletedState extends IToolCallBase, IToolCallParamet
  * @category Tool Call Types
  */
 export interface IToolCallCancelledState extends IToolCallBase, IToolCallParameterFields {
-  status: 'cancelled';
+  status: ToolCallStatus.Cancelled;
   /** Why the tool was cancelled */
-  reason: 'denied' | 'skipped' | 'result-denied';
+  reason: ToolCallCancellationReason;
   /** Optional message explaining the cancellation */
   reasonMessage?: StringOrMarkdown;
   /** What the user suggested doing instead */
@@ -472,6 +569,16 @@ export interface IToolAnnotations {
 // ─── Tool Result Content ─────────────────────────────────────────────────────
 
 /**
+ * Discriminant for tool result content types.
+ *
+ * @category Tool Result Content
+ */
+export const enum ToolResultContentType {
+  Text = 'text',
+  Binary = 'binary',
+}
+
+/**
  * Text content in a tool result.
  *
  * Mirrors MCP `TextContent`.
@@ -479,7 +586,7 @@ export interface IToolAnnotations {
  * @category Tool Result Content
  */
 export interface IToolResultTextContent {
-  type: 'text';
+  type: ToolResultContentType.Text;
   /** The text content */
   text: string;
 }
@@ -492,7 +599,7 @@ export interface IToolResultTextContent {
  * @category Tool Result Content
  */
 export interface IToolResultBinaryContent {
-  type: 'binary';
+  type: ToolResultContentType.Binary;
   /** Base64-encoded data */
   data: string;
   /** Content type (e.g. `"image/png"`, `"application/pdf"`) */
@@ -515,17 +622,31 @@ export type IToolResultContent =
 // ─── Permission Types ────────────────────────────────────────────────────────
 
 /**
+ * Type of permission requested.
+ *
+ * @category Permission Types
+ */
+export const enum PermissionKind {
+  Shell = 'shell',
+  Write = 'write',
+  Mcp = 'mcp',
+  Read = 'read',
+  Url = 'url',
+}
+
+/**
  * @category Permission Types
  * @remarks
  * Fields like `serverName`, `toolName`, and `rawRequest` carry agent-specific
  * identifiers on the wire despite the agent-agnostic design principle. These exist
  * for debugging and logging purposes.
+ * @todo @connor4312, split this up into well-separated union types
  */
 export interface IPermissionRequest {
   /** Unique request identifier */
   requestId: string;
   /** Type of permission */
-  permissionKind: 'shell' | 'write' | 'mcp' | 'read' | 'url';
+  permissionKind: PermissionKind;
   /** Associated tool call */
   toolCallId?: string;
   /** File/directory path */

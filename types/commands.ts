@@ -51,6 +51,16 @@ export interface IInitializeResult {
 // ─── reconnect ───────────────────────────────────────────────────────────────
 
 /**
+ * Discriminant for reconnect result types.
+ *
+ * @category Commands
+ */
+export const enum ReconnectResultType {
+  Replay = 'replay',
+  Snapshot = 'snapshot',
+}
+
+/**
  * Re-establishes a dropped connection. The server replays missed actions or
  * provides fresh snapshots.
  *
@@ -77,7 +87,7 @@ export interface IReconnectParams {
  */
 export interface IReconnectReplayResult {
   /** Discriminant */
-  type: 'replay';
+  type: ReconnectResultType.Replay;
   /** Missed action envelopes since `lastSeenServerSeq` */
   actions: IActionEnvelope[];
 }
@@ -87,7 +97,7 @@ export interface IReconnectReplayResult {
  */
 export interface IReconnectSnapshotResult {
   /** Discriminant */
-  type: 'snapshot';
+  type: ReconnectResultType.Snapshot;
   /** Fresh snapshots for each subscription */
   snapshots: ISnapshot[];
 }
@@ -160,6 +170,8 @@ export interface ICreateSessionParams {
   provider?: string;
   /** Model ID to use */
   model?: string;
+  /** Working directory for the session */
+  workingDirectory?: string;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -206,6 +218,16 @@ export type IListSessionsResult = ISessionSummary[];
 // ─── fetchContent ────────────────────────────────────────────────────────────
 
 /**
+ * Encoding of fetched content data.
+ *
+ * @category Commands
+ */
+export const enum ContentEncoding {
+  Base64 = 'base64',
+  Utf8 = 'utf-8',
+}
+
+/**
  * Fetches large content referenced by a `ContentRef` in the state tree.
  *
  * Content references keep the state tree small by storing large data (images,
@@ -245,7 +267,7 @@ export interface IFetchContentResult {
   /** Content encoded as a string */
   data: string;
   /** How `data` is encoded */
-  encoding: 'base64' | 'utf-8';
+  encoding: ContentEncoding;
   /** MIME type of the content */
   mimeType?: string;
 }
@@ -373,4 +395,31 @@ export interface IDispatchActionParams {
   clientSeq: number;
   /** The action to dispatch */
   action: IStateAction;
+}
+
+// ─── browseDirectory ────────────────────────────────────────────────────
+
+/**
+ * Lists the contents of a directory on the server. Used by clients to
+ * present directory pickers or file browsers.
+ *
+ * @category Commands
+ * @method browseDirectory
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ */
+export interface IBrowseDirectoryParams {
+  /** Directory path to browse. Omit to list the default/root directory. */
+  directory?: string;
+}
+
+/**
+ * A single entry in a directory listing.
+ */
+export interface IBrowseDirectoryEntry {
+  /** Entry name (not a full path) */
+  name: string;
+  /** Whether this entry is a directory */
+  isDirectory: boolean;
 }

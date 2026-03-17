@@ -10,10 +10,7 @@
       "description": "Broadcast to all connected clients when a new session is created.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "notify/sessionAdded"
-          ]
+          "$ref": "#/$defs/NotificationType.SessionAdded"
         },
         "summary": {
           "$ref": "#/$defs/ISessionSummary",
@@ -30,10 +27,7 @@
       "description": "Broadcast to all connected clients when a session is disposed.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "notify/sessionRemoved"
-          ]
+          "$ref": "#/$defs/NotificationType.SessionRemoved"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -66,6 +60,10 @@
             "$ref": "#/$defs/IAgentInfo"
           },
           "description": "Available agent backends and their models"
+        },
+        "activeSessions": {
+          "type": "number",
+          "description": "Number of active (non-disposed) sessions on the server"
         }
       },
       "required": [
@@ -126,12 +124,7 @@
           "description": "Whether the model supports vision"
         },
         "policyState": {
-          "type": "string",
-          "enum": [
-            "enabled",
-            "disabled",
-            "unconfigured"
-          ],
+          "$ref": "#/$defs/PolicyState",
           "description": "Policy configuration state"
         }
       },
@@ -150,12 +143,7 @@
           "description": "Lightweight session metadata"
         },
         "lifecycle": {
-          "type": "string",
-          "enum": [
-            "creating",
-            "ready",
-            "creationFailed"
-          ],
+          "$ref": "#/$defs/SessionLifecycle",
           "description": "Session initialization state"
         },
         "creationError": {
@@ -232,12 +220,7 @@
           "description": "Session title"
         },
         "status": {
-          "type": "string",
-          "enum": [
-            "idle",
-            "in-progress",
-            "error"
-          ],
+          "$ref": "#/$defs/SessionStatus",
           "description": "Current session status"
         },
         "createdAt": {
@@ -304,12 +287,7 @@
           "description": "Token usage info"
         },
         "state": {
-          "type": "string",
-          "enum": [
-            "complete",
-            "cancelled",
-            "error"
-          ],
+          "$ref": "#/$defs/TurnState",
           "description": "How the turn ended"
         },
         "error": {
@@ -407,12 +385,7 @@
       "type": "object",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "file",
-            "directory",
-            "selection"
-          ],
+          "$ref": "#/$defs/AttachmentType",
           "description": "Attachment type"
         },
         "path": {
@@ -433,10 +406,7 @@
       "type": "object",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "markdown"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.Markdown",
           "description": "Discriminant"
         },
         "content": {
@@ -454,10 +424,7 @@
       "description": "A reference to large content stored outside the state tree.",
       "properties": {
         "kind": {
-          "type": "string",
-          "enum": [
-            "contentRef"
-          ],
+          "$ref": "#/$defs/ResponsePartKind.ContentRef",
           "description": "Discriminant"
         },
         "uri": {
@@ -468,7 +435,7 @@
           "type": "number",
           "description": "Approximate size in bytes"
         },
-        "mimeType": {
+        "contentType": {
           "type": "string",
           "description": "Content MIME type"
         }
@@ -497,6 +464,11 @@
         "toolClientId": {
           "type": "string",
           "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
         }
       },
       "required": [
@@ -572,10 +544,7 @@
       "description": "LM is streaming the tool call parameters.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "streaming"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Streaming"
         },
         "partialInput": {
           "type": "string",
@@ -595,10 +564,7 @@
       "description": "Parameters are complete, waiting for client to confirm execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingConfirmation"
         }
       },
       "required": [
@@ -610,10 +576,7 @@
       "description": "Tool is actively executing.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "running"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Running"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -630,10 +593,7 @@
       "description": "Tool finished executing, waiting for client to approve the result.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "pending-result-confirmation"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.PendingResultConfirmation"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -650,10 +610,7 @@
       "description": "Tool completed successfully or with an error.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "completed"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Completed"
         },
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
@@ -670,18 +627,10 @@
       "description": "Tool call was cancelled before execution.",
       "properties": {
         "status": {
-          "type": "string",
-          "enum": [
-            "cancelled"
-          ]
+          "$ref": "#/$defs/ToolCallStatus.Cancelled"
         },
         "reason": {
-          "type": "string",
-          "enum": [
-            "denied",
-            "skipped",
-            "result-denied"
-          ],
+          "$ref": "#/$defs/ToolCallCancellationReason",
           "description": "Why the tool was cancelled"
         },
         "reasonMessage": {
@@ -795,10 +744,7 @@
       "description": "Text content in a tool result.\n\nMirrors MCP `TextContent`.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "text"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Text"
         },
         "text": {
           "type": "string",
@@ -815,10 +761,7 @@
       "description": "Base64-encoded binary content in a tool result.\n\nMirrors MCP `ImageContent` but generalized to any binary content type.",
       "properties": {
         "type": {
-          "type": "string",
-          "enum": [
-            "binary"
-          ]
+          "$ref": "#/$defs/ToolResultContentType.Binary"
         },
         "data": {
           "type": "string",
@@ -843,14 +786,7 @@
           "description": "Unique request identifier"
         },
         "permissionKind": {
-          "type": "string",
-          "enum": [
-            "shell",
-            "write",
-            "mcp",
-            "read",
-            "url"
-          ],
+          "$ref": "#/$defs/PermissionKind",
           "description": "Type of permission"
         },
         "toolCallId": {
