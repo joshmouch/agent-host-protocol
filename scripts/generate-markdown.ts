@@ -20,6 +20,11 @@ const GENERATED_HEADER = '<!-- Generated from types/*.ts — do not edit -->\n\n
 
 const GITHUB_REF = process.env.GITHUB_SHA || 'main';
 const GITHUB_BASE = `https://github.com/microsoft/agent-host-protocol/blob/${GITHUB_REF}`;
+const SCHEMA_BASE = '/agent-host-protocol/schema';
+
+function schemaLink(schemaFile: string): string {
+  return `<a href="${SCHEMA_BASE}/${schemaFile}" target="_blank">JSON Schema: <code>${schemaFile}</code></a>\n`;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -357,6 +362,7 @@ function generateStateTypesPage(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('# State Types\n');
   lines.push('Complete reference for all state types in the Agent Host Protocol.\n');
+  lines.push(schemaLink('state.schema.json'));
 
   // Root State
   lines.push('## Root State\n');
@@ -518,6 +524,7 @@ function generateActionsPage(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('# Actions Reference\n');
   lines.push('Complete reference for all action types in the Agent Host Protocol. Actions are the sole mutation mechanism for subscribable state.\n');
+  lines.push(schemaLink('actions.schema.json'));
 
   // Action Envelope
   lines.push('## Action Envelope\n');
@@ -601,6 +608,7 @@ function generateCommandsPage(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('# Commands\n');
   lines.push('Commands are JSON-RPC requests from the client to the server. They return a result or a JSON-RPC error.\n');
+  lines.push(schemaLink('commands.schema.json'));
 
   for (const cmd of COMMAND_ORDER) {
     const paramsIface = getInterface(project, cmd.paramsInterface);
@@ -702,6 +710,7 @@ function generateNotificationsPage(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('# Notifications\n');
   lines.push('Notifications are ephemeral broadcasts that are **not** part of the state tree. They are not processed by reducers and are not replayed on reconnection.\n');
+  lines.push(schemaLink('notifications.schema.json'));
 
   // Protocol Notifications
   lines.push('## Protocol Notifications\n');
@@ -771,6 +780,7 @@ function generateErrorCodesPage(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('# Error Codes\n');
   lines.push('AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) error codes. In addition to the standard JSON-RPC codes, AHP defines application-specific error codes in the `-32000` to `-32099` range.\n');
+  lines.push(schemaLink('errors.schema.json'));
 
   // Get the error code objects from the source
   const errorsFile = project.getSourceFiles().find(sf => sf.getBaseName() === 'errors.ts');

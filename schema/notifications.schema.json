@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$comment": "Generated from types/notifications.ts — do not edit",
-  "$id": "https://github.com/microsoft/agent-host-protocol/schema/notifications.schema.json",
+  "$id": "https://microsoft.github.io/agent-host-protocol/schema/notifications.schema.json",
   "title": "AHP Notification Types",
   "description": "All notification types in the Agent Host Protocol.",
   "$defs": {

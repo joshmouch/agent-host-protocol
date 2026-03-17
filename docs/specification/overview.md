@@ -80,3 +80,17 @@ The specification is organized into the following sections:
 - **[Messages](/reference/messages)** — Complete list of JSON-RPC methods.
 - **[Notifications](/reference/notifications)** — Ephemeral event broadcasts.
 - **[Error Codes](/reference/error-codes)** — Application-specific error codes.
+
+## JSON Schema
+
+Machine-readable [JSON Schema (2020-12)](https://json-schema.org/draft/2020-12/schema) definitions are published for all protocol types:
+
+| Schema | Description |
+|---|---|
+| [state.schema.json](/agent-host-protocol/schema/state.schema.json) | State types |
+| [actions.schema.json](/agent-host-protocol/schema/actions.schema.json) | Action types |
+| [commands.schema.json](/agent-host-protocol/schema/commands.schema.json) | Command parameters and results |
+| [notifications.schema.json](/agent-host-protocol/schema/notifications.schema.json) | Notification types |
+| [errors.schema.json](/agent-host-protocol/schema/errors.schema.json) | Error codes |
+
+These schemas are generated from the TypeScript type definitions and can be used for validation, code generation, or editor support.
