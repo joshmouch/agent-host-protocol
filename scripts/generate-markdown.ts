@@ -47,13 +47,13 @@ function renderHeading(name: string, node: InterfaceDeclaration | TypeAliasDecla
   return `${hashes} \`${name}\` ${sourceLink(node)}\n`;
 }
 
-function getJsDocDescription(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration): string {
+function getJsDocDescription(node: InterfaceDeclaration | TypeAliasDeclaration): string {
   const jsDocs = node.getJsDocs();
   if (jsDocs.length === 0) return '';
   return jsDocs[0].getDescription().trim();
 }
 
-function getJsDocTag(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration, tagName: string): string | undefined {
+function getJsDocTag(node: InterfaceDeclaration | TypeAliasDeclaration, tagName: string): string | undefined {
   const jsDocs = node.getJsDocs();
   for (const doc of jsDocs) {
     const tags = doc.getTags();
@@ -66,7 +66,7 @@ function getJsDocTag(node: InterfaceDeclaration | TypeAliasDeclaration | Variabl
   return undefined;
 }
 
-function hasJsDocTag(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration, tagName: string): boolean {
+function hasJsDocTag(node: InterfaceDeclaration | TypeAliasDeclaration, tagName: string): boolean {
   return getJsDocTag(node, tagName) !== undefined;
 }
 
@@ -291,7 +291,7 @@ function getVariable(project: Project, name: string): VariableDeclaration | unde
   return undefined;
 }
 
-function getJsDocExamples(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration): string[] {
+function getJsDocExamples(node: InterfaceDeclaration | TypeAliasDeclaration): string[] {
   const examples: string[] = [];
   for (const doc of node.getJsDocs()) {
     for (const tag of doc.getTags()) {
@@ -304,7 +304,7 @@ function getJsDocExamples(node: InterfaceDeclaration | TypeAliasDeclaration | Va
   return examples;
 }
 
-function getRemarksText(node: InterfaceDeclaration | TypeAliasDeclaration | VariableDeclaration): string | undefined {
+function getRemarksText(node: InterfaceDeclaration | TypeAliasDeclaration): string | undefined {
   return getJsDocTag(node, 'remarks');
 }
 

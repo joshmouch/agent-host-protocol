@@ -93,6 +93,23 @@ export type {
 
 export { ActionType } from './actions.js';
 
+// Generated action origin types
+export type {
+  IRootAction,
+  ISessionAction,
+  IClientSessionAction,
+  IServerSessionAction,
+} from './action-origin.generated.js';
+
+export { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
+
+// Reducer functions
+export {
+  rootReducer,
+  sessionReducer,
+  isClientDispatchable,
+} from './reducers.js';
+
 // Command types
 export type {
   IInitializeParams,
