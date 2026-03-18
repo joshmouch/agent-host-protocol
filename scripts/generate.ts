@@ -9,6 +9,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { generateMarkdownDocs } from './generate-markdown.js';
 import { generateJsonSchemas } from './generate-json-schema.js';
+import { generateActionOrigin } from './generate-action-origin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -20,7 +21,8 @@ const SCHEMA_PUBLIC_DIR = path.join(ROOT, 'docs', 'public', 'schema');
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
 const schemaOnly = args.includes('--schema');
-const generateAll = !docsOnly && !schemaOnly;
+const actionOriginOnly = args.includes('--action-origin');
+const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly;
 
 // Load the TypeScript project
 const project = new Project({
@@ -44,6 +46,12 @@ if (generateAll || schemaOnly) {
     fs.copyFileSync(path.join(SCHEMA_DIR, file), path.join(SCHEMA_PUBLIC_DIR, file));
   }
   console.log(`  → schemas copied to ${path.relative(ROOT, SCHEMA_PUBLIC_DIR)}/`);
+}
+
+if (generateAll || actionOriginOnly) {
+  console.log('Generating action origin types...');
+  generateActionOrigin(project, TYPES_DIR);
+  console.log(`  → action-origin.generated.ts written to ${path.relative(ROOT, TYPES_DIR)}/`);
 }
 
 console.log('Done.');
