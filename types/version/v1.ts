@@ -61,6 +61,13 @@ import type {
   IListSessionsResult,
 } from '../commands.js';
 
+import type {
+  ICommandMap,
+  IClientNotificationMap,
+  IServerNotificationMap,
+  INotificationMethodParams,
+} from '../messages.js';
+
 // ─── Bidirectional Assignability Check ───────────────────────────────────────
 
 /**
@@ -119,6 +126,10 @@ type V1_ISessionActiveClientChangedAction = ISessionActiveClientChangedAction;
 type V1_ISessionActiveClientToolsChangedAction = ISessionActiveClientToolsChangedAction;
 type V1_IProtocolNotification = IProtocolNotification;
 type V1_IListSessionsResult = IListSessionsResult;
+type V1_ICommandMap = ICommandMap;
+type V1_IClientNotificationMap = IClientNotificationMap;
+type V1_IServerNotificationMap = IServerNotificationMap;
+type V1_INotificationMethodParams = INotificationMethodParams;
 
 // ─── Compatibility Assertions ────────────────────────────────────────────────
 
@@ -205,3 +216,11 @@ type _CheckActiveClientToolsChangedAction = AssertCompatible<V1_ISessionActiveCl
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckListSessionsResult = AssertCompatible<V1_IListSessionsResult, IListSessionsResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckCommandMap = AssertCompatible<V1_ICommandMap, ICommandMap>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckClientNotificationMap = AssertCompatible<V1_IClientNotificationMap, IClientNotificationMap>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckServerNotificationMap = AssertCompatible<V1_IServerNotificationMap, IServerNotificationMap>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckNotificationMethodParams = AssertCompatible<V1_INotificationMethodParams, INotificationMethodParams>;

@@ -11,7 +11,8 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "npm run generate && vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "typecheck": "tsc --noEmit -p types/tsconfig.json"
+    "typecheck": "tsc --noEmit -p types/tsconfig.json",
+    "test": "npm run typecheck && tsx --test types/*.test.ts"
   },
   "repository": {
     "type": "git",
@@ -26,6 +27,7 @@
   },
   "homepage": "https://github.com/microsoft/agent-host-protocol#readme",
   "devDependencies": {
+    "@types/node": "^25.5.0",
     "mermaid": "^11.13.0",
     "ts-morph": "^24.0.0",
     "tsx": "^4.19.0",

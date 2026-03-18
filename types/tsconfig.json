@@ -16,5 +16,5 @@
     "isolatedModules": true
   },
   "include": ["./**/*.ts"],
-  "exclude": ["../dist"]
+  "exclude": ["../dist", "./**/*.test.ts"]
 }

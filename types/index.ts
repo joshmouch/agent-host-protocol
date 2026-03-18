@@ -130,6 +130,27 @@ export type {
 
 export { NotificationType } from './notifications.js';
 
+// Message types (JSON-RPC wire format)
+export type {
+  IJsonRpcRequest,
+  IJsonRpcSuccessResponse,
+  IJsonRpcErrorResponse,
+  IJsonRpcResponse,
+  IJsonRpcNotification,
+  ICommandMap,
+  INotificationMethodParams,
+  IClientNotificationMap,
+  IServerNotificationMap,
+  INotificationMap,
+  IAhpRequest,
+  IAhpSuccessResponse,
+  IAhpResponse,
+  IAhpNotification,
+  IAhpClientNotification,
+  IAhpServerNotification,
+  IProtocolMessage,
+} from './messages.js';
+
 // Error codes
 export {
   JsonRpcErrorCodes,
