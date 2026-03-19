@@ -51,6 +51,7 @@ export default withMermaid(defineConfig({
             { text: 'Overview', link: '/specification/overview' },
             { text: 'Transport', link: '/specification/transport' },
             { text: 'Lifecycle', link: '/specification/lifecycle' },
+            { text: 'Authentication', link: '/specification/authentication' },
             { text: 'Subscriptions', link: '/specification/subscriptions' },
             { text: 'Versioning', link: '/specification/versioning' },
           ],

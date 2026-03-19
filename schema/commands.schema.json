@@ -392,6 +392,108 @@
         "isDirectory"
       ]
     },
+    "IAuthenticateParams": {
+      "type": "object",
+      "description": "Pushes a Bearer token for a protected resource. The `resource` field MUST\nmatch an `IProtectedResourceMetadata.resource` value declared by an agent\nin `IAgentInfo.protectedResources`.\n\nTokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)\n(Bearer Token Usage) semantics. The client obtains the token from the\nauthorization server(s) listed in the resource's metadata and pushes it\nto the server via this command.",
+      "properties": {
+        "resource": {
+          "type": "string",
+          "description": "The protected resource identifier. MUST match a `resource` value from\n`IProtectedResourceMetadata` declared in `IAgentInfo.protectedResources`."
+        },
+        "token": {
+          "type": "string",
+          "description": "Bearer token obtained from the resource's authorization server"
+        }
+      },
+      "required": [
+        "resource",
+        "token"
+      ]
+    },
+    "IAuthenticateResult": {
+      "type": "object",
+      "description": "Result of the `authenticate` command.\n\nAn empty object on success. If the token is invalid or the resource is\nunrecognized, the server MUST return a JSON-RPC error (e.g. `AuthRequired`\n`-32007` or `InvalidParams` `-32602`).",
+      "properties": {}
+    },
+    "IProtectedResourceMetadata": {
+      "type": "object",
+      "description": "Describes a protected resource's authentication requirements using\n[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (OAuth 2.0\nProtected Resource Metadata) semantics.\n\nField names use snake_case to match the RFC 9728 JSON format.",
+      "properties": {
+        "resource": {
+          "type": "string",
+          "description": "REQUIRED. The protected resource's resource identifier, a URL using the\n`https` scheme with no fragment component (e.g. `\"https://api.github.com\"`)."
+        },
+        "resource_name": {
+          "type": "string",
+          "description": "OPTIONAL. Human-readable name of the protected resource."
+        },
+        "authorization_servers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OPTIONAL. JSON array of OAuth authorization server identifier URLs."
+        },
+        "jwks_uri": {
+          "type": "string",
+          "description": "OPTIONAL. URL of the protected resource's JWK Set document."
+        },
+        "scopes_supported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "RECOMMENDED. JSON array of OAuth 2.0 scope values used in authorization requests."
+        },
+        "bearer_methods_supported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OPTIONAL. JSON array of Bearer Token presentation methods supported."
+        },
+        "resource_signing_alg_values_supported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OPTIONAL. JSON array of JWS signing algorithms supported."
+        },
+        "resource_encryption_alg_values_supported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OPTIONAL. JSON array of JWE encryption algorithms (alg) supported."
+        },
+        "resource_encryption_enc_values_supported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "OPTIONAL. JSON array of JWE encryption algorithms (enc) supported."
+        },
+        "resource_documentation": {
+          "type": "string",
+          "description": "OPTIONAL. URL of human-readable documentation for the resource."
+        },
+        "resource_policy_uri": {
+          "type": "string",
+          "description": "OPTIONAL. URL of the resource's data-usage policy."
+        },
+        "resource_tos_uri": {
+          "type": "string",
+          "description": "OPTIONAL. URL of the resource's terms of service."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "AHP extension. Whether authentication is required for this resource.\n\n- `true` (default) — the agent cannot be used without a valid token.\n  The server SHOULD return `AuthRequired` (`-32007`) if the client\n  attempts to use the agent without authenticating.\n- `false` — the agent works without authentication but MAY offer\n  enhanced capabilities when a token is provided.\n\nClients SHOULD treat an absent field the same as `true`."
+        }
+      },
+      "required": [
+        "resource"
+      ]
+    },
     "IRootState": {
       "type": "object",
       "description": "Global state shared with every client subscribed to `agenthost:/root`.",
@@ -433,6 +535,13 @@
             "$ref": "#/$defs/ISessionModelInfo"
           },
           "description": "Available models for this agent"
+        },
+        "protectedResources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IProtectedResourceMetadata"
+          },
+          "description": "Protected resources this agent requires authentication for.\n\nEach entry describes an OAuth 2.0 protected resource using\n[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) semantics.\nClients should obtain tokens from the declared `authorization_servers`\nand push them via the `authenticate` command before creating sessions\nwith this agent."
         }
       },
       "required": [

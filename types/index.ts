@@ -13,6 +13,7 @@ export type {
   StringOrMarkdown,
   IRootState,
   IAgentInfo,
+  IProtectedResourceMetadata,
   ISessionModelInfo,
   ISessionState,
   ISessionSummary,
@@ -133,6 +134,8 @@ export type {
   IFetchTurnsResult,
   IUnsubscribeParams,
   IDispatchActionParams,
+  IAuthenticateParams,
+  IAuthenticateResult,
   IBrowseDirectoryEntry,
 } from './commands.js';
 
@@ -142,10 +145,11 @@ export { ReconnectResultType, ContentEncoding } from './commands.js';
 export type {
   ISessionAddedNotification,
   ISessionRemovedNotification,
+  IAuthRequiredNotification,
   IProtocolNotification,
 } from './notifications.js';
 
-export { NotificationType } from './notifications.js';
+export { NotificationType, AuthRequiredReason } from './notifications.js';
 
 // Message types (JSON-RPC wire format)
 export type {

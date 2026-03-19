@@ -18,6 +18,72 @@ export type URI = string;
  */
 export type StringOrMarkdown = string | { markdown: string };
 
+// ─── Protected Resource Metadata (RFC 9728) ─────────────────────────────────
+
+/**
+ * Describes a protected resource's authentication requirements using
+ * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (OAuth 2.0
+ * Protected Resource Metadata) semantics.
+ *
+ * Field names use snake_case to match the RFC 9728 JSON format.
+ *
+ * @category Authentication
+ * @see {@link https://datatracker.ietf.org/doc/html/rfc9728 | RFC 9728}
+ */
+export interface IProtectedResourceMetadata {
+  /**
+   * REQUIRED. The protected resource's resource identifier, a URL using the
+   * `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
+   */
+  resource: string;
+
+  /** OPTIONAL. Human-readable name of the protected resource. */
+  resource_name?: string;
+
+  /** OPTIONAL. JSON array of OAuth authorization server identifier URLs. */
+  authorization_servers?: string[];
+
+  /** OPTIONAL. URL of the protected resource's JWK Set document. */
+  jwks_uri?: string;
+
+  /** RECOMMENDED. JSON array of OAuth 2.0 scope values used in authorization requests. */
+  scopes_supported?: string[];
+
+  /** OPTIONAL. JSON array of Bearer Token presentation methods supported. */
+  bearer_methods_supported?: string[];
+
+  /** OPTIONAL. JSON array of JWS signing algorithms supported. */
+  resource_signing_alg_values_supported?: string[];
+
+  /** OPTIONAL. JSON array of JWE encryption algorithms (alg) supported. */
+  resource_encryption_alg_values_supported?: string[];
+
+  /** OPTIONAL. JSON array of JWE encryption algorithms (enc) supported. */
+  resource_encryption_enc_values_supported?: string[];
+
+  /** OPTIONAL. URL of human-readable documentation for the resource. */
+  resource_documentation?: string;
+
+  /** OPTIONAL. URL of the resource's data-usage policy. */
+  resource_policy_uri?: string;
+
+  /** OPTIONAL. URL of the resource's terms of service. */
+  resource_tos_uri?: string;
+
+  /**
+   * AHP extension. Whether authentication is required for this resource.
+   *
+   * - `true` (default) — the agent cannot be used without a valid token.
+   *   The server SHOULD return `AuthRequired` (`-32007`) if the client
+   *   attempts to use the agent without authenticating.
+   * - `false` — the agent works without authentication but MAY offer
+   *   enhanced capabilities when a token is provided.
+   *
+   * Clients SHOULD treat an absent field the same as `true`.
+   */
+  required?: boolean;
+}
+
 // ─── Root State ──────────────────────────────────────────────────────────────
 
 /**
@@ -55,6 +121,18 @@ export interface IAgentInfo {
   description: string;
   /** Available models for this agent */
   models: ISessionModelInfo[];
+  /**
+   * Protected resources this agent requires authentication for.
+   *
+   * Each entry describes an OAuth 2.0 protected resource using
+   * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) semantics.
+   * Clients should obtain tokens from the declared `authorization_servers`
+   * and push them via the `authenticate` command before creating sessions
+   * with this agent.
+   *
+   * @see {@link /specification/authentication | Authentication}
+   */
+  protectedResources?: IProtectedResourceMetadata[];
 }
 
 /**

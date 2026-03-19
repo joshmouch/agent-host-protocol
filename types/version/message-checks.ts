@@ -31,7 +31,8 @@ type _ExpectedCommands =
   | 'listSessions'
   | 'fetchContent'
   | 'browseDirectory'
-  | 'fetchTurns';
+  | 'fetchTurns'
+  | 'authenticate';
 
 /** All methods annotated `@messageType Notification` (client → server) in commands.ts. */
 type _ExpectedClientNotifications =

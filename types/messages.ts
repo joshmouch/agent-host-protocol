@@ -26,6 +26,8 @@ import type {
   IFetchTurnsResult,
   IUnsubscribeParams,
   IDispatchActionParams,
+  IAuthenticateParams,
+  IAuthenticateResult,
 } from './commands.js';
 
 import type { IActionEnvelope } from './actions.js';
@@ -86,6 +88,7 @@ export interface ICommandMap {
   'fetchContent': { params: IFetchContentParams; result: IFetchContentResult };
   'browseDirectory': { params: IBrowseDirectoryParams; result: IBrowseDirectoryResult };
   'fetchTurns': { params: IFetchTurnsParams; result: IFetchTurnsResult };
+  'authenticate': { params: IAuthenticateParams; result: IAuthenticateResult };
 }
 
 // ─── Notification Maps ───────────────────────────────────────────────────────

@@ -8,6 +8,18 @@
 
 import type { URI, ISessionSummary } from './state.js';
 
+/**
+ * Reason why authentication is required.
+ *
+ * @category Protocol Notifications
+ */
+export const enum AuthRequiredReason {
+  /** The client has not yet authenticated for the resource */
+  Required = 'required',
+  /** A previously valid token has expired or been revoked */
+  Expired = 'expired',
+}
+
 // ─── Protocol Notifications ──────────────────────────────────────────────────
 
 /**
@@ -18,6 +30,7 @@ import type { URI, ISessionSummary } from './state.js';
 export const enum NotificationType {
   SessionAdded = 'notify/sessionAdded',
   SessionRemoved = 'notify/sessionRemoved',
+  AuthRequired = 'notify/authRequired',
 }
 
 /**
@@ -78,8 +91,43 @@ export interface ISessionRemovedNotification {
 }
 
 /**
+ * Sent by the server when a protected resource requires (re-)authentication.
+ *
+ * This notification is sent when a previously valid token expires or is
+ * revoked, or when the server discovers a new authentication requirement.
+ * Clients should obtain a fresh token and push it via the `authenticate`
+ * command.
+ *
+ * @category Protocol Notifications
+ * @version 1
+ * @see {@link /specification/authentication | Authentication}
+ * @example
+ * ```json
+ * {
+ *   "jsonrpc": "2.0",
+ *   "method": "notification",
+ *   "params": {
+ *     "notification": {
+ *       "type": "notify/authRequired",
+ *       "resource": "https://api.github.com",
+ *       "reason": "expired"
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface IAuthRequiredNotification {
+  type: NotificationType.AuthRequired;
+  /** The protected resource identifier that requires authentication */
+  resource: string;
+  /** Why authentication is required */
+  reason?: AuthRequiredReason;
+}
+
+/**
  * Discriminated union of all protocol notifications.
  */
 export type IProtocolNotification =
   | ISessionAddedNotification
-  | ISessionRemovedNotification;
+  | ISessionRemovedNotification
+  | IAuthRequiredNotification;

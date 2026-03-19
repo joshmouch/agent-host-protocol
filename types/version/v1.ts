@@ -13,6 +13,7 @@ import type {
   IRootState,
   IAgentInfo,
   ISessionModelInfo,
+  IProtectedResourceMetadata,
   StringOrMarkdown,
   ISessionState,
   ISessionSummary,
@@ -55,10 +56,13 @@ import type {
 
 import type {
   IProtocolNotification,
+  IAuthRequiredNotification,
 } from '../notifications.js';
 
 import type {
   IListSessionsResult,
+  IAuthenticateParams,
+  IAuthenticateResult,
 } from '../commands.js';
 
 import type {
@@ -89,6 +93,7 @@ type AssertCompatible<Frozen, _Current extends Frozen> =
 type V1_IRootState = IRootState;
 type V1_StringOrMarkdown = StringOrMarkdown;
 type V1_IAgentInfo = IAgentInfo;
+type V1_IProtectedResourceMetadata = IProtectedResourceMetadata;
 type V1_ISessionModelInfo = ISessionModelInfo;
 type V1_ISessionState = ISessionState;
 type V1_ISessionSummary = ISessionSummary;
@@ -125,7 +130,10 @@ type V1_ISessionServerToolsChangedAction = ISessionServerToolsChangedAction;
 type V1_ISessionActiveClientChangedAction = ISessionActiveClientChangedAction;
 type V1_ISessionActiveClientToolsChangedAction = ISessionActiveClientToolsChangedAction;
 type V1_IProtocolNotification = IProtocolNotification;
+type V1_IAuthRequiredNotification = IAuthRequiredNotification;
 type V1_IListSessionsResult = IListSessionsResult;
+type V1_IAuthenticateParams = IAuthenticateParams;
+type V1_IAuthenticateResult = IAuthenticateResult;
 type V1_ICommandMap = ICommandMap;
 type V1_IClientNotificationMap = IClientNotificationMap;
 type V1_IServerNotificationMap = IServerNotificationMap;
@@ -216,6 +224,14 @@ type _CheckActiveClientToolsChangedAction = AssertCompatible<V1_ISessionActiveCl
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckListSessionsResult = AssertCompatible<V1_IListSessionsResult, IListSessionsResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckAuthenticateParams = AssertCompatible<V1_IAuthenticateParams, IAuthenticateParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckAuthenticateResult = AssertCompatible<V1_IAuthenticateResult, IAuthenticateResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckProtectedResourceMetadata = AssertCompatible<V1_IProtectedResourceMetadata, IProtectedResourceMetadata>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckAuthRequiredNotification = AssertCompatible<V1_IAuthRequiredNotification, IAuthRequiredNotification>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckCommandMap = AssertCompatible<V1_ICommandMap, ICommandMap>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

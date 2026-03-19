@@ -57,6 +57,14 @@ If present, `defaultDirectory` provides a server-local starting location for rem
 
 If the server cannot accept the connection (e.g. unsupported protocol version), it MUST return a JSON-RPC error. See [Error Codes](/reference/error-codes) for defined codes.
 
+## Authentication
+
+Agents MAY declare `protectedResources` in their [`IAgentInfo`](/reference/state-types#iagentinfo). Before interacting with a session backed by such an agent, the client SHOULD authenticate by obtaining a Bearer token from the declared authorization server(s) and pushing it via the [`authenticate`](/reference/commands#authenticate) command.
+
+If a client attempts to create or use a session with an agent that requires authentication and has not yet provided a token, the server SHOULD return error code `-32007` (`AuthRequired`) with the required resource metadata in the error's `data` field.
+
+See [Authentication](/specification/authentication) for the full specification.
+
 ## Session Creation
 
 ```
