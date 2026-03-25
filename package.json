@@ -13,7 +13,7 @@
     "docs:preview": "vitepress preview docs",
     "typecheck": "tsc --noEmit -p types/tsconfig.json",
     "lint": "eslint",
-    "test": "npm run typecheck && npm run lint && node --test types/*.test.ts"
+    "test": "npm run typecheck && npm run lint && tsx --test types/*.test.ts"
   },
   "repository": {
     "type": "git",

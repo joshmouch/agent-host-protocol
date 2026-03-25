@@ -3,6 +3,9 @@ import tsParser from '@typescript-eslint/parser';
 
 export default [
   {
+    ignores: ['docs/**', 'schema/**', 'scripts/**', 'plugins/**', 'node_modules/**'],
+  },
+  {
     files: ['types/**/*.ts'],
     ignores: ['types/**/*.test.ts'],
     linterOptions: { reportUnusedDisableDirectives: 'off' },

@@ -35,10 +35,8 @@ export interface Icon {
    *
    * Consumers SHOULD take appropriate precautions when consuming SVGs as they can contain
    * executable JavaScript.
-   *
-   * @format uri
    */
-  src: string;
+  src: URI;
 
   /**
    * Optional MIME type override if the source MIME type is missing or generic.
