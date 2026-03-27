@@ -1138,3 +1138,45 @@ describe('sessionReducer — customizations', () => {
     });
   });
 });
+
+// ─── Edit Auto-Approve Patterns Tests ────────────────────────────────────────
+
+describe('sessionReducer - editAutoApprovePatterns', () => {
+  it('sets editAutoApprovePatterns from undefined', () => {
+    const state = makeSessionState();
+    assert.equal(state.editAutoApprovePatterns, undefined);
+
+    const patterns = { '**/*': true, '**/.vscode/*.json': false };
+    const result = sessionReducer(state, {
+      type: ActionType.SessionEditAutoApprovePatternsChanged,
+      session: S,
+      patterns,
+    });
+    assert.deepStrictEqual(result.editAutoApprovePatterns, patterns);
+  });
+
+  it('replaces existing editAutoApprovePatterns', () => {
+    const state = makeSessionState({
+      editAutoApprovePatterns: { '**/*': true },
+    });
+    const newPatterns = { '**/*.ts': true, '**/*.lock': false };
+    const result = sessionReducer(state, {
+      type: ActionType.SessionEditAutoApprovePatternsChanged,
+      session: S,
+      patterns: newPatterns,
+    });
+    assert.deepStrictEqual(result.editAutoApprovePatterns, newPatterns);
+  });
+
+  it('can set empty patterns object', () => {
+    const state = makeSessionState({
+      editAutoApprovePatterns: { '**/*': true },
+    });
+    const result = sessionReducer(state, {
+      type: ActionType.SessionEditAutoApprovePatternsChanged,
+      session: S,
+      patterns: {},
+    });
+    assert.deepStrictEqual(result.editAutoApprovePatterns, {});
+  });
+});

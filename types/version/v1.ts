@@ -63,6 +63,7 @@ import type {
   ISessionQueuedMessagesReorderedAction,
   ISessionCustomizationsChangedAction,
   ISessionCustomizationToggledAction,
+  ISessionEditAutoApprovePatternsChangedAction,
 } from '../actions.js';
 
 import type {
@@ -151,6 +152,7 @@ type V1_ISessionPendingMessageRemovedAction = ISessionPendingMessageRemovedActio
 type V1_ISessionQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
 type V1_ISessionCustomizationsChangedAction = ISessionCustomizationsChangedAction;
 type V1_ISessionCustomizationToggledAction = ISessionCustomizationToggledAction;
+type V1_ISessionEditAutoApprovePatternsChangedAction = ISessionEditAutoApprovePatternsChangedAction;
 type V1_IProtocolNotification = IProtocolNotification;
 type V1_IAuthRequiredNotification = IAuthRequiredNotification;
 type V1_IListSessionsResult = IListSessionsResult;
@@ -264,6 +266,8 @@ type _CheckSessionCustomization = AssertCompatible<V1_ISessionCustomization, ISe
 type _CheckCustomizationsChangedAction = AssertCompatible<V1_ISessionCustomizationsChangedAction, ISessionCustomizationsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckCustomizationToggledAction = AssertCompatible<V1_ISessionCustomizationToggledAction, ISessionCustomizationToggledAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckEditAutoApprovePatternsChangedAction = AssertCompatible<V1_ISessionEditAutoApprovePatternsChangedAction, ISessionEditAutoApprovePatternsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

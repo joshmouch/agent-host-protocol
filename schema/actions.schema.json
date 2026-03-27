@@ -712,6 +712,31 @@
         "enabled"
       ]
     },
+    "ISessionEditAutoApprovePatternsChangedAction": {
+      "type": "object",
+      "description": "The session's edit auto-approve patterns have changed.\n\nDispatched by clients to inform the server which file edits may be\nauto-approved. Full-replacement semantics: the `patterns` object\nreplaces the previous `editAutoApprovePatterns` entirely.\n\nThe server enforces these patterns when handling file-edit permission\nrequests: matching writes are auto-approved instead of transitioning\nto `PendingConfirmation`.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionEditAutoApprovePatternsChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "patterns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "Glob patterns for edit auto-approval (full replacement)"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "patterns"
+      ]
+    },
     "ISessionPendingMessageSetAction": {
       "type": "object",
       "description": "A pending message was set (upsert semantics: creates or replaces).\n\nFor steering messages, this always replaces the single steering message.\nFor queued messages, if a message with the given `id` already exists it is\nupdated in place; otherwise it is appended to the queue. If the session is\nidle when a queued message is set, the server SHOULD immediately consume it\nand start a new turn.",
@@ -1094,6 +1119,13 @@
             "$ref": "#/$defs/ISessionCustomization"
           },
           "description": "Server-provided customizations active in this session.\n\nClient-provided customizations are available on\n{@link ISessionActiveClient.customizations | activeClient.customizations}."
+        },
+        "editAutoApprovePatterns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "Client-provided glob patterns that the server uses to decide which\nfile-edit permission requests to auto-approve.\n\nKeys are glob patterns and values are booleans:\n`true` means edits matching the pattern are auto-approved by the server,\n`false` means the server MUST request explicit user confirmation via\n`PendingConfirmation`. The last matching pattern wins.\nEdits not matching any pattern are auto-approved.\n\nClients set this via `editAutoApprovePatterns` on `createSession` or\nby dispatching `session/editAutoApprovePatternsChanged`.\n\nWhen absent, the server SHOULD apply reasonable defaults (e.g. auto-approve\nall edits except known sensitive files like lock files)."
         }
       },
       "required": [
@@ -1772,6 +1804,10 @@
             "$ref": "#/$defs/Icon"
           },
           "description": "Icons for the plugin"
+        },
+        "nonce": {
+          "type": "string",
+          "description": "Opaque version token for this customization.\n\nClients SHOULD include a nonce with every customization they provide.\nConsumers can compare nonces to detect whether a customization has\nchanged since it was last seen, avoiding redundant reloads or copies."
         }
       },
       "required": [
@@ -2043,6 +2079,9 @@
         },
         {
           "$ref": "#/$defs/ISessionCustomizationToggledAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionEditAutoApprovePatternsChangedAction"
         }
       ]
     }
