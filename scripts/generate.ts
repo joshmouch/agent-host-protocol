@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { generateMarkdownDocs } from './generate-markdown.js';
 import { generateJsonSchemas } from './generate-json-schema.js';
 import { generateActionOrigin } from './generate-action-origin.js';
+import { generateSwiftPackage } from './generate-swift.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -17,12 +18,14 @@ const TYPES_DIR = path.join(ROOT, 'types');
 const DOCS_DIR = path.join(ROOT, 'docs', 'reference');
 const SCHEMA_DIR = path.join(ROOT, 'schema');
 const SCHEMA_PUBLIC_DIR = path.join(ROOT, 'docs', 'public', 'schema');
+const SWIFT_DIR = path.join(ROOT, 'examples', 'swift', 'AgentHostProtocol');
 
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
 const schemaOnly = args.includes('--schema');
 const actionOriginOnly = args.includes('--action-origin');
-const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly;
+const swiftOnly = args.includes('--swift');
+const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly && !swiftOnly;
 
 // Load the TypeScript project
 const project = new Project({
@@ -52,6 +55,12 @@ if (generateAll || actionOriginOnly) {
   console.log('Generating action origin types...');
   generateActionOrigin(project, TYPES_DIR);
   console.log(`  → action-origin.generated.ts written to ${path.relative(ROOT, TYPES_DIR)}/`);
+}
+
+if (generateAll || swiftOnly) {
+  console.log('Generating Swift package...');
+  generateSwiftPackage(project, SWIFT_DIR);
+  console.log(`  → Swift package written to ${path.relative(ROOT, SWIFT_DIR)}/`);
 }
 
 console.log('Done.');

@@ -8,6 +8,7 @@
     "generate": "tsx scripts/generate.ts",
     "generate:docs": "tsx scripts/generate.ts --docs",
     "generate:schema": "tsx scripts/generate.ts --schema",
+    "generate:swift": "tsx scripts/generate.ts --swift",
     "docs:dev": "vitepress dev docs",
     "docs:build": "npm run generate && vitepress build docs",
     "docs:preview": "vitepress preview docs",

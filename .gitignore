@@ -5,3 +5,5 @@ docs/.vitepress/cache
 # Generated files (npm run generate)
 docs/reference/
 docs/public/schema/
+examples/swift/AgentHostProtocol/Sources/AgentHostProtocol/Generated/
+examples/swift/AgentHostProtocol/.build/
