@@ -1,5 +1,6 @@
 import AgentHostProtocol
 import SwiftUI
+import UIKit
 
 /// Renders a single response part: markdown text, reasoning, tool call, or content ref.
 struct ResponsePartView: View {
@@ -183,8 +184,8 @@ struct ToolCallPartView: View {
                     ToolResultContentView(content: item)
                 }
             }
-            if let msg = s.error {
-                Text("Error: \(stringOrMarkdownText(msg.invocationMessage))")
+            if !s.success {
+                Text("Tool failed")
                     .font(.caption)
                     .foregroundStyle(.red)
             }
@@ -291,8 +292,8 @@ struct ToolResultContentView: View {
         case .binary(let b):
             if b.contentType?.hasPrefix("image/") == true,
                let data = Data(base64Encoded: b.data),
-               let nsImage = NSImage(data: data) {
-                Image(nsImage: nsImage)
+               let uiImage = UIImage(data: data) {
+                Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxHeight: 300)

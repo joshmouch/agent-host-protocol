@@ -11,11 +11,6 @@ struct AgentPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("New Chat")
-                .font(.headline)
-                .padding(.horizontal)
-                .padding(.top, 8)
-
             List {
                 ForEach(store.agents, id: \.provider) { agent in
                     Section {

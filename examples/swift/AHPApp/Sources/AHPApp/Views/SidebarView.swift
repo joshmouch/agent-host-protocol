@@ -114,12 +114,21 @@ struct NewSessionButton: View {
         }
         .buttonStyle(.borderedProminent)
         .disabled(store.connectionState != .connected)
-        .popover(isPresented: $showingPicker) {
-            AgentPicker { provider, model in
-                showingPicker = false
-                Task { await store.createSession(provider: provider, model: model) }
+        .sheet(isPresented: $showingPicker) {
+            NavigationStack {
+                AgentPicker { provider, model in
+                    showingPicker = false
+                    Task { await store.createSession(provider: provider, model: model) }
+                }
+                .navigationTitle("New Chat")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showingPicker = false }
+                    }
+                }
             }
-            .frame(width: 280, height: 300)
+            .presentationDetents([.medium])
         }
     }
 }

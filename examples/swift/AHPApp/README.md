@@ -1,9 +1,9 @@
 # AHPApp — SwiftUI Agent Host Protocol Client
 
-A macOS SwiftUI application that connects to an [Agent Host Protocol](../../../docs/) server
+An iOS SwiftUI application that connects to an [Agent Host Protocol](../../../docs/) server
 over WebSocket, providing a native chat interface for interacting with AI agents.
 
-> **Platform:** macOS 14+ (Sonoma). Requires Xcode 15+ to build.
+> **Platform:** iOS 17+. Requires Xcode 15+ to build.
 
 ## Features
 
@@ -60,9 +60,9 @@ over WebSocket, providing a native chat interface for interacting with AI agents
 | `Views/SidebarView.swift` | Session list, connection controls, new-chat button |
 | `Views/ChatView.swift` | Message list, input bar, turn rendering |
 | `Views/ResponsePartView.swift` | Renders markdown, reasoning, tool calls, and content refs |
-| `Views/AgentPicker.swift` | Agent/model selection popover |
+| `Views/AgentPicker.swift` | Agent/model selection sheet |
 | `Views/WelcomeView.swift` | Landing screen when no session is selected |
-| `Views/SettingsView.swift` | Server URL configuration |
+| `Views/SettingsView.swift` | Server URL configuration (presented as a sheet) |
 
 ## Building
 
@@ -70,7 +70,7 @@ over WebSocket, providing a native chat interface for interacting with AI agents
 # From this directory
 cd examples/swift/AHPApp
 
-# Build (requires macOS + Xcode)
+# Build (requires macOS + Xcode with iOS SDK)
 swift build
 
 # Or open in Xcode
@@ -87,9 +87,9 @@ The app depends on the sibling `AgentHostProtocol` Swift package (referenced via
 ## Running
 
 1. Start an AHP server (e.g. the Electron utility process or a standalone WebSocket server)
-2. Launch the app — it defaults to `ws://localhost:3000`
-3. Click **Connect** in the sidebar
-4. Click **New Chat** to create a session
+2. Build and run the app in the iOS Simulator or on a device
+3. Tap **Connect** in the sidebar
+4. Tap **New Chat** to create a session
 5. Start chatting!
 
-The server URL can be changed in **Settings** (⌘,).
+The server URL can be changed via the ⚙️ settings button in the toolbar.

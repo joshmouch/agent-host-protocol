@@ -3,6 +3,7 @@ import SwiftUI
 /// Root view: sidebar (session list) + detail (chat).
 struct ContentView: View {
     @Environment(AppStore.self) private var store
+    @State private var showSettings = false
 
     var body: some View {
         @Bindable var store = store
@@ -17,9 +18,20 @@ struct ContentView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .automatic) {
-                ConnectionIndicator()
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 12) {
+                    ConnectionIndicator()
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
             }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+                .environment(store)
         }
         .alert("Error", isPresented: .init(
             get: { store.errorMessage != nil },

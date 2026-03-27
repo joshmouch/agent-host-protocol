@@ -105,7 +105,7 @@ struct InputBar: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             TextField("Message…", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
+                .textFieldStyle(.roundedBorder)
                 .lineLimit(1...8)
                 .focused(isFocused)
                 .onSubmit {
@@ -123,7 +123,7 @@ struct InputBar: View {
                         .foregroundStyle(.red)
                 }
                 .buttonStyle(.plain)
-                .help("Cancel turn")
+                .accessibilityLabel("Cancel turn")
             } else {
                 // Send button
                 Button(action: onSubmit) {
@@ -136,7 +136,7 @@ struct InputBar: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .help("Send message")
+                .accessibilityLabel("Send message")
             }
         }
         .padding(.horizontal, 12)

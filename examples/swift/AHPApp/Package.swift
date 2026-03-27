@@ -5,7 +5,7 @@ import PackageDescription
 let package = Package(
     name: "AHPApp",
     platforms: [
-        .macOS(.v14),
+        .iOS(.v17),
     ],
     dependencies: [
         .package(path: "../AgentHostProtocol"),
