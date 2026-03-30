@@ -25,25 +25,30 @@ struct ResponsePartView: View {
 struct MarkdownPartView: View {
     let part: MarkdownResponsePart
 
-    /// Content with leading/trailing whitespace stripped.
-    private var trimmedContent: String {
-        part.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Cached attributed string — parsed once at init, not on every body evaluation.
+    private let rendered: AttributedString?
+    private let trimmed: String
+
+    init(part: MarkdownResponsePart) {
+        self.part = part
+        let content = part.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.trimmed = content
+        self.rendered = content.isEmpty ? nil : try? AttributedString(
+            markdown: content,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
     }
 
     var body: some View {
-        if !trimmedContent.isEmpty {
-            if let attributed = try? AttributedString(
-                markdown: trimmedContent,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            ) {
-                Text(attributed)
+        if !trimmed.isEmpty {
+            if let rendered {
+                Text(rendered)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
             } else {
-                // Fallback for content that fails to parse as markdown.
-                Text(trimmedContent)
+                Text(trimmed)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)

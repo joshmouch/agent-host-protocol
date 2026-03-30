@@ -465,48 +465,12 @@ struct SidebarView: View {
     // MARK: - Summary Card
 
     private var summaryCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Agent name
-            if let agent = store.agents.first {
-                Text(agent.provider.capitalized)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-            } else {
-                Text("Agent")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-            }
-
-            // Active/idle stats
-            HStack(spacing: 8) {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(healthyGreen)
-                        .frame(width: 8, height: 8)
-                    Text("\(activeSessions) active")
-                        .font(.caption.weight(.medium))
-                }
-
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(.systemGray4))
-                        .frame(width: 8, height: 8)
-                    Text("\(idleSessions) idle")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            // Connection status
-            HStack(spacing: 2) {
-                Image(systemName: store.connectionState == .connected ? "bolt.fill" : "bolt.slash.fill")
-                    .font(.caption2)
-                Text(store.connectionState == .connected ? "Connected" : "Disconnected")
-                    .font(.caption.weight(.medium))
-            }
-            .foregroundStyle(store.connectionState == .connected ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(24)
-        .modifier(SessionCardStyle())
+        SummaryCardView(
+            agentName: store.agents.first?.provider.capitalized,
+            activeSessions: activeSessions,
+            idleSessions: idleSessions,
+            isConnected: store.connectionState == .connected
+        )
     }
 
     // MARK: - Search placement
@@ -529,6 +493,61 @@ struct SidebarView: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 10)
         .padding(.top, 6)
+    }
+}
+
+// MARK: - SummaryCardView
+
+/// Extracted as a standalone Equatable view so SwiftUI can skip re-rendering
+/// when none of the inputs change.
+struct SummaryCardView: View, Equatable {
+    let agentName: String?
+    let activeSessions: Int
+    let idleSessions: Int
+    let isConnected: Bool
+
+    static func == (lhs: SummaryCardView, rhs: SummaryCardView) -> Bool {
+        lhs.agentName == rhs.agentName
+            && lhs.activeSessions == rhs.activeSessions
+            && lhs.idleSessions == rhs.idleSessions
+            && lhs.isConnected == rhs.isConnected
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(agentName ?? "Agent")
+                .font(.system(size: 24, weight: .bold, design: .rounded))
+
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(healthyGreen)
+                        .frame(width: 8, height: 8)
+                    Text("\(activeSessions) active")
+                        .font(.caption.weight(.medium))
+                }
+
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color(.systemGray4))
+                        .frame(width: 8, height: 8)
+                    Text("\(idleSessions) idle")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            HStack(spacing: 2) {
+                Image(systemName: isConnected ? "bolt.fill" : "bolt.slash.fill")
+                    .font(.caption2)
+                Text(isConnected ? "Connected" : "Disconnected")
+                    .font(.caption.weight(.medium))
+            }
+            .foregroundStyle(isConnected ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(24)
+        .modifier(SessionCardStyle())
     }
 }
 

@@ -7,8 +7,12 @@ struct UserBubble: View {
     let text: String
     let attachments: [MessageAttachment]?
 
-    private var parsed: ParsedUserMessage {
-        ParsedUserMessage(raw: text)
+    private let parsed: ParsedUserMessage
+
+    init(text: String, attachments: [MessageAttachment]?) {
+        self.text = text
+        self.attachments = attachments
+        self.parsed = ParsedUserMessage(raw: text)
     }
 
     /// All pills: context tags + file attachments, unified style.
@@ -229,6 +233,27 @@ struct ParsedUserMessage {
     /// Known wrapper tags injected by agent hosts around user messages.
     private static let knownTags = ["reminder", "attachments", "attachment", "userRequest", "context"]
 
+    /// Pre-compiled regexes keyed by tag — avoids recreating NSRegularExpression on every render.
+    private static let stripRegexes: [String: NSRegularExpression] = {
+        var map = [String: NSRegularExpression]()
+        for tag in knownTags {
+            if let regex = try? NSRegularExpression(pattern: "(?s)<\(tag)[^>]*>.*?</\(tag)>") {
+                map[tag] = regex
+            }
+        }
+        return map
+    }()
+
+    private static let captureRegexes: [String: NSRegularExpression] = {
+        var map = [String: NSRegularExpression]()
+        for tag in knownTags {
+            if let regex = try? NSRegularExpression(pattern: "(?s)<\(tag)[^>]*>(.*?)</\(tag)>") {
+                map[tag] = regex
+            }
+        }
+        return map
+    }()
+
     init(raw: String) {
         var cleaned = raw
         var foundTags: [String] = []
@@ -243,13 +268,11 @@ struct ParsedUserMessage {
 
         // Strip all known XML blocks from cleaned text, extract their content
         for tag in ParsedUserMessage.knownTags {
-            let pattern = "(?s)<\(tag)[^>]*>.*?</\(tag)>"
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            guard let regex = ParsedUserMessage.stripRegexes[tag] else { continue }
             let rawRange = NSRange(raw.startIndex..., in: raw)
 
             // Extract inner content
-            let capturePattern = "(?s)<\(tag)[^>]*>(.*?)</\(tag)>"
-            if let capRegex = try? NSRegularExpression(pattern: capturePattern),
+            if let capRegex = ParsedUserMessage.captureRegexes[tag],
                let match = capRegex.firstMatch(in: raw, range: rawRange),
                let range = Range(match.range(at: 1), in: raw) {
                 let extracted = String(raw[range]).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -280,8 +303,7 @@ struct ParsedUserMessage {
     }
 
     private static func extractContent(from text: String, tag: String) -> String? {
-        let pattern = "(?s)<\(tag)[^>]*>(.*?)</\(tag)>"
-        guard let regex = try? NSRegularExpression(pattern: pattern),
+        guard let regex = captureRegexes[tag],
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
               let range = Range(match.range(at: 1), in: text) else { return nil }
         let content = String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
