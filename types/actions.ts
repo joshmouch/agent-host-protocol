@@ -10,6 +10,8 @@ import type {
   URI,
   StringOrMarkdown,
   IAgentInfo,
+  IAgentHostSettings,
+  ISettingsSchema,
   IErrorInfo,
   IUserMessage,
   IResponsePart,
@@ -32,6 +34,8 @@ import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageK
 export const enum ActionType {
   RootAgentsChanged = 'root/agentsChanged',
   RootActiveSessionsChanged = 'root/activeSessionsChanged',
+  RootSettingsSchemaChanged = 'root/settingsSchemaChanged',
+  RootSettingsChanged = 'root/settingsChanged',
   SessionReady = 'session/ready',
   SessionCreationFailed = 'session/creationFailed',
   SessionTurnStarted = 'session/turnStarted',
@@ -58,6 +62,7 @@ export const enum ActionType {
   SessionQueuedMessagesReordered = 'session/queuedMessagesReordered',
   SessionCustomizationsChanged = 'session/customizationsChanged',
   SessionCustomizationToggled = 'session/customizationToggled',
+  SessionSettingsChanged = 'session/settingsChanged',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -128,6 +133,39 @@ export interface IRootActiveSessionsChangedAction {
   type: ActionType.RootActiveSessionsChanged;
   /** Current count of active sessions */
   activeSessions: number;
+}
+
+/**
+ * Fired when the client pushes updated settings to the agent host.
+ *
+ * The settings object is applied as a full replacement (not a merge).
+ * Values should conform to the schema advertised in
+ * {@link IRootState.settingsSchema | settingsSchema}.
+ *
+ * @category Root Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface IRootSettingsChangedAction {
+  type: ActionType.RootSettingsChanged;
+  /** The complete settings values object */
+  settings: IAgentHostSettings;
+}
+
+/**
+ * Fired when the server updates the settings schema.
+ *
+ * The schema describes which settings the agent host supports, their types,
+ * descriptions, and defaults. Clients use this to render a generic settings
+ * editor.
+ *
+ * @category Root Actions
+ * @version 1
+ */
+export interface IRootSettingsSchemaChangedAction {
+  type: ActionType.RootSettingsSchemaChanged;
+  /** JSON Schema describing supported settings */
+  settingsSchema: ISettingsSchema;
 }
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
@@ -644,6 +682,28 @@ export interface ISessionQueuedMessagesReorderedAction {
   order: string[];
 }
 
+/**
+ * Session-level settings have changed.
+ *
+ * Dispatched by clients to override settings for a specific session.
+ * Only settings whose schema has `scope: 'session'` may be set here.
+ * Session values take precedence over root-level settings.
+ *
+ * Full-replacement semantics: the `settings` object replaces the
+ * previous session settings entirely.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionSettingsChangedAction {
+  type: ActionType.SessionSettingsChanged;
+  /** Session URI */
+  session: URI;
+  /** Session-level settings overrides (full replacement) */
+  settings: IAgentHostSettings;
+}
+
 // ─── Discriminated Union ─────────────────────────────────────────────────────
 
 /**
@@ -652,6 +712,8 @@ export interface ISessionQueuedMessagesReorderedAction {
 export type IStateAction =
   | IRootAgentsChangedAction
   | IRootActiveSessionsChangedAction
+  | IRootSettingsSchemaChangedAction
+  | IRootSettingsChangedAction
   | ISessionReadyAction
   | ISessionCreationFailedAction
   | ISessionTurnStartedAction
@@ -677,4 +739,5 @@ export type IStateAction =
   | ISessionPendingMessageRemovedAction
   | ISessionQueuedMessagesReorderedAction
   | ISessionCustomizationsChangedAction
-  | ISessionCustomizationToggledAction;
+  | ISessionCustomizationToggledAction
+  | ISessionSettingsChangedAction;

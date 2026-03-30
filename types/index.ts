@@ -13,6 +13,10 @@ export type {
   StringOrMarkdown,
   IRootState,
   IAgentInfo,
+  ISettingsSchema,
+  ISettingPropertySchema,
+  ISettingRegistration,
+  IAgentHostSettings,
   IProtectedResourceMetadata,
   ISessionModelInfo,
   ISessionState,
@@ -59,6 +63,7 @@ export {
   ToolCallCancellationReason,
   ToolResultContentType,
   PendingMessageKind,
+  SettingScope,
 } from './state.js';
 
 // Action types
@@ -67,6 +72,8 @@ export type {
   IActionOrigin,
   IRootAgentsChangedAction,
   IRootActiveSessionsChangedAction,
+  IRootSettingsSchemaChangedAction,
+  IRootSettingsChangedAction,
   ISessionReadyAction,
   ISessionCreationFailedAction,
   ISessionTurnStartedAction,
@@ -93,6 +100,7 @@ export type {
   ISessionPendingMessageSetAction,
   ISessionPendingMessageRemovedAction,
   ISessionQueuedMessagesReorderedAction,
+  ISessionSettingsChangedAction,
   IStateAction,
 } from './actions.js';
 

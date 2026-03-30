@@ -184,6 +184,12 @@ export function rootReducer(state: IRootState, action: IRootAction, log?: (msg: 
     case ActionType.RootActiveSessionsChanged:
       return { ...state, activeSessions: action.activeSessions };
 
+    case ActionType.RootSettingsSchemaChanged:
+      return { ...state, settingsSchema: action.settingsSchema };
+
+    case ActionType.RootSettingsChanged:
+      return { ...state, settings: action.settings };
+
     default:
       softAssertNever(action, log);
       return state;
@@ -543,6 +549,9 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
       }
       return { ...state, queuedMessages: reordered };
     }
+
+    case ActionType.SessionSettingsChanged:
+      return { ...state, settings: action.settings };
 
     default:
       softAssertNever(action, log);

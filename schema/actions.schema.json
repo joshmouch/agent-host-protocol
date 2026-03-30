@@ -109,6 +109,40 @@
         "activeSessions"
       ]
     },
+    "IRootSettingsChangedAction": {
+      "type": "object",
+      "description": "Fired when the client pushes updated settings to the agent host.\n\nThe settings object is applied as a full replacement (not a merge).\nValues should conform to the schema advertised in\n{@link IRootState.settingsSchema | settingsSchema}.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.RootSettingsChanged"
+        },
+        "settings": {
+          "$ref": "#/$defs/IAgentHostSettings",
+          "description": "The complete settings values object"
+        }
+      },
+      "required": [
+        "type",
+        "settings"
+      ]
+    },
+    "IRootSettingsSchemaChangedAction": {
+      "type": "object",
+      "description": "Fired when the server updates the settings schema.\n\nThe schema describes which settings the agent host supports, their types,\ndescriptions, and defaults. Clients use this to render a generic settings\neditor.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.RootSettingsSchemaChanged"
+        },
+        "settingsSchema": {
+          "$ref": "#/$defs/ISettingsSchema",
+          "description": "JSON Schema describing supported settings"
+        }
+      },
+      "required": [
+        "type",
+        "settingsSchema"
+      ]
+    },
     "ISessionReadyAction": {
       "type": "object",
       "description": "Session backend initialized successfully.",
@@ -796,6 +830,28 @@
         "order"
       ]
     },
+    "ISessionSettingsChangedAction": {
+      "type": "object",
+      "description": "Session-level settings have changed.\n\nDispatched by clients to override settings for a specific session.\nOnly settings whose schema has `scope: 'session'` may be set here.\nSession values take precedence over root-level settings.\n\nFull-replacement semantics: the `settings` object replaces the\nprevious session settings entirely.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionSettingsChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "settings": {
+          "$ref": "#/$defs/IAgentHostSettings",
+          "description": "Session-level settings overrides (full replacement)"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "settings"
+      ]
+    },
     "ISessionToolCallConfirmedAction": {
       "oneOf": [
         {},
@@ -919,6 +975,117 @@
         "resource"
       ]
     },
+    "ISettingPropertySchema": {
+      "type": "object",
+      "description": "JSON Schema for a single setting property.\n\nSupports standard JSON Schema draft-2020-12 keywords for use in\ngeneric schema-driven settings editors.",
+      "properties": {
+        "type": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "description": "JSON Schema type keyword (e.g. `'string'`, `'object'`, `'boolean'`)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of this setting."
+        },
+        "markdownDescription": {
+          "type": "string",
+          "description": "Markdown-formatted description of this setting."
+        },
+        "default": {
+          "description": "Default value for this setting."
+        },
+        "enum": {
+          "type": "array",
+          "items": {},
+          "description": "Allowed values for this setting."
+        },
+        "enumDescriptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Human-readable descriptions for each enum value."
+        },
+        "items": {
+          "$ref": "#/$defs/ISettingPropertySchema",
+          "description": "Schema for array items."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ISettingPropertySchema"
+          },
+          "description": "Schemas for object properties."
+        },
+        "additionalProperties": {
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/ISettingPropertySchema"
+            }
+          ],
+          "description": "Schema for additional object properties, or `false` to disallow them."
+        }
+      }
+    },
+    "ISettingRegistration": {
+      "type": "object",
+      "description": "A top-level setting registration in the settings schema.\n\nExtends {@link ISettingPropertySchema} with protocol-specific metadata\nsuch as {@link scope} that only applies at the top level, not to nested\nsub-schemas within a setting's type definition.",
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/SettingScope",
+          "description": "The scope at which this setting can be configured.\n\n- `'root'` — host-wide only; applies to all sessions.\n- `'session'` — can be overridden per session. The session value takes\n  precedence when set; otherwise the root value applies.\n\nDefaults to `'root'` when not specified."
+        }
+      }
+    },
+    "ISettingsSchema": {
+      "type": "object",
+      "description": "JSON Schema describing the settings an agent host supports.\n\nThe top-level schema is always `type: 'object'` with flat dotted keys\nas properties (e.g. `'tools.edits.autoApprove'`). Clients can use this\nschema to render a generic settings editor.\n\nThe server advertises the schema via `root/settingsSchemaChanged`.\nClients push values (conforming to this schema) via `root/settingsChanged`.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "object"
+          ],
+          "description": "Always `'object'` for the top-level settings schema."
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ISettingRegistration"
+          },
+          "description": "Each key is a flat dotted setting name, value is its registration."
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "IAgentHostSettings": {
+      "type": "object",
+      "description": "Settings values for an agent host.\n\nWell-known settings are explicitly typed for compile-time safety.\nThe index signature allows additional dynamic settings that the server\nmay advertise at runtime via {@link ISettingsSchema}.",
+      "properties": {
+        "tools.edits.autoApprove": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "Glob-pattern map controlling which file-edit tool calls are auto-approved.\n\nKeys are glob patterns, values are booleans: `true` means edits matching\nthe pattern are auto-approved, `false` means the server MUST request\nexplicit user confirmation. The last matching pattern wins.\n\nEquivalent to VS Code's `chat.tools.edits.autoApprove` setting."
+        }
+      }
+    },
     "IRootState": {
       "type": "object",
       "description": "Global state shared with every client subscribed to `agenthost:/root`.",
@@ -933,6 +1100,14 @@
         "activeSessions": {
           "type": "number",
           "description": "Number of active (non-disposed) sessions on the server"
+        },
+        "settingsSchema": {
+          "$ref": "#/$defs/ISettingsSchema",
+          "description": "JSON Schema describing the settings this agent host supports.\n\nUpdated by the server via `root/settingsSchemaChanged`. Clients use\nthis to render a settings editor and to validate setting values."
+        },
+        "settings": {
+          "$ref": "#/$defs/IAgentHostSettings",
+          "description": "Current settings values, conforming to {@link settingsSchema}.\n\nWell-known keys are typed (e.g. `'tools.edits.autoApprove'`).\nAdditional dynamic keys may appear based on the server's schema.\n\nClients push settings via `root/settingsChanged`. The server applies\nthe object as a whole (full replace, not a merge)."
         }
       },
       "required": [
@@ -1094,6 +1269,10 @@
             "$ref": "#/$defs/ISessionCustomization"
           },
           "description": "Server-provided customizations active in this session.\n\nClient-provided customizations are available on\n{@link ISessionActiveClient.customizations | activeClient.customizations}."
+        },
+        "settings": {
+          "$ref": "#/$defs/IAgentHostSettings",
+          "description": "Session-level settings overrides.\n\nOnly settings whose schema has `scope: 'session'` may be set here.\nSession values take precedence over the root-level\n{@link IRootState.settings | settings}.\n\nClients push session settings via `session/settingsChanged`."
         }
       },
       "required": [
@@ -1971,6 +2150,12 @@
           "$ref": "#/$defs/IRootActiveSessionsChangedAction"
         },
         {
+          "$ref": "#/$defs/IRootSettingsSchemaChangedAction"
+        },
+        {
+          "$ref": "#/$defs/IRootSettingsChangedAction"
+        },
+        {
           "$ref": "#/$defs/ISessionReadyAction"
         },
         {
@@ -2047,6 +2232,9 @@
         },
         {
           "$ref": "#/$defs/ISessionCustomizationToggledAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionSettingsChangedAction"
         }
       ]
     }

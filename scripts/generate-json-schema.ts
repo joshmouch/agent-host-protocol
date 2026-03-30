@@ -183,7 +183,9 @@ function interfaceToSchema(iface: InterfaceDeclaration, project: Project): JsonS
   };
 
   for (const prop of iface.getProperties()) {
-    const name = prop.getName();
+    const rawName = prop.getName();
+    // Strip surrounding quotes from string-literal property names (e.g. 'tools.edits.autoApprove')
+    const name = rawName.replace(/^['"]|['"]$/g, '');
     const typeText = getPropertyType(prop);
     const desc = getPropertyDescription(prop);
     const propSchema = typeTextToSchema(typeText, project);

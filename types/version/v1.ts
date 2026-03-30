@@ -12,6 +12,10 @@
 import type {
   IRootState,
   IAgentInfo,
+  ISettingsSchema,
+  ISettingPropertySchema,
+  ISettingRegistration,
+  IAgentHostSettings,
   ISessionModelInfo,
   IProtectedResourceMetadata,
   StringOrMarkdown,
@@ -53,6 +57,8 @@ import type {
   IActionEnvelope,
   IActionOrigin,
   IRootActiveSessionsChangedAction,
+  IRootSettingsSchemaChangedAction,
+  IRootSettingsChangedAction,
   ISessionToolCallApprovedAction,
   ISessionToolCallDeniedAction,
   ISessionServerToolsChangedAction,
@@ -63,6 +69,7 @@ import type {
   ISessionQueuedMessagesReorderedAction,
   ISessionCustomizationsChangedAction,
   ISessionCustomizationToggledAction,
+  ISessionSettingsChangedAction,
 } from '../actions.js';
 
 import type {
@@ -106,6 +113,10 @@ type AssertCompatible<Frozen, _Current extends Frozen> =
 type V1_IRootState = IRootState;
 type V1_StringOrMarkdown = StringOrMarkdown;
 type V1_IAgentInfo = IAgentInfo;
+type V1_ISettingsSchema = ISettingsSchema;
+type V1_ISettingPropertySchema = ISettingPropertySchema;
+type V1_ISettingRegistration = ISettingRegistration;
+type V1_IAgentHostSettings = IAgentHostSettings;
 type V1_IProtectedResourceMetadata = IProtectedResourceMetadata;
 type V1_ISessionModelInfo = ISessionModelInfo;
 type V1_ISessionState = ISessionState;
@@ -153,6 +164,9 @@ type V1_ISessionPendingMessageRemovedAction = ISessionPendingMessageRemovedActio
 type V1_ISessionQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedAction;
 type V1_ISessionCustomizationsChangedAction = ISessionCustomizationsChangedAction;
 type V1_ISessionCustomizationToggledAction = ISessionCustomizationToggledAction;
+type V1_ISessionSettingsChangedAction = ISessionSettingsChangedAction;
+type V1_IRootSettingsChangedAction = IRootSettingsChangedAction;
+type V1_IRootSettingsSchemaChangedAction = IRootSettingsSchemaChangedAction;
 type V1_IProtocolNotification = IProtocolNotification;
 type V1_IAuthRequiredNotification = IAuthRequiredNotification;
 type V1_IListSessionsResult = IListSessionsResult;
@@ -176,6 +190,14 @@ type _CheckRootState = AssertCompatible<V1_IRootState, IRootState>;
 type _CheckStringOrMarkdown = AssertCompatible<V1_StringOrMarkdown, StringOrMarkdown>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckAgentInfo = AssertCompatible<V1_IAgentInfo, IAgentInfo>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSettingsSchema = AssertCompatible<V1_ISettingsSchema, ISettingsSchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSettingPropertySchema = AssertCompatible<V1_ISettingPropertySchema, ISettingPropertySchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSettingRegistration = AssertCompatible<V1_ISettingRegistration, ISettingRegistration>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckAgentHostSettings = AssertCompatible<V1_IAgentHostSettings, IAgentHostSettings>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionModelInfo = AssertCompatible<V1_ISessionModelInfo, ISessionModelInfo>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -229,6 +251,10 @@ type _CheckActionOrigin = AssertCompatible<V1_IActionOrigin, IActionOrigin>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckActiveSessionsChangedAction = AssertCompatible<V1_IRootActiveSessionsChangedAction, IRootActiveSessionsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSettingsChangedAction = AssertCompatible<V1_IRootSettingsChangedAction, IRootSettingsChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSettingsSchemaChangedAction = AssertCompatible<V1_IRootSettingsSchemaChangedAction, IRootSettingsSchemaChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallApprovedAction = AssertCompatible<V1_ISessionToolCallApprovedAction, ISessionToolCallApprovedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallDeniedAction = AssertCompatible<V1_ISessionToolCallDeniedAction, ISessionToolCallDeniedAction>;
@@ -268,6 +294,8 @@ type _CheckSessionCustomization = AssertCompatible<V1_ISessionCustomization, ISe
 type _CheckCustomizationsChangedAction = AssertCompatible<V1_ISessionCustomizationsChangedAction, ISessionCustomizationsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckCustomizationToggledAction = AssertCompatible<V1_ISessionCustomizationToggledAction, ISessionCustomizationToggledAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionSettingsChangedAction = AssertCompatible<V1_ISessionSettingsChangedAction, ISessionSettingsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, IProtocolNotification>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

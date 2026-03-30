@@ -27,6 +27,7 @@ import {
   ToolCallCancellationReason,
   ResponsePartKind,
   PendingMessageKind,
+  SettingScope,
 } from './state.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)));
@@ -223,6 +224,72 @@ describe('rootReducer', () => {
     const agents = [{ provider: 'x', displayName: 'X', description: 'x', models: [] }];
     rootReducer(state, { type: ActionType.RootAgentsChanged, agents });
     assert.deepStrictEqual(state.agents, []);
+  });
+
+  it('handles root/settingsChanged from undefined', () => {
+    const state = makeRootState();
+    assert.equal(state.settings, undefined);
+    const settings = { 'tools.edits.autoApprove': { '**/*.lock': false } };
+    const next = rootReducer(state, { type: ActionType.RootSettingsChanged, settings });
+    assert.deepStrictEqual(next.settings, settings);
+    // Well-known key is typed
+    assert.deepStrictEqual(next.settings!['tools.edits.autoApprove'], { '**/*.lock': false });
+  });
+
+  it('handles root/settingsChanged replacing existing settings', () => {
+    const state = makeRootState({ settings: { 'tools.edits.autoApprove': { '**/*': true } } });
+    const settings = { 'tools.edits.autoApprove': { '**/*.lock': false } };
+    const next = rootReducer(state, { type: ActionType.RootSettingsChanged, settings });
+    assert.deepStrictEqual(next.settings, settings);
+  });
+
+  it('root/settingsChanged preserves other root state fields', () => {
+    const agents = [{ provider: 'copilot', displayName: 'Copilot', description: 'AI', models: [] }];
+    const state = makeRootState({ agents, activeSessions: 3 });
+    const settings = { 'tools.edits.autoApprove': { '**/*.env': false } };
+    const next = rootReducer(state, { type: ActionType.RootSettingsChanged, settings });
+    assert.deepStrictEqual(next.agents, agents);
+    assert.equal(next.activeSessions, 3);
+    assert.deepStrictEqual(next.settings, settings);
+  });
+
+  it('root/settingsChanged supports dynamic keys alongside well-known ones', () => {
+    const state = makeRootState();
+    const settings = {
+      'tools.edits.autoApprove': { '**/*': true },
+      'some.dynamic.setting': 42,
+    };
+    const next = rootReducer(state, { type: ActionType.RootSettingsChanged, settings });
+    assert.deepStrictEqual(next.settings!['tools.edits.autoApprove'], { '**/*': true });
+    assert.equal(next.settings!['some.dynamic.setting'], 42);
+  });
+
+  it('handles root/settingsSchemaChanged', () => {
+    const state = makeRootState();
+    assert.equal(state.settingsSchema, undefined);
+    const settingsSchema = {
+      type: 'object' as const,
+      properties: {
+        'tools.edits.autoApprove': {
+          type: 'object',
+          description: 'Glob patterns controlling edit auto-approval',
+          default: { '**/*': true, '**/.vscode/*.json': false },
+          additionalProperties: { type: 'boolean' },
+          scope: SettingScope.Session,
+        },
+      },
+    };
+    const next = rootReducer(state, { type: ActionType.RootSettingsSchemaChanged, settingsSchema });
+    assert.deepStrictEqual(next.settingsSchema, settingsSchema);
+  });
+
+  it('root/settingsSchemaChanged preserves settings values', () => {
+    const settings = { 'tools.edits.autoApprove': { '**/*': true } };
+    const state = makeRootState({ settings });
+    const settingsSchema = { type: 'object' as const, properties: {} };
+    const next = rootReducer(state, { type: ActionType.RootSettingsSchemaChanged, settingsSchema });
+    assert.deepStrictEqual(next.settings, settings);
+    assert.deepStrictEqual(next.settingsSchema, settingsSchema);
   });
 });
 
@@ -1136,5 +1203,46 @@ describe('sessionReducer — customizations', () => {
       });
       assert.strictEqual(result, state);
     });
+  });
+});
+
+// ─── Session Reducer: Settings ───────────────────────────────────────────────
+
+describe('sessionReducer — settings', () => {
+  it('handles session/settingsChanged from undefined', () => {
+    const state = makeSessionState();
+    assert.equal(state.settings, undefined);
+    const settings = { 'tools.edits.autoApprove': { '**/*.lock': false } };
+    const next = sessionReducer(state, {
+      type: ActionType.SessionSettingsChanged,
+      session: S,
+      settings,
+    });
+    assert.deepStrictEqual(next.settings, settings);
+  });
+
+  it('handles session/settingsChanged replacing existing', () => {
+    const state = makeSessionState({
+      settings: { 'tools.edits.autoApprove': { '**/*': true } },
+    });
+    const settings = { 'tools.edits.autoApprove': { '**/*.lock': false } };
+    const next = sessionReducer(state, {
+      type: ActionType.SessionSettingsChanged,
+      session: S,
+      settings,
+    });
+    assert.deepStrictEqual(next.settings, settings);
+  });
+
+  it('session/settingsChanged preserves other session state', () => {
+    const state = makeSessionState({ lifecycle: SessionLifecycle.Ready });
+    const settings = { 'tools.edits.autoApprove': { '**/*.env': false } };
+    const next = sessionReducer(state, {
+      type: ActionType.SessionSettingsChanged,
+      session: S,
+      settings,
+    });
+    assert.equal(next.lifecycle, SessionLifecycle.Ready);
+    assert.deepStrictEqual(next.settings, settings);
   });
 });

@@ -142,6 +142,119 @@ export const enum PolicyState {
 }
 
 /**
+ * Scope at which a setting can be configured.
+ *
+ * @category Root State
+ */
+export const enum SettingScope {
+  /**
+   * Setting can only be configured at the root (host-wide) level.
+   * It applies to all sessions uniformly.
+   */
+  Root = 'root',
+  /**
+   * Setting can be configured at the root level and overridden per session.
+   * The session value takes precedence when set; otherwise the root value applies.
+   */
+  Session = 'session',
+}
+
+/**
+ * JSON Schema for a single setting property.
+ *
+ * Supports standard JSON Schema draft-2020-12 keywords for use in
+ * generic schema-driven settings editors.
+ *
+ * @category Root State
+ */
+export interface ISettingPropertySchema {
+  /** JSON Schema type keyword (e.g. `'string'`, `'object'`, `'boolean'`). */
+  type?: string | string[];
+  /** Human-readable description of this setting. */
+  description?: string;
+  /** Markdown-formatted description of this setting. */
+  markdownDescription?: string;
+  /** Default value for this setting. */
+  default?: unknown;
+  /** Allowed values for this setting. */
+  enum?: unknown[];
+  /** Human-readable descriptions for each enum value. */
+  enumDescriptions?: string[];
+  /** Schema for array items. */
+  items?: ISettingPropertySchema;
+  /** Schemas for object properties. */
+  properties?: Record<string, ISettingPropertySchema>;
+  /** Schema for additional object properties, or `false` to disallow them. */
+  additionalProperties?: boolean | ISettingPropertySchema;
+}
+
+/**
+ * A top-level setting registration in the settings schema.
+ *
+ * Extends {@link ISettingPropertySchema} with protocol-specific metadata
+ * such as {@link scope} that only applies at the top level, not to nested
+ * sub-schemas within a setting's type definition.
+ *
+ * @category Root State
+ */
+export interface ISettingRegistration extends ISettingPropertySchema {
+  /**
+   * The scope at which this setting can be configured.
+   *
+   * - `'root'` — host-wide only; applies to all sessions.
+   * - `'session'` — can be overridden per session. The session value takes
+   *   precedence when set; otherwise the root value applies.
+   *
+   * Defaults to `'root'` when not specified.
+   */
+  scope?: SettingScope;
+}
+
+/**
+ * JSON Schema describing the settings an agent host supports.
+ *
+ * The top-level schema is always `type: 'object'` with flat dotted keys
+ * as properties (e.g. `'tools.edits.autoApprove'`). Clients can use this
+ * schema to render a generic settings editor.
+ *
+ * The server advertises the schema via `root/settingsSchemaChanged`.
+ * Clients push values (conforming to this schema) via `root/settingsChanged`.
+ *
+ * @category Root State
+ */
+export interface ISettingsSchema {
+  /** Always `'object'` for the top-level settings schema. */
+  type: 'object';
+  /** Each key is a flat dotted setting name, value is its registration. */
+  properties?: Record<string, ISettingRegistration>;
+}
+
+/**
+ * Settings values for an agent host.
+ *
+ * Well-known settings are explicitly typed for compile-time safety.
+ * The index signature allows additional dynamic settings that the server
+ * may advertise at runtime via {@link ISettingsSchema}.
+ *
+ * @category Root State
+ */
+export interface IAgentHostSettings {
+  /**
+   * Glob-pattern map controlling which file-edit tool calls are auto-approved.
+   *
+   * Keys are glob patterns, values are booleans: `true` means edits matching
+   * the pattern are auto-approved, `false` means the server MUST request
+   * explicit user confirmation. The last matching pattern wins.
+   *
+   * Equivalent to VS Code's `chat.tools.edits.autoApprove` setting.
+   */
+  'tools.edits.autoApprove'?: Record<string, boolean>;
+
+  /** Additional dynamic settings not known at compile time. */
+  [key: string]: unknown;
+}
+
+/**
  * Global state shared with every client subscribed to `agenthost:/root`.
  *
  * @category Root State
@@ -151,6 +264,23 @@ export interface IRootState {
   agents: IAgentInfo[];
   /** Number of active (non-disposed) sessions on the server */
   activeSessions?: number;
+  /**
+   * JSON Schema describing the settings this agent host supports.
+   *
+   * Updated by the server via `root/settingsSchemaChanged`. Clients use
+   * this to render a settings editor and to validate setting values.
+   */
+  settingsSchema?: ISettingsSchema;
+  /**
+   * Current settings values, conforming to {@link settingsSchema}.
+   *
+   * Well-known keys are typed (e.g. `'tools.edits.autoApprove'`).
+   * Additional dynamic keys may appear based on the server's schema.
+   *
+   * Clients push settings via `root/settingsChanged`. The server applies
+   * the object as a whole (full replace, not a merge).
+   */
+  settings?: IAgentHostSettings;
 }
 
 /**
@@ -291,6 +421,16 @@ export interface ISessionState {
    * {@link ISessionActiveClient.customizations | activeClient.customizations}.
    */
   customizations?: ISessionCustomization[];
+  /**
+   * Session-level settings overrides.
+   *
+   * Only settings whose schema has `scope: 'session'` may be set here.
+   * Session values take precedence over the root-level
+   * {@link IRootState.settings | settings}.
+   *
+   * Clients push session settings via `session/settingsChanged`.
+   */
+  settings?: IAgentHostSettings;
 }
 
 /**

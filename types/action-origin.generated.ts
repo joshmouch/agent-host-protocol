@@ -5,6 +5,8 @@ import type {
   IStateAction,
   IRootAgentsChangedAction,
   IRootActiveSessionsChangedAction,
+  IRootSettingsSchemaChangedAction,
+  IRootSettingsChangedAction,
   ISessionReadyAction,
   ISessionCreationFailedAction,
   ISessionTurnStartedAction,
@@ -31,6 +33,7 @@ import type {
   ISessionQueuedMessagesReorderedAction,
   ISessionCustomizationsChangedAction,
   ISessionCustomizationToggledAction,
+  ISessionSettingsChangedAction,
 } from './actions.js';
 
 import { ActionType } from './actions.js';
@@ -41,6 +44,8 @@ import { ActionType } from './actions.js';
 export type IRootAction =
   | IRootAgentsChangedAction
   | IRootActiveSessionsChangedAction
+  | IRootSettingsSchemaChangedAction
+  | IRootSettingsChangedAction
 ;
 
 /** Union of all session-scoped actions. */
@@ -71,6 +76,7 @@ export type ISessionAction =
   | ISessionQueuedMessagesReorderedAction
   | ISessionCustomizationsChangedAction
   | ISessionCustomizationToggledAction
+  | ISessionSettingsChangedAction
 ;
 
 /** Union of session actions that clients may dispatch. */
@@ -88,6 +94,7 @@ export type IClientSessionAction =
   | ISessionPendingMessageRemovedAction
   | ISessionQueuedMessagesReorderedAction
   | ISessionCustomizationToggledAction
+  | ISessionSettingsChangedAction
 ;
 
 /** Union of session actions that only the server may produce. */
@@ -116,6 +123,8 @@ export type IServerSessionAction =
 export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boolean } = {
   [ActionType.RootAgentsChanged]: false,
   [ActionType.RootActiveSessionsChanged]: false,
+  [ActionType.RootSettingsSchemaChanged]: false,
+  [ActionType.RootSettingsChanged]: true,
   [ActionType.SessionReady]: false,
   [ActionType.SessionCreationFailed]: false,
   [ActionType.SessionTurnStarted]: true,
@@ -142,4 +151,5 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
   [ActionType.SessionQueuedMessagesReordered]: true,
   [ActionType.SessionCustomizationsChanged]: false,
   [ActionType.SessionCustomizationToggled]: true,
+  [ActionType.SessionSettingsChanged]: true,
 };
