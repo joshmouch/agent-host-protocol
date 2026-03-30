@@ -346,6 +346,8 @@ struct SidebarView: View {
                     }
                 }
             }
+            // Force fresh @State when switching between folder/non-folder creation
+            .id(newSessionDirectory)
             .environment(store)
         }
     }
