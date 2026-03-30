@@ -54,7 +54,7 @@ struct ChatView: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.top, 8)
-                        .padding(.bottom, 80) // extra space so content isn't hidden behind floating input
+                        .padding(.bottom, 100) // extra space so content isn't hidden behind floating input
                     }
                     .defaultScrollAnchor(.bottom)
                     .onAppear {
@@ -296,39 +296,6 @@ struct ActiveTurnView: View {
     }
 }
 
-// MARK: - UserBubble
-
-struct UserBubble: View {
-    let text: String
-    let attachments: [MessageAttachment]?
-
-    var body: some View {
-        HStack {
-            Spacer(minLength: 60)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(text)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(
-                        Color.accentColor.opacity(0.15),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    )
-
-                if let attachments, !attachments.isEmpty {
-                    ForEach(Array(attachments.enumerated()), id: \.offset) { _, attachment in
-                        Label(
-                            attachment.displayName ?? attachment.path,
-                            systemImage: attachment.type == .directory ? "folder" : "doc"
-                        )
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // MARK: - UsageBadge
 
 struct UsageBadge: View {
@@ -397,4 +364,118 @@ struct ReconnectButton: View {
         }
         .disabled(isReconnecting)
     }
+}
+
+// MARK: - Preview Helpers
+
+private struct InputBarPreviewWrapper: View {
+    @State private var text = ""
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        InputBar(text: $text, isFocused: $isFocused) { }
+    }
+}
+
+// MARK: - Previews
+
+#Preview("Conversation Flow", traits: .fixedLayout(width: 390, height: 2400)) {
+    ScrollView {
+        VStack(alignment: .leading, spacing: 12) {
+            // Turn 1: Simple question → markdown response
+            UserBubble(
+                text: "What does the auth module do?",
+                attachments: nil
+            )
+            MarkdownPartView(part: MarkdownResponsePart(
+                kind: .markdown,
+                id: "m1",
+                content: "The auth module handles **JWT-based authentication**. It provides `login()`, `logout()`, and `refreshToken()` functions that manage session state without server-side cookies."
+            ))
+
+            // Turn 2: XML context + attachments → reasoning + tool calls + markdown
+            UserBubble(
+                text: """
+                <reminder>
+                IMPORTANT: check existing tests before making changes.
+                </reminder>
+                <userRequest>
+                Can you refactor it to use async/await?
+                </userRequest>
+                """,
+                attachments: [
+                    MessageAttachment(type: .file, path: "src/auth.swift", displayName: "auth.swift")
+                ]
+            )
+            ReasoningPartView(part: ReasoningResponsePart(
+                kind: .reasoning,
+                id: "r1",
+                content: "I need to check the current implementation first, then convert the completion handler patterns to async/await."
+            ))
+            ToolCallPartView(toolCall: .completed(ToolCallCompletedState(
+                toolCallId: "tc1",
+                toolName: "readFile",
+                displayName: "Read file",
+                invocationMessage: .string("Reading src/auth.swift"),
+                toolInput: "{\"path\": \"src/auth.swift\"}",
+                success: true,
+                pastTenseMessage: .string("Read src/auth.swift"),
+                status: .completed,
+                confirmed: .notNeeded
+            )))
+            ToolCallPartView(toolCall: .completed(ToolCallCompletedState(
+                toolCallId: "tc2",
+                toolName: "editFile",
+                displayName: "Edit file",
+                invocationMessage: .string("Editing src/auth.swift"),
+                toolInput: "{\"path\": \"src/auth.swift\"}",
+                success: true,
+                pastTenseMessage: .string("Edited src/auth.swift"),
+                status: .completed,
+                confirmed: .notNeeded
+            )))
+            MarkdownPartView(part: MarkdownResponsePart(
+                kind: .markdown,
+                id: "m2",
+                content: "I've refactored the auth module to use `async/await`. The key changes:\n\n- `login()` → `async throws`\n- `refreshToken()` → `async throws`\n- Removed callback-based API"
+            ))
+
+            // Turn 3: Tool needing confirmation
+            UserBubble(
+                text: "Now deploy it",
+                attachments: nil
+            )
+            ToolCallPartView(toolCall: .pendingConfirmation(ToolCallPendingConfirmationState(
+                toolCallId: "tc3",
+                toolName: "bash",
+                displayName: "Run command",
+                invocationMessage: .string("Run: npm run deploy --production"),
+                toolInput: "{\"command\": \"npm run deploy --production\"}",
+                status: .pendingConfirmation,
+                confirmationTitle: .string("Allow production deployment?")
+            )))
+
+            // Turn 4: Active turn with running tool
+            UserBubble(
+                text: "While that's pending, explain the token refresh flow",
+                attachments: nil
+            )
+            ToolCallPartView(toolCall: .running(ToolCallRunningState(
+                toolCallId: "tc4",
+                toolName: "readFile",
+                displayName: "Read file",
+                invocationMessage: .string("Reading src/auth/token.swift"),
+                toolInput: "{\"path\": \"src/auth/token.swift\"}",
+                status: .running,
+                confirmed: .notNeeded
+            )))
+
+            // Floating input
+            InputBarPreviewWrapper()
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
+    }
+    .environment(AppStore())
 }

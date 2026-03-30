@@ -25,10 +25,15 @@ struct ResponsePartView: View {
 struct MarkdownPartView: View {
     let part: MarkdownResponsePart
 
+    /// Content with leading/trailing whitespace stripped.
+    private var trimmedContent: String {
+        part.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
-        if !part.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !trimmedContent.isEmpty {
             if let attributed = try? AttributedString(
-                markdown: part.content,
+                markdown: trimmedContent,
                 options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
             ) {
                 Text(attributed)
@@ -38,7 +43,7 @@ struct MarkdownPartView: View {
                     .padding(.vertical, 2)
             } else {
                 // Fallback for content that fails to parse as markdown.
-                Text(part.content)
+                Text(trimmedContent)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 4)
@@ -463,18 +468,6 @@ struct ContentRefView: View {
     }
 }
 
-// MARK: - Preview Helpers
-
-/// Wraps InputBar so FocusState can be provided in a #Preview context.
-private struct InputBarPreviewWrapper: View {
-    @State private var text = ""
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        InputBar(text: $text, isFocused: $isFocused) { }
-    }
-}
-
 // MARK: - Previews
 
 #Preview("All Response Parts", traits: .fixedLayout(width: 390, height: 2200)) {
@@ -604,10 +597,6 @@ private struct InputBarPreviewWrapper: View {
                 uri: "file:///Users/me/project/README.md",
                 contentType: "text/markdown"
             ))
-
-            // Input Bar
-            Text("Input Bar").font(.caption.bold()).foregroundStyle(.secondary)
-            InputBarPreviewWrapper()
         }
         .padding()
     }
