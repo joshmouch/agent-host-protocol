@@ -69,9 +69,10 @@ The app supports three ways to connect to an agent host:
    `connectionToken` → connects via AHPConnection.
 
 2. **New Codespace** — Provisions a GitHub Codespace for a chosen repository via the
-   Codespaces REST API. The Codespace's `postStartCommand` starts the agent host and
-   registers it with the Codamente registry. The app polls until the host appears, then
-   connects.
+   Codespaces REST API. The Codamente VS Code extension (synced to Codespaces via Settings
+   Sync) detects the Codespace environment and auto-starts the agent host, registering it
+   with the Codamente registry. No per-repo `devcontainer.json` changes are required. The
+   app polls until the host appears, then connects.
 
 3. **Manual Server** — Direct WebSocket connection to a local or remote AHP server
    (the original flow).

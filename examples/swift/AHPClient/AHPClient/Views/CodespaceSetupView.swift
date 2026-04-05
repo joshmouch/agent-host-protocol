@@ -8,8 +8,10 @@ import SwiftUI
 /// 1. User searches/selects a repository.
 /// 2. App creates a Codespace via the GitHub API.
 /// 3. App polls until the Codespace is available.
-/// 4. App polls the host registry until the agent host registers itself.
-/// 5. App connects to the agent host.
+/// 4. The Codamente VS Code extension (synced via Settings Sync) auto-starts the agent host
+///    and registers it with the Codamente registry — no per-repo configuration needed.
+/// 5. App polls the host registry until the agent host registers itself.
+/// 6. App connects to the agent host.
 struct CodespaceSetupView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -235,7 +237,7 @@ struct CodespaceSetupView: View {
         case .waitingForCodespace:
             return "This may take a few minutes for the first build."
         case .waitingForHost:
-            return "The agent host should start automatically via postStartCommand."
+            return "The Codamente extension will start the agent host automatically."
         case .connecting:
             return "Establishing WebSocket connection…"
         default:
