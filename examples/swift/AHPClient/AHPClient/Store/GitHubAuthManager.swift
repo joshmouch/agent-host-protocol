@@ -16,7 +16,8 @@ final class GitHubAuthManager: NSObject {
 
     /// GitHub OAuth app client ID.
     /// Replace with your own GitHub OAuth App's client ID.
-    static let clientId = "GITHUB_CLIENT_ID"
+    /// For production, store this in a build configuration file excluded from version control.
+    static let clientId = "GITHUB_CLIENT_ID"  // TODO: Replace with your OAuth App client ID
 
     /// OAuth callback URL scheme registered in Info.plist.
     static let callbackScheme = "ahpclient"
@@ -156,9 +157,11 @@ final class GitHubAuthManager: NSObject {
 
     /// Exchange the authorization code for an access token.
     ///
-    /// > Important: In production, this exchange should happen on a backend server
-    /// > that holds the OAuth client secret. For this example client, the exchange
-    /// > is done directly.
+    /// > Warning: This example performs the token exchange client-side without a client secret.
+    /// > This is **not safe for production**. In a production app, implement this exchange on a
+    /// > secure backend server that holds the OAuth client secret. The client should send the
+    /// > authorization code to your backend, which then exchanges it with GitHub and returns
+    /// > the token.
     private func exchangeCodeForToken(_ code: String) async throws -> String {
         var request = URLRequest(url: URL(string: "https://github.com/login/oauth/access_token")!)
         request.httpMethod = "POST"

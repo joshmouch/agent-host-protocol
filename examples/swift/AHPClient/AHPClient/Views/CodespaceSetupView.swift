@@ -26,6 +26,9 @@ struct CodespaceSetupView: View {
 
     @State private var searchTask: Task<Void, Never>?
 
+    /// Debounce delay for repository search (nanoseconds).
+    private static let searchDebounceNs: UInt64 = 400_000_000
+
     private enum ProvisioningState {
         case idle
         case creating
@@ -131,7 +134,7 @@ struct CodespaceSetupView: View {
         .onChange(of: searchQuery) { _, newValue in
             searchTask?.cancel()
             searchTask = Task {
-                try? await Task.sleep(nanoseconds: 400_000_000) // Debounce 400ms
+                try? await Task.sleep(nanoseconds: Self.searchDebounceNs)
                 guard !Task.isCancelled else { return }
                 await searchRepositories(query: newValue)
             }

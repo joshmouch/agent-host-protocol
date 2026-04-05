@@ -214,7 +214,7 @@ final class AppStore {
         let scheme = url.scheme == "https" ? "wss" : "ws"
         let host: String
         if let port = url.port {
-            host = "\(url.host ?? "")/\(port)"
+            host = "\(url.host ?? ""):\(port)"
         } else {
             host = url.host ?? tunnelUrl
         }

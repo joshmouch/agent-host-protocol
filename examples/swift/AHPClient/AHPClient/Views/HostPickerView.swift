@@ -122,7 +122,7 @@ struct HostPickerView: View {
                 }
             }
 
-            Text("Running agent hosts registered with the Codamente service.")
+            Text("Agent hosts registered with the Codamente service.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 

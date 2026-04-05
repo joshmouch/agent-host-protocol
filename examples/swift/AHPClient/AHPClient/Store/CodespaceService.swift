@@ -243,9 +243,12 @@ struct Codespace: Codable, Identifiable, Sendable {
     let createdAt: String?
     let webUrl: String?
 
+    /// Default port used by the agent host inside Codespaces.
+    private static let agentHostPort = 8081
+
     /// The public URL pattern for forwarded ports.
     var portForwardingURL: String {
-        "https://\(name)-8081.app.github.dev"
+        "https://\(name)-\(Self.agentHostPort).app.github.dev"
     }
 
     enum CodingKeys: String, CodingKey {
