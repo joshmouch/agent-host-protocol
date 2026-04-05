@@ -13,6 +13,11 @@ examples/swift/AHPApp/.build/
 examples/swift/AHPClient/.build/
 examples/swift/AHPClient/AHPClient/Config/Signing.local.xcconfig
 
+# VS Code extension build output
+extensions/codamente/out/
+extensions/codamente/node_modules/
+extensions/codamente/*.vsix
+
 # Xcode / Swift
 DerivedData
 .DerivedDataDevice

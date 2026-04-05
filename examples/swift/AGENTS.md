@@ -90,7 +90,8 @@ The app supports three ways to connect to an agent host:
 `HostDiscoveryService` wraps calls to the Codamente host registry server:
 - `listHosts(token:)` → `GET /api/hosts` → `[RemoteHost]`
 - `getConnectInfo(hostId:token:)` → `POST /api/hosts/:id/connect` → `HostConnectInfo`
-- Hosts are registered by the Codamente VS Code extension (desktop mode)
+- Hosts are registered by the Codamente VS Code extension (`extensions/codamente/`), which
+  auto-starts the agent host in Codespaces and sends heartbeats to keep the registration alive
 
 ### Codespace Provisioning
 

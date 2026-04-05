@@ -1,0 +1,70 @@
+{
+  "name": "codamente",
+  "displayName": "Codamente — Agent Host Protocol",
+  "description": "Registers your VS Code instance as an AHP host and auto-starts the agent host in GitHub Codespaces.",
+  "version": "0.1.0",
+  "publisher": "microsoft",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codamente.startAgentHost",
+        "title": "Codamente: Start Agent Host"
+      },
+      {
+        "command": "codamente.stopAgentHost",
+        "title": "Codamente: Stop Agent Host"
+      },
+      {
+        "command": "codamente.showStatus",
+        "title": "Codamente: Show Status"
+      }
+    ],
+    "configuration": {
+      "title": "Codamente",
+      "properties": {
+        "codamente.registryUrl": {
+          "type": "string",
+          "default": "https://codamente.com/api",
+          "description": "Base URL for the Codamente host registry API."
+        },
+        "codamente.agentHostPort": {
+          "type": "number",
+          "default": 8081,
+          "description": "Port the agent host listens on."
+        },
+        "codamente.autoStartInCodespaces": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the agent host when running inside a GitHub Codespace."
+        },
+        "codamente.heartbeatIntervalSeconds": {
+          "type": "number",
+          "default": 30,
+          "description": "Interval in seconds between heartbeat pings to the registry."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.7.0"
+  }
+}
