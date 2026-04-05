@@ -57,6 +57,23 @@ final class AppStore {
         return servers.first { $0.id == id }
     }
 
+    /// Whether the user has explicitly skipped GitHub auth (manual connection mode).
+    var authSkipped: Bool {
+        get { UserDefaults.standard.bool(forKey: "authSkipped") }
+        set { UserDefaults.standard.set(newValue, forKey: "authSkipped") }
+    }
+
+    // MARK: - Services
+
+    /// GitHub authentication manager.
+    let authManager = GitHubAuthManager()
+
+    /// Host discovery service for the Codamente registry.
+    let hostDiscovery = HostDiscoveryService()
+
+    /// GitHub Codespaces API client.
+    let codespaceService = CodespaceService()
+
     // MARK: - Computed Properties
 
     /// The currently selected session state, if any.
@@ -174,6 +191,55 @@ final class AppStore {
         } else {
             selectedServerId = id
         }
+    }
+
+    // MARK: - Auth
+
+    /// Skip GitHub auth and go straight to manual server mode.
+    func skipAuth() {
+        authSkipped = true
+    }
+
+    // MARK: - Remote Host Connection
+
+    /// Connect to a remote host discovered from the Codamente registry.
+    /// Creates a temporary server configuration and initiates the connection.
+    func connectToRemoteHost(tunnelUrl: String, connectionToken: String, name: String) {
+        // Parse the tunnel URL to create a server config
+        guard let url = URL(string: tunnelUrl) else {
+            errorMessage = "Invalid tunnel URL: \(tunnelUrl)"
+            return
+        }
+
+        let scheme = url.scheme == "https" ? "wss" : "ws"
+        let host: String
+        if let port = url.port {
+            host = "\(url.host ?? "")/\(port)"
+        } else {
+            host = url.host ?? tunnelUrl
+        }
+
+        let server = ServerConfiguration(
+            name: name,
+            scheme: scheme,
+            host: host,
+            token: connectionToken
+        )
+
+        // Add or update in saved servers
+        if let existing = servers.first(where: { $0.name == name }) {
+            var updated = existing
+            updated.scheme = server.scheme
+            updated.host = server.host
+            updated.token = server.token
+            updateServer(updated)
+            selectServer(existing.id)
+        } else {
+            addServer(server)
+            selectServer(server.id)
+        }
+
+        Task { await connect() }
     }
 
     // MARK: - Connection

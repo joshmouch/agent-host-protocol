@@ -316,6 +316,19 @@ struct SidebarView: View {
                             }
                         }
                     }
+
+                    if store.authManager.isSignedIn {
+                        Section {
+                            Button {
+                                Task {
+                                    await store.disconnect()
+                                    store.selectedServerId = nil
+                                }
+                            } label: {
+                                Label("Switch Host", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                        }
+                    }
                 } label: {
                     Label("More", systemImage: "ellipsis")
                 }
