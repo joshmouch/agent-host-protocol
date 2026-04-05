@@ -1,3 +1,4 @@
+import * as os from 'os';
 import * as vscode from 'vscode';
 import { AgentHostManager } from './agentHostManager';
 import { RegistryClient } from './registryClient';
@@ -133,7 +134,7 @@ function buildHostName(): string {
 	if (codespaceName) {
 		return codespaceName;
 	}
-	const hostname = require('os').hostname();
+	const hostname = os.hostname();
 	return `vscode-${hostname}`;
 }
 
