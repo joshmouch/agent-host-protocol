@@ -348,6 +348,10 @@ export interface ISessionSummary {
   model?: string;
   /** The working directory URI for this session */
   workingDirectory?: URI;
+  /** Whether the client has viewed this session since its last modification */
+  isRead?: boolean;
+  /** Whether the session has been marked as done by the client */
+  isDone?: boolean;
   /** Files changed during this session with diff statistics */
   diffs?: ISessionFileDiff[];
 }

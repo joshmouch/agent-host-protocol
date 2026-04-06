@@ -69,8 +69,12 @@ SessionSummary {
   modifiedAt: number
   model?: string
   workingDirectory?: URI
+  isRead?: boolean
+  isDone?: boolean
 }
 ```
+
+The optional `isRead` flag indicates whether the client has viewed the session since its last modification. The optional `isDone` flag indicates whether the session has been marked as complete by the client. Both are managed via client-dispatched actions (`session/isReadChanged`, `session/isDoneChanged`).
 
 ## Turns
 

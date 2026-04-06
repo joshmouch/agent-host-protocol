@@ -1,5 +1,5 @@
 {
-  "description": "session/turnStarted",
+  "description": "session/isReadChanged marks session as read",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -15,12 +15,9 @@
   },
   "actions": [
     {
-      "type": "session/turnStarted",
+      "type": "session/isReadChanged",
       "session": "copilot:/test-session",
-      "turnId": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      }
+      "isRead": true
     }
   ],
   "expected": {
@@ -28,20 +25,12 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "in-progress",
+      "status": "idle",
       "createdAt": 1000,
-      "modifiedAt": 9999,
-      "isRead": false
+      "modifiedAt": 1000,
+      "isRead": true
     },
     "lifecycle": "ready",
-    "turns": [],
-    "activeTurn": {
-      "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      },
-      "responseParts": [],
-      "usage": null
-    }
+    "turns": []
   }
 }

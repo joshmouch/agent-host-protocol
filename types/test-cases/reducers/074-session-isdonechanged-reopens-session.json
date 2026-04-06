@@ -1,5 +1,5 @@
 {
-  "description": "session/turnStarted",
+  "description": "session/isDoneChanged reopens a done session",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -8,19 +8,17 @@
       "title": "Test Session",
       "status": "idle",
       "createdAt": 1000,
-      "modifiedAt": 1000
+      "modifiedAt": 1000,
+      "isDone": true
     },
     "lifecycle": "ready",
     "turns": []
   },
   "actions": [
     {
-      "type": "session/turnStarted",
+      "type": "session/isDoneChanged",
       "session": "copilot:/test-session",
-      "turnId": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      }
+      "isDone": false
     }
   ],
   "expected": {
@@ -28,20 +26,12 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "in-progress",
+      "status": "idle",
       "createdAt": 1000,
-      "modifiedAt": 9999,
-      "isRead": false
+      "modifiedAt": 1000,
+      "isDone": false
     },
     "lifecycle": "ready",
-    "turns": [],
-    "activeTurn": {
-      "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      },
-      "responseParts": [],
-      "usage": null
-    }
+    "turns": []
   }
 }

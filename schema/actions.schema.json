@@ -623,6 +623,50 @@
         "model"
       ]
     },
+    "ISessionIsReadChangedAction": {
+      "type": "object",
+      "description": "The read state of the session changed.\n\nDispatched by a client to mark a session as read (e.g. after viewing it)\nor unread (e.g. after new activity since the client last looked at it).",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionIsReadChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the session has been read"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "isRead"
+      ]
+    },
+    "ISessionIsDoneChangedAction": {
+      "type": "object",
+      "description": "The done state of the session changed.\n\nDispatched by a client to mark a session as done (e.g. the task is\ncomplete) or to reopen it.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionIsDoneChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "isDone": {
+          "type": "boolean",
+          "description": "Whether the session is done"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "isDone"
+      ]
+    },
     "ISessionServerToolsChangedAction": {
       "type": "object",
       "description": "Server tools for this session have changed.\n\nFull-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.",
@@ -1432,6 +1476,14 @@
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the client has viewed this session since its last modification"
+        },
+        "isDone": {
+          "type": "boolean",
+          "description": "Whether the session has been marked as done by the client"
         },
         "diffs": {
           "type": "array",
@@ -2525,6 +2577,12 @@
         },
         {
           "$ref": "#/$defs/ISessionTruncatedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionIsReadChangedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionIsDoneChangedAction"
         },
         {
           "$ref": "#/$defs/ITerminalDataAction"

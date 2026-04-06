@@ -63,6 +63,8 @@ export const enum ActionType {
   SessionCustomizationsChanged = 'session/customizationsChanged',
   SessionCustomizationToggled = 'session/customizationToggled',
   SessionTruncated = 'session/truncated',
+  SessionIsReadChanged = 'session/isReadChanged',
+  SessionIsDoneChanged = 'session/isDoneChanged',
   RootTerminalsChanged = 'root/terminalsChanged',
   TerminalData = 'terminal/data',
   TerminalInput = 'terminal/input',
@@ -527,6 +529,42 @@ export interface ISessionModelChangedAction {
 }
 
 /**
+ * The read state of the session changed.
+ *
+ * Dispatched by a client to mark a session as read (e.g. after viewing it)
+ * or unread (e.g. after new activity since the client last looked at it).
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionIsReadChangedAction {
+  type: ActionType.SessionIsReadChanged;
+  /** Session URI */
+  session: URI;
+  /** Whether the session has been read */
+  isRead: boolean;
+}
+
+/**
+ * The done state of the session changed.
+ *
+ * Dispatched by a client to mark a session as done (e.g. the task is
+ * complete) or to reopen it.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionIsDoneChangedAction {
+  type: ActionType.SessionIsDoneChanged;
+  /** Session URI */
+  session: URI;
+  /** Whether the session is done */
+  isDone: boolean;
+}
+
+/**
  * Server tools for this session have changed.
  *
  * Full-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.
@@ -894,6 +932,8 @@ export type IStateAction =
   | ISessionCustomizationsChangedAction
   | ISessionCustomizationToggledAction
   | ISessionTruncatedAction
+  | ISessionIsReadChangedAction
+  | ISessionIsDoneChangedAction
   | ITerminalDataAction
   | ITerminalInputAction
   | ITerminalResizedAction

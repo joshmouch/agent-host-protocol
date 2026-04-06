@@ -72,6 +72,8 @@ import type {
   ISessionCustomizationsChangedAction,
   ISessionCustomizationToggledAction,
   ISessionTruncatedAction,
+  ISessionIsReadChangedAction,
+  ISessionIsDoneChangedAction,
   IRootTerminalsChangedAction,
   ISessionToolCallContentChangedAction,
   ITerminalDataAction,
@@ -189,6 +191,8 @@ type V1_ISessionQueuedMessagesReorderedAction = ISessionQueuedMessagesReorderedA
 type V1_ISessionCustomizationsChangedAction = ISessionCustomizationsChangedAction;
 type V1_ISessionCustomizationToggledAction = ISessionCustomizationToggledAction;
 type V1_ISessionTruncatedAction = ISessionTruncatedAction;
+type V1_ISessionIsReadChangedAction = ISessionIsReadChangedAction;
+type V1_ISessionIsDoneChangedAction = ISessionIsDoneChangedAction;
 type V1_ISessionToolCallContentChangedAction = ISessionToolCallContentChangedAction;
 type V1_IRootTerminalsChangedAction = IRootTerminalsChangedAction;
 type V1_ITerminalDataAction = ITerminalDataAction;
@@ -340,6 +344,10 @@ type _CheckCustomizationsChangedAction = AssertCompatible<V1_ISessionCustomizati
 type _CheckCustomizationToggledAction = AssertCompatible<V1_ISessionCustomizationToggledAction, ISessionCustomizationToggledAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckTruncatedAction = AssertCompatible<V1_ISessionTruncatedAction, ISessionTruncatedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckIsReadChangedAction = AssertCompatible<V1_ISessionIsReadChangedAction, ISessionIsReadChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckIsDoneChangedAction = AssertCompatible<V1_ISessionIsDoneChangedAction, ISessionIsDoneChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallContentChangedAction = AssertCompatible<V1_ISessionToolCallContentChangedAction, ISessionToolCallContentChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
