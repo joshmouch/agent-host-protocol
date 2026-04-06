@@ -917,6 +917,27 @@
         "tools"
       ]
     },
+    "ISessionFileDiff": {
+      "type": "object",
+      "description": "A summary of changes to a single file within a session.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "URI of the affected file"
+        },
+        "added": {
+          "type": "number",
+          "description": "Number of items added (e.g., lines for text files, cells for notebooks)"
+        },
+        "removed": {
+          "type": "number",
+          "description": "Number of items removed (e.g., lines for text files, cells for notebooks)"
+        }
+      },
+      "required": [
+        "uri"
+      ]
+    },
     "ISessionSummary": {
       "type": "object",
       "properties": {
@@ -959,6 +980,13 @@
         "isDone": {
           "type": "boolean",
           "description": "Whether the session has been marked as done by the client"
+        },
+        "diffs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionFileDiff"
+          },
+          "description": "Files changed during this session with diff statistics"
         }
       },
       "required": [
