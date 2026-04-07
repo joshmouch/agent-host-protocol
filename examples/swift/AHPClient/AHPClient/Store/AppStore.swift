@@ -599,6 +599,7 @@ final class AppStore {
         case .sessionQueuedMessagesReordered(let a): return a.session
         case .sessionCustomizationsChanged(let a): return a.session
         case .sessionCustomizationToggled(let a): return a.session
+        case .sessionTruncated(let a): return a.session
         }
     }
 }

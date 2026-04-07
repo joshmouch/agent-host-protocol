@@ -228,10 +228,10 @@ actor AHPConnection {
     }
 
     /// Fetch binary/text content by URI.
-    func fetchContent(uri: String, encoding: ContentEncoding? = nil) async throws -> FetchContentResult {
+    func fetchContent(uri: String, encoding: ContentEncoding? = nil) async throws -> ResourceReadResult {
         try await sendRequest(
-            method: "fetchContent",
-            params: FetchContentParams(uri: uri, encoding: encoding)
+            method: "resourceRead",
+            params: ResourceReadParams(uri: uri, encoding: encoding)
         )
     }
 
