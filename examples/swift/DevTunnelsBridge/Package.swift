@@ -31,6 +31,8 @@ let package = Package(
             linkerSettings: [
                 .unsafeFlags([
                     "-Lrust/target/debug",
+                    "-Lrust/target/aarch64-apple-ios-sim/debug",
+                    "-Lrust/target/aarch64-apple-ios/debug",
                     "-ldev_tunnels_bridge",
                 ]),
             ]

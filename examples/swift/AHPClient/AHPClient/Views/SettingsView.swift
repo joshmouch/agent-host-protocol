@@ -6,11 +6,13 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingAddServer = false
     @State private var editingServer: ServerConfiguration?
+    @State private var showingTunnels = false
 
     var body: some View {
         NavigationStack {
             Form {
                 serverListSection
+                tunnelSection
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -30,6 +32,20 @@ struct SettingsView: View {
                     store.updateServer(updated)
                 }
                 .environment(store)
+            }
+            .navigationDestination(isPresented: $showingTunnels) {
+                TunnelListView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var tunnelSection: some View {
+        Section("Dev Tunnels") {
+            Button {
+                showingTunnels = true
+            } label: {
+                Label("Browse Tunnels", systemImage: "network")
             }
         }
     }
