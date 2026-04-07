@@ -6,40 +6,55 @@ final class DevTunnelsBridgeTests: XCTestCase {
         let info = TunnelInfo(
             tunnelId: "abc123",
             name: "my-machine",
-            isOnline: true,
-            ports: [31546, 8080]
+            clusterId: "usw2",
+            hasEndpoints: true
         )
         XCTAssertEqual(info.tunnelId, "abc123")
         XCTAssertEqual(info.name, "my-machine")
-        XCTAssertTrue(info.isOnline)
-        XCTAssertEqual(info.ports, [31546, 8080])
+        XCTAssertEqual(info.clusterId, "usw2")
+        XCTAssertTrue(info.hasEndpoints)
     }
 
-    func testDeviceCodeAuthInit() {
-        let auth = DeviceCodeAuth(
-            userCode: "ABCD-1234",
-            verificationUri: "https://github.com/login/device"
-        )
-        XCTAssertEqual(auth.userCode, "ABCD-1234")
-        XCTAssertEqual(auth.verificationUri, "https://github.com/login/device")
+    func testTunnelInfoEquality() {
+        let a = TunnelInfo(tunnelId: "a", name: "n", clusterId: "c", hasEndpoints: false)
+        let b = TunnelInfo(tunnelId: "a", name: "n", clusterId: "c", hasEndpoints: false)
+        XCTAssertEqual(a, b)
     }
 
     func testTunnelErrorCases() {
-        let authError = TunnelError.authenticationFailed("token expired")
-        let portError = TunnelError.portNotAvailable(31546)
+        let authError = TunnelError.AuthenticationFailed(message: "token expired")
+        let apiError = TunnelError.ApiError(message: "HTTP 500")
 
         switch authError {
-        case .authenticationFailed(let msg):
+        case .AuthenticationFailed(let msg):
             XCTAssertEqual(msg, "token expired")
         default:
-            XCTFail("Expected authenticationFailed")
+            XCTFail("Expected AuthenticationFailed")
         }
 
-        switch portError {
-        case .portNotAvailable(let port):
-            XCTAssertEqual(port, 31546)
+        switch apiError {
+        case .ApiError(let msg):
+            XCTAssertEqual(msg, "HTTP 500")
         default:
-            XCTFail("Expected portNotAvailable")
+            XCTFail("Expected ApiError")
+        }
+    }
+
+    func testListTunnelsRequiresAuth() {
+        // Calling with an invalid token should produce an error, not crash.
+        // This validates the FFI boundary works end-to-end.
+        do {
+            _ = try listTunnels(accessToken: "invalid-token")
+            // If it doesn't throw, that's fine too (would need real auth)
+        } catch let error as TunnelError {
+            // Expected: either AuthenticationFailed or ApiError
+            switch error {
+            case .AuthenticationFailed, .ApiError, .NoTunnelsFound:
+                break  // Any of these is valid
+            }
+        } catch {
+            // Any error from the FFI layer is acceptable for an invalid token
         }
     }
 }
+

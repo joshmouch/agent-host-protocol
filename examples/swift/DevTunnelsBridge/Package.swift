@@ -15,9 +15,25 @@ let package = Package(
         ),
     ],
     targets: [
+        // C target exposing the UniFFI-generated header + modulemap.
+        // The actual symbols are provided by the Rust static library
+        // linked via unsafeFlags below.
+        .target(
+            name: "DevTunnelsFFIFFI",
+            path: "Sources/DevTunnelsFFIFFI",
+            publicHeadersPath: "include"
+        ),
+        // Swift target with the UniFFI-generated Swift bindings and wrapper API.
         .target(
             name: "DevTunnelsBridge",
-            path: "Sources/DevTunnelsBridge"
+            dependencies: ["DevTunnelsFFIFFI"],
+            path: "Sources/DevTunnelsBridge",
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Lrust/target/debug",
+                    "-ldev_tunnels_bridge",
+                ]),
+            ]
         ),
         .testTarget(
             name: "DevTunnelsBridgeTests",
