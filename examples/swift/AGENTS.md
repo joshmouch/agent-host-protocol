@@ -2,10 +2,11 @@
 
 ## Overview
 
-This directory contains two Swift packages for the Agent Host Protocol (AHP):
+This directory contains three Swift packages for the Agent Host Protocol (AHP):
 
 1. **AgentHostProtocol** — A pure Swift library (no external dependencies) providing auto-generated types, actions, and reducers for the protocol. Targets iOS 16+, macOS 13+, Swift 5.9+.
 2. **AHPClient** — An example iOS app (Xcode project) demonstrating a full AHP client with WebSocket transport, state synchronization, reconnection, and a SwiftUI chat UI.
+3. **DevTunnelsBridge** — A Swift package wrapping the Microsoft Dev Tunnels Rust SDK via UniFFI, providing tunnel discovery, authentication, and port forwarding for iOS/macOS. See `DevTunnelsBridge/AGENTS.md` for details.
 
 ## Code Generation
 
