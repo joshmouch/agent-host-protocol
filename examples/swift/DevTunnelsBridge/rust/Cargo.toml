@@ -8,21 +8,25 @@ crate-type = ["staticlib", "cdylib"]
 name = "dev_tunnels_bridge"
 
 [dependencies]
+# Microsoft Dev Tunnels SDK — git dependency (not published on crates.io).
+# The `connections` feature is HOST-ONLY in Rust. The client-side relay
+# (TunnelRelayTunnelClient) only exists in C#, Java, and TypeScript SDKs.
+# We use the management module (list/get tunnels) which IS available.
+# Using local clone because the crate lives at rs/ with no root workspace.
+tunnels = { path = "../vendor/dev-tunnels/rs" }
+
 # UniFFI for generating Swift/Kotlin bindings
 uniffi = { version = "0.28", features = ["cli"] }
-
-# Dev Tunnels SDK (TODO: verify crate name and availability)
-# dev-tunnels = "0.1"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# HTTP client for management API
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-
 # JSON serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Error handling
+thiserror = "1"
 
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
