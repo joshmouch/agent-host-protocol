@@ -429,6 +429,11 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios-sim/debug",
+					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios/debug",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rebornix.AHPClient;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -462,6 +467,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios-sim/debug",
+					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios/debug",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rebornix.AHPClient;
