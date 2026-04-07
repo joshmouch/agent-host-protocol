@@ -251,9 +251,25 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_GET_TUNNEL_DETAIL
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_GET_TUNNEL_DETAIL
+RustBuffer uniffi_dev_tunnels_bridge_fn_func_get_tunnel_detail(RustBuffer access_token, RustBuffer cluster_id, RustBuffer tunnel_id, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_LIST_TUNNELS
 #define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_LIST_TUNNELS
 RustBuffer uniffi_dev_tunnels_bridge_fn_func_list_tunnels(RustBuffer access_token, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_POLL_DEVICE_CODE_AUTH
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_POLL_DEVICE_CODE_AUTH
+RustBuffer uniffi_dev_tunnels_bridge_fn_func_poll_device_code_auth(RustBuffer device_code, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_START_DEVICE_CODE_AUTH
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_FN_FUNC_START_DEVICE_CODE_AUTH
+RustBuffer uniffi_dev_tunnels_bridge_fn_func_start_device_code_auth(RustCallStatus *_Nonnull out_status
+    
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_DEV_TUNNELS_BRIDGE_RUSTBUFFER_ALLOC
@@ -536,9 +552,27 @@ void ffi_dev_tunnels_bridge_rust_future_free_void(uint64_t handle
 void ffi_dev_tunnels_bridge_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_GET_TUNNEL_DETAIL
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_GET_TUNNEL_DETAIL
+uint16_t uniffi_dev_tunnels_bridge_checksum_func_get_tunnel_detail(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_LIST_TUNNELS
 #define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_LIST_TUNNELS
 uint16_t uniffi_dev_tunnels_bridge_checksum_func_list_tunnels(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_POLL_DEVICE_CODE_AUTH
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_POLL_DEVICE_CODE_AUTH
+uint16_t uniffi_dev_tunnels_bridge_checksum_func_poll_device_code_auth(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_START_DEVICE_CODE_AUTH
+#define UNIFFI_FFIDEF_UNIFFI_DEV_TUNNELS_BRIDGE_CHECKSUM_FUNC_START_DEVICE_CODE_AUTH
+uint16_t uniffi_dev_tunnels_bridge_checksum_func_start_device_code_auth(void
     
 );
 #endif

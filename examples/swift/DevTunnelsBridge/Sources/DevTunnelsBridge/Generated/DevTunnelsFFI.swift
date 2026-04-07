@@ -399,6 +399,38 @@ fileprivate class UniffiHandleMap<T> {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt16: FfiConverterPrimitive {
+    typealias FfiType = UInt16
+    typealias SwiftType = UInt16
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt16 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
+    typealias FfiType = UInt32
+    typealias SwiftType = UInt32
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt32 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -459,6 +491,254 @@ fileprivate struct FfiConverterString: FfiConverter {
         writeInt(&buf, len)
         writeBytes(&buf, value.utf8)
     }
+}
+
+
+/**
+ * Result of starting a GitHub device code auth flow.
+ * Display `user_code` and `verification_uri` to the user, then poll
+ * with `poll_device_code_auth`.
+ */
+public struct DeviceCodeResponse {
+    /**
+     * The device code (used for polling, not shown to user).
+     */
+    public let deviceCode: String
+    /**
+     * The code the user enters at the verification URI.
+     */
+    public let userCode: String
+    /**
+     * The URL the user visits to enter the code.
+     */
+    public let verificationUri: String
+    /**
+     * Seconds until the device code expires.
+     */
+    public let expiresIn: UInt32
+    /**
+     * Minimum seconds between poll attempts.
+     */
+    public let interval: UInt32
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * The device code (used for polling, not shown to user).
+         */deviceCode: String, 
+        /**
+         * The code the user enters at the verification URI.
+         */userCode: String, 
+        /**
+         * The URL the user visits to enter the code.
+         */verificationUri: String, 
+        /**
+         * Seconds until the device code expires.
+         */expiresIn: UInt32, 
+        /**
+         * Minimum seconds between poll attempts.
+         */interval: UInt32) {
+        self.deviceCode = deviceCode
+        self.userCode = userCode
+        self.verificationUri = verificationUri
+        self.expiresIn = expiresIn
+        self.interval = interval
+    }
+}
+
+
+
+extension DeviceCodeResponse: Equatable, Hashable {
+    public static func ==(lhs: DeviceCodeResponse, rhs: DeviceCodeResponse) -> Bool {
+        if lhs.deviceCode != rhs.deviceCode {
+            return false
+        }
+        if lhs.userCode != rhs.userCode {
+            return false
+        }
+        if lhs.verificationUri != rhs.verificationUri {
+            return false
+        }
+        if lhs.expiresIn != rhs.expiresIn {
+            return false
+        }
+        if lhs.interval != rhs.interval {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(deviceCode)
+        hasher.combine(userCode)
+        hasher.combine(verificationUri)
+        hasher.combine(expiresIn)
+        hasher.combine(interval)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceCodeResponse: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceCodeResponse {
+        return
+            try DeviceCodeResponse(
+                deviceCode: FfiConverterString.read(from: &buf), 
+                userCode: FfiConverterString.read(from: &buf), 
+                verificationUri: FfiConverterString.read(from: &buf), 
+                expiresIn: FfiConverterUInt32.read(from: &buf), 
+                interval: FfiConverterUInt32.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: DeviceCodeResponse, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.deviceCode, into: &buf)
+        FfiConverterString.write(value.userCode, into: &buf)
+        FfiConverterString.write(value.verificationUri, into: &buf)
+        FfiConverterUInt32.write(value.expiresIn, into: &buf)
+        FfiConverterUInt32.write(value.interval, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceCodeResponse_lift(_ buf: RustBuffer) throws -> DeviceCodeResponse {
+    return try FfiConverterTypeDeviceCodeResponse.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceCodeResponse_lower(_ value: DeviceCodeResponse) -> RustBuffer {
+    return FfiConverterTypeDeviceCodeResponse.lower(value)
+}
+
+
+/**
+ * Detailed tunnel info including relay URI for connection.
+ */
+public struct TunnelDetail {
+    /**
+     * Unique tunnel identifier.
+     */
+    public let tunnelId: String
+    /**
+     * Human-readable tunnel name.
+     */
+    public let name: String
+    /**
+     * Cluster ID where the tunnel is hosted.
+     */
+    public let clusterId: String
+    /**
+     * Client relay URI (wss://...) for connecting to this tunnel.
+     */
+    public let clientRelayUri: String?
+    /**
+     * Forwarded port numbers available on this tunnel.
+     */
+    public let ports: [UInt16]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Unique tunnel identifier.
+         */tunnelId: String, 
+        /**
+         * Human-readable tunnel name.
+         */name: String, 
+        /**
+         * Cluster ID where the tunnel is hosted.
+         */clusterId: String, 
+        /**
+         * Client relay URI (wss://...) for connecting to this tunnel.
+         */clientRelayUri: String?, 
+        /**
+         * Forwarded port numbers available on this tunnel.
+         */ports: [UInt16]) {
+        self.tunnelId = tunnelId
+        self.name = name
+        self.clusterId = clusterId
+        self.clientRelayUri = clientRelayUri
+        self.ports = ports
+    }
+}
+
+
+
+extension TunnelDetail: Equatable, Hashable {
+    public static func ==(lhs: TunnelDetail, rhs: TunnelDetail) -> Bool {
+        if lhs.tunnelId != rhs.tunnelId {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.clusterId != rhs.clusterId {
+            return false
+        }
+        if lhs.clientRelayUri != rhs.clientRelayUri {
+            return false
+        }
+        if lhs.ports != rhs.ports {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(tunnelId)
+        hasher.combine(name)
+        hasher.combine(clusterId)
+        hasher.combine(clientRelayUri)
+        hasher.combine(ports)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeTunnelDetail: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> TunnelDetail {
+        return
+            try TunnelDetail(
+                tunnelId: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                clusterId: FfiConverterString.read(from: &buf), 
+                clientRelayUri: FfiConverterOptionString.read(from: &buf), 
+                ports: FfiConverterSequenceUInt16.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: TunnelDetail, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.tunnelId, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.clusterId, into: &buf)
+        FfiConverterOptionString.write(value.clientRelayUri, into: &buf)
+        FfiConverterSequenceUInt16.write(value.ports, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTunnelDetail_lift(_ buf: RustBuffer) throws -> TunnelDetail {
+    return try FfiConverterTypeTunnelDetail.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeTunnelDetail_lower(_ value: TunnelDetail) -> RustBuffer {
+    return FfiConverterTypeTunnelDetail.lower(value)
 }
 
 
@@ -570,6 +850,105 @@ public func FfiConverterTypeTunnelInfo_lower(_ value: TunnelInfo) -> RustBuffer 
     return FfiConverterTypeTunnelInfo.lower(value)
 }
 
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+/**
+ * Result of polling for device code completion.
+ */
+
+public enum DeviceCodePollResult {
+    
+    /**
+     * User completed authorization. Contains the access token.
+     */
+    case accessToken(token: String
+    )
+    /**
+     * Authorization is still pending — poll again after `interval` seconds.
+     */
+    case pending
+    /**
+     * The device code expired. Start a new flow.
+     */
+    case expired
+    /**
+     * The flow was denied or encountered an error.
+     */
+    case error(message: String
+    )
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeDeviceCodePollResult: FfiConverterRustBuffer {
+    typealias SwiftType = DeviceCodePollResult
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> DeviceCodePollResult {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .accessToken(token: try FfiConverterString.read(from: &buf)
+        )
+        
+        case 2: return .pending
+        
+        case 3: return .expired
+        
+        case 4: return .error(message: try FfiConverterString.read(from: &buf)
+        )
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: DeviceCodePollResult, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case let .accessToken(token):
+            writeInt(&buf, Int32(1))
+            FfiConverterString.write(token, into: &buf)
+            
+        
+        case .pending:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .expired:
+            writeInt(&buf, Int32(3))
+        
+        
+        case let .error(message):
+            writeInt(&buf, Int32(4))
+            FfiConverterString.write(message, into: &buf)
+            
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceCodePollResult_lift(_ buf: RustBuffer) throws -> DeviceCodePollResult {
+    return try FfiConverterTypeDeviceCodePollResult.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeDeviceCodePollResult_lower(_ value: DeviceCodePollResult) -> RustBuffer {
+    return FfiConverterTypeDeviceCodePollResult.lower(value)
+}
+
+
+
+extension DeviceCodePollResult: Equatable, Hashable {}
+
+
+
 
 /**
  * Errors from Dev Tunnels operations.
@@ -581,6 +960,8 @@ public enum TunnelError {
     case AuthenticationFailed(message: String
     )
     case NoTunnelsFound
+    case TunnelNotFound(message: String
+    )
     case ApiError(message: String
     )
 }
@@ -603,7 +984,10 @@ public struct FfiConverterTypeTunnelError: FfiConverterRustBuffer {
             message: try FfiConverterString.read(from: &buf)
             )
         case 2: return .NoTunnelsFound
-        case 3: return .ApiError(
+        case 3: return .TunnelNotFound(
+            message: try FfiConverterString.read(from: &buf)
+            )
+        case 4: return .ApiError(
             message: try FfiConverterString.read(from: &buf)
             )
 
@@ -627,8 +1011,13 @@ public struct FfiConverterTypeTunnelError: FfiConverterRustBuffer {
             writeInt(&buf, Int32(2))
         
         
-        case let .ApiError(message):
+        case let .TunnelNotFound(message):
             writeInt(&buf, Int32(3))
+            FfiConverterString.write(message, into: &buf)
+            
+        
+        case let .ApiError(message):
+            writeInt(&buf, Int32(4))
             FfiConverterString.write(message, into: &buf)
             
         }
@@ -641,6 +1030,55 @@ extension TunnelError: Equatable, Hashable {}
 extension TunnelError: Foundation.LocalizedError {
     public var errorDescription: String? {
         String(reflecting: self)
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
+    typealias SwiftType = String?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterString.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterString.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceUInt16: FfiConverterRustBuffer {
+    typealias SwiftType = [UInt16]
+
+    public static func write(_ value: [UInt16], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterUInt16.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [UInt16] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [UInt16]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterUInt16.read(from: &buf))
+        }
+        return seq
     }
 }
 
@@ -669,12 +1107,54 @@ fileprivate struct FfiConverterSequenceTypeTunnelInfo: FfiConverterRustBuffer {
     }
 }
 /**
+ * Get detailed info about a specific tunnel, including relay URI and ports.
+ *
+ * The relay URI is extracted by re-deserializing the endpoint JSON as
+ * TunnelRelayTunnelEndpoint, since `Tunnel.endpoints` is typed as
+ * `Vec<TunnelEndpoint>` which doesn't include relay-specific fields.
+ */
+public func getTunnelDetail(accessToken: String, clusterId: String, tunnelId: String)throws  -> TunnelDetail {
+    return try  FfiConverterTypeTunnelDetail.lift(try rustCallWithError(FfiConverterTypeTunnelError.lift) {
+    uniffi_dev_tunnels_bridge_fn_func_get_tunnel_detail(
+        FfiConverterString.lower(accessToken),
+        FfiConverterString.lower(clusterId),
+        FfiConverterString.lower(tunnelId),$0
+    )
+})
+}
+/**
  * List all tunnels for the authenticated user.
  */
 public func listTunnels(accessToken: String)throws  -> [TunnelInfo] {
     return try  FfiConverterSequenceTypeTunnelInfo.lift(try rustCallWithError(FfiConverterTypeTunnelError.lift) {
     uniffi_dev_tunnels_bridge_fn_func_list_tunnels(
         FfiConverterString.lower(accessToken),$0
+    )
+})
+}
+/**
+ * Poll GitHub for device code authorization completion.
+ *
+ * Call this repeatedly with the `device_code` from `start_device_code_auth`,
+ * waiting at least `interval` seconds between calls.
+ */
+public func pollDeviceCodeAuth(deviceCode: String)throws  -> DeviceCodePollResult {
+    return try  FfiConverterTypeDeviceCodePollResult.lift(try rustCallWithError(FfiConverterTypeTunnelError.lift) {
+    uniffi_dev_tunnels_bridge_fn_func_poll_device_code_auth(
+        FfiConverterString.lower(deviceCode),$0
+    )
+})
+}
+/**
+ * Start a GitHub device code authentication flow.
+ *
+ * Returns a `DeviceCodeResponse` containing the `user_code` and
+ * `verification_uri` to show to the user. After the user authorizes,
+ * poll with `poll_device_code_auth` using the returned `device_code`.
+ */
+public func startDeviceCodeAuth()throws  -> DeviceCodeResponse {
+    return try  FfiConverterTypeDeviceCodeResponse.lift(try rustCallWithError(FfiConverterTypeTunnelError.lift) {
+    uniffi_dev_tunnels_bridge_fn_func_start_device_code_auth($0
     )
 })
 }
@@ -694,7 +1174,16 @@ private var initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_dev_tunnels_bridge_checksum_func_get_tunnel_detail() != 46429) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_dev_tunnels_bridge_checksum_func_list_tunnels() != 61837) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_dev_tunnels_bridge_checksum_func_poll_device_code_auth() != 22894) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_dev_tunnels_bridge_checksum_func_start_device_code_auth() != 10542) {
         return InitializationResult.apiChecksumMismatch
     }
 
