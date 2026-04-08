@@ -1,5 +1,4 @@
 import AgentHostProtocol
-import DevTunnelsBridge
 import Foundation
 import Observation
 import SwiftUI
@@ -277,7 +276,7 @@ final class AppStore {
                 }
                 // Fetch a fresh connect access token from the management API
                 do {
-                    let detail = try getTunnelDetail(
+                    let detail = try await getTunnelDetail(
                         accessToken: cachedToken,
                         clusterId: clusterId,
                         tunnelId: tunnelId
@@ -343,7 +342,7 @@ final class AppStore {
         if server.isTunnel, let tunnelId = server.tunnelId, let clusterId = server.clusterId,
            let cachedToken = TunnelTokenStore.load() {
             do {
-                let detail = try getTunnelDetail(
+                let detail = try await getTunnelDetail(
                     accessToken: cachedToken,
                     clusterId: clusterId,
                     tunnelId: tunnelId

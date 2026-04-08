@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		6F2049CE2F774586001049F9 /* AgentHostProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = 6F2049CD2F774586001049F9 /* AgentHostProtocol */; };
 		6F2049D12F7746D3001049F9 /* AgentHostProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = 6F2049D02F7746D3001049F9 /* AgentHostProtocol */; };
-		AA000001304700000001 /* DevTunnelsBridge in Frameworks */ = {isa = PBXBuildFile; productRef = AA000001304700000002 /* DevTunnelsBridge */; };
+		AA000001304700000001 /* DevTunnelsClient in Frameworks */ = {isa = PBXBuildFile; productRef = AA000001304700000002 /* DevTunnelsClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -60,7 +60,7 @@
 			files = (
 				6F2049D12F7746D3001049F9 /* AgentHostProtocol in Frameworks */,
 				6F2049CE2F774586001049F9 /* AgentHostProtocol in Frameworks */,
-				AA000001304700000001 /* DevTunnelsBridge in Frameworks */,
+				AA000001304700000001 /* DevTunnelsClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -123,7 +123,7 @@
 			packageProductDependencies = (
 				6F2049CD2F774586001049F9 /* AgentHostProtocol */,
 				6F2049D02F7746D3001049F9 /* AgentHostProtocol */,
-				AA000001304700000002 /* DevTunnelsBridge */,
+				AA000001304700000002 /* DevTunnelsClient */,
 			);
 			productName = AHPClient;
 			productReference = 6F2049892F7744ED001049F9 /* AHPClient.app */;
@@ -209,7 +209,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6F2049CF2F7746D3001049F9 /* XCLocalSwiftPackageReference "../AgentHostProtocol" */,
-				AA000001304700000003 /* XCLocalSwiftPackageReference "../DevTunnelsBridge" */,
+				AA000001304700000003 /* XCLocalSwiftPackageReference "../../../../../Personal/dev-tunnels-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6F20498A2F7744ED001049F9 /* Products */;
@@ -429,14 +429,6 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = (
-					"$(inherited)",
-					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios-sim/debug",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = (
-					"$(inherited)",
-					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios/debug",
-				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rebornix.AHPClient;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -470,14 +462,6 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = (
-					"$(inherited)",
-					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios-sim/debug",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = (
-					"$(inherited)",
-					"$(SRCROOT)/../DevTunnelsBridge/rust/target/aarch64-apple-ios/debug",
 				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.rebornix.AHPClient;
@@ -622,9 +606,9 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../AgentHostProtocol;
 		};
-		AA000001304700000003 /* XCLocalSwiftPackageReference "../DevTunnelsBridge" */ = {
+		AA000001304700000003 /* XCLocalSwiftPackageReference "../../../../../Personal/dev-tunnels-swift" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../DevTunnelsBridge;
+			relativePath = "../../../../../Personal/dev-tunnels-swift";
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -637,9 +621,9 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = AgentHostProtocol;
 		};
-		AA000001304700000002 /* DevTunnelsBridge */ = {
+		AA000001304700000002 /* DevTunnelsClient */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = DevTunnelsBridge;
+			productName = DevTunnelsClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

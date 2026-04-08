@@ -1,4 +1,4 @@
-import DevTunnelsBridge
+import DevTunnelsClient
 import Security
 import SwiftUI
 
@@ -208,7 +208,7 @@ struct TunnelListView: View {
 
     private func startAuth() async {
         do {
-            let response = try startDeviceCodeAuth()
+            let response = try await startDeviceCodeAuth()
             deviceCodeResponse = response
             isPolling = true
             authMessage = nil
@@ -223,7 +223,7 @@ struct TunnelListView: View {
         while isPolling {
             try? await Task.sleep(nanoseconds: interval)
             do {
-                let result = try pollDeviceCodeAuth(deviceCode: deviceCode)
+                let result = try await pollDeviceCodeAuth(deviceCode: deviceCode)
                 switch result {
                 case .accessToken(let token):
                     accessToken = token
@@ -253,7 +253,7 @@ struct TunnelListView: View {
         isLoading = true
         errorMessage = nil
         do {
-            tunnels = try listTunnels(accessToken: accessToken)
+            tunnels = try await listTunnels(accessToken: accessToken)
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -268,7 +268,7 @@ struct TunnelListView: View {
             let port = TunnelDetailView.agentHostPort
             var connectToken: String?
             do {
-                let detail = try getTunnelDetail(
+                let detail = try await getTunnelDetail(
                     accessToken: accessToken,
                     clusterId: tunnel.clusterId,
                     tunnelId: tunnel.tunnelId
@@ -410,7 +410,7 @@ struct TunnelDetailView: View {
 
     private func loadDetail() async {
         do {
-            detail = try getTunnelDetail(
+            detail = try await getTunnelDetail(
                 accessToken: accessToken,
                 clusterId: tunnel.clusterId,
                 tunnelId: tunnel.tunnelId
