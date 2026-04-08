@@ -173,12 +173,22 @@ struct TunnelListView: View {
                             onConnectToTunnel: onConnectToTunnel
                         )
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(tunnel.name)
-                                .font(.body)
-                            Text("\(tunnel.clusterId) · \(tunnel.tunnelId)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name)
+                                    .font(.body)
+                                Text("\(tunnel.clusterId) · \(tunnel.tunnelId)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if onConnectToTunnel != nil {
+                                Button("Connect") {
+                                    connectTunnel(tunnel)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
                         }
                     }
                 }
@@ -248,6 +258,37 @@ struct TunnelListView: View {
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    /// Connect directly to a tunnel's AHP port (31546), fetching the connect
+    /// access token in the background.
+    private func connectTunnel(_ tunnel: TunnelInfo) {
+        Task {
+            let port = TunnelDetailView.agentHostPort
+            var connectToken: String?
+            do {
+                let detail = try getTunnelDetail(
+                    accessToken: accessToken,
+                    clusterId: tunnel.clusterId,
+                    tunnelId: tunnel.tunnelId
+                )
+                connectToken = detail.connectAccessToken
+            } catch {
+                print("[AHP] Warning: failed to fetch connect token: \(error)")
+            }
+            let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
+            let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
+            let server = ServerConfiguration(
+                name: "\(displayName) :\(port)",
+                scheme: "wss",
+                host: host,
+                token: accessToken,
+                tunnelId: tunnel.tunnelId,
+                clusterId: tunnel.clusterId,
+                connectAccessToken: connectToken
+            )
+            onConnectToTunnel?(server)
         }
     }
 }
