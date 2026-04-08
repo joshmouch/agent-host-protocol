@@ -287,7 +287,14 @@ final class AppStore {
             selectedSessionURI = nil
             rootState = RootState(agents: [])
 
-            let result = try await connection.connect(to: url)
+            // For tunnel servers, send the GitHub token as a tunnel auth header
+            // so the devtunnels.ms relay authenticates the WebSocket upgrade.
+            var headers: [String: String] = [:]
+            if server.isTunnel, !server.token.isEmpty {
+                headers["X-Tunnel-Authorization"] = "github \(server.token)"
+            }
+
+            let result = try await connection.connect(to: url, headers: headers)
             defaultDirectory = result.defaultDirectory
 
             // Process initial snapshots
@@ -312,11 +319,17 @@ final class AppStore {
         isReconnecting = true
         defer { isReconnecting = false }
 
+        // Build tunnel auth headers if needed
+        var headers: [String: String] = [:]
+        if server.isTunnel, !server.token.isEmpty {
+            headers["X-Tunnel-Authorization"] = "github \(server.token)"
+        }
+
         let canReconnect = await connection.canReconnect
         if canReconnect {
             do {
                 errorMessage = nil
-                let result = try await connection.reconnect(to: url)
+                let result = try await connection.reconnect(to: url, headers: headers)
                 applyReconnectResult(result)
                 // Subscribe to any sessions that appeared while we were offline.
                 await fetchAndSubscribeSessions()

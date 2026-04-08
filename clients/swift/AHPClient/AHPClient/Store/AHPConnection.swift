@@ -90,10 +90,10 @@ actor AHPConnection {
     /// Opens a WebSocket to the given server URL, performs the AHP `initialize` handshake,
     /// and returns the resulting snapshots.
     @discardableResult
-    func connect(to url: URL) async throws -> InitializeResult {
+    func connect(to url: URL, headers: [String: String] = [:]) async throws -> InitializeResult {
         await setState(.connecting)
 
-        let ws = NativeWebSocketConnection(url: url)
+        let ws = NativeWebSocketConnection(url: url, additionalHeaders: headers)
         do {
             try await ws.connect()
             self.webSocket = ws
@@ -141,10 +141,10 @@ actor AHPConnection {
     /// After this call succeeds the connection is back in `.connected` state and the caller
     /// is responsible for applying the returned `ReconnectResult` to the app state.
     @discardableResult
-    func reconnect(to url: URL) async throws -> ReconnectResult {
+    func reconnect(to url: URL, headers: [String: String] = [:]) async throws -> ReconnectResult {
         await setState(.reconnecting)
 
-        let ws = NativeWebSocketConnection(url: url)
+        let ws = NativeWebSocketConnection(url: url, additionalHeaders: headers)
         do {
             try await ws.connect()
             self.webSocket = ws
@@ -440,6 +440,7 @@ private actor NativeWebSocketConnection {
     private static let headerDelimiter = Data([13, 10, 13, 10])
 
     private let url: URL
+    private let additionalHeaders: [String: String]
     private let queue = DispatchQueue(label: "AHPClient.NativeWebSocketConnection")
 
     private var connection: NWConnection?
@@ -449,8 +450,9 @@ private actor NativeWebSocketConnection {
     private var fragmentedPayload = Data()
     private var handshakeComplete = false
 
-    init(url: URL) {
+    init(url: URL, additionalHeaders: [String: String] = [:]) {
         self.url = url
+        self.additionalHeaders = additionalHeaders
     }
 
     func connect() async throws {
@@ -573,16 +575,21 @@ private actor NativeWebSocketConnection {
         let secKey = makeSecWebSocketKey()
         let expectedAccept = expectedAcceptValue(for: secKey)
 
-        let requestLines = [
+        var requestLines = [
             "GET \(path) HTTP/1.1",
             "Host: \(hostHeader)",
             "Upgrade: websocket",
             "Connection: Upgrade",
             "Sec-WebSocket-Key: \(secKey)",
             "Sec-WebSocket-Version: 13",
-            "",
-            "",
         ]
+
+        for (name, value) in additionalHeaders {
+            requestLines.append("\(name): \(value)")
+        }
+
+        requestLines.append("")
+        requestLines.append("")
 
         let request = requestLines.joined(separator: "\r\n")
         try await sendRaw(Data(request.utf8))
