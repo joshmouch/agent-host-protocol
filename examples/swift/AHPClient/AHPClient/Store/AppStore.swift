@@ -1,4 +1,5 @@
 import AgentHostProtocol
+import DevTunnelsBridge
 import Foundation
 import Observation
 import SwiftUI
@@ -261,14 +262,33 @@ final class AppStore {
             return
         }
 
-        // For tunnel servers, refresh the token from Keychain so saved
-        // tunnel entries automatically pick up the latest GitHub token.
-        if server.isTunnel, let cachedToken = TunnelTokenStore.load() {
-            if server.token != cachedToken {
-                server.token = cachedToken
-                if let index = servers.firstIndex(where: { $0.id == server.id }) {
-                    servers[index].token = cachedToken
-                    serverStorage.saveServer(servers[index])
+        // For tunnel servers, refresh the connect access token by re-fetching
+        // the tunnel details with "connect" token scope. This gives us a fresh JWT.
+        // The GitHub token (server.token) is kept for management API calls.
+        if server.isTunnel, let tunnelId = server.tunnelId, let clusterId = server.clusterId {
+            if let cachedToken = TunnelTokenStore.load() {
+                // Keep the GitHub token up-to-date
+                if server.token != cachedToken {
+                    server.token = cachedToken
+                    if let index = servers.firstIndex(where: { $0.id == server.id }) {
+                        servers[index].token = cachedToken
+                        serverStorage.saveServer(servers[index])
+                    }
+                }
+                // Fetch a fresh connect access token from the management API
+                do {
+                    let detail = try getTunnelDetail(
+                        accessToken: cachedToken,
+                        clusterId: clusterId,
+                        tunnelId: tunnelId
+                    )
+                    server.connectAccessToken = detail.connectAccessToken
+                    if let index = servers.firstIndex(where: { $0.id == server.id }) {
+                        servers[index].connectAccessToken = detail.connectAccessToken
+                    }
+                } catch {
+                    // If we can't refresh, try with whatever we have
+                    print("[AHP] Warning: failed to refresh connect token: \(error)")
                 }
             }
         }
@@ -287,11 +307,11 @@ final class AppStore {
             selectedSessionURI = nil
             rootState = RootState(agents: [])
 
-            // For tunnel servers, send the GitHub token as a tunnel auth header
-            // so the devtunnels.ms relay authenticates the WebSocket upgrade.
+            // For tunnel servers, send the connect access token so the
+            // devtunnels.ms relay authenticates the WebSocket upgrade.
             var headers: [String: String] = [:]
-            if server.isTunnel, !server.token.isEmpty {
-                headers["X-Tunnel-Authorization"] = "github \(server.token)"
+            if server.isTunnel, let connectToken = server.connectAccessToken, !connectToken.isEmpty {
+                headers["X-Tunnel-Authorization"] = "tunnel \(connectToken)"
             }
 
             let result = try await connection.connect(to: url, headers: headers)
@@ -313,16 +333,34 @@ final class AppStore {
     /// can replay only the actions missed during the outage. Falls back to a full `connect()` if
     /// no prior connection state is available or if the reconnect handshake itself fails.
     func reconnect() async {
-        guard let server = selectedServer,
+        guard var server = selectedServer,
               let url = URL(string: server.endpointURLString) else { return }
 
         isReconnecting = true
         defer { isReconnecting = false }
 
+        // For tunnel servers, fetch a fresh connect access token
+        if server.isTunnel, let tunnelId = server.tunnelId, let clusterId = server.clusterId,
+           let cachedToken = TunnelTokenStore.load() {
+            do {
+                let detail = try getTunnelDetail(
+                    accessToken: cachedToken,
+                    clusterId: clusterId,
+                    tunnelId: tunnelId
+                )
+                server.connectAccessToken = detail.connectAccessToken
+                if let index = servers.firstIndex(where: { $0.id == server.id }) {
+                    servers[index].connectAccessToken = detail.connectAccessToken
+                }
+            } catch {
+                print("[AHP] Warning: failed to refresh connect token on reconnect: \(error)")
+            }
+        }
+
         // Build tunnel auth headers if needed
         var headers: [String: String] = [:]
-        if server.isTunnel, !server.token.isEmpty {
-            headers["X-Tunnel-Authorization"] = "github \(server.token)"
+        if server.isTunnel, let connectToken = server.connectAccessToken, !connectToken.isEmpty {
+            headers["X-Tunnel-Authorization"] = "tunnel \(connectToken)"
         }
 
         let canReconnect = await connection.canReconnect

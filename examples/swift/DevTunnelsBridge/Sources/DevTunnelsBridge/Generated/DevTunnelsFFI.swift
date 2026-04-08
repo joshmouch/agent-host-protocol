@@ -643,6 +643,11 @@ public struct TunnelDetail {
      * Forwarded port numbers available on this tunnel.
      */
     public let ports: [UInt16]
+    /**
+     * Tunnel access token with "connect" scope, for authenticating
+     * to the devtunnels.ms forwarded port endpoint.
+     */
+    public let connectAccessToken: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
@@ -661,12 +666,17 @@ public struct TunnelDetail {
          */clientRelayUri: String?, 
         /**
          * Forwarded port numbers available on this tunnel.
-         */ports: [UInt16]) {
+         */ports: [UInt16], 
+        /**
+         * Tunnel access token with "connect" scope, for authenticating
+         * to the devtunnels.ms forwarded port endpoint.
+         */connectAccessToken: String?) {
         self.tunnelId = tunnelId
         self.name = name
         self.clusterId = clusterId
         self.clientRelayUri = clientRelayUri
         self.ports = ports
+        self.connectAccessToken = connectAccessToken
     }
 }
 
@@ -689,6 +699,9 @@ extension TunnelDetail: Equatable, Hashable {
         if lhs.ports != rhs.ports {
             return false
         }
+        if lhs.connectAccessToken != rhs.connectAccessToken {
+            return false
+        }
         return true
     }
 
@@ -698,6 +711,7 @@ extension TunnelDetail: Equatable, Hashable {
         hasher.combine(clusterId)
         hasher.combine(clientRelayUri)
         hasher.combine(ports)
+        hasher.combine(connectAccessToken)
     }
 }
 
@@ -713,7 +727,8 @@ public struct FfiConverterTypeTunnelDetail: FfiConverterRustBuffer {
                 name: FfiConverterString.read(from: &buf), 
                 clusterId: FfiConverterString.read(from: &buf), 
                 clientRelayUri: FfiConverterOptionString.read(from: &buf), 
-                ports: FfiConverterSequenceUInt16.read(from: &buf)
+                ports: FfiConverterSequenceUInt16.read(from: &buf), 
+                connectAccessToken: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -723,6 +738,7 @@ public struct FfiConverterTypeTunnelDetail: FfiConverterRustBuffer {
         FfiConverterString.write(value.clusterId, into: &buf)
         FfiConverterOptionString.write(value.clientRelayUri, into: &buf)
         FfiConverterSequenceUInt16.write(value.ports, into: &buf)
+        FfiConverterOptionString.write(value.connectAccessToken, into: &buf)
     }
 }
 

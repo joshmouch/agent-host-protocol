@@ -78,12 +78,14 @@ final class DevTunnelsBridgeTests: XCTestCase {
             name: "my-machine",
             clusterId: "usw2",
             clientRelayUri: "wss://usw2-data.rel.tunnels.api.visualstudio.com/...",
-            ports: [8080, 31546]
+            ports: [8080, 31546],
+            connectAccessToken: "eyJhbGciOiJSUzI1Ni..."
         )
         XCTAssertEqual(detail.tunnelId, "abc123")
         XCTAssertEqual(detail.name, "my-machine")
         XCTAssertEqual(detail.clientRelayUri, "wss://usw2-data.rel.tunnels.api.visualstudio.com/...")
         XCTAssertEqual(detail.ports, [8080, 31546])
+        XCTAssertEqual(detail.connectAccessToken, "eyJhbGciOiJSUzI1Ni...")
     }
 
     func testDeviceCodeResponseInit() {
