@@ -56,6 +56,9 @@ pub struct TunnelDetail {
     pub client_relay_uri: Option<String>,
     /// Forwarded port numbers available on this tunnel.
     pub ports: Vec<u16>,
+    /// Tunnel access token with "connect" scope, for authenticating
+    /// to the devtunnels.ms forwarded port endpoint.
+    pub connect_access_token: Option<String>,
 }
 
 /// Result of starting a GitHub device code auth flow.
@@ -173,6 +176,7 @@ pub fn get_tunnel_detail(
         };
         let mut options = TunnelRequestOptions::default();
         options.include_ports = true;
+        options.token_scopes = vec!["connect".to_string()];
 
         let tunnel = client.get_tunnel(&locator, &options).await?;
 
@@ -187,6 +191,11 @@ pub fn get_tunnel_detail(
                 relay.client_relay_uri
             });
 
+        let connect_access_token = tunnel
+            .access_tokens
+            .as_ref()
+            .and_then(|tokens| tokens.get("connect").cloned());
+
         let ports = tunnel.ports.iter().map(|p| p.port_number).collect();
 
         Ok(TunnelDetail {
@@ -195,6 +204,7 @@ pub fn get_tunnel_detail(
             cluster_id: tunnel.cluster_id.unwrap_or_default(),
             client_relay_uri,
             ports,
+            connect_access_token,
         })
     })
 }

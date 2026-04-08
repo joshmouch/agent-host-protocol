@@ -361,7 +361,8 @@ struct TunnelDetailView: View {
             host: host,
             token: accessToken,
             tunnelId: tunnel.tunnelId,
-            clusterId: tunnel.clusterId
+            clusterId: tunnel.clusterId,
+            connectAccessToken: detail?.connectAccessToken
         )
         onConnectToTunnel?(server)
     }

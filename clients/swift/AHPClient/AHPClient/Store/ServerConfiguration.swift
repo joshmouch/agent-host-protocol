@@ -12,6 +12,10 @@ struct ServerConfiguration: Identifiable, Equatable {
     var tunnelId: String?
     var clusterId: String?
 
+    /// Tunnel connect access token (JWT, ephemeral — not persisted to Core Data).
+    /// Obtained from the management API with `tokenScopes=connect`.
+    var connectAccessToken: String?
+
     /// Whether this server was created from a Dev Tunnel.
     var isTunnel: Bool { tunnelId != nil }
 
@@ -33,7 +37,8 @@ struct ServerConfiguration: Identifiable, Equatable {
         host: String,
         token: String = "",
         tunnelId: String? = nil,
-        clusterId: String? = nil
+        clusterId: String? = nil,
+        connectAccessToken: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -42,5 +47,6 @@ struct ServerConfiguration: Identifiable, Equatable {
         self.token = token
         self.tunnelId = tunnelId
         self.clusterId = clusterId
+        self.connectAccessToken = connectAccessToken
     }
 }
