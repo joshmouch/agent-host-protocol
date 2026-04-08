@@ -19,6 +19,7 @@ import type {
   ISessionActiveClient,
   IUsageInfo,
   ISessionCustomization,
+  ISessionFileDiff,
   ITerminalInfo,
   ITerminalClaim,
 } from './state.js';
@@ -65,6 +66,7 @@ export const enum ActionType {
   SessionTruncated = 'session/truncated',
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsDoneChanged = 'session/isDoneChanged',
+  SessionDiffsChanged = 'session/diffsChanged',
   RootTerminalsChanged = 'root/terminalsChanged',
   TerminalData = 'terminal/data',
   TerminalInput = 'terminal/input',
@@ -565,6 +567,23 @@ export interface ISessionIsDoneChangedAction {
 }
 
 /**
+ * The file diffs for the session changed.
+ *
+ * Full-replacement semantics: the `diffs` array replaces the previous
+ * `summary.diffs` entirely.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface ISessionDiffsChangedAction {
+  type: ActionType.SessionDiffsChanged;
+  /** Session URI */
+  session: URI;
+  /** Updated file diffs for the session */
+  diffs: ISessionFileDiff[];
+}
+
+/**
  * Server tools for this session have changed.
  *
  * Full-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.
@@ -934,6 +953,7 @@ export type IStateAction =
   | ISessionTruncatedAction
   | ISessionIsReadChangedAction
   | ISessionIsDoneChangedAction
+  | ISessionDiffsChangedAction
   | ITerminalDataAction
   | ITerminalInputAction
   | ITerminalResizedAction

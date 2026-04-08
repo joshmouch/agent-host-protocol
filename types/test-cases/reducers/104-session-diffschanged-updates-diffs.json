@@ -1,0 +1,42 @@
+{
+  "description": "session/diffsChanged updates summary diffs",
+  "reducer": "session",
+  "initial": {
+    "summary": {
+      "resource": "copilot:/test-session",
+      "provider": "copilot",
+      "title": "Test Session",
+      "status": "idle",
+      "createdAt": 1000,
+      "modifiedAt": 1000
+    },
+    "lifecycle": "ready",
+    "turns": []
+  },
+  "actions": [
+    {
+      "type": "session/diffsChanged",
+      "session": "copilot:/test-session",
+      "diffs": [
+        { "uri": "file:///src/index.ts", "added": 10, "removed": 3 },
+        { "uri": "file:///src/utils.ts", "added": 5 }
+      ]
+    }
+  ],
+  "expected": {
+    "summary": {
+      "resource": "copilot:/test-session",
+      "provider": "copilot",
+      "title": "Test Session",
+      "status": "idle",
+      "createdAt": 1000,
+      "modifiedAt": 1000,
+      "diffs": [
+        { "uri": "file:///src/index.ts", "added": 10, "removed": 3 },
+        { "uri": "file:///src/utils.ts", "added": 5 }
+      ]
+    },
+    "lifecycle": "ready",
+    "turns": []
+  }
+}

@@ -667,6 +667,31 @@
         "isDone"
       ]
     },
+    "ISessionDiffsChangedAction": {
+      "type": "object",
+      "description": "The file diffs for the session changed.\n\nFull-replacement semantics: the `diffs` array replaces the previous\n`summary.diffs` entirely.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionDiffsChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "diffs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionFileDiff"
+          },
+          "description": "Updated file diffs for the session"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "diffs"
+      ]
+    },
     "ISessionServerToolsChangedAction": {
       "type": "object",
       "description": "Server tools for this session have changed.\n\nFull-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.",
@@ -2616,6 +2641,9 @@
         },
         {
           "$ref": "#/$defs/ISessionIsDoneChangedAction"
+        },
+        {
+          "$ref": "#/$defs/ISessionDiffsChangedAction"
         },
         {
           "$ref": "#/$defs/ITerminalDataAction"

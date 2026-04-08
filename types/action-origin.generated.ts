@@ -36,6 +36,7 @@ import type {
   ISessionTruncatedAction,
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
+  ISessionDiffsChangedAction,
   ITerminalDataAction,
   ITerminalInputAction,
   ITerminalResizedAction,
@@ -89,6 +90,7 @@ export type ISessionAction =
   | ISessionTruncatedAction
   | ISessionIsReadChangedAction
   | ISessionIsDoneChangedAction
+  | ISessionDiffsChangedAction
 ;
 
 /** Union of session actions that clients may dispatch. */
@@ -127,6 +129,7 @@ export type IServerSessionAction =
   | ISessionReasoningAction
   | ISessionServerToolsChangedAction
   | ISessionCustomizationsChangedAction
+  | ISessionDiffsChangedAction
 ;
 
 /** Union of all terminal-scoped actions. */
@@ -197,6 +200,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
   [ActionType.SessionTruncated]: true,
   [ActionType.SessionIsReadChanged]: true,
   [ActionType.SessionIsDoneChanged]: true,
+  [ActionType.SessionDiffsChanged]: false,
   [ActionType.TerminalData]: false,
   [ActionType.TerminalInput]: true,
   [ActionType.TerminalResized]: true,

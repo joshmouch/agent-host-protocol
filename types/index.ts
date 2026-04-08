@@ -107,6 +107,7 @@ export type {
   ISessionTruncatedAction,
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
+  ISessionDiffsChangedAction,
   IStateAction,
   IRootTerminalsChangedAction,
   ITerminalDataAction,
