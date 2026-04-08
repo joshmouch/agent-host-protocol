@@ -280,7 +280,7 @@ struct TunnelListView: View {
             let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
             let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
             let server = ServerConfiguration(
-                name: "\(displayName) :\(port)",
+                name: displayName,
                 scheme: "wss",
                 host: host,
                 token: accessToken,
@@ -397,7 +397,7 @@ struct TunnelDetailView: View {
         let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
         let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
         let server = ServerConfiguration(
-            name: "\(displayName) :\(port)",
+            name: displayName,
             scheme: "wss",
             host: host,
             token: accessToken,
