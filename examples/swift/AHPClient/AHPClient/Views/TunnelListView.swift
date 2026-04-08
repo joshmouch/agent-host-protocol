@@ -53,6 +53,9 @@ private enum TokenStore {
 
 /// View for browsing Dev Tunnels and initiating device code authentication.
 struct TunnelListView: View {
+    /// Called when the user selects a tunnel port to use as an AHP server.
+    var onConnectToTunnel: ((ServerConfiguration) -> Void)?
+
     @State private var tunnels: [TunnelInfo] = []
     @State private var accessToken: String = ""
     @State private var isLoading = false
@@ -164,7 +167,11 @@ struct TunnelListView: View {
             } else {
                 ForEach(tunnels, id: \.tunnelId) { tunnel in
                     NavigationLink {
-                        TunnelDetailView(tunnel: tunnel, accessToken: accessToken)
+                        TunnelDetailView(
+                            tunnel: tunnel,
+                            accessToken: accessToken,
+                            onConnectToTunnel: onConnectToTunnel
+                        )
                     } label: {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(tunnel.name)
@@ -250,6 +257,7 @@ struct TunnelListView: View {
 struct TunnelDetailView: View {
     let tunnel: TunnelInfo
     let accessToken: String
+    var onConnectToTunnel: ((ServerConfiguration) -> Void)?
 
     @State private var detail: TunnelDetail?
     @State private var isLoading = true
@@ -285,7 +293,23 @@ struct TunnelDetailView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(detail.ports.map { Int($0) }, id: \.self) { port in
-                            LabeledContent("Port", value: "\(port)")
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Port \(port)")
+                                        .font(.body)
+                                    Text("\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if onConnectToTunnel != nil {
+                                    Button("Connect") {
+                                        connectToPort(port)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
+                            }
                         }
                     }
                 }
@@ -303,6 +327,17 @@ struct TunnelDetailView: View {
         .task {
             await loadDetail()
         }
+    }
+
+    private func connectToPort(_ port: Int) {
+        let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
+        let server = ServerConfiguration(
+            name: "\(tunnel.name) :\(port)",
+            scheme: "wss",
+            host: host,
+            token: accessToken
+        )
+        onConnectToTunnel?(server)
     }
 
     private func loadDetail() async {
