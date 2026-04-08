@@ -194,6 +194,20 @@
         "fork": {
           "$ref": "#/$defs/ISessionForkSource",
           "description": "Fork from an existing session. The new session is populated with content\nfrom the source session up to and including the specified turn's response."
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Agent-specific metadata values collected via `resolveSessionConfig`.\nKeys and values correspond to the schema returned by the server."
         }
       },
       "required": [
@@ -583,6 +597,163 @@
       "type": "object",
       "description": "Result of the `authenticate` command.\n\nAn empty object on success. If the token is invalid or the resource is\nunrecognized, the server MUST return a JSON-RPC error (e.g. `AuthRequired`\n`-32007` or `InvalidParams` `-32602`).",
       "properties": {}
+    },
+    "ISessionConfigPropertySchema": {
+      "type": "object",
+      "description": "A JSON Schema-compatible property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that\nprovide UI metadata for each `enum` value.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "boolean"
+          ],
+          "description": "JSON Schema: property type"
+        },
+        "title": {
+          "type": "string",
+          "description": "JSON Schema: human-readable label for the property"
+        },
+        "description": {
+          "type": "string",
+          "description": "JSON Schema: description / tooltip"
+        },
+        "default": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "description": "JSON Schema: default value"
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: allowed values (for pick-style properties)"
+        },
+        "enumLabels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: human-readable label per enum value (parallel array)"
+        },
+        "enumDescriptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: description per enum value (parallel array)"
+        },
+        "enumIcons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: icon identifier per enum value (parallel array)"
+        }
+      },
+      "required": [
+        "type",
+        "title"
+      ]
+    },
+    "ISessionConfigSchema": {
+      "type": "object",
+      "description": "A JSON Schema object describing available session configuration metadata.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "object"
+          ],
+          "description": "JSON Schema: always `'object'`"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ISessionConfigPropertySchema"
+          },
+          "description": "JSON Schema: property descriptors keyed by property id"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: list of required property ids"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ]
+    },
+    "IResolveSessionConfigParams": {
+      "type": "object",
+      "description": "Iteratively resolves the session configuration schema. The client sends the\ncurrent partial session config and any user-filled metadata values. The server\nreturns a property schema describing what additional metadata is needed,\ncontextual to the current selections.\n\nThe client calls this command whenever the user changes a significant input\n(e.g. picks a working directory, toggles a property). Each response returns\nthe full current property set (not a delta). When `ready` is `true`, the\nclient may call `createSession` with the accumulated metadata.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Agent provider ID"
+        },
+        "workingDirectory": {
+          "$ref": "#/$defs/URI",
+          "description": "Working directory for the session"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Current user-filled metadata values"
+        }
+      }
+    },
+    "IResolveSessionConfigResult": {
+      "type": "object",
+      "description": "Result of the `resolveSessionConfig` command.",
+      "properties": {
+        "ready": {
+          "type": "boolean",
+          "description": "True when all required metadata is satisfied and `createSession` can be called"
+        },
+        "schema": {
+          "$ref": "#/$defs/ISessionConfigSchema",
+          "description": "JSON Schema describing available metadata properties given the current context"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Current metadata values (echoed back with server-resolved defaults applied)"
+        }
+      },
+      "required": [
+        "ready",
+        "schema",
+        "values"
+      ]
     },
     "Icon": {
       "type": "object",
@@ -994,6 +1165,20 @@
             "$ref": "#/$defs/ISessionFileDiff"
           },
           "description": "Files changed during this session with diff statistics"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Agent-specific metadata values resolved during session creation"
         }
       },
       "required": [

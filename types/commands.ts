@@ -191,6 +191,11 @@ export interface ICreateSessionParams {
    * from the source session up to and including the specified turn's response.
    */
   fork?: ISessionForkSource;
+  /**
+   * Agent-specific metadata values collected via `resolveSessionConfig`.
+   * Keys and values correspond to the schema returned by the server.
+   */
+  metadata?: Record<string, string | boolean>;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -686,4 +691,128 @@ export interface IAuthenticateParams {
  * `-32007` or `InvalidParams` `-32602`).
  */
 export interface IAuthenticateResult {
+}
+
+// ─── resolveSessionConfig ────────────────────────────────────────────────────
+
+/**
+ * A JSON Schema-compatible property descriptor with display extensions.
+ *
+ * Standard JSON Schema fields (`type`, `title`, `description`, `default`,
+ * `enum`) allow validators to process the schema. Display extensions
+ * (`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that
+ * provide UI metadata for each `enum` value.
+ *
+ * @category Commands
+ */
+export interface ISessionConfigPropertySchema {
+  /** JSON Schema: property type */
+  type: 'string' | 'boolean';
+  /** JSON Schema: human-readable label for the property */
+  title: string;
+  /** JSON Schema: description / tooltip */
+  description?: string;
+  /** JSON Schema: default value */
+  default?: string | boolean;
+  /** JSON Schema: allowed values (for pick-style properties) */
+  enum?: string[];
+  /** Display extension: human-readable label per enum value (parallel array) */
+  enumLabels?: string[];
+  /** Display extension: description per enum value (parallel array) */
+  enumDescriptions?: string[];
+  /** Display extension: icon identifier per enum value (parallel array) */
+  enumIcons?: string[];
+}
+
+/**
+ * A JSON Schema object describing available session configuration metadata.
+ *
+ * @category Commands
+ */
+export interface ISessionConfigSchema {
+  /** JSON Schema: always `'object'` */
+  type: 'object';
+  /** JSON Schema: property descriptors keyed by property id */
+  properties: Record<string, ISessionConfigPropertySchema>;
+  /** JSON Schema: list of required property ids */
+  required?: string[];
+}
+
+/**
+ * Iteratively resolves the session configuration schema. The client sends the
+ * current partial session config and any user-filled metadata values. The server
+ * returns a property schema describing what additional metadata is needed,
+ * contextual to the current selections.
+ *
+ * The client calls this command whenever the user changes a significant input
+ * (e.g. picks a working directory, toggles a property). Each response returns
+ * the full current property set (not a delta). When `ready` is `true`, the
+ * client may call `createSession` with the accumulated metadata.
+ *
+ * @category Commands
+ * @method resolveSessionConfig
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ * @example
+ * ```jsonc
+ * // Step 1: Client picks a working directory
+ * // Client → Server
+ * { "jsonrpc": "2.0", "id": 5, "method": "resolveSessionConfig",
+ *   "params": { "workingDirectory": "file:///home/user/my-project" } }
+ *
+ * // Server → Client (git repo detected, offers worktree option)
+ * { "jsonrpc": "2.0", "id": 5, "result": {
+ *   "ready": true,
+ *   "schema": {
+ *     "type": "object",
+ *     "properties": {
+ *       "useWorktree": { "type": "boolean", "title": "Use Git Worktree", "default": false }
+ *     }
+ *   },
+ *   "values": {}
+ * }}
+ *
+ * // Step 2: User enables worktree
+ * // Client → Server
+ * { "jsonrpc": "2.0", "id": 6, "method": "resolveSessionConfig",
+ *   "params": { "workingDirectory": "file:///home/user/my-project",
+ *               "metadata": { "useWorktree": true } } }
+ *
+ * // Server → Client (now requires branch selection)
+ * { "jsonrpc": "2.0", "id": 6, "result": {
+ *   "ready": false,
+ *   "schema": {
+ *     "type": "object",
+ *     "properties": {
+ *       "useWorktree": { "type": "boolean", "title": "Use Git Worktree", "default": false },
+ *       "baseBranch": { "type": "string", "title": "Base Branch",
+ *                       "enum": ["main", "develop"],
+ *                       "enumLabels": ["main", "develop"] }
+ *     },
+ *     "required": ["baseBranch"]
+ *   },
+ *   "values": { "useWorktree": true }
+ * }}
+ * ```
+ */
+export interface IResolveSessionConfigParams {
+  /** Agent provider ID */
+  provider?: string;
+  /** Working directory for the session */
+  workingDirectory?: URI;
+  /** Current user-filled metadata values */
+  metadata?: Record<string, string | boolean>;
+}
+
+/**
+ * Result of the `resolveSessionConfig` command.
+ */
+export interface IResolveSessionConfigResult {
+  /** True when all required metadata is satisfied and `createSession` can be called */
+  ready: boolean;
+  /** JSON Schema describing available metadata properties given the current context */
+  schema: ISessionConfigSchema;
+  /** Current metadata values (echoed back with server-resolved defaults applied) */
+  values: Record<string, string | boolean>;
 }

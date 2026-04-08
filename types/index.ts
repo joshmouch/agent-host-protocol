@@ -203,6 +203,10 @@ export type {
   IDispatchActionParams,
   IAuthenticateParams,
   IAuthenticateResult,
+  IResolveSessionConfigParams,
+  IResolveSessionConfigResult,
+  ISessionConfigPropertySchema,
+  ISessionConfigSchema,
 } from './commands.js';
 
 export { ReconnectResultType, ContentEncoding } from './commands.js';

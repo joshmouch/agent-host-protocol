@@ -361,6 +361,8 @@ export interface ISessionSummary {
   isDone?: boolean;
   /** Files changed during this session with diff statistics */
   diffs?: ISessionFileDiff[];
+  /** Agent-specific metadata values resolved during session creation */
+  metadata?: Record<string, string | boolean>;
 }
 
 // ─── Session Input Types ────────────────────────────────────────────────────

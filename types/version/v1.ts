@@ -133,6 +133,10 @@ import type {
   IResourceMoveResult,
   ICreateTerminalParams,
   IDisposeTerminalParams,
+  IResolveSessionConfigParams,
+  IResolveSessionConfigResult,
+  ISessionConfigPropertySchema,
+  ISessionConfigSchema,
 } from '../commands.js';
 
 import type {
@@ -274,6 +278,10 @@ type V1_IResourceDeleteParams = IResourceDeleteParams;
 type V1_IResourceDeleteResult = IResourceDeleteResult;
 type V1_IResourceMoveParams = IResourceMoveParams;
 type V1_IResourceMoveResult = IResourceMoveResult;
+type V1_IResolveSessionConfigParams = IResolveSessionConfigParams;
+type V1_IResolveSessionConfigResult = IResolveSessionConfigResult;
+type V1_ISessionConfigPropertySchema = ISessionConfigPropertySchema;
+type V1_ISessionConfigSchema = ISessionConfigSchema;
 type V1_ICommandMap = ICommandMap;
 type V1_IClientNotificationMap = IClientNotificationMap;
 type V1_IServerNotificationMap = IServerNotificationMap;
@@ -520,3 +528,11 @@ type _CheckTerminalState = AssertCompatible<V1_ITerminalState, ITerminalState>;
 type _CheckCreateTerminalParams = AssertCompatible<V1_ICreateTerminalParams, ICreateTerminalParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckDisposeTerminalParams = AssertCompatible<V1_IDisposeTerminalParams, IDisposeTerminalParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckResolveSessionConfigParams = AssertCompatible<V1_IResolveSessionConfigParams, IResolveSessionConfigParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckResolveSessionConfigResult = AssertCompatible<V1_IResolveSessionConfigResult, IResolveSessionConfigResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigPropertySchema = AssertCompatible<V1_ISessionConfigPropertySchema, ISessionConfigPropertySchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigSchema = AssertCompatible<V1_ISessionConfigSchema, ISessionConfigSchema>;

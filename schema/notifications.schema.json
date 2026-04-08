@@ -558,6 +558,20 @@
             "$ref": "#/$defs/ISessionFileDiff"
           },
           "description": "Files changed during this session with diff statistics"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "description": "Agent-specific metadata values resolved during session creation"
         }
       },
       "required": [
