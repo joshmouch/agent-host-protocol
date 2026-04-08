@@ -255,6 +255,9 @@ struct TunnelListView: View {
 // MARK: - Tunnel Detail
 
 struct TunnelDetailView: View {
+    /// Agent Host Protocol port, matching VS Code's convention.
+    static let agentHostPort = 31546
+
     let tunnel: TunnelInfo
     let accessToken: String
     var onConnectToTunnel: ((ServerConfiguration) -> Void)?
@@ -292,11 +295,22 @@ struct TunnelDetailView: View {
                         Text("No ports configured")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(detail.ports.map { Int($0) }, id: \.self) { port in
+                        ForEach(sortedPorts(detail.ports), id: \.self) { port in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Port \(port)")
-                                        .font(.body)
+                                    HStack(spacing: 6) {
+                                        Text("Port \(port)")
+                                            .font(.body)
+                                        if port == TunnelDetailView.agentHostPort {
+                                            Text("AHP")
+                                                .font(.caption2.weight(.semibold))
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 1)
+                                                .background(.blue.opacity(0.15))
+                                                .foregroundStyle(.blue)
+                                                .clipShape(Capsule())
+                                        }
+                                    }
                                     Text("\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -326,6 +340,15 @@ struct TunnelDetailView: View {
         .navigationTitle(tunnel.name)
         .task {
             await loadDetail()
+        }
+    }
+
+    /// Sort ports so the AHP port (31546) appears first.
+    private func sortedPorts(_ ports: [UInt16]) -> [Int] {
+        ports.map { Int($0) }.sorted { a, b in
+            if a == Self.agentHostPort { return true }
+            if b == Self.agentHostPort { return false }
+            return a < b
         }
     }
 
