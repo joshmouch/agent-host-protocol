@@ -35,6 +35,8 @@ let package = Package(
                     "-Lrust/target/aarch64-apple-ios/debug",
                     "-ldev_tunnels_bridge",
                 ]),
+                .linkedFramework("SystemConfiguration"),
+                .linkedFramework("Security"),
             ]
         ),
         .testTarget(

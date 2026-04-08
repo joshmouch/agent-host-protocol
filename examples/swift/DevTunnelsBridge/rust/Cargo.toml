@@ -4,7 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+# Only staticlib for linking into Swift. To regenerate UniFFI bindings,
+# temporarily add "cdylib", run `cargo build`, then use uniffi-bindgen.
+crate-type = ["staticlib"]
 name = "dev_tunnels_bridge"
 
 [dependencies]
