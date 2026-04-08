@@ -79,6 +79,7 @@ struct SidebarView: View {
     @State private var showingNewSession = false
     @State private var newSessionDirectory: String?
     @State private var editingServer: ServerConfiguration?
+    @State private var showingTunnels = false
     @AppStorage("sessionGroupingMode") private var groupingMode: SessionGroupingMode = .byTime
 
     private var filteredSummaries: [SessionSummary] {
@@ -316,6 +317,14 @@ struct SidebarView: View {
                             }
                         }
                     }
+
+                    Section {
+                        Button {
+                            showingTunnels = true
+                        } label: {
+                            Label("Dev Tunnels", systemImage: "network")
+                        }
+                    }
                 } label: {
                     Label("More", systemImage: "ellipsis")
                 }
@@ -352,6 +361,16 @@ struct SidebarView: View {
             // Force fresh @State when switching between folder/non-folder creation
             .id(newSessionDirectory)
             .environment(store)
+        }
+        .sheet(isPresented: $showingTunnels) {
+            NavigationStack {
+                TunnelListView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { showingTunnels = false }
+                        }
+                    }
+            }
         }
     }
 
