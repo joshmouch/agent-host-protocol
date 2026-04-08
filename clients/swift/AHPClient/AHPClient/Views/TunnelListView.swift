@@ -1,5 +1,55 @@
 import DevTunnelsBridge
+import Security
 import SwiftUI
+
+// MARK: - Token Storage
+
+/// Persists the GitHub access token in the iOS Keychain so it survives
+/// across sheet presentations and app launches.
+private enum TokenStore {
+    private static let service = "com.rebornix.AHPClient.DevTunnels"
+    private static let account = "github-token"
+
+    static func save(_ token: String) {
+        let data = Data(token.utf8)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(query as CFDictionary)
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        SecItemAdd(addQuery as CFDictionary, nil)
+    }
+
+    static func load() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data,
+              let token = String(data: data, encoding: .utf8)
+        else { return nil }
+        return token
+    }
+
+    static func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
+// MARK: - TunnelListView
 
 /// View for browsing Dev Tunnels and initiating device code authentication.
 struct TunnelListView: View {
@@ -24,6 +74,12 @@ struct TunnelListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await loadTunnels()
+        }
+        .task {
+            if let saved = TokenStore.load() {
+                accessToken = saved
+                await loadTunnels()
+            }
         }
     }
 
@@ -76,6 +132,7 @@ struct TunnelListView: View {
                     Text("Authenticated")
                     Spacer()
                     Button("Sign Out") {
+                        TokenStore.delete()
                         accessToken = ""
                         tunnels = []
                         deviceCodeResponse = nil
@@ -152,7 +209,8 @@ struct TunnelListView: View {
                 let result = try pollDeviceCodeAuth(deviceCode: deviceCode)
                 switch result {
                 case .accessToken(let token):
-                    accessToken = "github \(token)"
+                    accessToken = token
+                    TokenStore.save(token)
                     isPolling = false
                     deviceCodeResponse = nil
                     await loadTunnels()
