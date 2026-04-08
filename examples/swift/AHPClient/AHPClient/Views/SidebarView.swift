@@ -330,7 +330,9 @@ struct SidebarView: View {
                 TunnelListView(onConnectToTunnel: { server in
                     showingTunnels = false
                     store.addServer(server)
-                    store.selectServer(server.id)
+                    // Find by host — addServer may have deduplicated to an existing entry.
+                    let serverId = store.servers.first(where: { $0.host == server.host })?.id ?? server.id
+                    store.selectServer(serverId)
                     Task { await store.connect() }
                 })
                     .toolbar {

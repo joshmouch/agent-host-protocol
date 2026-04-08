@@ -126,7 +126,24 @@ final class AppStore {
     // MARK: - Server Management
 
     /// Add a new server configuration and persist it.
+    /// For tunnel servers, if a server with the same host already exists, updates it instead.
     func addServer(_ server: ServerConfiguration) {
+        if server.isTunnel,
+           let existingIndex = servers.firstIndex(where: { $0.host == server.host }) {
+            var updated = server
+            updated = ServerConfiguration(
+                id: servers[existingIndex].id,
+                name: server.name,
+                scheme: server.scheme,
+                host: server.host,
+                token: server.token,
+                tunnelId: server.tunnelId,
+                clusterId: server.clusterId
+            )
+            servers[existingIndex] = updated
+            serverStorage.saveServer(updated)
+            return
+        }
         servers.append(server)
         serverStorage.saveServer(server)
     }
@@ -239,10 +256,23 @@ final class AppStore {
 
     /// Connect to the selected AHP server.
     func connect() async {
-        guard let server = selectedServer else {
+        guard var server = selectedServer else {
             errorMessage = "No server selected"
             return
         }
+
+        // For tunnel servers, refresh the token from Keychain so saved
+        // tunnel entries automatically pick up the latest GitHub token.
+        if server.isTunnel, let cachedToken = TunnelTokenStore.load() {
+            if server.token != cachedToken {
+                server.token = cachedToken
+                if let index = servers.firstIndex(where: { $0.id == server.id }) {
+                    servers[index].token = cachedToken
+                    serverStorage.saveServer(servers[index])
+                }
+            }
+        }
+
         guard let url = URL(string: server.endpointURLString) else {
             errorMessage = "Invalid server URL"
             return

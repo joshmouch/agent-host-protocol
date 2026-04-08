@@ -26,7 +26,9 @@ final class ServerStorage {
                     name: stored.name ?? "",
                     scheme: stored.scheme ?? "ws",
                     host: stored.host ?? "",
-                    token: stored.token ?? ""
+                    token: stored.token ?? "",
+                    tunnelId: stored.tunnelId,
+                    clusterId: stored.clusterId
                 )
             }
         } catch {
@@ -55,6 +57,8 @@ final class ServerStorage {
             stored.scheme = server.scheme
             stored.host = server.host
             stored.token = server.token
+            stored.tunnelId = server.tunnelId
+            stored.clusterId = server.clusterId
 
             try viewContext.save()
         } catch {

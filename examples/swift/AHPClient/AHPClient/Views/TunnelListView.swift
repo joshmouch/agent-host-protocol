@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Persists the GitHub access token in the iOS Keychain so it survives
 /// across sheet presentations and app launches.
-private enum TokenStore {
+enum TunnelTokenStore {
     private static let service = "com.rebornix.AHPClient.DevTunnels"
     private static let account = "github-token"
 
@@ -79,7 +79,7 @@ struct TunnelListView: View {
             await loadTunnels()
         }
         .task {
-            if let saved = TokenStore.load() {
+            if let saved = TunnelTokenStore.load() {
                 accessToken = saved
                 await loadTunnels()
             }
@@ -135,7 +135,7 @@ struct TunnelListView: View {
                     Text("Authenticated")
                     Spacer()
                     Button("Sign Out") {
-                        TokenStore.delete()
+                        TunnelTokenStore.delete()
                         accessToken = ""
                         tunnels = []
                         deviceCodeResponse = nil
@@ -217,7 +217,7 @@ struct TunnelListView: View {
                 switch result {
                 case .accessToken(let token):
                     accessToken = token
-                    TokenStore.save(token)
+                    TunnelTokenStore.save(token)
                     isPolling = false
                     deviceCodeResponse = nil
                     await loadTunnels()
@@ -353,12 +353,15 @@ struct TunnelDetailView: View {
     }
 
     private func connectToPort(_ port: Int) {
+        let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
         let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
         let server = ServerConfiguration(
-            name: "\(tunnel.name) :\(port)",
+            name: "\(displayName) :\(port)",
             scheme: "wss",
             host: host,
-            token: accessToken
+            token: accessToken,
+            tunnelId: tunnel.tunnelId,
+            clusterId: tunnel.clusterId
         )
         onConnectToTunnel?(server)
     }
