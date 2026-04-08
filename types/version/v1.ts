@@ -42,6 +42,7 @@ import type {
   IToolResultResourceContent,
   IToolResultFileEditContent,
   IToolResultTerminalContent,
+  IToolResultSubagentContent,
   IUsageInfo,
   IErrorInfo,
   ISnapshot,
@@ -170,6 +171,7 @@ type V1_IToolResultEmbeddedResourceContent = IToolResultEmbeddedResourceContent;
 type V1_IToolResultResourceContent = IToolResultResourceContent;
 type V1_IToolResultFileEditContent = IToolResultFileEditContent;
 type V1_IToolResultTerminalContent = IToolResultTerminalContent;
+type V1_IToolResultSubagentContent = IToolResultSubagentContent;
 type V1_IUsageInfo = IUsageInfo;
 type V1_IErrorInfo = IErrorInfo;
 type V1_ISnapshot = ISnapshot;
@@ -320,6 +322,8 @@ type _CheckToolResultResourceContent = AssertCompatible<V1_IToolResultResourceCo
 type _CheckToolResultFileEditContent = AssertCompatible<V1_IToolResultFileEditContent, IToolResultFileEditContent>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolResultTerminalContent = AssertCompatible<V1_IToolResultTerminalContent, IToolResultTerminalContent>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckToolResultSubagentContent = AssertCompatible<V1_IToolResultSubagentContent, IToolResultSubagentContent>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckServerToolsChangedAction = AssertCompatible<V1_ISessionServerToolsChangedAction, ISessionServerToolsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

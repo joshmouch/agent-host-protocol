@@ -446,6 +446,7 @@ function generateStateTypesPage(project: Project): string {
     'IToolCallPendingResultConfirmationState',
     'IToolCallCompletedState',
     'IToolCallCancelledState',
+    'IToolResultSubagentContent',
   ];
   for (const name of toolCallInterfaces) {
     const iface = getInterface(project, name);
@@ -507,6 +508,8 @@ const ACTION_ORDER: ActionMeta[] = [
   { interfaceName: 'ISessionUsageAction', typeValue: 'session/usage', description: 'Token usage report for a turn.', clientDispatchable: false, version: 1 },
   { interfaceName: 'ISessionReasoningAction', typeValue: 'session/reasoning', description: 'Reasoning/thinking text from the model.', clientDispatchable: false, version: 1 },
   { interfaceName: 'ISessionModelChangedAction', typeValue: 'session/modelChanged', description: 'Model changed for this session.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'ISessionIsReadChangedAction', typeValue: 'session/isReadChanged', description: 'Read state changed for this session.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'ISessionIsDoneChangedAction', typeValue: 'session/isDoneChanged', description: 'Done state changed for this session.', clientDispatchable: true, version: 1 },
 ];
 
 function generateActionsPage(project: Project): string {

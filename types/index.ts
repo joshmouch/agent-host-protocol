@@ -43,6 +43,7 @@ export type {
   IToolResultContent,
   IToolResultFileEditContent,
   IToolResultTerminalContent,
+  IToolResultSubagentContent,
   ISessionActiveClient,
   IPendingMessage,
   IUsageInfo,

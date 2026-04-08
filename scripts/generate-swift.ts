@@ -391,7 +391,7 @@ const STATE_STRUCTS = [
   'IToolCallCancelledState', 'IToolDefinition', 'IToolAnnotations',
   'IToolResultTextContent', 'IToolResultEmbeddedResourceContent',
   'IToolResultResourceContent', 'IToolResultFileEditContent',
-  'IToolResultTerminalContent', 'ICustomizationRef',
+  'IToolResultTerminalContent', 'IToolResultSubagentContent', 'ICustomizationRef',
   'ISessionCustomization', 'ISessionFileDiff', 'ITerminalInfo',
   'ITerminalClientClaim', 'ITerminalSessionClaim', 'ITerminalState',
   'IUsageInfo', 'IErrorInfo', 'ISnapshot',
@@ -437,6 +437,7 @@ function generateToolResultContentUnion(): string {
     case resource(ToolResultResourceContent)
     case fileEdit(ToolResultFileEditContent)
     case terminal(ToolResultTerminalContent)
+    case subagent(ToolResultSubagentContent)
 
     private enum Keys: String, CodingKey {
         case type
@@ -456,6 +457,8 @@ function generateToolResultContentUnion(): string {
                 self = .fileEdit(try ToolResultFileEditContent(from: decoder))
             case "terminal":
                 self = .terminal(try ToolResultTerminalContent(from: decoder))
+            case "subagent":
+                self = .subagent(try ToolResultSubagentContent(from: decoder))
             default:
                 throw DecodingError.dataCorruptedError(
                     forKey: .type, in: container,
@@ -477,6 +480,7 @@ function generateToolResultContentUnion(): string {
         case .resource(let v): try v.encode(to: encoder)
         case .fileEdit(let v): try v.encode(to: encoder)
         case .terminal(let v): try v.encode(to: encoder)
+        case .subagent(let v): try v.encode(to: encoder)
         }
     }
 }`;
@@ -608,6 +612,8 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/usage', caseName: 'sessionUsage', tsInterface: 'ISessionUsageAction' },
   { type: 'session/reasoning', caseName: 'sessionReasoning', tsInterface: 'ISessionReasoningAction' },
   { type: 'session/modelChanged', caseName: 'sessionModelChanged', tsInterface: 'ISessionModelChangedAction' },
+  { type: 'session/isReadChanged', caseName: 'sessionIsReadChanged', tsInterface: 'ISessionIsReadChangedAction' },
+  { type: 'session/isDoneChanged', caseName: 'sessionIsDoneChanged', tsInterface: 'ISessionIsDoneChangedAction' },
   { type: 'session/serverToolsChanged', caseName: 'sessionServerToolsChanged', tsInterface: 'ISessionServerToolsChangedAction' },
   { type: 'session/activeClientChanged', caseName: 'sessionActiveClientChanged', tsInterface: 'ISessionActiveClientChangedAction' },
   { type: 'session/activeClientToolsChanged', caseName: 'sessionActiveClientToolsChanged', tsInterface: 'ISessionActiveClientToolsChangedAction' },

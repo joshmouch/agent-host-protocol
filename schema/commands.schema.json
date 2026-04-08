@@ -1640,6 +1640,36 @@
         "title"
       ]
     },
+    "IToolResultSubagentContent": {
+      "type": "object",
+      "description": "A reference to a subagent session spawned by a tool.\n\nClients can subscribe to the subagent's session URI to stream its\nprogress in real time, including inner tool calls and responses.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ToolResultContentType.Subagent"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Subagent session URI (subscribable for full session state)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display title for the subagent"
+        },
+        "agentName": {
+          "type": "string",
+          "description": "Internal agent name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the subagent's task"
+        }
+      },
+      "required": [
+        "type",
+        "resource",
+        "title"
+      ]
+    },
     "ICustomizationRef": {
       "type": "object",
       "description": "A reference to an [Open Plugins](https://open-plugins.com/) plugin.\n\nThis is intentionally thin — AHP specifies plugin identity and metadata\nbut not implementation details, which are defined by the Open Plugins spec.",
