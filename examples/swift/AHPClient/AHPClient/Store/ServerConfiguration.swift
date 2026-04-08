@@ -17,7 +17,9 @@ struct ServerConfiguration: Identifiable, Equatable {
 
     var endpointURLString: String {
         var urlString = "\(scheme)://\(host)"
-        if !token.isEmpty {
+        // For tunnel servers the GitHub token is sent via the
+        // X-Tunnel-Authorization header, not as a query parameter.
+        if !token.isEmpty && !isTunnel {
             let separator = urlString.contains("?") ? "&" : "?"
             urlString += "\(separator)tkn=\(token)"
         }
