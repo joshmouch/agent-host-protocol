@@ -88,6 +88,7 @@ Once a session reaches `lifecycle: 'ready'`, the session is active:
 - The server streams back `session/delta`, `session/toolStart`, `session/permissionRequest`, and other actions.
 - The client MAY dispatch `session/permissionResolved` or `session/turnCancelled`.
 - The server dispatches `session/turnComplete` or `session/error` when the turn ends.
+- The server MAY dispatch `session/inputRequested` while a turn is active. Clients sync answer drafts with `session/inputAnswerChanged` and finish the request with `session/inputCompleted`.
 
 All actions MUST be scoped to the session URI and reference a valid turn ID when applicable.
 
@@ -101,6 +102,10 @@ When the server receives a client-dispatched action, it MUST validate it before 
 | `session/toolCallConfirmed` | Tool call not in `pending-confirmation` state | Server MUST reject the action |
 | `session/turnCancelled` | No active turn | Server MUST reject the action |
 | `session/modelChanged` | A turn is currently active | Server MUST defer the model change until the active turn completes, then apply it for the next turn |
+| `session/inputAnswerChanged` | No input request with matching `requestId` | Server SHOULD reject the action |
+| `session/inputAnswerChanged` | `answer.state` requires a value but `answer.value` is absent, or `answer.value.kind` is missing the matching payload field | Server SHOULD reject the action |
+| `session/inputCompleted` | No input request with matching `requestId` | Server SHOULD reject the action |
+| `session/inputCompleted` | `response` is `'accept'` but required questions do not have submitted answers | Server SHOULD reject the action |
 | `session/pendingMessageRemoved` | No pending message with matching `id` and `kind` | Server SHOULD reject the action |
 
 ## Pending Message Consumption

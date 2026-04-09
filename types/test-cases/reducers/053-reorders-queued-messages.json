@@ -6,7 +6,7 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "idle",
+      "status": 1,
       "createdAt": 1000,
       "modifiedAt": 1000
     },
@@ -49,7 +49,7 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "idle",
+      "status": 1,
       "createdAt": 1000,
       "modifiedAt": 1000
     },

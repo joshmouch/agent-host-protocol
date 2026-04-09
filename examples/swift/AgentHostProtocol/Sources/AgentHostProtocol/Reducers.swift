@@ -59,7 +59,6 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
 
     case .sessionTurnStarted(let a):
         var next = state
-        next.summary.status = .inProgress
         next.summary.modifiedAt = currentTimestamp()
         next.summary.isRead = false
         next.activeTurn = ActiveTurn(
@@ -78,6 +77,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 next.queuedMessages = queued.isEmpty ? nil : queued
             }
         }
+        next.summary.status = sessionSummaryStatus(next)
         return next
 
     case .sessionDelta(let a):
@@ -97,13 +97,13 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         return next
 
     case .sessionTurnComplete(let a):
-        return endTurn(state: state, turnId: a.turnId, turnState: .complete, summaryStatus: .idle)
+        return endTurn(state: state, turnId: a.turnId, turnState: .complete)
 
     case .sessionTurnCancelled(let a):
-        return endTurn(state: state, turnId: a.turnId, turnState: .cancelled, summaryStatus: .idle)
+        return endTurn(state: state, turnId: a.turnId, turnState: .cancelled)
 
     case .sessionError(let a):
-        return endTurn(state: state, turnId: a.turnId, turnState: .error, summaryStatus: .error, error: a.error)
+        return endTurn(state: state, turnId: a.turnId, turnState: .error, terminalStatus: .error, error: a.error)
 
     // ── Tool Call State Machine ───────────────────────────────────────────
 
@@ -138,7 +138,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         }
 
     case .sessionToolCallReady(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             // Only process if currently streaming or running (matches TS behavior)
             switch tc {
             case .streaming, .running: break
@@ -169,10 +169,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 status: .pendingConfirmation,
                 confirmationTitle: a.confirmationTitle
             ))
-        }
+        })
 
     case .sessionToolCallConfirmed(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             guard case .pendingConfirmation(let pending) = tc else { return tc }
             let base = tc.baseFields
             if a.approved {
@@ -201,10 +201,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 reasonMessage: a.reasonMessage,
                 userSuggestion: a.userSuggestion
             ))
-        }
+        })
 
     case .sessionToolCallComplete(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             let base = tc.baseFields
             let confirmed: ToolCallConfirmationReason
             let invocationMessage: StringOrMarkdown
@@ -256,10 +256,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 status: .completed,
                 confirmed: confirmed
             ))
-        }
+        })
 
     case .sessionToolCallResultConfirmed(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             guard case .pendingResultConfirmation(let prc) = tc else { return tc }
             let base = tc.baseFields
             if a.approved {
@@ -291,7 +291,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 status: .cancelled,
                 reason: .resultDenied
             ))
-        }
+        })
 
     // ── Metadata ──────────────────────────────────────────────────────────
 
@@ -357,7 +357,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.customizations = list
         return next
 
-    // ── Truncation ───────────────────────────────────────────────────────
+    // ── Truncation ────────────────────────────────────────────────────────
 
     case .sessionTruncated(let a):
         let turns: [Turn]
@@ -372,7 +372,8 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         var next = state
         next.turns = turns
         next.activeTurn = nil
-        next.summary.status = .idle
+        next.inputRequests = nil
+        next.summary.status = sessionSummaryStatus(next)
         next.summary.modifiedAt = currentTimestamp()
         return next
 
@@ -453,6 +454,42 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.queuedMessages = reordered
         return next
 
+    // ── Session Input Requests ─────────────────────────────────────────────
+
+    case .sessionInputRequested(let a):
+        return upsertInputRequest(state: state, request: a.request)
+
+    case .sessionInputAnswerChanged(let a):
+        guard var existing = state.inputRequests,
+              let idx = existing.firstIndex(where: { $0.id == a.requestId }) else {
+            return state
+        }
+        var request = existing[idx]
+        var answers = request.answers ?? [:]
+        if let answer = a.answer {
+            answers[a.questionId] = answer
+        } else {
+            answers.removeValue(forKey: a.questionId)
+        }
+        request.answers = answers.isEmpty ? nil : answers
+        existing[idx] = request
+        var next = state
+        next.inputRequests = existing
+        next.summary.modifiedAt = currentTimestamp()
+        return next
+
+    case .sessionInputCompleted(let a):
+        guard var existing = state.inputRequests,
+              existing.contains(where: { $0.id == a.requestId }) else {
+            return state
+        }
+        existing.removeAll { $0.id == a.requestId }
+        var next = state
+        next.inputRequests = existing.isEmpty ? nil : existing
+        next.summary.status = sessionSummaryStatus(next)
+        next.summary.modifiedAt = currentTimestamp()
+        return next
+
     default:
         return state
     }
@@ -473,6 +510,8 @@ public let clientDispatchableActions: Set<String> = [
     "session/pendingMessageSet",
     "session/pendingMessageRemoved",
     "session/queuedMessagesReordered",
+    "session/inputAnswerChanged",
+    "session/inputCompleted",
     "session/customizationToggled",
     "session/isReadChanged",
     "session/isDoneChanged",
@@ -486,6 +525,7 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
          .sessionModelChanged, .sessionActiveClientChanged,
          .sessionActiveClientToolsChanged, .sessionPendingMessageSet,
          .sessionPendingMessageRemoved, .sessionQueuedMessagesReordered,
+         .sessionInputAnswerChanged, .sessionInputCompleted,
          .sessionCustomizationToggled, .sessionIsReadChanged,
          .sessionIsDoneChanged:
         return true
@@ -500,6 +540,62 @@ private func currentTimestamp() -> Int {
     currentTimestampProvider()
 }
 
+private func sessionSummaryStatus(_ state: SessionState, terminalStatus: SessionStatus? = nil) -> SessionStatus {
+    if let terminalStatus {
+        return terminalStatus
+    }
+    if state.inputRequests?.isEmpty == false || hasPendingToolCallConfirmation(state) {
+        return .inputNeeded
+    }
+    if state.activeTurn != nil {
+        return .inProgress
+    }
+    return .idle
+}
+
+/// Returns `true` if the active turn has any tool call awaiting user confirmation.
+private func hasPendingToolCallConfirmation(_ state: SessionState) -> Bool {
+    guard let activeTurn = state.activeTurn else { return false }
+    for part in activeTurn.responseParts {
+        guard case .toolCall(let tcPart) = part else { continue }
+        switch tcPart.toolCall {
+        case .pendingConfirmation, .pendingResultConfirmation:
+            return true
+        default:
+            continue
+        }
+    }
+    return false
+}
+
+/// Returns a state with `summary.status` recomputed. Use this after reducers
+/// that change data feeding into `sessionSummaryStatus` (e.g. tool call
+/// lifecycle transitions that may enter or leave a pending-confirmation state).
+private func refreshSummaryStatus(_ state: SessionState) -> SessionState {
+    let status = sessionSummaryStatus(state)
+    guard status != state.summary.status else { return state }
+    var next = state
+    next.summary.status = status
+    return next
+}
+
+private func upsertInputRequest(state: SessionState, request: SessionInputRequest) -> SessionState {
+    var next = state
+    var existing = next.inputRequests ?? []
+    if let idx = existing.firstIndex(where: { $0.id == request.id }) {
+        var replacement = request
+        replacement.answers = request.answers ?? existing[idx].answers
+        existing[idx] = replacement
+    } else {
+        existing.append(request)
+    }
+    next.inputRequests = existing
+    next.summary.status = sessionSummaryStatus(next)
+    next.summary.modifiedAt = currentTimestamp()
+    next.summary.isRead = false
+    return next
+}
+
 // ToolCallBaseFields and toolCallBase() are now shared via
 // ToolCallState.baseFields in ToolCallStateExtensions.swift.
 
@@ -509,7 +605,7 @@ private func endTurn(
     state: SessionState,
     turnId: String,
     turnState: TurnState,
-    summaryStatus: SessionStatus,
+    terminalStatus: SessionStatus? = nil,
     error: ErrorInfo? = nil
 ) -> SessionState {
     guard let activeTurn = state.activeTurn, activeTurn.id == turnId else {
@@ -572,7 +668,8 @@ private func endTurn(
     var next = state
     next.turns.append(turn)
     next.activeTurn = nil
-    next.summary.status = summaryStatus
+    next.inputRequests = nil
+    next.summary.status = sessionSummaryStatus(next, terminalStatus: terminalStatus)
     next.summary.modifiedAt = currentTimestamp()
     return next
 }

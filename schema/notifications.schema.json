@@ -361,6 +361,13 @@
           },
           "description": "Messages to send automatically as new turns after the current turn finishes"
         },
+        "inputRequests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionInputRequest"
+          },
+          "description": "Requests for user input that are currently blocking or informing session progress"
+        },
         "customizations": {
           "type": "array",
           "items": {
@@ -486,6 +493,450 @@
         "status",
         "createdAt",
         "modifiedAt"
+      ]
+    },
+    "ISessionInputOption": {
+      "type": "object",
+      "description": "A choice in a select-style question.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable option identifier; for MCP enum values this is the enum string"
+        },
+        "label": {
+          "type": "string",
+          "description": "Display label"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional secondary text"
+        },
+        "recommended": {
+          "type": "boolean",
+          "description": "Whether this option is the recommended/default choice"
+        }
+      },
+      "required": [
+        "id",
+        "label"
+      ]
+    },
+    "ISessionInputQuestionBase": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        }
+      },
+      "required": [
+        "id",
+        "message"
+      ]
+    },
+    "ISessionInputTextQuestion": {
+      "type": "object",
+      "description": "Text question within a session input request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        },
+        "kind": {
+          "$ref": "#/$defs/SessionInputQuestionKind.Text"
+        },
+        "format": {
+          "type": "string",
+          "description": "Format hint for text questions, such as `email`, `uri`, `date`, or `date-time`"
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum string length"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum string length"
+        },
+        "defaultValue": {
+          "type": "string",
+          "description": "Default text"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "kind"
+      ]
+    },
+    "ISessionInputNumberQuestion": {
+      "type": "object",
+      "description": "Numeric question within a session input request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        },
+        "kind": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SessionInputQuestionKind.Number"
+            },
+            {
+              "$ref": "#/$defs/SessionInputQuestionKind.Integer"
+            }
+          ]
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum value"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum value"
+        },
+        "defaultValue": {
+          "type": "number",
+          "description": "Default numeric value"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "kind"
+      ]
+    },
+    "ISessionInputBooleanQuestion": {
+      "type": "object",
+      "description": "Boolean question within a session input request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        },
+        "kind": {
+          "$ref": "#/$defs/SessionInputQuestionKind.Boolean"
+        },
+        "defaultValue": {
+          "type": "boolean",
+          "description": "Default boolean value"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "kind"
+      ]
+    },
+    "ISessionInputSingleSelectQuestion": {
+      "type": "object",
+      "description": "Single-select question within a session input request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        },
+        "kind": {
+          "$ref": "#/$defs/SessionInputQuestionKind.SingleSelect"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionInputOption"
+          },
+          "description": "Options the user may select from"
+        },
+        "allowFreeformInput": {
+          "type": "boolean",
+          "description": "Whether the user may enter text instead of selecting an option"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "kind",
+        "options"
+      ]
+    },
+    "ISessionInputMultiSelectQuestion": {
+      "type": "object",
+      "description": "Multi-select question within a session input request.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable question identifier used as the key in `answers`"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short display title"
+        },
+        "message": {
+          "type": "string",
+          "description": "Prompt shown to the user"
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Whether the user must answer this question to accept the request"
+        },
+        "kind": {
+          "$ref": "#/$defs/SessionInputQuestionKind.MultiSelect"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionInputOption"
+          },
+          "description": "Options the user may select from"
+        },
+        "allowFreeformInput": {
+          "type": "boolean",
+          "description": "Whether the user may enter text in addition to selecting options"
+        },
+        "min": {
+          "type": "number",
+          "description": "Minimum selected item count"
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum selected item count"
+        }
+      },
+      "required": [
+        "id",
+        "message",
+        "kind",
+        "options"
+      ]
+    },
+    "ISessionInputRequest": {
+      "type": "object",
+      "description": "A live request for user input.\n\nThe server creates or replaces requests with `session/inputRequested`.\nClients sync drafts with `session/inputAnswerChanged` and complete requests\nwith `session/inputCompleted`.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable request identifier"
+        },
+        "message": {
+          "type": "string",
+          "description": "Display message for the request as a whole"
+        },
+        "url": {
+          "$ref": "#/$defs/URI",
+          "description": "URL the user should review or open, for URL-style elicitations"
+        },
+        "questions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionInputQuestion"
+          },
+          "description": "Ordered questions to ask the user"
+        },
+        "answers": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ISessionInputAnswer"
+          },
+          "description": "Current draft or submitted answers, keyed by question ID"
+        }
+      },
+      "required": [
+        "id",
+        "message"
+      ]
+    },
+    "ISessionInputTextAnswerValue": {
+      "type": "object",
+      "description": "Value captured for one answer.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SessionInputAnswerValueKind.Text"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
+    },
+    "ISessionInputNumberAnswerValue": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SessionInputAnswerValueKind.Number"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
+    },
+    "ISessionInputBooleanAnswerValue": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SessionInputAnswerValueKind.Boolean"
+        },
+        "value": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
+    },
+    "ISessionInputSelectedAnswerValue": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SessionInputAnswerValueKind.Selected"
+        },
+        "value": {
+          "type": "string"
+        },
+        "freeformValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Free-form text entered instead of selecting an option"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
+    },
+    "ISessionInputSelectedManyAnswerValue": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SessionInputAnswerValueKind.SelectedMany"
+        },
+        "value": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "freeformValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Free-form text entered in addition to selected options"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ]
+    },
+    "ISessionInputAnswered": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/SessionInputAnswerState.Draft"
+            },
+            {
+              "$ref": "#/$defs/SessionInputAnswerState.Submitted"
+            }
+          ],
+          "description": "Answer state"
+        },
+        "value": {
+          "$ref": "#/$defs/ISessionInputAnswerValue",
+          "description": "Answer value"
+        }
+      },
+      "required": [
+        "state",
+        "value"
+      ]
+    },
+    "ISessionInputSkipped": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/SessionInputAnswerState.Skipped",
+          "description": "Answer state"
+        },
+        "freeformValues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Free-form reason or value captured while skipping, if any"
+        }
+      },
+      "required": [
+        "state"
       ]
     },
     "ITurn": {
@@ -646,12 +1097,25 @@
       "type": "object",
       "description": "A content part that's a reference to large content stored outside the state tree.",
       "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Content URI"
+        },
+        "sizeHint": {
+          "type": "number",
+          "description": "Approximate size in bytes"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content MIME type"
+        },
         "kind": {
           "$ref": "#/$defs/ResponsePartKind.ContentRef",
           "description": "Discriminant"
         }
       },
       "required": [
+        "uri",
         "kind"
       ]
     },
@@ -794,6 +1258,27 @@
       "type": "object",
       "description": "LM is streaming the tool call parameters.",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.Streaming"
         },
@@ -807,6 +1292,9 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
         "status"
       ]
     },
@@ -814,6 +1302,35 @@
       "type": "object",
       "description": "Parameters are complete, or a running tool requires re-confirmation\n(e.g. a mid-execution permission check).",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.PendingConfirmation"
         },
@@ -823,6 +1340,10 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
+        "invocationMessage",
         "status"
       ]
     },
@@ -830,6 +1351,35 @@
       "type": "object",
       "description": "Tool is actively executing.",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.Running"
         },
@@ -846,6 +1396,10 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
+        "invocationMessage",
         "status",
         "confirmed"
       ]
@@ -854,6 +1408,70 @@
       "type": "object",
       "description": "Tool finished executing, waiting for client to approve the result.",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the tool succeeded"
+        },
+        "pastTenseMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Past-tense description of what the tool did"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolResultContent"
+          },
+          "description": "Unstructured result content blocks.\n\nThis mirrors the `content` field of MCP `CallToolResult`."
+        },
+        "structuredContent": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional structured result object.\n\nThis mirrors the `structuredContent` field of MCP `CallToolResult`."
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "description": "Error details if the tool failed"
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.PendingResultConfirmation"
         },
@@ -863,6 +1481,12 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
+        "invocationMessage",
+        "success",
+        "pastTenseMessage",
         "status",
         "confirmed"
       ]
@@ -871,6 +1495,70 @@
       "type": "object",
       "description": "Tool completed successfully or with an error.",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the tool succeeded"
+        },
+        "pastTenseMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Past-tense description of what the tool did"
+        },
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IToolResultContent"
+          },
+          "description": "Unstructured result content blocks.\n\nThis mirrors the `content` field of MCP `CallToolResult`."
+        },
+        "structuredContent": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional structured result object.\n\nThis mirrors the `structuredContent` field of MCP `CallToolResult`."
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "description": "Error details if the tool failed"
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.Completed"
         },
@@ -880,6 +1568,12 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
+        "invocationMessage",
+        "success",
+        "pastTenseMessage",
         "status",
         "confirmed"
       ]
@@ -888,6 +1582,35 @@
       "type": "object",
       "description": "Tool call was cancelled before execution.",
       "properties": {
+        "toolCallId": {
+          "type": "string",
+          "description": "Unique tool call identifier"
+        },
+        "toolName": {
+          "type": "string",
+          "description": "Internal tool name (for debugging/logging)"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable tool name"
+        },
+        "toolClientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+        },
+        "invocationMessage": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Message describing what the tool will do"
+        },
+        "toolInput": {
+          "type": "string",
+          "description": "Raw tool input"
+        },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.Cancelled"
         },
@@ -905,6 +1628,10 @@
         }
       },
       "required": [
+        "toolCallId",
+        "toolName",
+        "displayName",
+        "invocationMessage",
         "status",
         "reason"
       ]
@@ -1044,11 +1771,24 @@
       "type": "object",
       "description": "A reference to a resource stored outside the tool result.\n\nWraps {@link IContentRef} for lazy-loading large results.",
       "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Content URI"
+        },
+        "sizeHint": {
+          "type": "number",
+          "description": "Approximate size in bytes"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content MIME type"
+        },
         "type": {
           "$ref": "#/$defs/ToolResultContentType.Resource"
         }
       },
       "required": [
+        "uri",
         "type"
       ]
     },

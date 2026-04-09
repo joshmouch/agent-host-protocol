@@ -6,7 +6,7 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "in-progress",
+      "status": 8,
       "createdAt": 1000,
       "modifiedAt": 2000
     },
@@ -36,7 +36,7 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": "in-progress",
+      "status": 8,
       "createdAt": 1000,
       "modifiedAt": 2000
     },

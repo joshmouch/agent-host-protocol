@@ -47,6 +47,7 @@ SessionState {
   workingDirectory?: URI
   turns: Turn[]
   activeTurn: ActiveTurn | undefined
+  inputRequests?: SessionInputRequest[]
   customizations?: SessionCustomization[]  // server-provided plugins
 }
 ```
@@ -64,7 +65,7 @@ SessionSummary {
   resource: URI
   provider: string
   title: string
-  status: 'idle' | 'in-progress' | 'error'
+  status: number  // SessionStatus bitset
   createdAt: number
   modifiedAt: number
   model?: string
@@ -75,6 +76,19 @@ SessionSummary {
 ```
 
 The optional `isRead` flag indicates whether the client has viewed the session since its last modification. The optional `isDone` flag indicates whether the session has been marked as complete by the client. Both are managed via client-dispatched actions (`session/isReadChanged`, `session/isDoneChanged`).
+
+### Session Status Bitset
+
+`summary.status` is a numeric bitset. Clients SHOULD use bitwise checks instead of string or equality checks for activity states:
+
+| Name | Value | Bits | Meaning |
+|---|---:|---|---|
+| `SessionStatus.Idle` | `1` | `1 << 0` | No active turn and no pending input request. |
+| `SessionStatus.Error` | `2` | `1 << 1` | The most recent turn ended with an error. |
+| `SessionStatus.InProgress` | `8` | `1 << 3` | A turn is active. |
+| `SessionStatus.InputNeeded` | `24` | `(1 << 3) \| (1 << 4)` | A turn is active and either at least one user input request is open, or at least one tool call is awaiting user confirmation (pre- or post-execution). Includes the `InProgress` bit. |
+
+For example, `(status & SessionStatus.InProgress) !== 0` is true for both `InProgress` and `InputNeeded`.
 
 ## Turns
 
@@ -203,6 +217,27 @@ When a running tool needs additional user approval (e.g. a shell permission), th
 
 When a turn completes, non-terminal tool calls in `responseParts` are force-cancelled with reason `'skipped'`.
 
+## Session Input Requests
+
+Sessions can request structured input from the user by storing live requests in top-level session state:
+
+```typescript
+SessionState {
+  // ...existing fields...
+  inputRequests?: SessionInputRequest[]
+}
+
+SessionInputRequest {
+  id: string
+  message: string
+  url?: URI
+  questions?: SessionInputQuestion[]
+  answers?: Record<string, SessionInputAnswer>
+}
+```
+
+See [Elicitation](/guide/elicitation) for the request lifecycle, question and answer shapes, URL requests, multi-client draft synchronization, and validation rules.
+
 ## Usage Info
 
 Token usage reported per turn:
@@ -329,6 +364,7 @@ The forked session is an independent copy — subsequent changes to either sessi
 ## Next Steps
 
 - [Actions](/guide/actions) — How state is mutated.
+- [Elicitation](/guide/elicitation) — How sessions request user input.
 - [Customizations](/guide/customizations) — Extending sessions with Open Plugins.
 - [Write-Ahead Reconciliation](/guide/reconciliation) — How clients stay in sync.
 - [State Types Reference](/reference/state-types) — Complete type definitions.

@@ -1,5 +1,5 @@
 {
-  "description": "tool call complete from pending-confirmation defaults confirmed",
+  "description": "tool call awaiting confirmation sets session status to input-needed",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -35,17 +35,8 @@
       "session": "copilot:/test-session",
       "turnId": "turn-1",
       "toolCallId": "tc-1",
-      "invocationMessage": "Run"
-    },
-    {
-      "type": "session/toolCallComplete",
-      "session": "copilot:/test-session",
-      "turnId": "turn-1",
-      "toolCallId": "tc-1",
-      "result": {
-        "success": true,
-        "pastTenseMessage": "Done"
-      }
+      "invocationMessage": "Run: rm -rf /tmp/test",
+      "toolInput": "rm -rf /tmp/test"
     }
   ],
   "expected": {
@@ -53,7 +44,7 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 8,
+      "status": 24,
       "createdAt": 1000,
       "modifiedAt": 2000
     },
@@ -68,17 +59,15 @@
         {
           "kind": "toolCall",
           "toolCall": {
-            "status": "completed",
+            "status": "pending-confirmation",
             "toolCallId": "tc-1",
             "toolName": "bash",
             "displayName": "Run Command",
             "toolClientId": null,
             "_meta": null,
-            "invocationMessage": "Run",
-            "toolInput": null,
-            "confirmed": "not-needed",
-            "success": true,
-            "pastTenseMessage": "Done"
+            "invocationMessage": "Run: rm -rf /tmp/test",
+            "toolInput": "rm -rf /tmp/test",
+            "confirmationTitle": null
           }
         }
       ],

@@ -20,8 +20,11 @@ import type {
   IUsageInfo,
   ISessionCustomization,
   ISessionFileDiff,
+  ISessionInputAnswer,
+  ISessionInputRequest,
   ITerminalInfo,
   ITerminalClaim,
+  SessionInputResponseKind,
 } from './state.js';
 
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind } from './state.js';
@@ -61,6 +64,9 @@ export const enum ActionType {
   SessionPendingMessageSet = 'session/pendingMessageSet',
   SessionPendingMessageRemoved = 'session/pendingMessageRemoved',
   SessionQueuedMessagesReordered = 'session/queuedMessagesReordered',
+  SessionInputRequested = 'session/inputRequested',
+  SessionInputAnswerChanged = 'session/inputAnswerChanged',
+  SessionInputCompleted = 'session/inputCompleted',
   SessionCustomizationsChanged = 'session/customizationsChanged',
   SessionCustomizationToggled = 'session/customizationToggled',
   SessionTruncated = 'session/truncated',
@@ -771,6 +777,69 @@ export interface ISessionQueuedMessagesReorderedAction {
   order: string[];
 }
 
+// ─── Session Input Actions ──────────────────────────────────────────────────
+
+/**
+ * A session requested input from the user.
+ *
+ * Full-request upsert semantics: the `request` replaces any existing request
+ * with the same `id`, or is appended if it is new. Answer drafts are preserved
+ * unless `request.answers` is provided.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface ISessionInputRequestedAction {
+  type: ActionType.SessionInputRequested;
+  /** Session URI */
+  session: URI;
+  /** Input request to create or replace */
+  request: ISessionInputRequest;
+}
+
+/**
+ * A client updated, submitted, skipped, or removed a single in-progress answer.
+ *
+ * Dispatching with `answer: undefined` removes that question's answer draft.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionInputAnswerChangedAction {
+  type: ActionType.SessionInputAnswerChanged;
+  /** Session URI */
+  session: URI;
+  /** Input request identifier */
+  requestId: string;
+  /** Question identifier within the input request */
+  questionId: string;
+  /** Updated answer, or `undefined` to clear an answer draft */
+  answer?: ISessionInputAnswer;
+}
+
+/**
+ * A client accepted, declined, or cancelled a session input request.
+ *
+ * If accepted, the server uses `answers` (when provided) plus the request's
+ * synced answer state to resume the blocked operation.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionInputCompletedAction {
+  type: ActionType.SessionInputCompleted;
+  /** Session URI */
+  session: URI;
+  /** Input request identifier */
+  requestId: string;
+  /** Completion outcome */
+  response: SessionInputResponseKind;
+  /** Optional final answer replacement, keyed by question ID */
+  answers?: Record<string, ISessionInputAnswer>;
+}
+
 // ─── Terminal Actions ────────────────────────────────────────────────────────
 
 /**
@@ -948,6 +1017,9 @@ export type IStateAction =
   | ISessionPendingMessageSetAction
   | ISessionPendingMessageRemovedAction
   | ISessionQueuedMessagesReorderedAction
+  | ISessionInputRequestedAction
+  | ISessionInputAnswerChangedAction
+  | ISessionInputCompletedAction
   | ISessionCustomizationsChangedAction
   | ISessionCustomizationToggledAction
   | ISessionTruncatedAction

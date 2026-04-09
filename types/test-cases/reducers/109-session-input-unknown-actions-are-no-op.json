@@ -1,5 +1,5 @@
 {
-  "description": "set steering message",
+  "description": "session input answer and completion actions are no-op for unknown requests",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -10,18 +10,22 @@
       "createdAt": 1000,
       "modifiedAt": 1000
     },
-    "lifecycle": "creating",
+    "lifecycle": "ready",
     "turns": []
   },
   "actions": [
     {
-      "type": "session/pendingMessageSet",
+      "type": "session/inputAnswerChanged",
       "session": "copilot:/test-session",
-      "kind": "steering",
-      "id": "sm-1",
-      "userMessage": {
-        "text": "Focus on tests"
-      }
+      "requestId": "missing",
+      "questionId": "q1",
+      "answer": { "state": "skipped" }
+    },
+    {
+      "type": "session/inputCompleted",
+      "session": "copilot:/test-session",
+      "requestId": "missing",
+      "response": "cancel"
     }
   ],
   "expected": {
@@ -33,13 +37,7 @@
       "createdAt": 1000,
       "modifiedAt": 1000
     },
-    "lifecycle": "creating",
-    "turns": [],
-    "steeringMessage": {
-      "id": "sm-1",
-      "userMessage": {
-        "text": "Focus on tests"
-      }
-    }
+    "lifecycle": "ready",
+    "turns": []
   }
 }

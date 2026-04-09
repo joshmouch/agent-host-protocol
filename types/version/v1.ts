@@ -55,6 +55,23 @@ import type {
   ITerminalSessionClaim,
   ITerminalClaim,
   ITerminalState,
+  ISessionInputAnswer,
+  ISessionInputAnswerValue,
+  ISessionInputTextAnswerValue,
+  ISessionInputNumberAnswerValue,
+  ISessionInputBooleanAnswerValue,
+  ISessionInputSelectedAnswerValue,
+  ISessionInputSelectedManyAnswerValue,
+  ISessionInputAnswered,
+  ISessionInputSkipped,
+  ISessionInputOption,
+  ISessionInputQuestion,
+  ISessionInputTextQuestion,
+  ISessionInputNumberQuestion,
+  ISessionInputBooleanQuestion,
+  ISessionInputSingleSelectQuestion,
+  ISessionInputMultiSelectQuestion,
+  ISessionInputRequest,
 } from '../state.js';
 
 import type {
@@ -86,6 +103,9 @@ import type {
   ITerminalCwdChangedAction,
   ITerminalExitedAction,
   ITerminalClearedAction,
+  ISessionInputAnswerChangedAction,
+  ISessionInputCompletedAction,
+  ISessionInputRequestedAction,
 } from '../actions.js';
 
 import type {
@@ -176,6 +196,23 @@ type V1_IUsageInfo = IUsageInfo;
 type V1_IErrorInfo = IErrorInfo;
 type V1_ISnapshot = ISnapshot;
 type V1_IPendingMessage = IPendingMessage;
+type V1_ISessionInputAnswer = ISessionInputAnswer;
+type V1_ISessionInputAnswerValue = ISessionInputAnswerValue;
+type V1_ISessionInputTextAnswerValue = ISessionInputTextAnswerValue;
+type V1_ISessionInputNumberAnswerValue = ISessionInputNumberAnswerValue;
+type V1_ISessionInputBooleanAnswerValue = ISessionInputBooleanAnswerValue;
+type V1_ISessionInputSelectedAnswerValue = ISessionInputSelectedAnswerValue;
+type V1_ISessionInputSelectedManyAnswerValue = ISessionInputSelectedManyAnswerValue;
+type V1_ISessionInputAnswered = ISessionInputAnswered;
+type V1_ISessionInputSkipped = ISessionInputSkipped;
+type V1_ISessionInputOption = ISessionInputOption;
+type V1_ISessionInputQuestion = ISessionInputQuestion;
+type V1_ISessionInputTextQuestion = ISessionInputTextQuestion;
+type V1_ISessionInputNumberQuestion = ISessionInputNumberQuestion;
+type V1_ISessionInputBooleanQuestion = ISessionInputBooleanQuestion;
+type V1_ISessionInputSingleSelectQuestion = ISessionInputSingleSelectQuestion;
+type V1_ISessionInputMultiSelectQuestion = ISessionInputMultiSelectQuestion;
+type V1_ISessionInputRequest = ISessionInputRequest;
 type V1_Icon = Icon;
 type V1_ICustomizationRef = ICustomizationRef;
 type V1_ISessionCustomization = ISessionCustomization;
@@ -198,6 +235,9 @@ type V1_ISessionIsReadChangedAction = ISessionIsReadChangedAction;
 type V1_ISessionIsDoneChangedAction = ISessionIsDoneChangedAction;
 type V1_ISessionDiffsChangedAction = ISessionDiffsChangedAction;
 type V1_ISessionToolCallContentChangedAction = ISessionToolCallContentChangedAction;
+type V1_ISessionInputRequestedAction = ISessionInputRequestedAction;
+type V1_ISessionInputAnswerChangedAction = ISessionInputAnswerChangedAction;
+type V1_ISessionInputCompletedAction = ISessionInputCompletedAction;
 type V1_IRootTerminalsChangedAction = IRootTerminalsChangedAction;
 type V1_ITerminalDataAction = ITerminalDataAction;
 type V1_ITerminalInputAction = ITerminalInputAction;
@@ -333,11 +373,51 @@ type _CheckActiveClientToolsChangedAction = AssertCompatible<V1_ISessionActiveCl
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckPendingMessage = AssertCompatible<V1_IPendingMessage, IPendingMessage>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputAnswer = AssertCompatible<V1_ISessionInputAnswer, ISessionInputAnswer>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputAnswerValue = AssertCompatible<V1_ISessionInputAnswerValue, ISessionInputAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputTextAnswerValue = AssertCompatible<V1_ISessionInputTextAnswerValue, ISessionInputTextAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputNumberAnswerValue = AssertCompatible<V1_ISessionInputNumberAnswerValue, ISessionInputNumberAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputBooleanAnswerValue = AssertCompatible<V1_ISessionInputBooleanAnswerValue, ISessionInputBooleanAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputSelectedAnswerValue = AssertCompatible<V1_ISessionInputSelectedAnswerValue, ISessionInputSelectedAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputSelectedManyAnswerValue = AssertCompatible<V1_ISessionInputSelectedManyAnswerValue, ISessionInputSelectedManyAnswerValue>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputAnswered = AssertCompatible<V1_ISessionInputAnswered, ISessionInputAnswered>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputSkipped = AssertCompatible<V1_ISessionInputSkipped, ISessionInputSkipped>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputOption = AssertCompatible<V1_ISessionInputOption, ISessionInputOption>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputQuestion = AssertCompatible<V1_ISessionInputQuestion, ISessionInputQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputTextQuestion = AssertCompatible<V1_ISessionInputTextQuestion, ISessionInputTextQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputNumberQuestion = AssertCompatible<V1_ISessionInputNumberQuestion, ISessionInputNumberQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputBooleanQuestion = AssertCompatible<V1_ISessionInputBooleanQuestion, ISessionInputBooleanQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputSingleSelectQuestion = AssertCompatible<V1_ISessionInputSingleSelectQuestion, ISessionInputSingleSelectQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputMultiSelectQuestion = AssertCompatible<V1_ISessionInputMultiSelectQuestion, ISessionInputMultiSelectQuestion>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputRequest = AssertCompatible<V1_ISessionInputRequest, ISessionInputRequest>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckPendingMessageSetAction = AssertCompatible<V1_ISessionPendingMessageSetAction, ISessionPendingMessageSetAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckPendingMessageRemovedAction = AssertCompatible<V1_ISessionPendingMessageRemovedAction, ISessionPendingMessageRemovedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckQueuedMessagesReorderedAction = AssertCompatible<V1_ISessionQueuedMessagesReorderedAction, ISessionQueuedMessagesReorderedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputRequestedAction = AssertCompatible<V1_ISessionInputRequestedAction, ISessionInputRequestedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputAnswerChangedAction = AssertCompatible<V1_ISessionInputAnswerChangedAction, ISessionInputAnswerChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionInputCompletedAction = AssertCompatible<V1_ISessionInputCompletedAction, ISessionInputCompletedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckIcon = AssertCompatible<V1_Icon, Icon>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

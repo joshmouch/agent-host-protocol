@@ -59,7 +59,7 @@ function needsCodingKey(tsPropName: string): boolean {
 const INLINE_TYPE_OVERRIDES: Record<string, string> = {};
 
 /** Map a TypeScript type string to a Swift type string */
-function mapType(tsType: string): string {
+function mapType(tsType: string, propName?: string, containerName?: string): string {
   tsType = tsType.replace(/import\([^)]+\)\./g, '').trim();
 
   // Remove outer parens
@@ -69,7 +69,13 @@ function mapType(tsType: string): string {
 
   // Primitives
   if (tsType === 'string') return 'String';
-  if (tsType === 'number') return 'Int';
+  if (tsType === 'number') {
+    const isInputDouble =
+      (containerName === 'ISessionInputNumberAnswerValue' && propName === 'value') ||
+      (containerName === 'ISessionInputNumberQuestion' && (propName === 'defaultValue' || propName === 'min' || propName === 'max')) ||
+      propName === 'numberValue';
+    return isInputDouble ? 'Double' : 'Int';
+  }
   if (tsType === 'boolean') return 'Bool';
   if (tsType === 'unknown') return 'AnyCodable';
   if (tsType === 'object') return 'AnyCodable';
@@ -189,7 +195,7 @@ function extractProps(iface: InterfaceDeclaration, project: Project): SwiftProp[
     .map(p => {
       const tsName = p.getName();
       const tsType = getPropertyType(p);
-      const swiftT = mapType(tsType);
+        const swiftT = mapType(tsType, tsName, iface.getName());
       const hasUnionUndefined = /\|\s*undefined/.test(tsType);
       const isOptional = p.hasQuestionToken() || hasUnionUndefined || swiftT.endsWith('?');
       const finalType = isOptional && !swiftT.endsWith('?') ? swiftT + '?' : swiftT;
@@ -215,13 +221,15 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
   const name = enumDecl.getName();
   const lines: string[] = [];
   const desc = enumDecl.getJsDocs()[0]?.getDescription().trim();
+  const values = enumDecl.getMembers().map(member => member.getValue());
+  const rawType = values.every(value => typeof value === 'number') ? 'Int' : 'String';
 
   if (desc) {
     for (const docLine of desc.split('\n')) {
       lines.push(`/// ${docLine.trim()}`);
     }
   }
-  lines.push(`public enum ${name}: String, Codable, Sendable {`);
+  lines.push(`public enum ${name}: ${rawType}, Codable, Sendable {`);
 
   for (const member of enumDecl.getMembers()) {
     const memberName = toCamelCase(member.getName());
@@ -374,6 +382,8 @@ function generateStructFromInterface(
 
 const STATE_ENUMS = [
   'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
+  'SessionInputAnswerState', 'SessionInputAnswerValueKind', 'SessionInputQuestionKind',
+  'SessionInputResponseKind',
   'TurnState', 'AttachmentType', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
@@ -383,6 +393,15 @@ const STATE_STRUCTS = [
   'Icon', 'IProtectedResourceMetadata', 'IRootState', 'IAgentInfo',
   'ISessionModelInfo', 'IPendingMessage', 'ISessionState', 'ISessionActiveClient',
   'ISessionSummary', 'ITurn', 'IActiveTurn', 'IUserMessage',
+  'ISessionInputOption',
+  'ISessionInputTextAnswerValue', 'ISessionInputNumberAnswerValue',
+  'ISessionInputBooleanAnswerValue', 'ISessionInputSelectedAnswerValue',
+  'ISessionInputSelectedManyAnswerValue', 'ISessionInputAnswered',
+  'ISessionInputSkipped',
+  'ISessionInputTextQuestion',
+  'ISessionInputNumberQuestion', 'ISessionInputBooleanQuestion',
+  'ISessionInputSingleSelectQuestion', 'ISessionInputMultiSelectQuestion',
+  'ISessionInputRequest',
   'IMessageAttachment', 'IMarkdownResponsePart', 'IContentRef',
   'IResourceReponsePart', 'IToolCallResponsePart', 'IReasoningResponsePart',
   'IToolCallResult', 'IToolCallStreamingState',
@@ -427,6 +446,41 @@ const TERMINAL_CLAIM_UNION: UnionConfig = {
   variants: [
     { caseName: 'client', structName: 'TerminalClientClaim', discriminantValue: 'client' },
     { caseName: 'session', structName: 'TerminalSessionClaim', discriminantValue: 'session' },
+  ],
+};
+
+const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
+  name: 'SessionInputQuestion',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'text', structName: 'SessionInputTextQuestion', discriminantValue: 'text' },
+    { caseName: 'number', structName: 'SessionInputNumberQuestion', discriminantValue: 'number' },
+    { caseName: 'integer', structName: 'SessionInputNumberQuestion', discriminantValue: 'integer' },
+    { caseName: 'boolean', structName: 'SessionInputBooleanQuestion', discriminantValue: 'boolean' },
+    { caseName: 'singleSelect', structName: 'SessionInputSingleSelectQuestion', discriminantValue: 'single-select' },
+    { caseName: 'multiSelect', structName: 'SessionInputMultiSelectQuestion', discriminantValue: 'multi-select' },
+  ],
+};
+
+const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
+  name: 'SessionInputAnswerValue',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'text', structName: 'SessionInputTextAnswerValue', discriminantValue: 'text' },
+    { caseName: 'number', structName: 'SessionInputNumberAnswerValue', discriminantValue: 'number' },
+    { caseName: 'boolean', structName: 'SessionInputBooleanAnswerValue', discriminantValue: 'boolean' },
+    { caseName: 'selected', structName: 'SessionInputSelectedAnswerValue', discriminantValue: 'selected' },
+    { caseName: 'selectedMany', structName: 'SessionInputSelectedManyAnswerValue', discriminantValue: 'selected-many' },
+  ],
+};
+
+const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
+  name: 'SessionInputAnswer',
+  discriminantField: 'state',
+  variants: [
+    { caseName: 'draft', structName: 'SessionInputAnswered', discriminantValue: 'draft' },
+    { caseName: 'submitted', structName: 'SessionInputAnswered', discriminantValue: 'submitted' },
+    { caseName: 'skipped', structName: 'SessionInputSkipped', discriminantValue: 'skipped' },
   ],
 };
 
@@ -584,6 +638,12 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(TERMINAL_CLAIM_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(SESSION_INPUT_QUESTION_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_VALUE_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_UNION));
+  lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -624,6 +684,9 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/pendingMessageSet', caseName: 'sessionPendingMessageSet', tsInterface: 'ISessionPendingMessageSetAction' },
   { type: 'session/pendingMessageRemoved', caseName: 'sessionPendingMessageRemoved', tsInterface: 'ISessionPendingMessageRemovedAction' },
   { type: 'session/queuedMessagesReordered', caseName: 'sessionQueuedMessagesReordered', tsInterface: 'ISessionQueuedMessagesReorderedAction' },
+  { type: 'session/inputRequested', caseName: 'sessionInputRequested', tsInterface: 'ISessionInputRequestedAction' },
+  { type: 'session/inputAnswerChanged', caseName: 'sessionInputAnswerChanged', tsInterface: 'ISessionInputAnswerChangedAction' },
+  { type: 'session/inputCompleted', caseName: 'sessionInputCompleted', tsInterface: 'ISessionInputCompletedAction' },
   { type: 'session/customizationsChanged', caseName: 'sessionCustomizationsChanged', tsInterface: 'ISessionCustomizationsChangedAction' },
   { type: 'session/customizationToggled', caseName: 'sessionCustomizationToggled', tsInterface: 'ISessionCustomizationToggledAction' },
   { type: 'session/truncated', caseName: 'sessionTruncated', tsInterface: 'ISessionTruncatedAction' },
@@ -1255,6 +1318,9 @@ function checkExhaustiveness(project: Project): void {
     'ISessionToolCallDeniedAction',   // merged into SessionToolCallConfirmedAction
     'IProtocolNotification',         // PROTOCOL_NOTIFICATION_UNION discriminated union
     'ITerminalClaim',                // TERMINAL_CLAIM_UNION discriminated union
+    'ISessionInputQuestion',         // SESSION_INPUT_QUESTION_UNION discriminated union
+    'ISessionInputAnswerValue',      // SESSION_INPUT_ANSWER_VALUE_UNION discriminated union
+    'ISessionInputAnswer',           // SESSION_INPUT_ANSWER_UNION discriminated union
   ]);
 
   const missing = [...imported].filter(n => !coveredByLists.has(n) && !knownSpecial.has(n));

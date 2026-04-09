@@ -1,12 +1,12 @@
 {
-  "description": "turnComplete force-cancels in-progress tool calls",
+  "description": "turn end clears outstanding session input requests",
   "reducer": "session",
   "initial": {
     "summary": {
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 8,
+      "status": 24,
       "createdAt": 1000,
       "modifiedAt": 2000
     },
@@ -14,22 +14,18 @@
     "turns": [],
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      },
+      "userMessage": { "text": "Hello" },
       "responseParts": [],
       "usage": null
-    }
+    },
+    "inputRequests": [
+      { "id": "url-input", "message": "Review this URL", "url": "https://example.com/form" },
+      { "id": "form-input", "message": "Answer this form", "questions": [
+        { "id": "q1", "kind": "boolean", "message": "Continue?" }
+      ] }
+    ]
   },
   "actions": [
-    {
-      "type": "session/toolCallStart",
-      "session": "copilot:/test-session",
-      "turnId": "turn-1",
-      "toolCallId": "tc-1",
-      "toolName": "bash",
-      "displayName": "Run Command"
-    },
     {
       "type": "session/turnComplete",
       "session": "copilot:/test-session",
@@ -49,25 +45,8 @@
     "turns": [
       {
         "id": "turn-1",
-        "userMessage": {
-          "text": "Hello"
-        },
-        "responseParts": [
-          {
-            "kind": "toolCall",
-            "toolCall": {
-              "status": "cancelled",
-              "toolCallId": "tc-1",
-              "toolName": "bash",
-              "displayName": "Run Command",
-              "toolClientId": null,
-              "_meta": null,
-              "invocationMessage": "",
-              "toolInput": null,
-              "reason": "skipped"
-            }
-          }
-        ],
+        "userMessage": { "text": "Hello" },
+        "responseParts": [],
         "usage": null,
         "state": "complete",
         "error": null

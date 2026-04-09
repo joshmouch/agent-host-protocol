@@ -31,6 +31,9 @@ import type {
   ISessionPendingMessageSetAction,
   ISessionPendingMessageRemovedAction,
   ISessionQueuedMessagesReorderedAction,
+  ISessionInputRequestedAction,
+  ISessionInputAnswerChangedAction,
+  ISessionInputCompletedAction,
   ISessionCustomizationsChangedAction,
   ISessionCustomizationToggledAction,
   ISessionTruncatedAction,
@@ -85,6 +88,9 @@ export type ISessionAction =
   | ISessionPendingMessageSetAction
   | ISessionPendingMessageRemovedAction
   | ISessionQueuedMessagesReorderedAction
+  | ISessionInputRequestedAction
+  | ISessionInputAnswerChangedAction
+  | ISessionInputCompletedAction
   | ISessionCustomizationsChangedAction
   | ISessionCustomizationToggledAction
   | ISessionTruncatedAction
@@ -107,6 +113,8 @@ export type IClientSessionAction =
   | ISessionPendingMessageSetAction
   | ISessionPendingMessageRemovedAction
   | ISessionQueuedMessagesReorderedAction
+  | ISessionInputAnswerChangedAction
+  | ISessionInputCompletedAction
   | ISessionCustomizationToggledAction
   | ISessionTruncatedAction
   | ISessionIsReadChangedAction
@@ -128,6 +136,7 @@ export type IServerSessionAction =
   | ISessionUsageAction
   | ISessionReasoningAction
   | ISessionServerToolsChangedAction
+  | ISessionInputRequestedAction
   | ISessionCustomizationsChangedAction
   | ISessionDiffsChangedAction
 ;
@@ -195,6 +204,9 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
   [ActionType.SessionPendingMessageSet]: true,
   [ActionType.SessionPendingMessageRemoved]: true,
   [ActionType.SessionQueuedMessagesReordered]: true,
+  [ActionType.SessionInputRequested]: false,
+  [ActionType.SessionInputAnswerChanged]: true,
+  [ActionType.SessionInputCompleted]: true,
   [ActionType.SessionCustomizationsChanged]: false,
   [ActionType.SessionCustomizationToggled]: true,
   [ActionType.SessionTruncated]: true,

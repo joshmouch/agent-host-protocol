@@ -56,6 +56,34 @@ function getPropertyType(prop: PropertySignature): string {
   return prop.getType().getText(prop);
 }
 
+function findInterface(project: Project, name: string): InterfaceDeclaration | undefined {
+  for (const sf of project.getSourceFiles()) {
+    const iface = sf.getInterface(name);
+    if (iface) return iface;
+  }
+  return undefined;
+}
+
+function getAllInterfaceProperties(iface: InterfaceDeclaration, project: Project): PropertySignature[] {
+  const props: PropertySignature[] = [];
+
+  for (const extension of iface.getExtends()) {
+    const baseName = extension.getExpression().getText();
+    const baseIface = findInterface(project, baseName);
+    if (baseIface) {
+      props.push(...getAllInterfaceProperties(baseIface, project));
+    }
+  }
+
+  props.push(...iface.getProperties());
+
+  const byName = new Map<string, PropertySignature>();
+  for (const prop of props) {
+    byName.set(prop.getName(), prop);
+  }
+  return [...byName.values()];
+}
+
 // ─── Type → JSON Schema Conversion ──────────────────────────────────────────
 
 function typeTextToSchema(typeText: string, project: Project): JsonSchema {
@@ -182,7 +210,7 @@ function interfaceToSchema(iface: InterfaceDeclaration, project: Project): JsonS
     required: [],
   };
 
-  for (const prop of iface.getProperties()) {
+  for (const prop of getAllInterfaceProperties(iface, project)) {
     const name = prop.getName();
     const typeText = getPropertyType(prop);
     const desc = getPropertyDescription(prop);
@@ -190,7 +218,9 @@ function interfaceToSchema(iface: InterfaceDeclaration, project: Project): JsonS
     if (desc) propSchema.description = desc;
     schema.properties![name] = propSchema;
     if (!prop.hasQuestionToken()) {
-      schema.required!.push(name);
+      if (!schema.required!.includes(name)) {
+        schema.required!.push(name);
+      }
     }
   }
 
