@@ -95,6 +95,9 @@ public struct AHPRootReducer: Reducer {
         case .rootActiveSessionsChanged(let a):
             state.activeSessions = a.activeSessions
 
+        case .rootTerminalsChanged(let a):
+            state.terminals = a.terminals
+
         default:
             break
         }
@@ -134,6 +137,7 @@ public struct AHPSessionReducer: Reducer {
 
         case .sessionTurnStarted(let a):
             state.summary.modifiedAt = currentTimestamp()
+            state.summary.isRead = false
             state.activeTurn = ActiveTurn(
                 id: a.turnId,
                 userMessage: a.userMessage,
@@ -213,7 +217,7 @@ public struct AHPSessionReducer: Reducer {
                         toolName: base.toolName,
                         displayName: base.displayName,
                         toolClientId: base.toolClientId,
-                        meta: a.meta ?? base.meta,
+                        meta: base.meta,
                         invocationMessage: a.invocationMessage,
                         toolInput: a.toolInput,
                         status: .running,
@@ -225,7 +229,7 @@ public struct AHPSessionReducer: Reducer {
                         toolName: base.toolName,
                         displayName: base.displayName,
                         toolClientId: base.toolClientId,
-                        meta: a.meta ?? base.meta,
+                        meta: base.meta,
                         invocationMessage: a.invocationMessage,
                         toolInput: a.toolInput,
                         status: .pendingConfirmation,
@@ -233,6 +237,7 @@ public struct AHPSessionReducer: Reducer {
                     ))
                 }
             }
+            Self.refreshSummaryStatus(&state)
 
         case .sessionToolCallConfirmed(let a):
             Self.updateToolCallInPlace(state: &state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
@@ -266,6 +271,7 @@ public struct AHPSessionReducer: Reducer {
                     ))
                 }
             }
+            Self.refreshSummaryStatus(&state)
 
         case .sessionToolCallComplete(let a):
             Self.updateToolCallInPlace(state: &state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
@@ -322,6 +328,7 @@ public struct AHPSessionReducer: Reducer {
                     ))
                 }
             }
+            Self.refreshSummaryStatus(&state)
 
         case .sessionToolCallResultConfirmed(let a):
             Self.updateToolCallInPlace(state: &state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
@@ -358,6 +365,7 @@ public struct AHPSessionReducer: Reducer {
                     ))
                 }
             }
+            Self.refreshSummaryStatus(&state)
 
         // ── Metadata ──────────────────────────────────────────────────────────
 
@@ -403,22 +411,41 @@ public struct AHPSessionReducer: Reducer {
 
         case .sessionTruncated(let a):
             let turns: [Turn]
-            let keptTurnIds: Set<String>
             if let turnId = a.turnId {
                 guard let idx = state.turns.firstIndex(where: { $0.id == turnId }) else {
                     return
                 }
                 turns = Array(state.turns.prefix(idx + 1))
-                keptTurnIds = Set(turns.map { $0.id })
             } else {
                 turns = []
-                keptTurnIds = []
             }
             state.turns = turns
             state.activeTurn = nil
             state.inputRequests = nil
             state.summary.status = Self.sessionSummaryStatus(state)
             state.summary.modifiedAt = currentTimestamp()
+
+        // ── Read / Done ──────────────────────────────────────────────────────
+
+        case .sessionIsReadChanged(let a):
+            state.summary.isRead = a.isRead
+
+        case .sessionIsDoneChanged(let a):
+            state.summary.isDone = a.isDone
+
+        // ── Diffs ─────────────────────────────────────────────────────────────
+
+        case .sessionDiffsChanged(let a):
+            state.summary.diffs = a.diffs
+
+        // ── Tool Call Content ────────────────────────────────────────────────
+
+        case .sessionToolCallContentChanged(let a):
+            Self.updateToolCallInPlace(state: &state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+                guard case .running(var r) = tc else { return }
+                r.content = a.content
+                tc = .running(r)
+            }
 
         // ── Pending Messages ──────────────────────────────────────────────────
 
@@ -579,13 +606,33 @@ public struct AHPSessionReducer: Reducer {
         if let terminalStatus {
             return terminalStatus
         }
-        if state.inputRequests?.isEmpty == false {
+        if state.inputRequests?.isEmpty == false || Self.hasPendingToolCallConfirmation(state) {
             return .inputNeeded
         }
         if state.activeTurn != nil {
             return .inProgress
         }
         return .idle
+    }
+
+    /// Returns `true` if the active turn has any tool call awaiting user confirmation.
+    private static func hasPendingToolCallConfirmation(_ state: SessionState) -> Bool {
+        guard let activeTurn = state.activeTurn else { return false }
+        for part in activeTurn.responseParts {
+            guard case .toolCall(let tcPart) = part else { continue }
+            switch tcPart.toolCall {
+            case .pendingConfirmation, .pendingResultConfirmation:
+                return true
+            default:
+                continue
+            }
+        }
+        return false
+    }
+
+    /// Recomputes `summary.status` from the current state in place.
+    private static func refreshSummaryStatus(_ state: inout SessionState) {
+        state.summary.status = Self.sessionSummaryStatus(state)
     }
 
     private static func upsertInputRequest(state: inout SessionState, request: SessionInputRequest) {
@@ -666,5 +713,5 @@ extension Reducer {
 // MARK: - Timestamp Helper
 
 private func currentTimestamp() -> Int {
-    Int(Date().timeIntervalSince1970 * 1000)
+    currentTimestampProvider()
 }

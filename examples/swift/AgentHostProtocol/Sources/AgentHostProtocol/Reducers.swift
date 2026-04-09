@@ -3,6 +3,13 @@
 
 import Foundation
 
+// MARK: - Timestamp Provider
+
+/// Injectable timestamp provider for testing. Returns epoch milliseconds.
+public var currentTimestampProvider: () -> Int = {
+    Int(Date().timeIntervalSince1970 * 1000)
+}
+
 // MARK: - Root Reducer
 
 /// Pure reducer for root state.
@@ -16,6 +23,11 @@ public func rootReducer(state: RootState, action: StateAction) -> RootState {
     case .rootActiveSessionsChanged(let a):
         var next = state
         next.activeSessions = a.activeSessions
+        return next
+
+    case .rootTerminalsChanged(let a):
+        var next = state
+        next.terminals = a.terminals
         return next
 
     default:
@@ -48,6 +60,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
     case .sessionTurnStarted(let a):
         var next = state
         next.summary.modifiedAt = currentTimestamp()
+        next.summary.isRead = false
         next.activeTurn = ActiveTurn(
             id: a.turnId,
             userMessage: a.userMessage,
@@ -125,7 +138,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         }
 
     case .sessionToolCallReady(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             // Only process if currently streaming or running (matches TS behavior)
             switch tc {
             case .streaming, .running: break
@@ -138,7 +151,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                     toolName: base.toolName,
                     displayName: base.displayName,
                     toolClientId: base.toolClientId,
-                    meta: a.meta ?? base.meta,
+                    meta: base.meta,
                     invocationMessage: a.invocationMessage,
                     toolInput: a.toolInput,
                     status: .running,
@@ -150,16 +163,16 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolName: base.toolName,
                 displayName: base.displayName,
                 toolClientId: base.toolClientId,
-                meta: a.meta ?? base.meta,
+                meta: base.meta,
                 invocationMessage: a.invocationMessage,
                 toolInput: a.toolInput,
                 status: .pendingConfirmation,
                 confirmationTitle: a.confirmationTitle
             ))
-        }
+        })
 
     case .sessionToolCallConfirmed(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             guard case .pendingConfirmation(let pending) = tc else { return tc }
             let base = tc.baseFields
             if a.approved {
@@ -188,10 +201,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 reasonMessage: a.reasonMessage,
                 userSuggestion: a.userSuggestion
             ))
-        }
+        })
 
     case .sessionToolCallComplete(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             let base = tc.baseFields
             let confirmed: ToolCallConfirmationReason
             let invocationMessage: StringOrMarkdown
@@ -243,10 +256,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 status: .completed,
                 confirmed: confirmed
             ))
-        }
+        })
 
     case .sessionToolCallResultConfirmed(let a):
-        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+        return refreshSummaryStatus(updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
             guard case .pendingResultConfirmation(let prc) = tc else { return tc }
             let base = tc.baseFields
             if a.approved {
@@ -278,7 +291,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 status: .cancelled,
                 reason: .resultDenied
             ))
-        }
+        })
 
     // ── Metadata ──────────────────────────────────────────────────────────
 
@@ -347,17 +360,14 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
     // ── Truncation ────────────────────────────────────────────────────────
 
     case .sessionTruncated(let a):
-        var turns: [Turn]
-        var keptTurnIds: Set<String>
+        let turns: [Turn]
         if let turnId = a.turnId {
             guard let idx = state.turns.firstIndex(where: { $0.id == turnId }) else {
                 return state
             }
             turns = Array(state.turns.prefix(idx + 1))
-            keptTurnIds = Set(turns.map { $0.id })
         } else {
             turns = []
-            keptTurnIds = []
         }
         var next = state
         next.turns = turns
@@ -366,6 +376,34 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.status = sessionSummaryStatus(next)
         next.summary.modifiedAt = currentTimestamp()
         return next
+
+    // ── Read / Done ──────────────────────────────────────────────────────
+
+    case .sessionIsReadChanged(let a):
+        var next = state
+        next.summary.isRead = a.isRead
+        return next
+
+    case .sessionIsDoneChanged(let a):
+        var next = state
+        next.summary.isDone = a.isDone
+        return next
+
+    // ── Diffs ─────────────────────────────────────────────────────────────
+
+    case .sessionDiffsChanged(let a):
+        var next = state
+        next.summary.diffs = a.diffs
+        return next
+
+    // ── Tool Call Content ────────────────────────────────────────────────
+
+    case .sessionToolCallContentChanged(let a):
+        return updateToolCall(state: state, turnId: a.turnId, toolCallId: a.toolCallId) { tc in
+            guard case .running(var r) = tc else { return tc }
+            r.content = a.content
+            return .running(r)
+        }
 
     // ── Pending Messages ──────────────────────────────────────────────────
 
@@ -475,6 +513,8 @@ public let clientDispatchableActions: Set<String> = [
     "session/inputAnswerChanged",
     "session/inputCompleted",
     "session/customizationToggled",
+    "session/isReadChanged",
+    "session/isDoneChanged",
 ]
 
 /// Checks whether an action may be dispatched by a client.
@@ -486,7 +526,8 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
          .sessionActiveClientToolsChanged, .sessionPendingMessageSet,
          .sessionPendingMessageRemoved, .sessionQueuedMessagesReordered,
          .sessionInputAnswerChanged, .sessionInputCompleted,
-         .sessionCustomizationToggled:
+         .sessionCustomizationToggled, .sessionIsReadChanged,
+         .sessionIsDoneChanged:
         return true
     default:
         return false
@@ -496,20 +537,46 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
 // MARK: - Helpers
 
 private func currentTimestamp() -> Int {
-    Int(Date().timeIntervalSince1970 * 1000)
+    currentTimestampProvider()
 }
 
 private func sessionSummaryStatus(_ state: SessionState, terminalStatus: SessionStatus? = nil) -> SessionStatus {
     if let terminalStatus {
         return terminalStatus
     }
-    if state.inputRequests?.isEmpty == false {
+    if state.inputRequests?.isEmpty == false || hasPendingToolCallConfirmation(state) {
         return .inputNeeded
     }
     if state.activeTurn != nil {
         return .inProgress
     }
     return .idle
+}
+
+/// Returns `true` if the active turn has any tool call awaiting user confirmation.
+private func hasPendingToolCallConfirmation(_ state: SessionState) -> Bool {
+    guard let activeTurn = state.activeTurn else { return false }
+    for part in activeTurn.responseParts {
+        guard case .toolCall(let tcPart) = part else { continue }
+        switch tcPart.toolCall {
+        case .pendingConfirmation, .pendingResultConfirmation:
+            return true
+        default:
+            continue
+        }
+    }
+    return false
+}
+
+/// Returns a state with `summary.status` recomputed. Use this after reducers
+/// that change data feeding into `sessionSummaryStatus` (e.g. tool call
+/// lifecycle transitions that may enter or leave a pending-confirmation state).
+private func refreshSummaryStatus(_ state: SessionState) -> SessionState {
+    let status = sessionSummaryStatus(state)
+    guard status != state.summary.status else { return state }
+    var next = state
+    next.summary.status = status
+    return next
 }
 
 private func upsertInputRequest(state: SessionState, request: SessionInputRequest) -> SessionState {
