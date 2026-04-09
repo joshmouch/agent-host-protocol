@@ -1,4 +1,0 @@
-module DevTunnelsFFIFFI {
-    header "DevTunnelsFFIFFI.h"
-    export *
-}

@@ -209,7 +209,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				6F2049CF2F7746D3001049F9 /* XCLocalSwiftPackageReference "../AgentHostProtocol" */,
-				AA000001304700000003 /* XCLocalSwiftPackageReference "../../../../../Personal/dev-tunnels-swift" */,
+				AA000001304700000003 /* XCRemoteSwiftPackageReference "dev-tunnels-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6F20498A2F7744ED001049F9 /* Products */;
@@ -606,11 +606,18 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../AgentHostProtocol;
 		};
-		AA000001304700000003 /* XCLocalSwiftPackageReference "../../../../../Personal/dev-tunnels-swift" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = "../../../../../Personal/dev-tunnels-swift";
-		};
 /* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000001304700000003 /* XCRemoteSwiftPackageReference "dev-tunnels-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rebornix/dev-tunnels-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		6F2049CD2F774586001049F9 /* AgentHostProtocol */ = {
@@ -623,6 +630,7 @@
 		};
 		AA000001304700000002 /* DevTunnelsClient */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = AA000001304700000003 /* XCRemoteSwiftPackageReference "dev-tunnels-swift" */;
 			productName = DevTunnelsClient;
 		};
 /* End XCSwiftPackageProductDependency section */
