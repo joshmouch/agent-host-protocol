@@ -98,6 +98,8 @@ export type {
   IActionOrigin,
   IRootAgentsChangedAction,
   IRootActiveSessionsChangedAction,
+  IRootLoadedSessionChangedAction,
+  IRootLoadedSessionRemovedAction,
   ISessionReadyAction,
   ISessionCreationFailedAction,
   ISessionTurnStartedAction,

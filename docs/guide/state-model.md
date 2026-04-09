@@ -4,11 +4,12 @@ All state in AHP is identified by URIs. Clients subscribe to a URI to receive it
 
 ## Root State
 
-Subscribable at `agenthost:/root`. Contains global, lightweight data that all clients need. **Does not contain the session list** — that is fetched imperatively via RPC (see [Commands](/reference/commands)).
+Subscribable at `agenthost:/root`. Contains global, lightweight data that all clients need. **Does not contain the full session list** — that is fetched imperatively via RPC (see [Commands](/reference/commands)). Root state MAY carry a small "hot" subset of session summaries in `loadedSessions` for live sync (see [Loaded Sessions](#loaded-sessions) below).
 
 ```typescript
 RootState {
   agents: AgentInfo[]
+  loadedSessions?: SessionSummary[]
 }
 ```
 
@@ -259,6 +260,42 @@ The session list can be arbitrarily large and is **not** part of the state tree.
 - The server sends lightweight **notifications** (`sessionAdded`, `sessionRemoved`) so connected clients can update a local cache without re-fetching.
 
 Notifications are ephemeral — not processed by reducers, not stored in state, not replayed on reconnect. On reconnect, clients re-fetch the list.
+
+## Loaded Sessions
+
+`loadedSessions` on root state is a small "hot" subset of session summaries that the server is actively live-syncing on the root subscription. Clients that are displaying a session list or sidebar can subscribe to `agenthost:/root` and receive summary updates (title, status, diffs, `isRead`, `isDone`, `modifiedAt`, …) for this subset without having to subscribe to each session URI individually.
+
+```typescript
+RootState {
+  // ...
+  loadedSessions?: SessionSummary[]
+}
+```
+
+### Relationship to the session list
+
+`loadedSessions` is **complementary** to — not a replacement for — the existing session-list mechanisms:
+
+| Mechanism | Purpose | Delivery |
+|---|---|---|
+| `listSessions()` | Fetch the full catalog of sessions (may be arbitrarily large). | Imperative RPC. |
+| `notify/sessionAdded` / `notify/sessionRemoved` | Signal session creation/disposal so clients can update a local cache. | Ephemeral notifications (not replayed). |
+| `loadedSessions` + `root/loadedSession*` actions | Live summary updates for a tracked subset. | Part of the root state tree; replayed on reconnect via the standard subscription machinery. |
+
+A client that wants up-to-date summaries without subscribing to every session SHOULD:
+
+1. Fetch the catalog once via `listSessions()`.
+2. Subscribe to `agenthost:/root` and maintain its cache from `loadedSessions` whenever an entry exists.
+3. Listen to `notify/sessionAdded` / `notify/sessionRemoved` for lifecycle changes.
+
+### Action semantics
+
+The server drives `loadedSessions` with two actions:
+
+- `root/loadedSessionChanged` — Upserts a session summary into `loadedSessions`, keyed by `summary.resource`. Used both to start tracking a session and to push subsequent summary updates for an already loaded session.
+- `root/loadedSessionRemoved` — Removes the entry for `session` from `loadedSessions`. This does **not** imply the session was disposed; session disposal is signaled by `notify/sessionRemoved`. The field collapses to `undefined` when the last entry is removed.
+
+Both actions are server-originated. Which sessions the server chooses to load is a server policy (for example, a server may auto-track recently active sessions).
 
 ## Pending Messages
 

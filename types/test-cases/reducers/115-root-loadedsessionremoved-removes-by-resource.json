@@ -1,0 +1,44 @@
+{
+  "description": "root/loadedSessionRemoved removes a summary by resource",
+  "reducer": "root",
+  "initial": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "First",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      },
+      {
+        "resource": "copilot:/s2",
+        "provider": "copilot",
+        "title": "Second",
+        "status": 1,
+        "createdAt": 2000,
+        "modifiedAt": 2000
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "root/loadedSessionRemoved",
+      "session": "copilot:/s1"
+    }
+  ],
+  "expected": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s2",
+        "provider": "copilot",
+        "title": "Second",
+        "status": 1,
+        "createdAt": 2000,
+        "modifiedAt": 2000
+      }
+    ]
+  }
+}

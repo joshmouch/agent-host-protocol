@@ -1,0 +1,61 @@
+{
+  "description": "root/loadedSessionChanged upserts an existing summary in place by resource",
+  "reducer": "root",
+  "initial": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "Old title",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      },
+      {
+        "resource": "copilot:/s2",
+        "provider": "copilot",
+        "title": "Other",
+        "status": 1,
+        "createdAt": 2000,
+        "modifiedAt": 2000
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "root/loadedSessionChanged",
+      "summary": {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "New title",
+        "status": 8,
+        "createdAt": 1000,
+        "modifiedAt": 1500,
+        "isRead": false
+      }
+    }
+  ],
+  "expected": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "New title",
+        "status": 8,
+        "createdAt": 1000,
+        "modifiedAt": 1500,
+        "isRead": false
+      },
+      {
+        "resource": "copilot:/s2",
+        "provider": "copilot",
+        "title": "Other",
+        "status": 1,
+        "createdAt": 2000,
+        "modifiedAt": 2000
+      }
+    ]
+  }
+}

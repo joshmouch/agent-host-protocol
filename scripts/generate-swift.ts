@@ -658,6 +658,8 @@ function generateStateFile(project: Project): string {
 const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[] = [
   { type: 'root/agentsChanged', caseName: 'rootAgentsChanged', tsInterface: 'IRootAgentsChangedAction' },
   { type: 'root/activeSessionsChanged', caseName: 'rootActiveSessionsChanged', tsInterface: 'IRootActiveSessionsChangedAction' },
+  { type: 'root/loadedSessionChanged', caseName: 'rootLoadedSessionChanged', tsInterface: 'IRootLoadedSessionChangedAction' },
+  { type: 'root/loadedSessionRemoved', caseName: 'rootLoadedSessionRemoved', tsInterface: 'IRootLoadedSessionRemovedAction' },
   { type: 'session/ready', caseName: 'sessionReady', tsInterface: 'ISessionReadyAction' },
   { type: 'session/creationFailed', caseName: 'sessionCreationFailed', tsInterface: 'ISessionCreationFailedAction' },
   { type: 'session/turnStarted', caseName: 'sessionTurnStarted', tsInterface: 'ISessionTurnStartedAction' },

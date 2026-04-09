@@ -245,6 +245,32 @@ export function rootReducer(state: IRootState, action: IRootAction, log?: (msg: 
     case ActionType.RootTerminalsChanged:
       return { ...state, terminals: action.terminals };
 
+    case ActionType.RootLoadedSessionChanged: {
+      const existing = state.loadedSessions ?? [];
+      const idx = existing.findIndex(s => s.resource === action.summary.resource);
+      if (idx >= 0) {
+        const updated = [...existing];
+        updated[idx] = action.summary;
+        return { ...state, loadedSessions: updated };
+      }
+      return { ...state, loadedSessions: [...existing, action.summary] };
+    }
+
+    case ActionType.RootLoadedSessionRemoved: {
+      const existing = state.loadedSessions;
+      if (!existing) {
+        return state;
+      }
+      const filtered = existing.filter(s => s.resource !== action.session);
+      if (filtered.length === existing.length) {
+        return state;
+      }
+      return {
+        ...state,
+        loadedSessions: filtered.length > 0 ? filtered : undefined,
+      };
+    }
+
     default:
       softAssertNever(action, log);
       return state;

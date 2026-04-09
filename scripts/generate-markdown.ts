@@ -488,6 +488,8 @@ interface ActionMeta {
 const ACTION_ORDER: ActionMeta[] = [
   // Root
   { interfaceName: 'IRootAgentsChangedAction', typeValue: 'root/agentsChanged', description: 'Fired when available agent backends or their models change.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'IRootLoadedSessionChangedAction', typeValue: 'root/loadedSessionChanged', description: 'Upserts a session summary into `loadedSessions` on root state.', clientDispatchable: false, version: 1 },
+  { interfaceName: 'IRootLoadedSessionRemovedAction', typeValue: 'root/loadedSessionRemoved', description: 'Removes a session summary from `loadedSessions` on root state.', clientDispatchable: false, version: 1 },
   // Session
   { interfaceName: 'ISessionReadyAction', typeValue: 'session/ready', description: 'Session backend initialized successfully.', clientDispatchable: false, version: 1 },
   { interfaceName: 'ISessionCreationFailedAction', typeValue: 'session/creationFailed', description: 'Session backend failed to initialize.', clientDispatchable: false, version: 1 },
@@ -742,6 +744,7 @@ function generateNotificationsPage(project: Project): string {
   lines.push('1. On connect, fetch the full session list via `listSessions()`.');
   lines.push('2. Listen for `notify/sessionAdded` and `notify/sessionRemoved` to keep the cache updated.');
   lines.push('3. On reconnect, **re-fetch** the full list — notifications are not replayed.\n');
+  lines.push('For live summary updates (title, status, diffs, …) on a small tracked subset without subscribing to each session URI, see [`loadedSessions`](/guide/state-model#loaded-sessions) on root state. It is complementary to, not a replacement for, these lifecycle notifications.\n');
 
   // Version Introduction
   lines.push('## Version Introduction\n');

@@ -26,6 +26,8 @@ export const MIN_PROTOCOL_VERSION = 1;
 export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: number } = {
   [ActionType.RootAgentsChanged]: 1,
   [ActionType.RootActiveSessionsChanged]: 1,
+  [ActionType.RootLoadedSessionChanged]: 1,
+  [ActionType.RootLoadedSessionRemoved]: 1,
   [ActionType.SessionReady]: 1,
   [ActionType.SessionCreationFailed]: 1,
   [ActionType.SessionTurnStarted]: 1,

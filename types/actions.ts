@@ -17,6 +17,7 @@ import type {
   IToolResultContent,
   IToolDefinition,
   ISessionActiveClient,
+  ISessionSummary,
   IUsageInfo,
   ISessionCustomization,
   ISessionFileDiff,
@@ -39,6 +40,8 @@ import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageK
 export const enum ActionType {
   RootAgentsChanged = 'root/agentsChanged',
   RootActiveSessionsChanged = 'root/activeSessionsChanged',
+  RootLoadedSessionChanged = 'root/loadedSessionChanged',
+  RootLoadedSessionRemoved = 'root/loadedSessionRemoved',
   SessionReady = 'session/ready',
   SessionCreationFailed = 'session/creationFailed',
   SessionTurnStarted = 'session/turnStarted',
@@ -167,6 +170,46 @@ export interface IRootTerminalsChangedAction {
   type: ActionType.RootTerminalsChanged;
   /** Updated terminal list (full replacement) */
   terminals: ITerminalInfo[];
+}
+
+/**
+ * Upserts a session summary into {@link IRootState.loadedSessions | loadedSessions}.
+ *
+ * Dispatched by the server both to start tracking a session for live updates
+ * on the root subscription and to push subsequent summary changes (title,
+ * status, diffs, isRead, isDone, modifiedAt, …) for an already loaded
+ * session. Entries are keyed by `summary.resource`; an existing entry with
+ * the same resource is replaced in place, otherwise the summary is appended.
+ *
+ * This action is orthogonal to `notify/sessionAdded`: that notification
+ * signals that a new session exists on the server, while this action
+ * controls which sessions the server is live-syncing on the root
+ * subscription.
+ *
+ * @category Root Actions
+ * @version 1
+ */
+export interface IRootLoadedSessionChangedAction {
+  type: ActionType.RootLoadedSessionChanged;
+  /** The session summary to upsert into `loadedSessions`, keyed by `summary.resource`. */
+  summary: ISessionSummary;
+}
+
+/**
+ * Removes a session summary from {@link IRootState.loadedSessions | loadedSessions}.
+ *
+ * This action signals that the server has stopped pushing live summary
+ * updates for `session` on the root subscription. It does **not** imply the
+ * session was disposed — session disposal is signaled by
+ * `notify/sessionRemoved`.
+ *
+ * @category Root Actions
+ * @version 1
+ */
+export interface IRootLoadedSessionRemovedAction {
+  type: ActionType.RootLoadedSessionRemoved;
+  /** URI of the session to drop from `loadedSessions`. */
+  session: URI;
 }
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
@@ -992,6 +1035,8 @@ export type IStateAction =
   | IRootAgentsChangedAction
   | IRootActiveSessionsChangedAction
   | IRootTerminalsChangedAction
+  | IRootLoadedSessionChangedAction
+  | IRootLoadedSessionRemovedAction
   | ISessionReadyAction
   | ISessionCreationFailedAction
   | ISessionTurnStartedAction

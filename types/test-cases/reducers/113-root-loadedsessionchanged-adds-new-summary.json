@@ -1,0 +1,33 @@
+{
+  "description": "root/loadedSessionChanged adds a new summary when loadedSessions is absent",
+  "reducer": "root",
+  "initial": {
+    "agents": []
+  },
+  "actions": [
+    {
+      "type": "root/loadedSessionChanged",
+      "summary": {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "First session",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      }
+    }
+  ],
+  "expected": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "First session",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      }
+    ]
+  }
+}

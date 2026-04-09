@@ -129,6 +129,40 @@
         "terminals"
       ]
     },
+    "IRootLoadedSessionChangedAction": {
+      "type": "object",
+      "description": "Upserts a session summary into {@link IRootState.loadedSessions | loadedSessions}.\n\nDispatched by the server both to start tracking a session for live updates\non the root subscription and to push subsequent summary changes (title,\nstatus, diffs, isRead, isDone, modifiedAt, …) for an already loaded\nsession. Entries are keyed by `summary.resource`; an existing entry with\nthe same resource is replaced in place, otherwise the summary is appended.\n\nThis action is orthogonal to `notify/sessionAdded`: that notification\nsignals that a new session exists on the server, while this action\ncontrols which sessions the server is live-syncing on the root\nsubscription.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.RootLoadedSessionChanged"
+        },
+        "summary": {
+          "$ref": "#/$defs/ISessionSummary",
+          "description": "The session summary to upsert into `loadedSessions`, keyed by `summary.resource`."
+        }
+      },
+      "required": [
+        "type",
+        "summary"
+      ]
+    },
+    "IRootLoadedSessionRemovedAction": {
+      "type": "object",
+      "description": "Removes a session summary from {@link IRootState.loadedSessions | loadedSessions}.\n\nThis action signals that the server has stopped pushing live summary\nupdates for `session` on the root subscription. It does **not** imply the\nsession was disposed — session disposal is signaled by\n`notify/sessionRemoved`.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.RootLoadedSessionRemoved"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "URI of the session to drop from `loadedSessions`."
+        }
+      },
+      "required": [
+        "type",
+        "session"
+      ]
+    },
     "ISessionReadyAction": {
       "type": "object",
       "description": "Session backend initialized successfully.",
@@ -1492,6 +1526,13 @@
             "$ref": "#/$defs/ITerminalInfo"
           },
           "description": "Known terminals on the server. Subscribe to individual terminal URIs for full state."
+        },
+        "loadedSessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionSummary"
+          },
+          "description": "Session summaries the server is currently tracking for live updates on\nthe root subscription.\n\nThis is a small \"hot\" subset — typically sessions a that are in use\nby a client or agent loop  — that the server pushes summary updates\nfor (title, status, diffs, isRead, isDone, modifiedAt, …) without\nrequiring clients to subscribe to each session URI individually.\n\nThis field is complementary to, not a replacement for:\n\n- `listSessions()` — the imperative command used to fetch the full\n  catalog of session summaries (which may be arbitrarily large).\n- `notify/sessionAdded` / `notify/sessionRemoved` — the ephemeral\n  lifecycle notifications sent when a session is created or disposed.\n\nSummaries are keyed by `summary.resource`. Entries are added or updated\nvia `root/loadedSessionChanged` and removed via\n`root/loadedSessionRemoved`. A removal from `loadedSessions` does not\nimply the session was disposed; it only means the server is no longer\npushing live updates for it on the root subscription."
         }
       },
       "required": [
@@ -3588,6 +3629,12 @@
         },
         {
           "$ref": "#/$defs/IRootTerminalsChangedAction"
+        },
+        {
+          "$ref": "#/$defs/IRootLoadedSessionChangedAction"
+        },
+        {
+          "$ref": "#/$defs/IRootLoadedSessionRemovedAction"
         },
         {
           "$ref": "#/$defs/ISessionReadyAction"

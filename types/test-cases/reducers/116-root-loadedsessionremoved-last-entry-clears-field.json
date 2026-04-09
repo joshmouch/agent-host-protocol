@@ -1,0 +1,27 @@
+{
+  "description": "root/loadedSessionRemoved clears loadedSessions when removing the last entry",
+  "reducer": "root",
+  "initial": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "Only",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "root/loadedSessionRemoved",
+      "session": "copilot:/s1"
+    }
+  ],
+  "expected": {
+    "agents": [],
+    "loadedSessions": null
+  }
+}

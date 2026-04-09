@@ -1,0 +1,36 @@
+{
+  "description": "root/loadedSessionRemoved is a no-op for an unknown session resource",
+  "reducer": "root",
+  "initial": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "First",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      }
+    ]
+  },
+  "actions": [
+    {
+      "type": "root/loadedSessionRemoved",
+      "session": "copilot:/unknown"
+    }
+  ],
+  "expected": {
+    "agents": [],
+    "loadedSessions": [
+      {
+        "resource": "copilot:/s1",
+        "provider": "copilot",
+        "title": "First",
+        "status": 1,
+        "createdAt": 1000,
+        "modifiedAt": 1000
+      }
+    ]
+  }
+}

@@ -153,6 +153,29 @@ export interface IRootState {
   activeSessions?: number;
   /** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
   terminals?: ITerminalInfo[];
+  /**
+   * Session summaries the server is currently tracking for live updates on
+   * the root subscription.
+   *
+   * This is a small "hot" subset — typically sessions a that are in use
+   * by a client or agent loop  — that the server pushes summary updates
+   * for (title, status, diffs, isRead, isDone, modifiedAt, …) without
+   * requiring clients to subscribe to each session URI individually.
+   *
+   * This field is complementary to, not a replacement for:
+   *
+   * - `listSessions()` — the imperative command used to fetch the full
+   *   catalog of session summaries (which may be arbitrarily large).
+   * - `notify/sessionAdded` / `notify/sessionRemoved` — the ephemeral
+   *   lifecycle notifications sent when a session is created or disposed.
+   *
+   * Summaries are keyed by `summary.resource`. Entries are added or updated
+   * via `root/loadedSessionChanged` and removed via
+   * `root/loadedSessionRemoved`. A removal from `loadedSessions` does not
+   * imply the session was disposed; it only means the server is no longer
+   * pushing live updates for it on the root subscription.
+   */
+  loadedSessions?: ISessionSummary[];
 }
 
 /**

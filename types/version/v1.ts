@@ -79,6 +79,8 @@ import type {
   IActionEnvelope,
   IActionOrigin,
   IRootActiveSessionsChangedAction,
+  IRootLoadedSessionChangedAction,
+  IRootLoadedSessionRemovedAction,
   ISessionToolCallApprovedAction,
   ISessionToolCallDeniedAction,
   ISessionServerToolsChangedAction,
@@ -220,6 +222,8 @@ type V1_IStateAction = IStateAction;
 type V1_IActionEnvelope = IActionEnvelope;
 type V1_IActionOrigin = IActionOrigin;
 type V1_IRootActiveSessionsChangedAction = IRootActiveSessionsChangedAction;
+type V1_IRootLoadedSessionChangedAction = IRootLoadedSessionChangedAction;
+type V1_IRootLoadedSessionRemovedAction = IRootLoadedSessionRemovedAction;
 type V1_ISessionToolCallApprovedAction = ISessionToolCallApprovedAction;
 type V1_ISessionToolCallDeniedAction = ISessionToolCallDeniedAction;
 type V1_ISessionServerToolsChangedAction = ISessionServerToolsChangedAction;
@@ -342,6 +346,10 @@ type _CheckActionEnvelope = AssertCompatible<V1_IActionEnvelope, IActionEnvelope
 type _CheckActionOrigin = AssertCompatible<V1_IActionOrigin, IActionOrigin>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckActiveSessionsChangedAction = AssertCompatible<V1_IRootActiveSessionsChangedAction, IRootActiveSessionsChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckRootLoadedSessionChangedAction = AssertCompatible<V1_IRootLoadedSessionChangedAction, IRootLoadedSessionChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckRootLoadedSessionRemovedAction = AssertCompatible<V1_IRootLoadedSessionRemovedAction, IRootLoadedSessionRemovedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallApprovedAction = AssertCompatible<V1_ISessionToolCallApprovedAction, ISessionToolCallApprovedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

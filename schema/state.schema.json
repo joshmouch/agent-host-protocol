@@ -137,6 +137,13 @@
             "$ref": "#/$defs/ITerminalInfo"
           },
           "description": "Known terminals on the server. Subscribe to individual terminal URIs for full state."
+        },
+        "loadedSessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionSummary"
+          },
+          "description": "Session summaries the server is currently tracking for live updates on\nthe root subscription.\n\nThis is a small \"hot\" subset — typically sessions a that are in use\nby a client or agent loop  — that the server pushes summary updates\nfor (title, status, diffs, isRead, isDone, modifiedAt, …) without\nrequiring clients to subscribe to each session URI individually.\n\nThis field is complementary to, not a replacement for:\n\n- `listSessions()` — the imperative command used to fetch the full\n  catalog of session summaries (which may be arbitrarily large).\n- `notify/sessionAdded` / `notify/sessionRemoved` — the ephemeral\n  lifecycle notifications sent when a session is created or disposed.\n\nSummaries are keyed by `summary.resource`. Entries are added or updated\nvia `root/loadedSessionChanged` and removed via\n`root/loadedSessionRemoved`. A removal from `loadedSessions` does not\nimply the session was disposed; it only means the server is no longer\npushing live updates for it on the root subscription."
         }
       },
       "required": [
