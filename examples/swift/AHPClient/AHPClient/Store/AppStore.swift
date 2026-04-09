@@ -1,4 +1,5 @@
 import AgentHostProtocol
+import DevTunnelsClient
 import Foundation
 import Observation
 import SwiftUI
@@ -276,14 +277,19 @@ final class AppStore {
                 }
                 // Fetch a fresh connect access token from the management API
                 do {
-                    let detail = try await getTunnelDetail(
-                        accessToken: cachedToken,
+                    let client = TunnelManagementClient(accessToken: cachedToken)
+                    let tunnel = try await client.getTunnel(
                         clusterId: clusterId,
-                        tunnelId: tunnelId
+                        tunnelId: tunnelId,
+                        options: TunnelRequestOptions(
+                            includePorts: true,
+                            tokenScopes: [TunnelAccessScopes.connect]
+                        )
                     )
-                    server.connectAccessToken = detail.connectAccessToken
+                    let connectToken = TunnelConnection.connectToken(from: tunnel)
+                    server.connectAccessToken = connectToken
                     if let index = servers.firstIndex(where: { $0.id == server.id }) {
-                        servers[index].connectAccessToken = detail.connectAccessToken
+                        servers[index].connectAccessToken = connectToken
                     }
                 } catch {
                     // If we can't refresh, try with whatever we have
@@ -342,14 +348,19 @@ final class AppStore {
         if server.isTunnel, let tunnelId = server.tunnelId, let clusterId = server.clusterId,
            let cachedToken = TunnelTokenStore.load() {
             do {
-                let detail = try await getTunnelDetail(
-                    accessToken: cachedToken,
+                let client = TunnelManagementClient(accessToken: cachedToken)
+                let tunnel = try await client.getTunnel(
                     clusterId: clusterId,
-                    tunnelId: tunnelId
+                    tunnelId: tunnelId,
+                    options: TunnelRequestOptions(
+                        includePorts: true,
+                        tokenScopes: [TunnelAccessScopes.connect]
+                    )
                 )
-                server.connectAccessToken = detail.connectAccessToken
+                let connectToken = TunnelConnection.connectToken(from: tunnel)
+                server.connectAccessToken = connectToken
                 if let index = servers.firstIndex(where: { $0.id == server.id }) {
-                    servers[index].connectAccessToken = detail.connectAccessToken
+                    servers[index].connectAccessToken = connectToken
                 }
             } catch {
                 print("[AHP] Warning: failed to refresh connect token on reconnect: \(error)")

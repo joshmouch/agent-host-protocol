@@ -108,6 +108,6 @@ The app uses `#available(iOS 26.0, *)` checks for:
 
 Open `AHPClient/AHPClient.xcodeproj` in Xcode. The project references `AgentHostProtocol` as a local Swift package dependency and `DevTunnelsClient` as a remote Swift package from [rebornix/dev-tunnels-swift](https://github.com/rebornix/dev-tunnels-swift). Code signing requires a `Signing.local.xcconfig` file (see `Config/Signing.local.xcconfig.example`).
 
-**Dev Tunnels integration:** `AHPClient/DevTunnelsBridgeShim.swift` provides compatibility functions (`startDeviceCodeAuth`, `pollDeviceCodeAuth`, `listTunnels`, `getTunnelDetail`) backed by the pure Swift `DevTunnelsClient` library. All functions are `async` — no Rust FFI or cross-compilation needed.
+**Dev Tunnels integration:** `TunnelListView.swift` uses the `DevTunnelsClient` library directly — `TunnelManagementClient` for tunnel listing/details, `DeviceCodeAuth` for GitHub OAuth, and `TunnelConnection` helpers for relay URIs and connect tokens. All calls are `async` — no shim layer or Rust FFI needed.
 
 For development, `AHPClient` uses a native `NWConnection` WebSocket transport instead of `URLSessionWebSocketTask`,  avoiding `URLSession` ATS enforcement for direct `ws://` development targets such as local LAN addresses or Tailscale tailnet IPs. Public or internet-exposed deployments should still prefer `wss://`.

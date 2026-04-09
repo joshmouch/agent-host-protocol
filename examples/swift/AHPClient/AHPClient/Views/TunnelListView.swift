@@ -2,6 +2,18 @@ import DevTunnelsClient
 import Security
 import SwiftUI
 
+// MARK: - Tunnel + Identifiable
+
+extension Tunnel: @retroactive Identifiable {
+    public var id: String { tunnelId ?? UUID().uuidString }
+
+    /// Human-readable display name: prefers the tunnel name, falls back to tunnel ID.
+    var displayName: String {
+        if let name, !name.isEmpty { return name }
+        return tunnelId ?? ""
+    }
+}
+
 // MARK: - Token Storage
 
 /// Persists the GitHub access token in the iOS Keychain so it survives
@@ -56,7 +68,7 @@ struct TunnelListView: View {
     /// Called when the user selects a tunnel port to use as an AHP server.
     var onConnectToTunnel: ((ServerConfiguration) -> Void)?
 
-    @State private var tunnels: [TunnelInfo] = []
+    @State private var tunnels: [Tunnel] = []
     @State private var accessToken: String = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -165,7 +177,7 @@ struct TunnelListView: View {
                 Text("No tunnels found")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(tunnels, id: \.tunnelId) { tunnel in
+                ForEach(tunnels) { tunnel in
                     NavigationLink {
                         TunnelDetailView(
                             tunnel: tunnel,
@@ -175,9 +187,9 @@ struct TunnelListView: View {
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name)
+                                Text(tunnel.displayName)
                                     .font(.body)
-                                Text("\(tunnel.clusterId) · \(tunnel.tunnelId)")
+                                Text("\(tunnel.clusterId ?? "") · \(tunnel.tunnelId ?? "")")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -208,7 +220,7 @@ struct TunnelListView: View {
 
     private func startAuth() async {
         do {
-            let response = try await startDeviceCodeAuth()
+            let response = try await DeviceCodeAuth().start()
             deviceCodeResponse = response
             isPolling = true
             authMessage = nil
@@ -223,7 +235,7 @@ struct TunnelListView: View {
         while isPolling {
             try? await Task.sleep(nanoseconds: interval)
             do {
-                let result = try await pollDeviceCodeAuth(deviceCode: deviceCode)
+                let result = try await DeviceCodeAuth().poll(deviceCode: deviceCode)
                 switch result {
                 case .accessToken(let token):
                     accessToken = token
@@ -253,7 +265,8 @@ struct TunnelListView: View {
         isLoading = true
         errorMessage = nil
         do {
-            tunnels = try await listTunnels(accessToken: accessToken)
+            let client = TunnelManagementClient(accessToken: accessToken)
+            tunnels = try await client.listTunnels()
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -263,29 +276,34 @@ struct TunnelListView: View {
 
     /// Connect directly to a tunnel's AHP port (31546), fetching the connect
     /// access token in the background.
-    private func connectTunnel(_ tunnel: TunnelInfo) {
+    private func connectTunnel(_ tunnel: Tunnel) {
         Task {
             let port = TunnelDetailView.agentHostPort
+            let tunnelId = tunnel.tunnelId ?? ""
+            let clusterId = tunnel.clusterId ?? ""
             var connectToken: String?
             do {
-                let detail = try await getTunnelDetail(
-                    accessToken: accessToken,
-                    clusterId: tunnel.clusterId,
-                    tunnelId: tunnel.tunnelId
+                let client = TunnelManagementClient(accessToken: accessToken)
+                let detail = try await client.getTunnel(
+                    clusterId: clusterId,
+                    tunnelId: tunnelId,
+                    options: TunnelRequestOptions(
+                        includePorts: true,
+                        tokenScopes: [TunnelAccessScopes.connect]
+                    )
                 )
-                connectToken = detail.connectAccessToken
+                connectToken = TunnelConnection.connectToken(from: detail)
             } catch {
                 print("[AHP] Warning: failed to fetch connect token: \(error)")
             }
-            let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
-            let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
+            let host = "\(tunnelId)-\(port).\(clusterId).devtunnels.ms"
             let server = ServerConfiguration(
-                name: displayName,
+                name: tunnel.displayName,
                 scheme: "wss",
                 host: host,
                 token: accessToken,
-                tunnelId: tunnel.tunnelId,
-                clusterId: tunnel.clusterId,
+                tunnelId: tunnelId,
+                clusterId: clusterId,
                 connectAccessToken: connectToken
             )
             onConnectToTunnel?(server)
@@ -299,20 +317,20 @@ struct TunnelDetailView: View {
     /// Agent Host Protocol port, matching VS Code's convention.
     static let agentHostPort = 31546
 
-    let tunnel: TunnelInfo
+    let tunnel: Tunnel
     let accessToken: String
     var onConnectToTunnel: ((ServerConfiguration) -> Void)?
 
-    @State private var detail: TunnelDetail?
+    @State private var detail: Tunnel?
     @State private var isLoading = true
     @State private var errorMessage: String?
 
     var body: some View {
         List {
             Section("Info") {
-                LabeledContent("Name", value: tunnel.name)
-                LabeledContent("Tunnel ID", value: tunnel.tunnelId)
-                LabeledContent("Cluster", value: tunnel.clusterId)
+                LabeledContent("Name", value: tunnel.name ?? "")
+                LabeledContent("Tunnel ID", value: tunnel.tunnelId ?? "")
+                LabeledContent("Cluster", value: tunnel.clusterId ?? "")
             }
 
             if isLoading {
@@ -323,7 +341,7 @@ struct TunnelDetailView: View {
                     }
                 }
             } else if let detail {
-                if let relayUri = detail.clientRelayUri {
+                if let relayUri = TunnelConnection.clientRelayURI(from: detail) {
                     Section("Relay") {
                         Text(relayUri)
                             .font(.caption)
@@ -332,11 +350,12 @@ struct TunnelDetailView: View {
                 }
 
                 Section("Ports") {
-                    if detail.ports.isEmpty {
+                    let ports = detail.ports ?? []
+                    if ports.isEmpty {
                         Text("No ports configured")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(sortedPorts(detail.ports), id: \.self) { port in
+                        ForEach(sortedPorts(ports), id: \.self) { port in
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 6) {
@@ -352,7 +371,7 @@ struct TunnelDetailView: View {
                                                 .clipShape(Capsule())
                                         }
                                     }
-                                    Text("\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms")
+                                    Text("\(tunnel.tunnelId ?? "")-\(port).\(tunnel.clusterId ?? "").devtunnels.ms")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -378,15 +397,15 @@ struct TunnelDetailView: View {
                 }
             }
         }
-        .navigationTitle(tunnel.name)
+        .navigationTitle(tunnel.displayName)
         .task {
             await loadDetail()
         }
     }
 
     /// Sort ports so the AHP port (31546) appears first.
-    private func sortedPorts(_ ports: [UInt16]) -> [Int] {
-        ports.map { Int($0) }.sorted { a, b in
+    private func sortedPorts(_ ports: [TunnelPort]) -> [Int] {
+        ports.map { Int($0.portNumber) }.sorted { a, b in
             if a == Self.agentHostPort { return true }
             if b == Self.agentHostPort { return false }
             return a < b
@@ -394,26 +413,32 @@ struct TunnelDetailView: View {
     }
 
     private func connectToPort(_ port: Int) {
-        let displayName = tunnel.name.isEmpty ? tunnel.tunnelId : tunnel.name
-        let host = "\(tunnel.tunnelId)-\(port).\(tunnel.clusterId).devtunnels.ms"
+        let tunnelId = tunnel.tunnelId ?? ""
+        let clusterId = tunnel.clusterId ?? ""
+        let host = "\(tunnelId)-\(port).\(clusterId).devtunnels.ms"
+        let connectToken: String? = detail.flatMap { TunnelConnection.connectToken(from: $0) }
         let server = ServerConfiguration(
-            name: displayName,
+            name: tunnel.displayName,
             scheme: "wss",
             host: host,
             token: accessToken,
-            tunnelId: tunnel.tunnelId,
-            clusterId: tunnel.clusterId,
-            connectAccessToken: detail?.connectAccessToken
+            tunnelId: tunnelId,
+            clusterId: clusterId,
+            connectAccessToken: connectToken
         )
         onConnectToTunnel?(server)
     }
 
     private func loadDetail() async {
         do {
-            detail = try await getTunnelDetail(
-                accessToken: accessToken,
-                clusterId: tunnel.clusterId,
-                tunnelId: tunnel.tunnelId
+            let client = TunnelManagementClient(accessToken: accessToken)
+            detail = try await client.getTunnel(
+                clusterId: tunnel.clusterId ?? "",
+                tunnelId: tunnel.tunnelId ?? "",
+                options: TunnelRequestOptions(
+                    includePorts: true,
+                    tokenScopes: [TunnelAccessScopes.connect]
+                )
             )
             isLoading = false
         } catch {
