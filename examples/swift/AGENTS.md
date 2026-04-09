@@ -2,11 +2,10 @@
 
 ## Overview
 
-This directory contains three Swift packages for the Agent Host Protocol (AHP):
+This directory contains two Swift packages for the Agent Host Protocol (AHP):
 
 1. **AgentHostProtocol** — A pure Swift library (no external dependencies) providing auto-generated types, actions, and reducers for the protocol. Targets iOS 16+, macOS 13+, Swift 5.9+.
-2. **AHPClient** — An example iOS app (Xcode project) demonstrating a full AHP client with WebSocket transport, state synchronization, reconnection, and a SwiftUI chat UI.
-3. **DevTunnelsBridge** — A Swift package wrapping the Microsoft Dev Tunnels Rust SDK via UniFFI, providing tunnel discovery, authentication, and port forwarding for iOS/macOS. See `DevTunnelsBridge/AGENTS.md` for details.
+2. **AHPClient** — An example iOS app (Xcode project) demonstrating a full AHP client with WebSocket transport, state synchronization, reconnection, and a SwiftUI chat UI. Uses [dev-tunnels-swift](https://github.com/rebornix/dev-tunnels-swift) (remote Swift Package) for tunnel discovery, authentication, and relay connections.
 
 ## Code Generation
 
@@ -107,6 +106,8 @@ The app uses `#available(iOS 26.0, *)` checks for:
 
 ### Build & Run
 
-Open `AHPClient/AHPClient.xcodeproj` in Xcode. The project references `AgentHostProtocol` as a local Swift package dependency. Code signing requires a `Signing.local.xcconfig` file (see `Config/Signing.local.xcconfig.example`).
+Open `AHPClient/AHPClient.xcodeproj` in Xcode. The project references `AgentHostProtocol` as a local Swift package dependency and `DevTunnelsClient` as a remote Swift package from [rebornix/dev-tunnels-swift](https://github.com/rebornix/dev-tunnels-swift). Code signing requires a `Signing.local.xcconfig` file (see `Config/Signing.local.xcconfig.example`).
+
+**Dev Tunnels integration:** `AHPClient/DevTunnelsBridgeShim.swift` provides compatibility functions (`startDeviceCodeAuth`, `pollDeviceCodeAuth`, `listTunnels`, `getTunnelDetail`) backed by the pure Swift `DevTunnelsClient` library. All functions are `async` — no Rust FFI or cross-compilation needed.
 
 For development, `AHPClient` uses a native `NWConnection` WebSocket transport instead of `URLSessionWebSocketTask`,  avoiding `URLSession` ATS enforcement for direct `ws://` development targets such as local LAN addresses or Tailscale tailnet IPs. Public or internet-exposed deployments should still prefer `wss://`.
