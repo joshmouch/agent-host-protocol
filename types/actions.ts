@@ -73,6 +73,7 @@ export const enum ActionType {
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsDoneChanged = 'session/isDoneChanged',
   SessionDiffsChanged = 'session/diffsChanged',
+  SessionConfigChanged = 'session/configChanged',
   RootTerminalsChanged = 'root/terminalsChanged',
   TerminalData = 'terminal/data',
   TerminalInput = 'terminal/input',
@@ -683,6 +684,27 @@ export interface ISessionCustomizationToggledAction {
   enabled: boolean;
 }
 
+// ─── Config Actions ──────────────────────────────────────────────────────────
+
+/**
+ * Client changed a mutable config value mid-session.
+ *
+ * Only properties with `sessionMutable: true` in the config schema may be
+ * changed. The server validates and broadcasts the action; the reducer merges
+ * the new values into `summary.config`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ISessionConfigChangedAction {
+  type: ActionType.SessionConfigChanged;
+  /** Session URI */
+  session: URI;
+  /** Updated config values (merged into existing config) */
+  config: Record<string, string | boolean>;
+}
+
 // ─── Truncation ──────────────────────────────────────────────────────────────
 
 /**
@@ -1026,6 +1048,7 @@ export type IStateAction =
   | ISessionIsReadChangedAction
   | ISessionIsDoneChangedAction
   | ISessionDiffsChangedAction
+  | ISessionConfigChangedAction
   | ITerminalDataAction
   | ITerminalInputAction
   | ITerminalResizedAction

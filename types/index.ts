@@ -132,6 +132,7 @@ export type {
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
   ISessionDiffsChangedAction,
+  ISessionConfigChangedAction,
   IStateAction,
   IRootTerminalsChangedAction,
   ITerminalDataAction,

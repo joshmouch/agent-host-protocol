@@ -99,6 +99,20 @@
                 "$ref": "#/$defs/ISessionFileDiff"
               },
               "description": "Files changed during this session with diff statistics"
+            },
+            "config": {
+              "type": "object",
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "description": "Agent-specific configuration values resolved during session creation"
             }
           },
           "description": "Mutable summary fields that changed; omitted fields are unchanged.\n\nIdentity fields (`resource`, `provider`, `createdAt`) never change and\nMUST be omitted by senders; receivers SHOULD ignore them if present."
@@ -442,6 +456,10 @@
           },
           "description": "Requests for user input that are currently blocking or informing session progress"
         },
+        "configSchema": {
+          "$ref": "#/$defs/ISessionConfigSchema",
+          "description": "Config schema resolved during session creation, persisted for reconnecting clients"
+        },
         "customizations": {
           "type": "array",
           "items": {
@@ -559,7 +577,7 @@
           },
           "description": "Files changed during this session with diff statistics"
         },
-        "metadata": {
+        "config": {
           "type": "object",
           "additionalProperties": {
             "oneOf": [
@@ -571,7 +589,7 @@
               }
             ]
           },
-          "description": "Agent-specific metadata values resolved during session creation"
+          "description": "Agent-specific configuration values resolved during session creation"
         }
       },
       "required": [

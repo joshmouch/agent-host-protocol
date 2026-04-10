@@ -731,6 +731,8 @@ export interface ISessionConfigPropertySchema {
   enumDynamic?: boolean;
   /** JSON Schema: when `true`, the property is displayed but cannot be modified by the user */
   readOnly?: boolean;
+  /** When `true`, the user may change this property after session creation */
+  sessionMutable?: boolean;
 }
 
 /**

@@ -1,0 +1,37 @@
+{
+  "description": "session/configChanged merges new values into summary.config",
+  "reducer": "session",
+  "initial": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 2000,
+      "config": { "useWorktree": true, "baseBranch": "main" }
+    },
+    "lifecycle": "ready",
+    "turns": []
+  },
+  "actions": [
+    {
+      "type": "session/configChanged",
+      "session": "copilot:/test",
+      "config": { "baseBranch": "develop" }
+    }
+  ],
+  "expected": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 9999,
+      "config": { "useWorktree": true, "baseBranch": "develop" }
+    },
+    "lifecycle": "ready",
+    "turns": []
+  }
+}

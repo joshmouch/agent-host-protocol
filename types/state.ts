@@ -293,6 +293,8 @@ export interface ISessionState {
   queuedMessages?: IPendingMessage[];
   /** Requests for user input that are currently blocking or informing session progress */
   inputRequests?: ISessionInputRequest[];
+  /** Config schema resolved during session creation, persisted for reconnecting clients */
+  configSchema?: ISessionConfigSchema;
   /**
    * Server-provided customizations active in this session.
    *
@@ -364,6 +366,12 @@ export interface ISessionSummary {
   /** Agent-specific configuration values resolved during session creation */
   config?: Record<string, string | boolean>;
 }
+
+// ─── Session Config Types ────────────────────────────────────────────────────
+
+// Re-export to avoid circular imports — ISessionConfigSchema lives in commands.ts
+import type { ISessionConfigSchema } from './commands.js';
+export type { ISessionConfigSchema } from './commands.js';
 
 // ─── Session Input Types ────────────────────────────────────────────────────
 

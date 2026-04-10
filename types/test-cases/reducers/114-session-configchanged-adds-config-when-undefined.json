@@ -1,0 +1,36 @@
+{
+  "description": "session/configChanged adds config when summary.config was undefined",
+  "reducer": "session",
+  "initial": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 2000
+    },
+    "lifecycle": "ready",
+    "turns": []
+  },
+  "actions": [
+    {
+      "type": "session/configChanged",
+      "session": "copilot:/test",
+      "config": { "verbose": true }
+    }
+  ],
+  "expected": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 9999,
+      "config": { "verbose": true }
+    },
+    "lifecycle": "ready",
+    "turns": []
+  }
+}

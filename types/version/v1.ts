@@ -93,6 +93,7 @@ import type {
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
   ISessionDiffsChangedAction,
+  ISessionConfigChangedAction,
   IRootTerminalsChangedAction,
   ISessionToolCallContentChangedAction,
   ITerminalDataAction,
@@ -242,6 +243,7 @@ type V1_ISessionTruncatedAction = ISessionTruncatedAction;
 type V1_ISessionIsReadChangedAction = ISessionIsReadChangedAction;
 type V1_ISessionIsDoneChangedAction = ISessionIsDoneChangedAction;
 type V1_ISessionDiffsChangedAction = ISessionDiffsChangedAction;
+type V1_ISessionConfigChangedAction = ISessionConfigChangedAction;
 type V1_ISessionToolCallContentChangedAction = ISessionToolCallContentChangedAction;
 type V1_ISessionInputRequestedAction = ISessionInputRequestedAction;
 type V1_ISessionInputAnswerChangedAction = ISessionInputAnswerChangedAction;
@@ -452,6 +454,8 @@ type _CheckIsReadChangedAction = AssertCompatible<V1_ISessionIsReadChangedAction
 type _CheckIsDoneChangedAction = AssertCompatible<V1_ISessionIsDoneChangedAction, ISessionIsDoneChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckDiffsChangedAction = AssertCompatible<V1_ISessionDiffsChangedAction, ISessionDiffsChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfigChangedAction = AssertCompatible<V1_ISessionConfigChangedAction, ISessionConfigChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallContentChangedAction = AssertCompatible<V1_ISessionToolCallContentChangedAction, ISessionToolCallContentChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
