@@ -6,7 +6,7 @@ A synchronized, multi-client state protocol for AI agent sessions.
 
 ## Overview
 
-The Agent Host Protocol (AHP) defines how a portable, standalone sessions server communicates with its clients. Multiple clients can connect to the server and see a synchronized view of AI agent sessions through immutable state, pure reducers, and write-ahead reconciliation.
+The Agent Host Protocol (AHP) defines how a portable, standalone session server communicates with its clients. Multiple clients can connect to the server and see a synchronized view of AI agent sessions through immutable state, pure reducers, and write-ahead reconciliation.
 
 ## Development
 
