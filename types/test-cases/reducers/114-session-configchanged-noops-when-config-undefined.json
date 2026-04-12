@@ -17,7 +17,7 @@
     {
       "type": "session/configChanged",
       "session": "copilot:/test",
-      "config": { "verbose": true }
+      "config": { "verbosity": "verbose" }
     }
   ],
   "expected": {

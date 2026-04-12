@@ -382,26 +382,25 @@ export interface ISessionSummary {
 // ─── Session Config Types ────────────────────────────────────────────────────
 
 /**
- * A JSON Schema-compatible property descriptor with display extensions.
+ * A JSON Schema-compatible string enum property descriptor with display extensions.
  *
  * Standard JSON Schema fields (`type`, `title`, `description`, `default`,
  * `enum`) allow validators to process the schema. Display extensions
- * (`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that
- * provide UI metadata for each `enum` value.
+ * (`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that provide UI metadata for each `enum` value.
  *
  * @category Session Config Types
  */
 export interface ISessionConfigPropertySchema {
-  /** JSON Schema: property type */
-  type: 'string' | 'boolean';
+  /** JSON Schema: property type. Only string enum properties are currently supported. */
+  type: 'string';
   /** JSON Schema: human-readable label for the property */
   title: string;
   /** JSON Schema: description / tooltip */
   description?: string;
   /** JSON Schema: default value */
-  default?: string | boolean;
-  /** JSON Schema: allowed values (for pick-style properties) */
-  enum?: string[];
+  default?: string;
+  /** JSON Schema: allowed values */
+  enum: string[];
   /** Display extension: human-readable label per enum value (parallel array) */
   enumLabels?: string[];
   /** Display extension: description per enum value (parallel array) */
@@ -447,7 +446,7 @@ export interface ISessionConfigState {
   /** JSON Schema describing available configuration properties */
   schema: ISessionConfigSchema;
   /** Current configuration values */
-  values: Record<string, string | boolean>;
+  values: Record<string, string>;
 }
 
 // ─── Session Input Types ────────────────────────────────────────────────────

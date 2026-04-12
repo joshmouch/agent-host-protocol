@@ -702,7 +702,7 @@ export interface ISessionConfigChangedAction {
   /** Session URI */
   session: URI;
   /** Updated config values (merged into existing config) */
-  config: Record<string, string | boolean>;
+  config: Record<string, string>;
 }
 
 // ─── Truncation ──────────────────────────────────────────────────────────────

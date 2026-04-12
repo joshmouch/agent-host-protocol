@@ -14,11 +14,11 @@
       "schema": {
         "type": "object",
         "properties": {
-          "useWorktree": { "type": "boolean", "title": "Use Worktree" },
-          "baseBranch": { "type": "string", "title": "Base Branch" }
+          "target": { "type": "string", "title": "Target", "enum": ["workspace", "worktree"] },
+          "baseBranch": { "type": "string", "title": "Base Branch", "enum": ["main", "develop"] }
         }
       },
-      "values": { "useWorktree": true, "baseBranch": "main" }
+      "values": { "target": "worktree", "baseBranch": "main" }
     },
     "lifecycle": "ready",
     "turns": []
@@ -43,11 +43,11 @@
       "schema": {
         "type": "object",
         "properties": {
-          "useWorktree": { "type": "boolean", "title": "Use Worktree" },
-          "baseBranch": { "type": "string", "title": "Base Branch" }
+          "target": { "type": "string", "title": "Target", "enum": ["workspace", "worktree"] },
+          "baseBranch": { "type": "string", "title": "Base Branch", "enum": ["main", "develop"] }
         }
       },
-      "values": { "useWorktree": true, "baseBranch": "develop" }
+      "values": { "target": "worktree", "baseBranch": "develop" }
     },
     "lifecycle": "ready",
     "turns": []

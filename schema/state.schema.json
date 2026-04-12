@@ -454,15 +454,14 @@
     },
     "ISessionConfigPropertySchema": {
       "type": "object",
-      "description": "A JSON Schema-compatible property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that\nprovide UI metadata for each `enum` value.",
+      "description": "A JSON Schema-compatible string enum property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that provide UI metadata for each `enum` value.",
       "properties": {
         "type": {
           "type": "string",
           "enum": [
-            "string",
-            "boolean"
+            "string"
           ],
-          "description": "JSON Schema: property type"
+          "description": "JSON Schema: property type. Only string enum properties are currently supported."
         },
         "title": {
           "type": "string",
@@ -473,14 +472,7 @@
           "description": "JSON Schema: description / tooltip"
         },
         "default": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "boolean"
-            }
-          ],
+          "type": "string",
           "description": "JSON Schema: default value"
         },
         "enum": {
@@ -488,7 +480,7 @@
           "items": {
             "type": "string"
           },
-          "description": "JSON Schema: allowed values (for pick-style properties)"
+          "description": "JSON Schema: allowed values"
         },
         "enumLabels": {
           "type": "array",
@@ -526,7 +518,8 @@
       },
       "required": [
         "type",
-        "title"
+        "title",
+        "enum"
       ]
     },
     "ISessionConfigSchema": {
@@ -571,14 +564,7 @@
         "values": {
           "type": "object",
           "additionalProperties": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "boolean"
-              }
-            ]
+            "type": "string"
           },
           "description": "Current configuration values"
         }

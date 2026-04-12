@@ -197,7 +197,7 @@ export interface ICreateSessionParams {
    * Agent-specific configuration values collected via `resolveSessionConfig`.
    * Keys and values correspond to the schema returned by the server.
    */
-  config?: Record<string, string | boolean>;
+  config?: Record<string, string>;
 }
 
 // ─── disposeSession ──────────────────────────────────────────────────────────
@@ -726,7 +726,7 @@ export interface IAuthenticateResult {
  *   "schema": {
  *     "type": "object",
  *     "properties": {
- *       "useWorktree": { "type": "boolean", "title": "Use Git Worktree", "default": false }
+ *       "target": { "type": "string", "title": "Target", "enum": ["workspace", "worktree"] }
  *     }
  *   },
  *   "values": {}
@@ -736,7 +736,7 @@ export interface IAuthenticateResult {
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 6, "method": "resolveSessionConfig",
  *   "params": { "workingDirectory": "file:///home/user/my-project",
- *               "config": { "useWorktree": true } } }
+ *               "config": { "target": "worktree" } } }
  *
  * // Server → Client (now requires branch selection)
  * { "jsonrpc": "2.0", "id": 6, "result": {
@@ -744,14 +744,14 @@ export interface IAuthenticateResult {
  *   "schema": {
  *     "type": "object",
  *     "properties": {
- *       "useWorktree": { "type": "boolean", "title": "Use Git Worktree", "default": false },
+ *       "target": { "type": "string", "title": "Target", "enum": ["workspace", "worktree"] },
  *       "baseBranch": { "type": "string", "title": "Base Branch",
  *                       "enum": ["main", "develop"],
  *                       "enumLabels": ["main", "develop"] }
  *     },
  *     "required": ["baseBranch"]
  *   },
- *   "values": { "useWorktree": true }
+ *   "values": { "target": "worktree" }
  * }}
  * ```
  */
@@ -761,7 +761,7 @@ export interface IResolveSessionConfigParams {
   /** Working directory for the session */
   workingDirectory?: URI;
   /** Current user-filled configuration values */
-  config?: Record<string, string | boolean>;
+  config?: Record<string, string>;
 }
 
 /**
@@ -773,7 +773,7 @@ export interface IResolveSessionConfigResult {
   /** JSON Schema describing available configuration properties given the current context */
   schema: ISessionConfigSchema;
   /** Current configuration values (echoed back with server-resolved defaults applied) */
-  values: Record<string, string | boolean>;
+  values: Record<string, string>;
 }
 
 // ─── sessionConfigCompletions ────────────────────────────────────────────────
@@ -811,7 +811,7 @@ export interface ISessionConfigValueItem {
  * // Client → Server (user types "ma" in branch picker)
  * { "jsonrpc": "2.0", "id": 7, "method": "sessionConfigCompletions",
  *   "params": { "workingDirectory": "file:///home/user/my-project",
- *               "config": { "useWorktree": true },
+ *               "config": { "target": "worktree" },
  *               "property": "baseBranch", "query": "ma" } }
  *
  * // Server → Client
@@ -829,7 +829,7 @@ export interface ISessionConfigCompletionsParams {
   /** Working directory for the session */
   workingDirectory?: URI;
   /** Current user-filled configuration values (provides context for the query) */
-  config?: Record<string, string | boolean>;
+  config?: Record<string, string>;
   /** Property id from the schema to query values for */
   property: string;
   /** Search filter text (empty or omitted returns default/recent values) */
