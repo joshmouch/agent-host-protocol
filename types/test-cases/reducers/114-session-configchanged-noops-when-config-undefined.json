@@ -1,0 +1,35 @@
+{
+  "description": "session/configChanged is a no-op when config is undefined",
+  "reducer": "session",
+  "initial": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 2000
+    },
+    "lifecycle": "ready",
+    "turns": []
+  },
+  "actions": [
+    {
+      "type": "session/configChanged",
+      "session": "copilot:/test",
+      "config": { "verbosity": "verbose" }
+    }
+  ],
+  "expected": {
+    "summary": {
+      "resource": "copilot:/test",
+      "provider": "copilot",
+      "title": "Test",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 2000
+    },
+    "lifecycle": "ready",
+    "turns": []
+  }
+}

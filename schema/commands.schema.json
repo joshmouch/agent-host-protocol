@@ -194,6 +194,13 @@
         "fork": {
           "$ref": "#/$defs/ISessionForkSource",
           "description": "Fork from an existing session. The new session is populated with content\nfrom the source session up to and including the specified turn's response."
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Agent-specific configuration values collected via `resolveSessionConfig`.\nKeys and values correspond to the schema returned by the server."
         }
       },
       "required": [
@@ -584,6 +591,127 @@
       "description": "Result of the `authenticate` command.\n\nAn empty object on success. If the token is invalid or the resource is\nunrecognized, the server MUST return a JSON-RPC error (e.g. `AuthRequired`\n`-32007` or `InvalidParams` `-32602`).",
       "properties": {}
     },
+    "IResolveSessionConfigParams": {
+      "type": "object",
+      "description": "Iteratively resolves the session configuration schema. The client sends the\ncurrent partial session config and any user-filled metadata values. The server\nreturns a property schema describing what additional metadata is needed,\ncontextual to the current selections.\n\nThe client calls this command whenever the user changes a significant input\n(e.g. picks a working directory, toggles a property). Each response returns\nthe full current property set (not a delta). When `ready` is `true`, the\nclient may call `createSession` with the accumulated config.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Agent provider ID"
+        },
+        "workingDirectory": {
+          "$ref": "#/$defs/URI",
+          "description": "Working directory for the session"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Current user-filled configuration values"
+        }
+      }
+    },
+    "IResolveSessionConfigResult": {
+      "type": "object",
+      "description": "Result of the `resolveSessionConfig` command.",
+      "properties": {
+        "ready": {
+          "type": "boolean",
+          "description": "True when all required configuration is satisfied and `createSession` can be called"
+        },
+        "schema": {
+          "$ref": "#/$defs/ISessionConfigSchema",
+          "description": "JSON Schema describing available configuration properties given the current context"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Current configuration values (echoed back with server-resolved defaults applied)"
+        }
+      },
+      "required": [
+        "ready",
+        "schema",
+        "values"
+      ]
+    },
+    "ISessionConfigValueItem": {
+      "type": "object",
+      "description": "A single value item returned by `sessionConfigCompletions`.",
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The value to store in config"
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable display label"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional secondary description"
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional icon identifier"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ]
+    },
+    "ISessionConfigCompletionsParams": {
+      "type": "object",
+      "description": "Queries the server for allowed values of a dynamic session config property.\n\nUsed when a property in the schema returned by `resolveSessionConfig` has\n`enumDynamic: true`. The client sends a search query and receives matching\nvalues with display metadata.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Agent provider ID"
+        },
+        "workingDirectory": {
+          "$ref": "#/$defs/URI",
+          "description": "Working directory for the session"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Current user-filled configuration values (provides context for the query)"
+        },
+        "property": {
+          "type": "string",
+          "description": "Property id from the schema to query values for"
+        },
+        "query": {
+          "type": "string",
+          "description": "Search filter text (empty or omitted returns default/recent values)"
+        }
+      },
+      "required": [
+        "property"
+      ]
+    },
+    "ISessionConfigCompletionsResult": {
+      "type": "object",
+      "description": "Result of the `sessionConfigCompletions` command.",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ISessionConfigValueItem"
+          },
+          "description": "Matching value items"
+        }
+      },
+      "required": [
+        "items"
+      ]
+    },
     "Icon": {
       "type": "object",
       "description": "An optionally-sized icon that can be displayed in a user interface.",
@@ -878,6 +1006,10 @@
           },
           "description": "Requests for user input that are currently blocking or informing session progress"
         },
+        "config": {
+          "$ref": "#/$defs/ISessionConfigState",
+          "description": "Session configuration schema and current values"
+        },
         "customizations": {
           "type": "array",
           "items": {
@@ -1025,6 +1157,128 @@
         "status",
         "createdAt",
         "modifiedAt"
+      ]
+    },
+    "ISessionConfigPropertySchema": {
+      "type": "object",
+      "description": "A JSON Schema-compatible string enum property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`, `enumIcons`) are parallel arrays that provide UI metadata for each `enum` value.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string"
+          ],
+          "description": "JSON Schema: property type. Only string enum properties are currently supported."
+        },
+        "title": {
+          "type": "string",
+          "description": "JSON Schema: human-readable label for the property"
+        },
+        "description": {
+          "type": "string",
+          "description": "JSON Schema: description / tooltip"
+        },
+        "default": {
+          "type": "string",
+          "description": "JSON Schema: default value"
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: allowed values"
+        },
+        "enumLabels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: human-readable label per enum value (parallel array)"
+        },
+        "enumDescriptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: description per enum value (parallel array)"
+        },
+        "enumIcons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: icon identifier per enum value (parallel array)"
+        },
+        "enumDynamic": {
+          "type": "boolean",
+          "description": "Display extension: when `true`, the full set of allowed values is too large\nto enumerate statically. The client SHOULD use `sessionConfigCompletions`\nto fetch matching values based on user input. Any values in `enum` are\nseed/recent values for initial display."
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "JSON Schema: when `true`, the property is displayed but cannot be modified by the user"
+        },
+        "sessionMutable": {
+          "type": "boolean",
+          "description": "When `true`, the user may change this property after session creation"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "enum"
+      ]
+    },
+    "ISessionConfigSchema": {
+      "type": "object",
+      "description": "A JSON Schema object describing available session configuration metadata.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "object"
+          ],
+          "description": "JSON Schema: always `'object'`"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ISessionConfigPropertySchema"
+          },
+          "description": "JSON Schema: property descriptors keyed by property id"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: list of required property ids"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ]
+    },
+    "ISessionConfigState": {
+      "type": "object",
+      "description": "Live session configuration metadata.\n\nThe schema describes the available configuration properties and the values\ncontain the current value for each resolved property.",
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/ISessionConfigSchema",
+          "description": "JSON Schema describing available configuration properties"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Current configuration values"
+        }
+      },
+      "required": [
+        "schema",
+        "values"
       ]
     },
     "ISessionInputOption": {
@@ -3650,6 +3904,31 @@
         "session",
         "uri",
         "enabled"
+      ]
+    },
+    "ISessionConfigChangedAction": {
+      "type": "object",
+      "description": "Client changed a mutable config value mid-session.\n\nOnly properties with `sessionMutable: true` in the config schema may be\nchanged. The server validates and broadcasts the action; the reducer merges\nthe new values into `state.config.values`.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionConfigChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Updated config values (merged into existing config)"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "config"
       ]
     },
     "ISessionTruncatedAction": {

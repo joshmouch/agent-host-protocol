@@ -18,6 +18,7 @@ import type {
   ISessionState,
   ISessionSummary,
   ISessionFileDiff,
+  ISessionConfigState,
   IProjectInfo,
   ISessionActiveClient,
   ITurn,
@@ -94,6 +95,7 @@ import type {
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
   ISessionDiffsChangedAction,
+  ISessionConfigChangedAction,
   IRootTerminalsChangedAction,
   ISessionToolCallContentChangedAction,
   ITerminalDataAction,
@@ -134,6 +136,13 @@ import type {
   IResourceMoveResult,
   ICreateTerminalParams,
   IDisposeTerminalParams,
+  IResolveSessionConfigParams,
+  IResolveSessionConfigResult,
+  ISessionConfigPropertySchema,
+  ISessionConfigSchema,
+  ISessionConfigCompletionsParams,
+  ISessionConfigCompletionsResult,
+  ISessionConfigValueItem,
 } from '../commands.js';
 
 import type {
@@ -169,6 +178,7 @@ type V1_ISessionModelInfo = ISessionModelInfo;
 type V1_ISessionState = ISessionState;
 type V1_ISessionSummary = ISessionSummary;
 type V1_ISessionFileDiff = ISessionFileDiff;
+type V1_ISessionConfigState = ISessionConfigState;
 type V1_IProjectInfo = IProjectInfo;
 type V1_ISessionActiveClient = ISessionActiveClient;
 type V1_ITurn = ITurn;
@@ -237,6 +247,7 @@ type V1_ISessionTruncatedAction = ISessionTruncatedAction;
 type V1_ISessionIsReadChangedAction = ISessionIsReadChangedAction;
 type V1_ISessionIsDoneChangedAction = ISessionIsDoneChangedAction;
 type V1_ISessionDiffsChangedAction = ISessionDiffsChangedAction;
+type V1_ISessionConfigChangedAction = ISessionConfigChangedAction;
 type V1_ISessionToolCallContentChangedAction = ISessionToolCallContentChangedAction;
 type V1_ISessionInputRequestedAction = ISessionInputRequestedAction;
 type V1_ISessionInputAnswerChangedAction = ISessionInputAnswerChangedAction;
@@ -276,6 +287,13 @@ type V1_IResourceDeleteParams = IResourceDeleteParams;
 type V1_IResourceDeleteResult = IResourceDeleteResult;
 type V1_IResourceMoveParams = IResourceMoveParams;
 type V1_IResourceMoveResult = IResourceMoveResult;
+type V1_IResolveSessionConfigParams = IResolveSessionConfigParams;
+type V1_IResolveSessionConfigResult = IResolveSessionConfigResult;
+type V1_ISessionConfigPropertySchema = ISessionConfigPropertySchema;
+type V1_ISessionConfigSchema = ISessionConfigSchema;
+type V1_ISessionConfigCompletionsParams = ISessionConfigCompletionsParams;
+type V1_ISessionConfigCompletionsResult = ISessionConfigCompletionsResult;
+type V1_ISessionConfigValueItem = ISessionConfigValueItem;
 type V1_ICommandMap = ICommandMap;
 type V1_IClientNotificationMap = IClientNotificationMap;
 type V1_IServerNotificationMap = IServerNotificationMap;
@@ -298,6 +316,8 @@ type _CheckSessionModelInfo = AssertCompatible<V1_ISessionModelInfo, ISessionMod
 type _CheckSessionState = AssertCompatible<V1_ISessionState, ISessionState>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionSummary = AssertCompatible<V1_ISessionSummary, ISessionSummary>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigState = AssertCompatible<V1_ISessionConfigState, ISessionConfigState>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionFileDiff = AssertCompatible<V1_ISessionFileDiff, ISessionFileDiff>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -443,6 +463,8 @@ type _CheckIsDoneChangedAction = AssertCompatible<V1_ISessionIsDoneChangedAction
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckDiffsChangedAction = AssertCompatible<V1_ISessionDiffsChangedAction, ISessionDiffsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfigChangedAction = AssertCompatible<V1_ISessionConfigChangedAction, ISessionConfigChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolCallContentChangedAction = AssertCompatible<V1_ISessionToolCallContentChangedAction, ISessionToolCallContentChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionForkSource = AssertCompatible<V1_ISessionForkSource, ISessionForkSource>;
@@ -524,3 +546,17 @@ type _CheckTerminalState = AssertCompatible<V1_ITerminalState, ITerminalState>;
 type _CheckCreateTerminalParams = AssertCompatible<V1_ICreateTerminalParams, ICreateTerminalParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckDisposeTerminalParams = AssertCompatible<V1_IDisposeTerminalParams, IDisposeTerminalParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckResolveSessionConfigParams = AssertCompatible<V1_IResolveSessionConfigParams, IResolveSessionConfigParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckResolveSessionConfigResult = AssertCompatible<V1_IResolveSessionConfigResult, IResolveSessionConfigResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigPropertySchema = AssertCompatible<V1_ISessionConfigPropertySchema, ISessionConfigPropertySchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigSchema = AssertCompatible<V1_ISessionConfigSchema, ISessionConfigSchema>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigCompletionsParams = AssertCompatible<V1_ISessionConfigCompletionsParams, ISessionConfigCompletionsParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigCompletionsResult = AssertCompatible<V1_ISessionConfigCompletionsResult, ISessionConfigCompletionsResult>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionConfigValueItem = AssertCompatible<V1_ISessionConfigValueItem, ISessionConfigValueItem>;

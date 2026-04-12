@@ -38,7 +38,9 @@ type _ExpectedCommands =
   | 'resourceDelete'
   | 'resourceMove'
   | 'fetchTurns'
-  | 'authenticate';
+  | 'authenticate'
+  | 'resolveSessionConfig'
+  | 'sessionConfigCompletions';
 
 /** All methods annotated `@messageType Notification` (client → server) in commands.ts. */
 type _ExpectedClientNotifications =

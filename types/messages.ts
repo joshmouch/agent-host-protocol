@@ -38,6 +38,10 @@ import type {
   IDispatchActionParams,
   IAuthenticateParams,
   IAuthenticateResult,
+  IResolveSessionConfigParams,
+  IResolveSessionConfigResult,
+  ISessionConfigCompletionsParams,
+  ISessionConfigCompletionsResult,
 } from './commands.js';
 
 import type { IActionEnvelope } from './actions.js';
@@ -105,6 +109,8 @@ export interface ICommandMap {
   'resourceMove': { params: IResourceMoveParams; result: IResourceMoveResult };
   'fetchTurns': { params: IFetchTurnsParams; result: IFetchTurnsResult };
   'authenticate': { params: IAuthenticateParams; result: IAuthenticateResult };
+  'resolveSessionConfig': { params: IResolveSessionConfigParams; result: IResolveSessionConfigResult };
+  'sessionConfigCompletions': { params: ISessionConfigCompletionsParams; result: ISessionConfigCompletionsResult };
 }
 
 // ─── Notification Maps ───────────────────────────────────────────────────────

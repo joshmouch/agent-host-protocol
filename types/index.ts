@@ -19,6 +19,7 @@ export type {
   ISessionState,
   ISessionSummary,
   ISessionFileDiff,
+  ISessionConfigState,
   ITurn,
   IActiveTurn,
   IUserMessage,
@@ -133,6 +134,7 @@ export type {
   ISessionIsReadChangedAction,
   ISessionIsDoneChangedAction,
   ISessionDiffsChangedAction,
+  ISessionConfigChangedAction,
   IStateAction,
   IRootTerminalsChangedAction,
   ITerminalDataAction,
@@ -204,6 +206,13 @@ export type {
   IDispatchActionParams,
   IAuthenticateParams,
   IAuthenticateResult,
+  IResolveSessionConfigParams,
+  IResolveSessionConfigResult,
+  ISessionConfigPropertySchema,
+  ISessionConfigSchema,
+  ISessionConfigCompletionsParams,
+  ISessionConfigCompletionsResult,
+  ISessionConfigValueItem,
 } from './commands.js';
 
 export { ReconnectResultType, ContentEncoding } from './commands.js';

@@ -432,7 +432,7 @@ const STATE_ENUMS = [
 const STATE_STRUCTS = [
   'Icon', 'IProtectedResourceMetadata', 'IRootState', 'IAgentInfo',
   'ISessionModelInfo', 'IPendingMessage', 'ISessionState', 'ISessionActiveClient',
-  'ISessionSummary', 'IProjectInfo', 'ITurn', 'IActiveTurn', 'IUserMessage',
+  'ISessionSummary', 'IProjectInfo', 'ISessionConfigState', 'ITurn', 'IActiveTurn', 'IUserMessage',
   'ISessionInputOption',
   'ISessionInputTextAnswerValue', 'ISessionInputNumberAnswerValue',
   'ISessionInputBooleanAnswerValue', 'ISessionInputSelectedAnswerValue',
@@ -731,6 +731,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/customizationToggled', caseName: 'sessionCustomizationToggled', tsInterface: 'ISessionCustomizationToggledAction' },
   { type: 'session/truncated', caseName: 'sessionTruncated', tsInterface: 'ISessionTruncatedAction' },
   { type: 'session/diffsChanged', caseName: 'sessionDiffsChanged', tsInterface: 'ISessionDiffsChangedAction' },
+  { type: 'session/configChanged', caseName: 'sessionConfigChanged', tsInterface: 'ISessionConfigChangedAction' },
   { type: 'session/toolCallContentChanged', caseName: 'sessionToolCallContentChanged', tsInterface: 'ISessionToolCallContentChangedAction' },
   { type: 'root/terminalsChanged', caseName: 'rootTerminalsChanged', tsInterface: 'IRootTerminalsChangedAction' },
   { type: 'terminal/data', caseName: 'terminalData', tsInterface: 'ITerminalDataAction' },
@@ -900,6 +901,10 @@ const COMMAND_STRUCTS = [
   'IUnsubscribeParams', 'IDispatchActionParams',
   'IAuthenticateParams', 'IAuthenticateResult',
   'ICreateTerminalParams', 'IDisposeTerminalParams',
+  'IResolveSessionConfigParams', 'IResolveSessionConfigResult',
+  'ISessionConfigPropertySchema', 'ISessionConfigSchema',
+  'ISessionConfigCompletionsParams', 'ISessionConfigCompletionsResult',
+  'ISessionConfigValueItem',
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
