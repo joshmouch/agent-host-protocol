@@ -44,7 +44,6 @@ SessionState {
   summary: SessionSummary
   lifecycle: 'creating' | 'ready' | 'creationFailed'
   creationError?: ErrorInfo
-  workingDirectory?: URI
   turns: Turn[]
   activeTurn: ActiveTurn | undefined
   inputRequests?: SessionInputRequest[]
