@@ -210,7 +210,7 @@ stateDiagram-v2
 | Status | Key Fields | Description |
 |---|---|---|
 | `streaming` | `partialInput?` | LM is streaming tool call parameters. `partialInput` accumulates via `toolCallDelta`. |
-| `pending-confirmation` | `invocationMessage`, `toolInput?` | Parameters complete or mid-execution confirmation needed. Uses `_meta` for context (e.g. permission kind, command text). |
+| `pending-confirmation` | `invocationMessage`, `toolInput?`, `edits?`, `editable?` | Parameters complete or mid-execution confirmation needed. `edits` previews file changes. `editable` indicates the client may edit parameters before confirming. Uses `_meta` for additional context. |
 | `running` | `confirmed` | Tool is executing. `confirmed` records how it was approved. |
 | `pending-result-confirmation` | `success`, `pastTenseMessage`, `content?` | Execution finished, waiting for client to approve the result. |
 | `completed` | `success`, `pastTenseMessage`, `content?` | Terminal state. Tool finished. |
@@ -219,6 +219,10 @@ stateDiagram-v2
 ### Mid-execution Re-confirmation
 
 When a running tool needs additional user approval (e.g. a shell permission), the server dispatches `session/toolCallReady` again without `confirmed`. This transitions the tool call from `running` back to `pending-confirmation`, updating `invocationMessage` and `_meta` with context about what needs approval. The client uses the standard `session/toolCallConfirmed` flow to approve or deny.
+
+### Editable Parameters
+
+When `editable` is `true` on a `pending-confirmation` tool call, the client may allow the user to modify the tool's input parameters before confirming. If the user edits the parameters, the client includes `editedToolInput` on the `session/toolCallConfirmed` action. The reducer uses `editedToolInput` (if present) in place of the original `toolInput` when transitioning to `running`.
 
 When a turn completes, non-terminal tool calls in `responseParts` are force-cancelled with reason `'skipped'`.
 

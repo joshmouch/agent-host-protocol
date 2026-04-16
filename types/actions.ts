@@ -24,6 +24,7 @@ import type {
   ISessionInputRequest,
   ITerminalInfo,
   ITerminalClaim,
+  IFileEdit,
   SessionInputResponseKind,
 } from './state.js';
 
@@ -320,6 +321,10 @@ export interface ISessionToolCallReadyAction extends IToolCallActionBase {
   toolInput?: string;
   /** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
   confirmationTitle?: StringOrMarkdown;
+  /** File edits that this tool call will perform, for preview before confirmation */
+  edits?: { items: IFileEdit[] };
+  /** Whether the agent host allows the client to edit the tool's input parameters before confirming */
+  editable?: boolean;
   /** If set, the tool was auto-confirmed and transitions directly to `running` */
   confirmed?: ToolCallConfirmationReason;
 }
@@ -337,6 +342,8 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
   approved: true;
   /** How the tool was confirmed */
   confirmed: ToolCallConfirmationReason;
+  /** Edited tool input parameters, if the client modified them before confirming */
+  editedToolInput?: string;
 }
 
 /**

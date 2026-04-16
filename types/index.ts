@@ -43,6 +43,7 @@ export type {
   IToolResultEmbeddedResourceContent,
   IToolResultResourceContent,
   IToolResultContent,
+  IFileEdit,
   IToolResultFileEditContent,
   IToolResultTerminalContent,
   IToolResultSubagentContent,

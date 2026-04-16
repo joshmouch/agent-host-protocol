@@ -42,6 +42,7 @@ import type {
   IToolResultTextContent,
   IToolResultEmbeddedResourceContent,
   IToolResultResourceContent,
+  IFileEdit,
   IToolResultFileEditContent,
   IToolResultTerminalContent,
   IToolResultSubagentContent,
@@ -208,6 +209,7 @@ type V1_IToolAnnotations = IToolAnnotations;
 type V1_IToolResultTextContent = IToolResultTextContent;
 type V1_IToolResultEmbeddedResourceContent = IToolResultEmbeddedResourceContent;
 type V1_IToolResultResourceContent = IToolResultResourceContent;
+type V1_IFileEdit = IFileEdit;
 type V1_IToolResultFileEditContent = IToolResultFileEditContent;
 type V1_IToolResultTerminalContent = IToolResultTerminalContent;
 type V1_IToolResultSubagentContent = IToolResultSubagentContent;
@@ -396,6 +398,8 @@ type _CheckToolResultTextContent = AssertCompatible<V1_IToolResultTextContent, I
 type _CheckToolResultEmbeddedResourceContent = AssertCompatible<V1_IToolResultEmbeddedResourceContent, IToolResultEmbeddedResourceContent>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolResultResourceContent = AssertCompatible<V1_IToolResultResourceContent, IToolResultResourceContent>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckFileEdit = AssertCompatible<V1_IFileEdit, IFileEdit>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckToolResultFileEditContent = AssertCompatible<V1_IToolResultFileEditContent, IToolResultFileEditContent>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

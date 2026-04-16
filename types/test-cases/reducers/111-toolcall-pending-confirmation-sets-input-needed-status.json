@@ -67,7 +67,9 @@
             "_meta": null,
             "invocationMessage": "Run: rm -rf /tmp/test",
             "toolInput": "rm -rf /tmp/test",
-            "confirmationTitle": null
+            "confirmationTitle": null,
+            "edits": null,
+            "editable": null
           }
         }
       ],
