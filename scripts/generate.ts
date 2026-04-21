@@ -11,6 +11,7 @@ import { generateMarkdownDocs } from './generate-markdown.js';
 import { generateJsonSchemas } from './generate-json-schema.js';
 import { generateActionOrigin } from './generate-action-origin.js';
 import { generateSwiftPackage } from './generate-swift.js';
+import { generateRustCrate } from './generate-rust.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -19,13 +20,15 @@ const DOCS_DIR = path.join(ROOT, 'docs', 'reference');
 const SCHEMA_DIR = path.join(ROOT, 'schema');
 const SCHEMA_PUBLIC_DIR = path.join(ROOT, 'docs', 'public', 'schema');
 const SWIFT_DIR = path.join(ROOT, 'examples', 'swift', 'AgentHostProtocol');
+const RUST_DIR = path.join(ROOT, 'examples', 'rust');
 
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
 const schemaOnly = args.includes('--schema');
 const actionOriginOnly = args.includes('--action-origin');
 const swiftOnly = args.includes('--swift');
-const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly && !swiftOnly;
+const rustOnly = args.includes('--rust');
+const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly && !swiftOnly && !rustOnly;
 
 // Load the TypeScript project
 const project = new Project({
@@ -61,6 +64,12 @@ if (generateAll || swiftOnly) {
   console.log('Generating Swift package...');
   generateSwiftPackage(project, SWIFT_DIR);
   console.log(`  → Swift package written to ${path.relative(ROOT, SWIFT_DIR)}/`);
+}
+
+if (generateAll || rustOnly) {
+  console.log('Generating Rust crate...');
+  generateRustCrate(project, RUST_DIR);
+  console.log(`  → Rust crate written to ${path.relative(ROOT, RUST_DIR)}/`);
 }
 
 console.log('Done.');

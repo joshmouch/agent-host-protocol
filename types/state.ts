@@ -1375,6 +1375,11 @@ export interface ISessionCustomization {
   customization: ICustomizationRef;
   /** Whether this customization is currently enabled */
   enabled: boolean;
+  /**
+   * The `clientId` of the client that contributed this customization.
+   * Absent for server-provided customizations.
+   */
+  clientId?: string;
   /** Server-reported loading status */
   status?: CustomizationStatus;
   /**

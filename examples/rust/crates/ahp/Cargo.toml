@@ -1,0 +1,28 @@
+[package]
+name = "ahp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Agent Host Protocol SDK — transport-agnostic client, reducers, and JSON-RPC plumbing."
+
+[dependencies]
+ahp-types = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+ahp-ws = { path = "../ahp-ws" }
+tracing-subscriber = "0.3"
+
+[[example]]
+name = "connect_ws"
+path = "examples/connect_ws.rs"

@@ -23,3 +23,5 @@ DerivedData
 **/.swiftpm/xcode/xcuserdata/
 
 coverage
+
+examples/rust/target

@@ -18,8 +18,14 @@
       "type": "session/diffsChanged",
       "session": "copilot:/test-session",
       "diffs": [
-        { "uri": "file:///src/index.ts", "added": 10, "removed": 3 },
-        { "uri": "file:///src/utils.ts", "added": 5 }
+        {
+          "after": { "uri": "file:///src/index.ts", "content": { "uri": "content:/abc" } },
+          "diff": { "added": 10, "removed": 3 }
+        },
+        {
+          "after": { "uri": "file:///src/utils.ts", "content": { "uri": "content:/def" } },
+          "diff": { "added": 5 }
+        }
       ]
     }
   ],
@@ -32,8 +38,14 @@
       "createdAt": 1000,
       "modifiedAt": 1000,
       "diffs": [
-        { "uri": "file:///src/index.ts", "added": 10, "removed": 3 },
-        { "uri": "file:///src/utils.ts", "added": 5 }
+        {
+          "after": { "uri": "file:///src/index.ts", "content": { "uri": "content:/abc" } },
+          "diff": { "added": 10, "removed": 3 }
+        },
+        {
+          "after": { "uri": "file:///src/utils.ts", "content": { "uri": "content:/def" } },
+          "diff": { "added": 5 }
+        }
       ]
     },
     "lifecycle": "ready",

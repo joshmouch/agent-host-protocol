@@ -27,7 +27,7 @@
             "toolInput": "ls -la",
             "confirmed": "user-action",
             "content": [
-              { "type": "terminal", "resource": "agenthost:/terminal/1" }
+              { "type": "terminal", "resource": "agenthost:/terminal/1", "title": "bash" }
             ]
           }
         }
@@ -42,7 +42,7 @@
       "turnId": "turn-1",
       "toolCallId": "tc-1",
       "content": [
-        { "type": "terminal", "resource": "agenthost:/terminal/1" },
+        { "type": "terminal", "resource": "agenthost:/terminal/1", "title": "bash" },
         { "type": "text", "text": "additional output" }
       ]
     }
@@ -73,7 +73,7 @@
             "toolInput": "ls -la",
             "confirmed": "user-action",
             "content": [
-              { "type": "terminal", "resource": "agenthost:/terminal/1" },
+              { "type": "terminal", "resource": "agenthost:/terminal/1", "title": "bash" },
               { "type": "text", "text": "additional output" }
             ]
           }

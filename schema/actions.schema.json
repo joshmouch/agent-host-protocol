@@ -3647,6 +3647,10 @@
           "type": "boolean",
           "description": "Whether this customization is currently enabled"
         },
+        "clientId": {
+          "type": "string",
+          "description": "The `clientId` of the client that contributed this customization.\nAbsent for server-provided customizations."
+        },
         "status": {
           "$ref": "#/$defs/CustomizationStatus",
           "description": "Server-reported loading status"
