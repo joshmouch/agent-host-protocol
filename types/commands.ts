@@ -31,6 +31,12 @@ export interface IInitializeParams {
   clientId: string;
   /** URIs to subscribe to during handshake */
   initialSubscriptions?: URI[];
+  /**
+   * IETF BCP 47 language tag indicating the client's preferred locale
+   * (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
+   * user-facing strings such as confirmation option labels.
+   */
+  locale?: string;
 }
 
 /**

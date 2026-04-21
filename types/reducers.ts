@@ -5,7 +5,7 @@
  */
 
 import { ActionType } from './actions.js';
-import type { IRootState, ISessionInputRequest, ISessionState, ITerminalState, ITerminalContentPart, IToolCallState, IResponsePart, IToolCallResponsePart, ITurn, IPendingMessage } from './state.js';
+import type { IRootState, ISessionInputRequest, ISessionState, ITerminalState, ITerminalContentPart, IToolCallState, IResponsePart, IToolCallResponsePart, ITurn, IPendingMessage, IConfirmationOption } from './state.js';
 import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallCancellationReason, ResponsePartKind, PendingMessageKind } from './state.js';
 import type { IRootAction, ISessionAction, IClientSessionAction, ITerminalAction, IClientTerminalAction } from './action-origin.generated.js';
 import { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
@@ -34,6 +34,14 @@ function tcBase(tc: IToolCallState) {
     toolClientId: tc.toolClientId,
     _meta: tc._meta,
   };
+}
+
+/** Resolves a selected option from the confirmation options array by ID. */
+function resolveSelectedOption(options: IConfirmationOption[] | undefined, id: string | undefined): IConfirmationOption | undefined {
+  if (!id || !options) {
+    return undefined;
+  }
+  return options.find(o => o.id === id);
 }
 
 /** Returns `true` if the active turn has any tool call awaiting user confirmation. */
@@ -396,6 +404,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
           confirmationTitle: action.confirmationTitle,
           edits: action.edits,
           editable: action.editable,
+          ...(action.options ? { options: action.options } : {}),
         };
       }));
 
@@ -405,6 +414,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
           return tc;
         }
         const base = tcBase(tc);
+        const selectedOption = resolveSelectedOption(tc.options, action.selectedOptionId);
         if (action.approved) {
           return {
             status: ToolCallStatus.Running,
@@ -412,6 +422,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
             invocationMessage: tc.invocationMessage,
             toolInput: action.editedToolInput ?? tc.toolInput,
             confirmed: action.confirmed,
+            ...(selectedOption ? { selectedOption } : {}),
           };
         }
         return {
@@ -422,6 +433,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
           reason: action.reason,
           reasonMessage: action.reasonMessage,
           userSuggestion: action.userSuggestion,
+          ...(selectedOption ? { selectedOption } : {}),
         };
       }));
 
@@ -434,6 +446,9 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
         const confirmed = tc.status === ToolCallStatus.Running
           ? tc.confirmed
           : ToolCallConfirmationReason.NotNeeded;
+        const selectedOption = tc.status === ToolCallStatus.Running
+          ? tc.selectedOption
+          : undefined;
         if (action.requiresResultConfirmation) {
           return {
             status: ToolCallStatus.PendingResultConfirmation,
@@ -441,6 +456,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
             invocationMessage: tc.invocationMessage,
             toolInput: tc.toolInput,
             confirmed,
+            ...(selectedOption ? { selectedOption } : {}),
             ...action.result,
           };
         }
@@ -450,6 +466,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
           invocationMessage: tc.invocationMessage,
           toolInput: tc.toolInput,
           confirmed,
+          ...(selectedOption ? { selectedOption } : {}),
           ...action.result,
         };
       }));
@@ -467,6 +484,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
             invocationMessage: tc.invocationMessage,
             toolInput: tc.toolInput,
             confirmed: tc.confirmed,
+            ...(tc.selectedOption ? { selectedOption: tc.selectedOption } : {}),
             success: tc.success,
             pastTenseMessage: tc.pastTenseMessage,
             content: tc.content,
@@ -480,6 +498,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
           invocationMessage: tc.invocationMessage,
           toolInput: tc.toolInput,
           reason: ToolCallCancellationReason.ResultDenied,
+          ...(tc.selectedOption ? { selectedOption: tc.selectedOption } : {}),
         };
       }));
 

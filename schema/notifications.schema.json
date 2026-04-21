@@ -1464,6 +1464,33 @@
         "content"
       ]
     },
+    "IConfirmationOption": {
+      "type": "object",
+      "description": "A confirmation option that the server offers for a tool call awaiting\napproval. Allows richer choices beyond simple approve/deny — for example,\n\"Approve in this Session\" or \"Deny with reason.\"",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the option, returned in the confirmed action"
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable label displayed to the user"
+        },
+        "kind": {
+          "$ref": "#/$defs/ConfirmationOptionKind",
+          "description": "Whether this option represents an approval or denial"
+        },
+        "group": {
+          "type": "number",
+          "description": "Logical group number for visual categorisation.\n\nClients SHOULD display options in the order they are defined and MAY\nuse differing group numbers to insert dividers between logical clusters\nof options."
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ]
+    },
     "IToolCallBase": {
       "type": "object",
       "description": "Metadata common to all tool call states.",
@@ -1657,6 +1684,13 @@
         "editable": {
           "type": "boolean",
           "description": "Whether the agent host allows the client to edit the tool's input parameters before confirming"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IConfirmationOption"
+          },
+          "description": "Options the server offers for this confirmation. When present, the client\nSHOULD render these instead of a plain approve/deny UI. Each option\nbelongs to a {@link ConfirmationOptionKind} so the client can still\ncategorise the choices."
         }
       },
       "required": [
@@ -1706,6 +1740,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         },
         "content": {
           "type": "array",
@@ -1798,6 +1836,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
@@ -1885,6 +1927,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
@@ -1945,6 +1991,10 @@
         "userSuggestion": {
           "$ref": "#/$defs/IUserMessage",
           "description": "What the user suggested doing instead"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
