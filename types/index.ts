@@ -139,7 +139,7 @@ export type {
   SessionInputRequestedAction,
   SessionTruncatedAction,
   SessionIsReadChangedAction,
-  SessionIsDoneChangedAction,
+  SessionIsArchivedChangedAction,
   SessionDiffsChangedAction,
   SessionConfigChangedAction,
   StateAction,

@@ -67,7 +67,7 @@ A `session/toolUpdate` action for streaming incremental tool output (e.g. termin
 | `session/reasoning` | No | Reasoning/thinking text appended to a reasoning part by `partId` |
 | `session/modelChanged` | **Yes** | Model changed for this session |
 | `session/isReadChanged` | **Yes** | Client marked session as read or unread |
-| `session/isDoneChanged` | **Yes** | Client marked session as done or reopened it |
+| `session/isArchivedChanged` | **Yes** | Client archived or unarchived session |
 
 ### Pending Messages
 
@@ -118,7 +118,7 @@ The client applies the action **optimistically** to its local state before sendi
 | `session/queuedMessagesReordered` | Reorders queued messages; unknown IDs ignored, unmentioned messages kept at end |
 | `session/customizationToggled` | Toggles a customization on or off by URI |
 | `session/isReadChanged` | Marks the session as read or unread |
-| `session/isDoneChanged` | Marks the session as done or reopens it |
+| `session/isArchivedChanged` | Archives or unarchives the session |
 
 ## Reducers
 

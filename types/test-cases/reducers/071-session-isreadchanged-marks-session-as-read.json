@@ -25,10 +25,9 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 1,
+      "status": 33,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "isRead": true
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
     "turns": []

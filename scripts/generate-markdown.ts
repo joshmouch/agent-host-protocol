@@ -509,7 +509,7 @@ const ACTION_ORDER: ActionMeta[] = [
   { interfaceName: 'SessionReasoningAction', typeValue: 'session/reasoning', description: 'Reasoning/thinking text from the model.', clientDispatchable: false, version: 1 },
   { interfaceName: 'SessionModelChangedAction', typeValue: 'session/modelChanged', description: 'Model changed for this session.', clientDispatchable: true, version: 1 },
   { interfaceName: 'SessionIsReadChangedAction', typeValue: 'session/isReadChanged', description: 'Read state changed for this session.', clientDispatchable: true, version: 1 },
-  { interfaceName: 'SessionIsDoneChangedAction', typeValue: 'session/isDoneChanged', description: 'Done state changed for this session.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'SessionIsArchivedChangedAction', typeValue: 'session/isArchivedChanged', description: 'Archived state changed for this session.', clientDispatchable: true, version: 1 },
 ];
 
 function generateActionsPage(project: Project): string {

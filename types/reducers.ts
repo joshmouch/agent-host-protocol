@@ -56,18 +56,29 @@ function hasPendingToolCallConfirmation(state: SessionState): boolean {
   );
 }
 
-/** Derives the summary status from live session work. */
+/** Bitmask covering the mutually-exclusive activity bits (bits 0–4). */
+const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
+
+/** Sets or clears a metadata flag on a status value. */
+function withStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  return (set ? status | flag : status & ~flag) as SessionStatus;
+}
+
+/** Derives the summary status from live session work, preserving orthogonal flags. */
 function summaryStatus(state: SessionState, terminalStatus?: SessionStatus.Error): SessionStatus {
+  let activity: SessionStatus;
   if (terminalStatus) {
-    return terminalStatus;
+    activity = terminalStatus;
+  } else if ((state.inputRequests?.length ?? 0) > 0 || hasPendingToolCallConfirmation(state)) {
+    activity = SessionStatus.InputNeeded;
+  } else if (state.activeTurn) {
+    activity = SessionStatus.InProgress;
+  } else {
+    activity = SessionStatus.Idle;
   }
-  if ((state.inputRequests?.length ?? 0) > 0 || hasPendingToolCallConfirmation(state)) {
-    return SessionStatus.InputNeeded;
-  }
-  if (state.activeTurn) {
-    return SessionStatus.InProgress;
-  }
-  return SessionStatus.Idle;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+  return (state.summary.status & ~STATUS_ACTIVITY_MASK | activity) as SessionStatus;
 }
 
 /**
@@ -155,7 +166,7 @@ function upsertInputRequest(state: SessionState, request: SessionInputRequest): 
     inputRequests.push(request);
   }
   const next = { ...state, inputRequests };
-  return { ...next, summary: { ...next.summary, status: summaryStatus(next), modifiedAt: Date.now(), isRead: false } };
+  return { ...next, summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: Date.now() } };
 }
 
 /**
@@ -308,7 +319,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       };
       next = {
         ...next,
-        summary: { ...next.summary, status: summaryStatus(next), modifiedAt: Date.now(), isRead: false },
+        summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: Date.now() },
       };
 
       // If this turn was auto-started from a pending message, remove it
@@ -559,13 +570,13 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
     case ActionType.SessionIsReadChanged:
       return {
         ...state,
-        summary: { ...state.summary, isRead: action.isRead },
+        summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsRead, action.isRead) },
       };
 
-    case ActionType.SessionIsDoneChanged:
+    case ActionType.SessionIsArchivedChanged:
       return {
         ...state,
-        summary: { ...state.summary, isDone: action.isDone },
+        summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsArchived, action.isArchived) },
       };
 
     case ActionType.SessionDiffsChanged:

@@ -1,5 +1,5 @@
 {
-  "description": "session/isDoneChanged marks session as done",
+  "description": "session/isArchivedChanged marks session as archived",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -15,9 +15,9 @@
   },
   "actions": [
     {
-      "type": "session/isDoneChanged",
+      "type": "session/isArchivedChanged",
       "session": "copilot:/test-session",
-      "isDone": true
+      "isArchived": true
     }
   ],
   "expected": {
@@ -25,10 +25,9 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 1,
+      "status": 65,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "isDone": true
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
     "turns": []

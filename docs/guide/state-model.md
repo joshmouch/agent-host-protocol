@@ -90,8 +90,6 @@ SessionSummary {
   project?: ProjectInfo
   model?: ModelSelection
   workingDirectory?: URI
-  isRead?: boolean
-  isDone?: boolean
 }
 
 ModelSelection {
@@ -105,7 +103,7 @@ ProjectInfo {
 }
 ```
 
-The optional `isRead` flag indicates whether the client has viewed the session since its last modification. The optional `isDone` flag indicates whether the session has been marked as complete by the client. Both are managed via client-dispatched actions (`session/isReadChanged`, `session/isDoneChanged`).
+The `status` bitset encodes both the session's activity state and metadata flags like read/done state. See the [Session Status Bitset](#session-status-bitset) table below for details.
 
 ### Session Status Bitset
 
@@ -117,8 +115,12 @@ The optional `isRead` flag indicates whether the client has viewed the session s
 | `SessionStatus.Error` | `2` | `1 << 1` | The most recent turn ended with an error. |
 | `SessionStatus.InProgress` | `8` | `1 << 3` | A turn is active. |
 | `SessionStatus.InputNeeded` | `24` | `(1 << 3) \| (1 << 4)` | A turn is active and either at least one user input request is open, or at least one tool call is awaiting user confirmation (pre- or post-execution). Includes the `InProgress` bit. |
+| `SessionStatus.IsRead` | `32` | `1 << 5` | The client has viewed this session since its last modification. Cleared automatically when a new turn starts or an input request arrives. Toggled via `session/isReadChanged`. |
+| `SessionStatus.IsArchived` | `64` | `1 << 6` | The session has been archived by the client. Toggled via `session/isArchivedChanged`. |
 
-For example, `(status & SessionStatus.InProgress) !== 0` is true for both `InProgress` and `InputNeeded`.
+Bits 0–4 encode mutually-exclusive **activity** status (exactly one is set at a time). Bits 5+ encode orthogonal **metadata** flags that may be combined with any activity status via bitwise OR.
+
+For example, `(status & SessionStatus.InProgress) !== 0` is true for both `InProgress` and `InputNeeded`. A session that is idle, read, and archived has status `1 | 32 | 64 = 97`.
 
 ## Turns
 
@@ -305,7 +307,7 @@ The session list can be arbitrarily large and is **not** part of the state tree.
 - Clients fetch the list imperatively via `listSessions()` RPC.
 - The server sends lightweight **notifications** to keep connected clients' caches in sync without re-fetching:
   - `notify/sessionAdded` and `notify/sessionRemoved` signal lifecycle (creation and disposal).
-  - `notify/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `isRead`, `isDone`, `diffs`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
+  - `notify/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `diffs`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
 
 Notifications are ephemeral — not processed by reducers, not stored in state, not replayed on reconnect. On reconnect, clients re-fetch the list.
 

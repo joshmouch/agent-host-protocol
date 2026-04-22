@@ -89,14 +89,6 @@
               "$ref": "#/$defs/URI",
               "description": "The working directory URI for this session"
             },
-            "isRead": {
-              "type": "boolean",
-              "description": "Whether the client has viewed this session since its last modification"
-            },
-            "isDone": {
-              "type": "boolean",
-              "description": "Whether the session has been marked as done by the client"
-            },
             "diffs": {
               "type": "array",
               "items": {
@@ -576,14 +568,6 @@
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
-        },
-        "isRead": {
-          "type": "boolean",
-          "description": "Whether the client has viewed this session since its last modification"
-        },
-        "isDone": {
-          "type": "boolean",
-          "description": "Whether the session has been marked as done by the client"
         },
         "diffs": {
           "type": "array",
