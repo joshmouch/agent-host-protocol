@@ -862,26 +862,26 @@
         "isRead"
       ]
     },
-    "SessionIsDoneChangedAction": {
+    "SessionIsArchivedChangedAction": {
       "type": "object",
-      "description": "The done state of the session changed.\n\nDispatched by a client to mark a session as done (e.g. the task is\ncomplete) or to reopen it.",
+      "description": "The archived state of the session changed.\n\nDispatched by a client to archive a session (e.g. the task is\ncomplete) or to unarchive it.",
       "properties": {
         "type": {
-          "$ref": "#/$defs/ActionType.SessionIsDoneChanged"
+          "$ref": "#/$defs/ActionType.SessionIsArchivedChanged"
         },
         "session": {
           "$ref": "#/$defs/URI",
           "description": "Session URI"
         },
-        "isDone": {
+        "isArchived": {
           "type": "boolean",
-          "description": "Whether the session is done"
+          "description": "Whether the session is archived"
         }
       },
       "required": [
         "type",
         "session",
-        "isDone"
+        "isArchived"
       ]
     },
     "SessionDiffsChangedAction": {
@@ -1947,14 +1947,6 @@
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
-        },
-        "isRead": {
-          "type": "boolean",
-          "description": "Whether the client has viewed this session since its last modification"
-        },
-        "isDone": {
-          "type": "boolean",
-          "description": "Whether the session has been marked as done by the client"
         },
         "diffs": {
           "type": "array",
@@ -4342,7 +4334,7 @@
           "$ref": "#/$defs/SessionIsReadChangedAction"
         },
         {
-          "$ref": "#/$defs/SessionIsDoneChangedAction"
+          "$ref": "#/$defs/SessionIsArchivedChangedAction"
         },
         {
           "$ref": "#/$defs/SessionDiffsChangedAction"

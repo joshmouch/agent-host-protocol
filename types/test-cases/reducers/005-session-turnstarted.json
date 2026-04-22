@@ -30,8 +30,7 @@
       "title": "Test Session",
       "status": 8,
       "createdAt": 1000,
-      "modifiedAt": 9999,
-      "isRead": false
+      "modifiedAt": 9999
     },
     "lifecycle": "ready",
     "turns": [],
