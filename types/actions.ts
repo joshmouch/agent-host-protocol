@@ -26,6 +26,7 @@ import type {
   ITerminalInfo,
   ITerminalClaim,
   SessionInputResponseKind,
+  IConfirmationOption,
 } from './state.js';
 
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind } from './state.js';
@@ -76,6 +77,7 @@ export const enum ActionType {
   SessionDiffsChanged = 'session/diffsChanged',
   SessionConfigChanged = 'session/configChanged',
   RootTerminalsChanged = 'root/terminalsChanged',
+  RootConfigChanged = 'root/configChanged',
   TerminalData = 'terminal/data',
   TerminalInput = 'terminal/input',
   TerminalResized = 'terminal/resized',
@@ -172,6 +174,24 @@ export interface IRootTerminalsChangedAction {
   type: ActionType.RootTerminalsChanged;
   /** Updated terminal list (full replacement) */
   terminals: ITerminalInfo[];
+}
+
+/**
+ * Fired when agent-host configuration values change.
+ *
+ * By default, the reducer merges the new values into `state.config.values`.
+ * Set `replace` to `true` to replace all values instead of merging.
+ *
+ * @category Root Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface IRootConfigChangedAction {
+  type: ActionType.RootConfigChanged;
+  /** Updated config values */
+  config: Record<string, unknown>;
+  /** When `true`, replaces all config values instead of merging */
+  replace?: boolean;
 }
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
@@ -327,6 +347,13 @@ export interface ISessionToolCallReadyAction extends IToolCallActionBase {
   editable?: boolean;
   /** If set, the tool was auto-confirmed and transitions directly to `running` */
   confirmed?: ToolCallConfirmationReason;
+  /**
+   * Options the server offers for this confirmation. When present, the client
+   * SHOULD render these instead of a plain approve/deny UI. Each option
+   * belongs to a {@link ConfirmationOptionGroup} so the client can still
+   * categorise the choices.
+   */
+  options?: IConfirmationOption[];
 }
 
 /**
@@ -344,6 +371,8 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
   confirmed: ToolCallConfirmationReason;
   /** Edited tool input parameters, if the client modified them before confirming */
   editedToolInput?: string;
+  /** ID of the selected confirmation option, if the server provided options */
+  selectedOptionId?: string;
 }
 
 /**
@@ -366,6 +395,8 @@ export interface ISessionToolCallDeniedAction extends IToolCallActionBase {
   userSuggestion?: IUserMessage;
   /** Optional explanation for the denial */
   reasonMessage?: StringOrMarkdown;
+  /** ID of the selected confirmation option, if the server provided options */
+  selectedOptionId?: string;
 }
 
 /**
@@ -717,8 +748,10 @@ export interface ISessionConfigChangedAction {
   type: ActionType.SessionConfigChanged;
   /** Session URI */
   session: URI;
-  /** Updated config values (merged into existing config) */
-  config: Record<string, string>;
+  /** Updated config values */
+  config: Record<string, unknown>;
+  /** When `true`, replaces all config values instead of merging */
+  replace?: boolean;
 }
 
 // ─── Truncation ──────────────────────────────────────────────────────────────
@@ -1098,6 +1131,7 @@ export type IStateAction =
   | IRootAgentsChangedAction
   | IRootActiveSessionsChangedAction
   | IRootTerminalsChangedAction
+  | IRootConfigChangedAction
   | ISessionReadyAction
   | ISessionCreationFailedAction
   | ISessionTurnStartedAction

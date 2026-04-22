@@ -129,6 +129,28 @@
         "terminals"
       ]
     },
+    "IRootConfigChangedAction": {
+      "type": "object",
+      "description": "Fired when agent-host configuration values change.\n\nBy default, the reducer merges the new values into `state.config.values`.\nSet `replace` to `true` to replace all values instead of merging.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.RootConfigChanged"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Updated config values"
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "When `true`, replaces all config values instead of merging"
+        }
+      },
+      "required": [
+        "type",
+        "config"
+      ]
+    },
     "ISessionReadyAction": {
       "type": "object",
       "description": "Session backend initialized successfully.",
@@ -400,6 +422,13 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "If set, the tool was auto-confirmed and transitions directly to `running`"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IConfirmationOption"
+          },
+          "description": "Options the server offers for this confirmation. When present, the client\nSHOULD render these instead of a plain approve/deny UI. Each option\nbelongs to a {@link ConfirmationOptionGroup} so the client can still\ncategorise the choices."
         }
       },
       "required": [
@@ -444,6 +473,10 @@
         "editedToolInput": {
           "type": "string",
           "description": "Edited tool input parameters, if the client modified them before confirming"
+        },
+        "selectedOptionId": {
+          "type": "string",
+          "description": "ID of the selected confirmation option, if the server provided options"
         }
       },
       "required": [
@@ -500,6 +533,10 @@
         "reasonMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
           "description": "Optional explanation for the denial"
+        },
+        "selectedOptionId": {
+          "type": "string",
+          "description": "ID of the selected confirmation option, if the server provided options"
         }
       },
       "required": [
@@ -1014,10 +1051,12 @@
         },
         "config": {
           "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "description": "Updated config values (merged into existing config)"
+          "additionalProperties": {},
+          "description": "Updated config values"
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "When `true`, replaces all config values instead of merging"
         }
       },
       "required": [
@@ -1616,6 +1655,10 @@
             "$ref": "#/$defs/ITerminalInfo"
           },
           "description": "Known terminals on the server. Subscribe to individual terminal URIs for full state."
+        },
+        "config": {
+          "$ref": "#/$defs/IRootConfigState",
+          "description": "Agent host configuration schema and current values"
         }
       },
       "required": [
@@ -2016,6 +2059,25 @@
         "properties"
       ]
     },
+    "IRootConfigState": {
+      "type": "object",
+      "description": "Live agent-host configuration metadata.\n\nThe schema describes the available configuration properties and the values\ncontain the current value for each resolved property.",
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/IConfigSchema",
+          "description": "JSON Schema describing available configuration properties"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Current configuration values"
+        }
+      },
+      "required": [
+        "schema",
+        "values"
+      ]
+    },
     "ISessionConfigPropertySchema": {
       "type": "object",
       "description": "A session configuration property descriptor.\n\nExtends the generic {@link IConfigPropertySchema} with session-specific\ndisplay extensions.",
@@ -2120,9 +2182,7 @@
         },
         "values": {
           "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          },
+          "additionalProperties": {},
           "description": "Current configuration values"
         }
       },
@@ -2796,6 +2856,33 @@
         "content"
       ]
     },
+    "IConfirmationOption": {
+      "type": "object",
+      "description": "A confirmation option that the server offers for a tool call awaiting\napproval. Allows richer choices beyond simple approve/deny — for example,\n\"Approve in this Session\" or \"Deny with reason.\"",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the option, returned in the confirmed action"
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable label displayed to the user"
+        },
+        "kind": {
+          "$ref": "#/$defs/ConfirmationOptionKind",
+          "description": "Whether this option represents an approval or denial"
+        },
+        "group": {
+          "type": "number",
+          "description": "Logical group number for visual categorisation.\n\nClients SHOULD display options in the order they are defined and MAY\nuse differing group numbers to insert dividers between logical clusters\nof options."
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "kind"
+      ]
+    },
     "IToolCallBase": {
       "type": "object",
       "description": "Metadata common to all tool call states.",
@@ -2989,6 +3076,13 @@
         "editable": {
           "type": "boolean",
           "description": "Whether the agent host allows the client to edit the tool's input parameters before confirming"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/IConfirmationOption"
+          },
+          "description": "Options the server offers for this confirmation. When present, the client\nSHOULD render these instead of a plain approve/deny UI. Each option\nbelongs to a {@link ConfirmationOptionGroup} so the client can still\ncategorise the choices."
         }
       },
       "required": [
@@ -3038,6 +3132,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         },
         "content": {
           "type": "array",
@@ -3130,6 +3228,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
@@ -3217,6 +3319,10 @@
         "confirmed": {
           "$ref": "#/$defs/ToolCallConfirmationReason",
           "description": "How the tool was confirmed for execution"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
@@ -3277,6 +3383,10 @@
         "userSuggestion": {
           "$ref": "#/$defs/IUserMessage",
           "description": "What the user suggested doing instead"
+        },
+        "selectedOption": {
+          "$ref": "#/$defs/IConfirmationOption",
+          "description": "The confirmation option the user selected, if confirmation options were provided"
         }
       },
       "required": [
@@ -4091,6 +4201,9 @@
         },
         {
           "$ref": "#/$defs/IRootTerminalsChangedAction"
+        },
+        {
+          "$ref": "#/$defs/IRootConfigChangedAction"
         },
         {
           "$ref": "#/$defs/ISessionReadyAction"

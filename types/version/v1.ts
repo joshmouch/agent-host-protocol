@@ -11,6 +11,7 @@
 
 import type {
   IRootState,
+  IRootConfigState,
   IAgentInfo,
   ISessionModelInfo,
   IModelSelection,
@@ -80,6 +81,8 @@ import type {
   ISessionInputSingleSelectQuestion,
   ISessionInputMultiSelectQuestion,
   ISessionInputRequest,
+  IConfirmationOption,
+  ConfirmationOptionKind,
 } from '../state.js';
 
 import type {
@@ -103,6 +106,7 @@ import type {
   ISessionDiffsChangedAction,
   ISessionConfigChangedAction,
   IRootTerminalsChangedAction,
+  IRootConfigChangedAction,
   ISessionToolCallContentChangedAction,
   ITerminalDataAction,
   ITerminalInputAction,
@@ -153,6 +157,8 @@ import type {
   ISessionConfigCompletionsParams,
   ISessionConfigCompletionsResult,
   ISessionConfigValueItem,
+  IInitializeParams,
+  IInitializeResult,
 } from '../commands.js';
 
 import type {
@@ -181,6 +187,7 @@ type AssertCompatible<Frozen, _Current extends Frozen> =
 // will surface it here.
 
 type V1_IRootState = IRootState;
+type V1_IRootConfigState = IRootConfigState;
 type V1_StringOrMarkdown = StringOrMarkdown;
 type V1_IAgentInfo = IAgentInfo;
 type V1_IProtectedResourceMetadata = IProtectedResourceMetadata;
@@ -237,6 +244,8 @@ type V1_ISessionInputBooleanQuestion = ISessionInputBooleanQuestion;
 type V1_ISessionInputSingleSelectQuestion = ISessionInputSingleSelectQuestion;
 type V1_ISessionInputMultiSelectQuestion = ISessionInputMultiSelectQuestion;
 type V1_ISessionInputRequest = ISessionInputRequest;
+type V1_IConfirmationOption = IConfirmationOption;
+type V1_ConfirmationOptionKind = ConfirmationOptionKind;
 type V1_Icon = Icon;
 type V1_ICustomizationRef = ICustomizationRef;
 type V1_ISessionCustomization = ISessionCustomization;
@@ -264,6 +273,7 @@ type V1_ISessionInputRequestedAction = ISessionInputRequestedAction;
 type V1_ISessionInputAnswerChangedAction = ISessionInputAnswerChangedAction;
 type V1_ISessionInputCompletedAction = ISessionInputCompletedAction;
 type V1_IRootTerminalsChangedAction = IRootTerminalsChangedAction;
+type V1_IRootConfigChangedAction = IRootConfigChangedAction;
 type V1_ITerminalDataAction = ITerminalDataAction;
 type V1_ITerminalInputAction = ITerminalInputAction;
 type V1_ITerminalResizedAction = ITerminalResizedAction;
@@ -314,6 +324,8 @@ type V1_ISessionConfigSchema = ISessionConfigSchema;
 type V1_ISessionConfigCompletionsParams = ISessionConfigCompletionsParams;
 type V1_ISessionConfigCompletionsResult = ISessionConfigCompletionsResult;
 type V1_ISessionConfigValueItem = ISessionConfigValueItem;
+type V1_IInitializeParams = IInitializeParams;
+type V1_IInitializeResult = IInitializeResult;
 type V1_ICommandMap = ICommandMap;
 type V1_IClientNotificationMap = IClientNotificationMap;
 type V1_IServerNotificationMap = IServerNotificationMap;
@@ -326,6 +338,8 @@ type V1_INotificationMethodParams = INotificationMethodParams;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckRootState = AssertCompatible<V1_IRootState, IRootState>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckRootConfigState = AssertCompatible<V1_IRootConfigState, IRootConfigState>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckStringOrMarkdown = AssertCompatible<V1_StringOrMarkdown, StringOrMarkdown>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -539,6 +553,8 @@ type _CheckNotificationMethodParams = AssertCompatible<V1_INotificationMethodPar
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckTerminalsChangedAction = AssertCompatible<V1_IRootTerminalsChangedAction, IRootTerminalsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckRootConfigChangedAction = AssertCompatible<V1_IRootConfigChangedAction, IRootConfigChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckTerminalDataAction = AssertCompatible<V1_ITerminalDataAction, ITerminalDataAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckTerminalInputAction = AssertCompatible<V1_ITerminalInputAction, ITerminalInputAction>;
@@ -600,3 +616,11 @@ type _CheckSessionConfigCompletionsParams = AssertCompatible<V1_ISessionConfigCo
 type _CheckSessionConfigCompletionsResult = AssertCompatible<V1_ISessionConfigCompletionsResult, ISessionConfigCompletionsResult>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionConfigValueItem = AssertCompatible<V1_ISessionConfigValueItem, ISessionConfigValueItem>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfirmationOption = AssertCompatible<V1_IConfirmationOption, IConfirmationOption>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfirmationOptionKind = AssertCompatible<V1_ConfirmationOptionKind, ConfirmationOptionKind>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckInitializeParams = AssertCompatible<V1_IInitializeParams, IInitializeParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckInitializeResult = AssertCompatible<V1_IInitializeResult, IInitializeResult>;

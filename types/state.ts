@@ -153,6 +153,8 @@ export interface IRootState {
   activeSessions?: number;
   /** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
   terminals?: ITerminalInfo[];
+  /** Agent host configuration schema and current values */
+  config?: IRootConfigState;
 }
 
 /**
@@ -434,6 +436,23 @@ export interface IConfigSchema {
   required?: string[];
 }
 
+// ─── Root Config Types ───────────────────────────────────────────────────────
+
+/**
+ * Live agent-host configuration metadata.
+ *
+ * The schema describes the available configuration properties and the values
+ * contain the current value for each resolved property.
+ *
+ * @category Root State
+ */
+export interface IRootConfigState {
+  /** JSON Schema describing available configuration properties */
+  schema: IConfigSchema;
+  /** Current configuration values */
+  values: Record<string, unknown>;
+}
+
 // ─── Session Config Types ────────────────────────────────────────────────────
 
 /**
@@ -482,7 +501,7 @@ export interface ISessionConfigState {
   /** JSON Schema describing available configuration properties */
   schema: ISessionConfigSchema;
   /** Current configuration values */
-  values: Record<string, string>;
+  values: Record<string, unknown>;
 }
 
 // ─── Session Input Types ────────────────────────────────────────────────────
@@ -927,6 +946,40 @@ export const enum ToolCallCancellationReason {
 }
 
 /**
+ * Whether a confirmation option represents an approval or denial action.
+ *
+ * @category Tool Call Types
+ */
+export const enum ConfirmationOptionKind {
+  Approve = 'approve',
+  Deny = 'deny',
+}
+
+/**
+ * A confirmation option that the server offers for a tool call awaiting
+ * approval. Allows richer choices beyond simple approve/deny — for example,
+ * "Approve in this Session" or "Deny with reason."
+ *
+ * @category Tool Call Types
+ */
+export interface IConfirmationOption {
+  /** Unique identifier for the option, returned in the confirmed action */
+  id: string;
+  /** Human-readable label displayed to the user */
+  label: string;
+  /** Whether this option represents an approval or denial */
+  kind: ConfirmationOptionKind;
+  /**
+   * Logical group number for visual categorisation.
+   *
+   * Clients SHOULD display options in the order they are defined and MAY
+   * use differing group numbers to insert dividers between logical clusters
+   * of options.
+   */
+  group?: number;
+}
+
+/**
  * Metadata common to all tool call states.
  *
  * @category Tool Call Types
@@ -1027,6 +1080,13 @@ export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolC
   edits?: { items: IFileEdit[] };
   /** Whether the agent host allows the client to edit the tool's input parameters before confirming */
   editable?: boolean;
+  /**
+   * Options the server offers for this confirmation. When present, the client
+   * SHOULD render these instead of a plain approve/deny UI. Each option
+   * belongs to a {@link ConfirmationOptionGroup} so the client can still
+   * categorise the choices.
+   */
+  options?: IConfirmationOption[];
 }
 
 /**
@@ -1038,6 +1098,8 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
   status: ToolCallStatus.Running;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
+  /** The confirmation option the user selected, if confirmation options were provided */
+  selectedOption?: IConfirmationOption;
   /**
    * Partial content produced while the tool is still executing.
    *
@@ -1056,6 +1118,8 @@ export interface IToolCallPendingResultConfirmationState extends IToolCallBase, 
   status: ToolCallStatus.PendingResultConfirmation;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
+  /** The confirmation option the user selected, if confirmation options were provided */
+  selectedOption?: IConfirmationOption;
 }
 
 /**
@@ -1067,6 +1131,8 @@ export interface IToolCallCompletedState extends IToolCallBase, IToolCallParamet
   status: ToolCallStatus.Completed;
   /** How the tool was confirmed for execution */
   confirmed: ToolCallConfirmationReason;
+  /** The confirmation option the user selected, if confirmation options were provided */
+  selectedOption?: IConfirmationOption;
 }
 
 /**
@@ -1082,6 +1148,8 @@ export interface IToolCallCancelledState extends IToolCallBase, IToolCallParamet
   reasonMessage?: StringOrMarkdown;
   /** What the user suggested doing instead */
   userSuggestion?: IUserMessage;
+  /** The confirmation option the user selected, if confirmation options were provided */
+  selectedOption?: IConfirmationOption;
 }
 
 /**

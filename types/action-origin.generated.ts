@@ -6,6 +6,7 @@ import type {
   IRootAgentsChangedAction,
   IRootActiveSessionsChangedAction,
   IRootTerminalsChangedAction,
+  IRootConfigChangedAction,
   ISessionReadyAction,
   ISessionCreationFailedAction,
   ISessionTurnStartedAction,
@@ -63,6 +64,7 @@ export type IRootAction =
   | IRootAgentsChangedAction
   | IRootActiveSessionsChangedAction
   | IRootTerminalsChangedAction
+  | IRootConfigChangedAction
 ;
 
 /** Union of all session-scoped actions. */
@@ -191,6 +193,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in IStateAction['type']]: boo
   [ActionType.RootAgentsChanged]: false,
   [ActionType.RootActiveSessionsChanged]: false,
   [ActionType.RootTerminalsChanged]: false,
+  [ActionType.RootConfigChanged]: true,
   [ActionType.SessionReady]: false,
   [ActionType.SessionCreationFailed]: false,
   [ActionType.SessionTurnStarted]: true,

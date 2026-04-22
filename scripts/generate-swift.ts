@@ -439,12 +439,12 @@ const STATE_ENUMS = [
   'SessionInputAnswerState', 'SessionInputAnswerValueKind', 'SessionInputQuestionKind',
   'SessionInputResponseKind',
   'TurnState', 'AttachmentType', 'ResponsePartKind', 'ToolCallStatus',
-  'ToolCallConfirmationReason', 'ToolCallCancellationReason',
+  'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
 ];
 
 const STATE_STRUCTS = [
-  'Icon', 'IProtectedResourceMetadata', 'IRootState', 'IAgentInfo',
+  'Icon', 'IProtectedResourceMetadata', 'IRootState', 'IRootConfigState', 'IAgentInfo',
   'ISessionModelInfo', 'IModelSelection', 'IConfigPropertySchema', 'IConfigSchema',
   'IPendingMessage', 'ISessionState', 'ISessionActiveClient',
   'ISessionSummary', 'IProjectInfo', 'ISessionConfigState', 'ITurn', 'IActiveTurn', 'IUserMessage',
@@ -462,7 +462,7 @@ const STATE_STRUCTS = [
   'IToolCallResult', 'IToolCallStreamingState',
   'IToolCallPendingConfirmationState', 'IToolCallRunningState',
   'IToolCallPendingResultConfirmationState', 'IToolCallCompletedState',
-  'IToolCallCancelledState', 'IToolDefinition', 'IToolAnnotations',
+  'IToolCallCancelledState', 'IConfirmationOption', 'IToolDefinition', 'IToolAnnotations',
   'IToolResultTextContent', 'IToolResultEmbeddedResourceContent',
   'IToolResultResourceContent', 'IToolResultFileEditContent',
   'IToolResultTerminalContent', 'IToolResultSubagentContent', 'ICustomizationRef',
@@ -761,6 +761,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/configChanged', caseName: 'sessionConfigChanged', tsInterface: 'ISessionConfigChangedAction' },
   { type: 'session/toolCallContentChanged', caseName: 'sessionToolCallContentChanged', tsInterface: 'ISessionToolCallContentChangedAction' },
   { type: 'root/terminalsChanged', caseName: 'rootTerminalsChanged', tsInterface: 'IRootTerminalsChangedAction' },
+  { type: 'root/configChanged', caseName: 'rootConfigChanged', tsInterface: 'IRootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'terminalData', tsInterface: 'ITerminalDataAction' },
   { type: 'terminal/input', caseName: 'terminalInput', tsInterface: 'ITerminalInputAction' },
   { type: 'terminal/resized', caseName: 'terminalResized', tsInterface: 'ITerminalResizedAction' },
