@@ -235,11 +235,11 @@ stateDiagram-v2
 | Status | Key Fields | Description |
 |---|---|---|
 | `streaming` | `partialInput?` | LM is streaming tool call parameters. `partialInput` accumulates via `toolCallDelta`. |
-| `pending-confirmation` | `invocationMessage`, `toolInput?`, `edits?`, `editable?` | Parameters complete or mid-execution confirmation needed. `edits` previews file changes. `editable` indicates the client may edit parameters before confirming. Uses `_meta` for additional context. |
-| `running` | `confirmed` | Tool is executing. `confirmed` records how it was approved. |
-| `pending-result-confirmation` | `success`, `pastTenseMessage`, `content?` | Execution finished, waiting for client to approve the result. |
-| `completed` | `success`, `pastTenseMessage`, `content?` | Terminal state. Tool finished. |
-| `cancelled` | `reason`, `reasonMessage?`, `userSuggestion?` | Terminal state. `reason` is `'denied'`, `'skipped'`, or `'result-denied'`. |
+| `pending-confirmation` | `invocationMessage`, `toolInput?`, `edits?`, `editable?`, `options?` | Parameters complete or mid-execution confirmation needed. `edits` previews file changes. `editable` indicates the client may edit parameters before confirming. `options` provides server-defined choices beyond simple approve/deny (see below). Uses `_meta` for additional context. |
+| `running` | `confirmed`, `selectedOption?` | Tool is executing. `confirmed` records how it was approved. `selectedOption` holds the chosen confirmation option, if any. |
+| `pending-result-confirmation` | `success`, `pastTenseMessage`, `content?`, `selectedOption?` | Execution finished, waiting for client to approve the result. |
+| `completed` | `success`, `pastTenseMessage`, `content?`, `selectedOption?` | Terminal state. Tool finished. |
+| `cancelled` | `reason`, `reasonMessage?`, `userSuggestion?`, `selectedOption?` | Terminal state. `reason` is `'denied'`, `'skipped'`, or `'result-denied'`. |
 
 ### Mid-execution Re-confirmation
 
@@ -250,6 +250,19 @@ When a running tool needs additional user approval (e.g. a shell permission), th
 When `editable` is `true` on a `pending-confirmation` tool call, the client may allow the user to modify the tool's input parameters before confirming. If the user edits the parameters, the client includes `editedToolInput` on the `session/toolCallConfirmed` action. The reducer uses `editedToolInput` (if present) in place of the original `toolInput` when transitioning to `running`.
 
 When a turn completes, non-terminal tool calls in `responseParts` are force-cancelled with reason `'skipped'`.
+
+### Confirmation Options
+
+By default, clients render a binary approve/deny UI for `pending-confirmation` tool calls. The server can provide richer choices via `options` — an array of `IConfirmationOption` objects, each with:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `string` | Unique identifier, returned in the `session/toolCallConfirmed` action as `selectedOptionId`. |
+| `label` | `string` | Human-readable text for the button or menu item. The server SHOULD localise this using the client's `locale` (sent in `initialize`). |
+| `kind` | `'approve' \| 'deny'` | Classifies the option so the server and client know whether it represents approval or denial. |
+| `group` | `number?` | Logical group number. Clients SHOULD display options in the order they are defined and MAY use differing group numbers to insert dividers between logical clusters. |
+
+For example, a server might offer `"Approve"`, `"Approve in this Session"`, `"Deny"`, and `"Deny with reason"`. When the user picks an option, the client dispatches `session/toolCallConfirmed` with `selectedOptionId` set to the chosen option's `id`. The reducer resolves the full `IConfirmationOption` object and stores it as `selectedOption` on the resulting `running` or `cancelled` state, and it carries through to `completed`.
 
 ## Session Input Requests
 

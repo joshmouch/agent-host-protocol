@@ -7,7 +7,7 @@ The lifecycle defines how AHP connections are established, sessions are created 
 The client initiates the connection with an `initialize` **request**. The server responds with the protocol version and initial state snapshots:
 
 ```
-1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?)
+1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?, locale?)
 2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 
@@ -23,12 +23,15 @@ The client initiates the connection with an `initialize` **request**. The server
   "params": {
     "protocolVersion": 1,
     "clientId": "client-abc",
-    "initialSubscriptions": ["agenthost:/root"]
+    "initialSubscriptions": ["agenthost:/root"],
+    "locale": "en-US"
   }
 }
 ```
 
 `initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions) in the same round-trip as the handshake.
+
+`locale` is an optional IETF BCP 47 language tag (e.g. `"en-US"`, `"ja"`) indicating the client's preferred language. The server SHOULD use this to localise user-facing strings such as confirmation option labels.
 
 ### Initialize Response (Server → Client)
 

@@ -81,6 +81,8 @@ import type {
   ISessionInputSingleSelectQuestion,
   ISessionInputMultiSelectQuestion,
   ISessionInputRequest,
+  IConfirmationOption,
+  ConfirmationOptionKind,
 } from '../state.js';
 
 import type {
@@ -155,6 +157,8 @@ import type {
   ISessionConfigCompletionsParams,
   ISessionConfigCompletionsResult,
   ISessionConfigValueItem,
+  IInitializeParams,
+  IInitializeResult,
 } from '../commands.js';
 
 import type {
@@ -240,6 +244,8 @@ type V1_ISessionInputBooleanQuestion = ISessionInputBooleanQuestion;
 type V1_ISessionInputSingleSelectQuestion = ISessionInputSingleSelectQuestion;
 type V1_ISessionInputMultiSelectQuestion = ISessionInputMultiSelectQuestion;
 type V1_ISessionInputRequest = ISessionInputRequest;
+type V1_IConfirmationOption = IConfirmationOption;
+type V1_ConfirmationOptionKind = ConfirmationOptionKind;
 type V1_Icon = Icon;
 type V1_ICustomizationRef = ICustomizationRef;
 type V1_ISessionCustomization = ISessionCustomization;
@@ -318,6 +324,8 @@ type V1_ISessionConfigSchema = ISessionConfigSchema;
 type V1_ISessionConfigCompletionsParams = ISessionConfigCompletionsParams;
 type V1_ISessionConfigCompletionsResult = ISessionConfigCompletionsResult;
 type V1_ISessionConfigValueItem = ISessionConfigValueItem;
+type V1_IInitializeParams = IInitializeParams;
+type V1_IInitializeResult = IInitializeResult;
 type V1_ICommandMap = ICommandMap;
 type V1_IClientNotificationMap = IClientNotificationMap;
 type V1_IServerNotificationMap = IServerNotificationMap;
@@ -608,3 +616,11 @@ type _CheckSessionConfigCompletionsParams = AssertCompatible<V1_ISessionConfigCo
 type _CheckSessionConfigCompletionsResult = AssertCompatible<V1_ISessionConfigCompletionsResult, ISessionConfigCompletionsResult>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionConfigValueItem = AssertCompatible<V1_ISessionConfigValueItem, ISessionConfigValueItem>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfirmationOption = AssertCompatible<V1_IConfirmationOption, IConfirmationOption>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckConfirmationOptionKind = AssertCompatible<V1_ConfirmationOptionKind, ConfirmationOptionKind>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckInitializeParams = AssertCompatible<V1_IInitializeParams, IInitializeParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckInitializeResult = AssertCompatible<V1_IInitializeResult, IInitializeResult>;

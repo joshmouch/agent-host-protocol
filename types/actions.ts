@@ -26,6 +26,7 @@ import type {
   ITerminalInfo,
   ITerminalClaim,
   SessionInputResponseKind,
+  IConfirmationOption,
 } from './state.js';
 
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind } from './state.js';
@@ -344,6 +345,13 @@ export interface ISessionToolCallReadyAction extends IToolCallActionBase {
   editable?: boolean;
   /** If set, the tool was auto-confirmed and transitions directly to `running` */
   confirmed?: ToolCallConfirmationReason;
+  /**
+   * Options the server offers for this confirmation. When present, the client
+   * SHOULD render these instead of a plain approve/deny UI. Each option
+   * belongs to a {@link ConfirmationOptionGroup} so the client can still
+   * categorise the choices.
+   */
+  options?: IConfirmationOption[];
 }
 
 /**
@@ -361,6 +369,8 @@ export interface ISessionToolCallApprovedAction extends IToolCallActionBase {
   confirmed: ToolCallConfirmationReason;
   /** Edited tool input parameters, if the client modified them before confirming */
   editedToolInput?: string;
+  /** ID of the selected confirmation option, if the server provided options */
+  selectedOptionId?: string;
 }
 
 /**
@@ -383,6 +393,8 @@ export interface ISessionToolCallDeniedAction extends IToolCallActionBase {
   userSuggestion?: IUserMessage;
   /** Optional explanation for the denial */
   reasonMessage?: StringOrMarkdown;
+  /** ID of the selected confirmation option, if the server provided options */
+  selectedOptionId?: string;
 }
 
 /**

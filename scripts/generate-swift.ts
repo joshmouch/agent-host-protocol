@@ -439,7 +439,7 @@ const STATE_ENUMS = [
   'SessionInputAnswerState', 'SessionInputAnswerValueKind', 'SessionInputQuestionKind',
   'SessionInputResponseKind',
   'TurnState', 'AttachmentType', 'ResponsePartKind', 'ToolCallStatus',
-  'ToolCallConfirmationReason', 'ToolCallCancellationReason',
+  'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
 ];
 
@@ -462,7 +462,7 @@ const STATE_STRUCTS = [
   'IToolCallResult', 'IToolCallStreamingState',
   'IToolCallPendingConfirmationState', 'IToolCallRunningState',
   'IToolCallPendingResultConfirmationState', 'IToolCallCompletedState',
-  'IToolCallCancelledState', 'IToolDefinition', 'IToolAnnotations',
+  'IToolCallCancelledState', 'IConfirmationOption', 'IToolDefinition', 'IToolAnnotations',
   'IToolResultTextContent', 'IToolResultEmbeddedResourceContent',
   'IToolResultResourceContent', 'IToolResultFileEditContent',
   'IToolResultTerminalContent', 'IToolResultSubagentContent', 'ICustomizationRef',
