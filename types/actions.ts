@@ -179,8 +179,8 @@ export interface IRootTerminalsChangedAction {
 /**
  * Fired when agent-host configuration values change.
  *
- * Only the changed values are included; the reducer merges
- * the new values into `state.config.values`.
+ * By default, the reducer merges the new values into `state.config.values`.
+ * Set `replace` to `true` to replace all values instead of merging.
  *
  * @category Root Actions
  * @version 1
@@ -188,8 +188,10 @@ export interface IRootTerminalsChangedAction {
  */
 export interface IRootConfigChangedAction {
   type: ActionType.RootConfigChanged;
-  /** Updated config values (merged into existing config) */
-  config: Record<string, any>;
+  /** Updated config values */
+  config: Record<string, unknown>;
+  /** When `true`, replaces all config values instead of merging */
+  replace?: boolean;
 }
 
 // ─── Session Actions ─────────────────────────────────────────────────────────
@@ -746,8 +748,10 @@ export interface ISessionConfigChangedAction {
   type: ActionType.SessionConfigChanged;
   /** Session URI */
   session: URI;
-  /** Updated config values (merged into existing config) */
-  config: Record<string, any>;
+  /** Updated config values */
+  config: Record<string, unknown>;
+  /** When `true`, replaces all config values instead of merging */
+  replace?: boolean;
 }
 
 // ─── Truncation ──────────────────────────────────────────────────────────────

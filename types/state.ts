@@ -450,7 +450,7 @@ export interface IRootConfigState {
   /** JSON Schema describing available configuration properties */
   schema: IConfigSchema;
   /** Current configuration values */
-  values: Record<string, any>;
+  values: Record<string, unknown>;
 }
 
 // ─── Session Config Types ────────────────────────────────────────────────────
@@ -501,7 +501,7 @@ export interface ISessionConfigState {
   /** JSON Schema describing available configuration properties */
   schema: ISessionConfigSchema;
   /** Current configuration values */
-  values: Record<string, any>;
+  values: Record<string, unknown>;
 }
 
 // ─── Session Input Types ────────────────────────────────────────────────────

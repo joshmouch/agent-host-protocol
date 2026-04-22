@@ -131,7 +131,7 @@
     },
     "IRootConfigChangedAction": {
       "type": "object",
-      "description": "Fired when agent-host configuration values change.\n\nOnly the changed values are included; the reducer merges\nthe new values into `state.config.values`.",
+      "description": "Fired when agent-host configuration values change.\n\nBy default, the reducer merges the new values into `state.config.values`.\nSet `replace` to `true` to replace all values instead of merging.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.RootConfigChanged"
@@ -139,7 +139,11 @@
         "config": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Updated config values (merged into existing config)"
+          "description": "Updated config values"
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "When `true`, replaces all config values instead of merging"
         }
       },
       "required": [
@@ -1048,7 +1052,11 @@
         "config": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Updated config values (merged into existing config)"
+          "description": "Updated config values"
+        },
+        "replace": {
+          "type": "boolean",
+          "description": "When `true`, replaces all config values instead of merging"
         }
       },
       "required": [

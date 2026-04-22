@@ -261,7 +261,7 @@ export function rootReducer(state: IRootState, action: IRootAction, log?: (msg: 
         ...state,
         config: {
           ...state.config,
-          values: { ...state.config.values, ...action.config },
+          values: action.replace ? { ...action.config } : { ...state.config.values, ...action.config },
         },
       };
 
@@ -582,7 +582,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
         ...state,
         config: {
           ...state.config,
-          values: { ...state.config.values, ...action.config },
+          values: action.replace ? { ...action.config } : { ...state.config.values, ...action.config },
         },
         summary: {
           ...state.summary,
