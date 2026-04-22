@@ -379,24 +379,30 @@ type ModelSelection struct {
 	Config map[string]string `json:"config,omitempty"`
 }
 
-// ConfigPropertySchema A JSON Schema-compatible string enum property descriptor with display extensions.
+// ConfigPropertySchema A JSON Schema-compatible property descriptor with display extensions.
 type ConfigPropertySchema struct {
-	// JSON Schema: property type. Only string enum properties are currently supported.
+	// JSON Schema: property type
 	Type string `json:"type"`
 	// JSON Schema: human-readable label for the property
 	Title string `json:"title"`
 	// JSON Schema: description / tooltip
 	Description *string `json:"description,omitempty"`
 	// JSON Schema: default value
-	Default *string `json:"default,omitempty"`
-	// JSON Schema: allowed values
-	Enum []string `json:"enum"`
+	Default json.RawMessage `json:"default,omitempty"`
+	// JSON Schema: allowed values (typically used with `string` type)
+	Enum []string `json:"enum,omitempty"`
 	// Display extension: human-readable label per enum value (parallel array)
 	EnumLabels []string `json:"enumLabels,omitempty"`
 	// Display extension: description per enum value (parallel array)
 	EnumDescriptions []string `json:"enumDescriptions,omitempty"`
 	// JSON Schema: when `true`, the property is displayed but cannot be modified by the user
 	ReadOnly *bool `json:"readOnly,omitempty"`
+	// JSON Schema: schema for array items (used when `type` is `'array'`)
+	Items *ConfigPropertySchema `json:"items,omitempty"`
+	// JSON Schema: property descriptors for object properties (used when `type` is `'object'`)
+	Properties map[string]ConfigPropertySchema `json:"properties,omitempty"`
+	// JSON Schema: list of required property ids (used when `type` is `'object'`)
+	Required []string `json:"required,omitempty"`
 }
 
 // ConfigSchema A JSON Schema object describing available configuration properties.
