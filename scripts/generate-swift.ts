@@ -730,6 +730,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/modelChanged', caseName: 'sessionModelChanged', tsInterface: 'SessionModelChangedAction' },
   { type: 'session/isReadChanged', caseName: 'sessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', caseName: 'sessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
+  { type: 'session/activityChanged', caseName: 'sessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
   { type: 'session/serverToolsChanged', caseName: 'sessionServerToolsChanged', tsInterface: 'SessionServerToolsChangedAction' },
   { type: 'session/activeClientChanged', caseName: 'sessionActiveClientChanged', tsInterface: 'SessionActiveClientChangedAction' },
   { type: 'session/activeClientToolsChanged', caseName: 'sessionActiveClientToolsChanged', tsInterface: 'SessionActiveClientToolsChangedAction' },
