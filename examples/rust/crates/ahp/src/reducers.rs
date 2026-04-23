@@ -16,7 +16,7 @@ use ahp_types::actions::{
     SessionToolCallResultConfirmedAction, SessionTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart, RootState,
+    ActiveTurn, ConfirmationOption, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart, RootState,
     SessionInputRequest, SessionLifecycle, SessionState, SessionStatus, TerminalCommandPart,
     TerminalContentPart, TerminalState, TerminalUnclassifiedPart, ToolCallCancellationReason,
     ToolCallCancelledState, ToolCallCompletedState, ToolCallConfirmationReason,
@@ -135,19 +135,28 @@ fn has_pending_tool_call_confirmation(state: &SessionState) -> bool {
     })
 }
 
-fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> SessionStatus {
-    if let Some(t) = terminal {
-        return t;
-    }
-    if state.input_requests.as_ref().map(|r| !r.is_empty()).unwrap_or(false)
+/// Bitmask covering the mutually-exclusive activity bits (bits 0–4).
+const STATUS_ACTIVITY_MASK: u32 = (1 << 5) - 1;
+
+/// Sets or clears a metadata flag on a status value.
+fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
+    let f = flag as u32;
+    if set { status | f } else { status & !f }
+}
+
+fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 {
+    let activity: u32 = if let Some(t) = terminal {
+        t as u32
+    } else if state.input_requests.as_ref().map(|r| !r.is_empty()).unwrap_or(false)
         || has_pending_tool_call_confirmation(state)
     {
-        return SessionStatus::InputNeeded;
-    }
-    if state.active_turn.is_some() {
-        return SessionStatus::InProgress;
-    }
-    SessionStatus::Idle
+        SessionStatus::InputNeeded as u32
+    } else if state.active_turn.is_some() {
+        SessionStatus::InProgress as u32
+    } else {
+        SessionStatus::Idle as u32
+    };
+    (state.summary.status & !STATUS_ACTIVITY_MASK) | activity
 }
 
 fn refresh_summary_status(state: &mut SessionState) {
@@ -216,6 +225,7 @@ fn end_turn(
                             reason: ToolCallCancellationReason::Skipped,
                             reason_message: None,
                             user_suggestion: None,
+                            selected_option: None,
                         };
                         ResponsePart::ToolCall(Box::new(ToolCallResponsePart {
                             tool_call: ToolCallState::Cancelled(cancelled),
@@ -255,7 +265,7 @@ fn upsert_input_request(state: &mut SessionState, request: SessionInputRequest) 
     }
     state.summary.status = summary_status(state, None);
     touch_modified(state);
-    state.summary.is_read = Some(false);
+    state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsRead, false);
 }
 
 fn update_tool_call<F>(
@@ -289,6 +299,7 @@ where
                         reason: ToolCallCancellationReason::Skipped,
                         reason_message: None,
                         user_suggestion: None,
+                        selected_option: None,
                     }),
                 );
                 tc.tool_call = updater(owned);
@@ -346,6 +357,19 @@ pub fn apply_action_to_root(state: &mut RootState, action: &StateAction) -> Redu
             state.terminals = Some(a.terminals.clone());
             ReduceOutcome::Applied
         }
+        StateAction::RootConfigChanged(a) => {
+            let Some(config) = state.config.as_mut() else {
+                return ReduceOutcome::NoOp;
+            };
+            if a.replace.unwrap_or(false) {
+                config.values = a.config.clone();
+            } else {
+                for (k, v) in &a.config {
+                    config.values.insert(k.clone(), v.clone());
+                }
+            }
+            ReduceOutcome::Applied
+        }
         _ => ReduceOutcome::OutOfScope,
     }
 }
@@ -357,7 +381,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
     match action {
         StateAction::SessionReady(_) => {
             state.lifecycle = SessionLifecycle::Ready;
-            state.summary.status = SessionStatus::Idle;
+            state.summary.status = summary_status(state, None);
             ReduceOutcome::Applied
         }
         StateAction::SessionCreationFailed(a) => {
@@ -470,11 +494,15 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionIsReadChanged(a) => {
-            state.summary.is_read = Some(a.is_read);
+            state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
             ReduceOutcome::Applied
         }
-        StateAction::SessionIsDoneChanged(a) => {
-            state.summary.is_done = Some(a.is_done);
+        StateAction::SessionIsArchivedChanged(a) => {
+            state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsArchived, a.is_archived);
+            ReduceOutcome::Applied
+        }
+        StateAction::SessionActivityChanged(a) => {
+            state.summary.activity = a.activity.clone();
             ReduceOutcome::Applied
         }
         StateAction::SessionDiffsChanged(a) => {
@@ -485,8 +513,12 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             let Some(config) = state.config.as_mut() else {
                 return ReduceOutcome::NoOp;
             };
-            for (k, v) in &a.config {
-                config.values.insert(k.clone(), v.clone());
+            if a.replace.unwrap_or(false) {
+                config.values = a.config.clone();
+            } else {
+                for (k, v) in &a.config {
+                    config.values.insert(k.clone(), v.clone());
+                }
             }
             touch_modified(state);
             ReduceOutcome::Applied
@@ -622,7 +654,7 @@ fn apply_turn_started(state: &mut SessionState, a: &SessionTurnStartedAction) ->
     });
     state.summary.status = summary_status(state, None);
     touch_modified(state);
-    state.summary.is_read = Some(false);
+    state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsRead, false);
 
     if let Some(qmid) = &a.queued_message_id {
         if state.steering_message.as_ref().map(|m| m.id.as_str()) == Some(qmid.as_str()) {
@@ -673,6 +705,7 @@ fn apply_tool_call_ready(
                         invocation_message: a.invocation_message.clone(),
                         tool_input: a.tool_input.clone(),
                         confirmed,
+                        selected_option: None,
                         content: None,
                     })
                 } else {
@@ -687,12 +720,19 @@ fn apply_tool_call_ready(
                         confirmation_title: a.confirmation_title.clone(),
                         edits: a.edits.clone(),
                         editable: a.editable,
+                        options: a.options.clone(),
                     })
                 }
             }
             other => other,
         }
     })
+}
+
+fn resolve_selected_option(options: Option<&[ConfirmationOption]>, id: Option<&str>) -> Option<ConfirmationOption> {
+    let id = id?;
+    let opts = options?;
+    opts.iter().find(|o| o.id == id).cloned()
 }
 
 fn apply_tool_call_confirmed(
@@ -703,6 +743,10 @@ fn apply_tool_call_confirmed(
         let ToolCallState::PendingConfirmation(s) = tc else {
             return tc;
         };
+        let selected_option = resolve_selected_option(
+            s.options.as_deref(),
+            a.selected_option_id.as_deref(),
+        );
         let tool_call_id = s.tool_call_id;
         let tool_name = s.tool_name;
         let display_name = s.display_name;
@@ -720,6 +764,7 @@ fn apply_tool_call_confirmed(
                 invocation_message,
                 tool_input: a.edited_tool_input.clone().or(tool_input),
                 confirmed: a.confirmed.unwrap_or(ToolCallConfirmationReason::NotNeeded),
+                selected_option,
                 content: None,
             })
         } else {
@@ -734,6 +779,7 @@ fn apply_tool_call_confirmed(
                 reason: a.reason.unwrap_or(ToolCallCancellationReason::Denied),
                 reason_message: a.reason_message.clone(),
                 user_suggestion: a.user_suggestion.clone(),
+                selected_option,
             })
         }
     })
@@ -745,12 +791,13 @@ fn apply_tool_call_complete(
 ) -> ReduceOutcome {
     update_tool_call(state, &a.turn_id, &a.tool_call_id, |tc| {
         let (tool_call_id, tool_name, display_name, tool_client_id, meta) = tool_call_meta(&tc);
-        let (invocation_message, tool_input, confirmed) = match tc {
-            ToolCallState::Running(s) => (s.invocation_message, s.tool_input, s.confirmed),
+        let (invocation_message, tool_input, confirmed, selected_option) = match tc {
+            ToolCallState::Running(s) => (s.invocation_message, s.tool_input, s.confirmed, s.selected_option),
             ToolCallState::PendingConfirmation(s) => (
                 s.invocation_message,
                 s.tool_input,
                 ToolCallConfirmationReason::NotNeeded,
+                None,
             ),
             other => return other,
         };
@@ -769,6 +816,7 @@ fn apply_tool_call_complete(
                 structured_content: a.result.structured_content.clone(),
                 error: a.result.error.clone(),
                 confirmed,
+                selected_option,
             })
         } else {
             ToolCallState::Completed(ToolCallCompletedState {
@@ -785,6 +833,7 @@ fn apply_tool_call_complete(
                 structured_content: a.result.structured_content.clone(),
                 error: a.result.error.clone(),
                 confirmed,
+                selected_option,
             })
         }
     })
@@ -813,6 +862,7 @@ fn apply_tool_call_result_confirmed(
                 structured_content: s.structured_content,
                 error: s.error,
                 confirmed: s.confirmed,
+                selected_option: s.selected_option,
             })
         } else {
             ToolCallState::Cancelled(ToolCallCancelledState {
@@ -826,6 +876,7 @@ fn apply_tool_call_result_confirmed(
                 reason: ToolCallCancellationReason::ResultDenied,
                 reason_message: None,
                 user_suggestion: None,
+                selected_option: s.selected_option,
             })
         }
     })
@@ -986,14 +1037,13 @@ mod tests {
                 resource: resource.to_string(),
                 provider: "test".to_string(),
                 title: String::new(),
-                status: SessionStatus::Idle,
+                status: SessionStatus::Idle as u32,
+                activity: None,
                 created_at: 0,
                 modified_at: 0,
                 project: None,
                 model: None,
                 working_directory: None,
-                is_read: None,
-                is_done: None,
                 diffs: None,
             },
             lifecycle: SessionLifecycle::Creating,
@@ -1020,7 +1070,7 @@ mod tests {
             queued_message_id: None,
         });
         assert_eq!(apply_action_to_session(&mut s, &action), ReduceOutcome::Applied);
-        assert_eq!(s.summary.status, SessionStatus::InProgress);
+        assert_eq!(s.summary.status, SessionStatus::InProgress as u32);
         assert_eq!(s.active_turn.unwrap().id, "t1");
     }
 
@@ -1058,7 +1108,7 @@ mod tests {
             response_parts: Vec::new(),
             usage: None,
         });
-        s.summary.status = SessionStatus::InProgress;
+        s.summary.status = SessionStatus::InProgress as u32;
         let a = StateAction::SessionTurnComplete(ahp_types::actions::SessionTurnCompleteAction {
             session: "copilot:/s1".into(),
             turn_id: "t1".into(),
@@ -1067,7 +1117,7 @@ mod tests {
         assert!(s.active_turn.is_none());
         assert_eq!(s.turns.len(), 1);
         assert_eq!(s.turns[0].state, TurnState::Complete);
-        assert_eq!(s.summary.status, SessionStatus::Idle);
+        assert_eq!(s.summary.status, SessionStatus::Idle as u32);
     }
 
     #[test]
@@ -1076,6 +1126,7 @@ mod tests {
             agents: Vec::new(),
             active_sessions: None,
             terminals: None,
+            config: None,
         };
         let a = StateAction::RootActiveSessionsChanged(
             ahp_types::actions::RootActiveSessionsChangedAction { active_sessions: 3 },

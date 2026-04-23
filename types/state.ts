@@ -586,11 +586,20 @@ export interface SessionInputTextQuestion extends SessionInputQuestionBase {
 /** Numeric question within a session input request. */
 export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
   kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
-  /** Minimum value */
+  /**
+   * Minimum value
+   * @format float
+   */
   min?: number;
-  /** Maximum value */
+  /**
+   * Maximum value
+   * @format float
+   */
   max?: number;
-  /** Default numeric value */
+  /**
+   * Default numeric value
+   * @format float
+   */
   defaultValue?: number;
 }
 
@@ -681,6 +690,7 @@ export interface SessionInputTextAnswerValue {
 
 export interface SessionInputNumberAnswerValue {
   kind: SessionInputAnswerValueKind.Number;
+  /** @format float */
   value: number;
 }
 

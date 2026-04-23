@@ -54,10 +54,18 @@ pub enum SessionLifecycle {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize_repr, Deserialize_repr)]
 #[repr(u32)]
 pub enum SessionStatus {
+    /// Session is idle — no turn is active.
     Idle = 1,
+    /// Session ended with an error.
     Error = 2,
+    /// A turn is actively streaming.
     InProgress = 8,
+    /// A turn is in progress but blocked waiting for user input or tool confirmation.
     InputNeeded = 24,
+    /// The client has viewed this session since its last modification.
+    IsRead = 32,
+    /// The session has been archived by the client.
+    IsArchived = 64,
 }
 
 /// Answer lifecycle state.
@@ -190,6 +198,15 @@ pub enum ToolCallCancellationReason {
     Skipped,
     #[serde(rename = "result-denied")]
     ResultDenied,
+}
+
+/// Whether a confirmation option represents an approval or denial action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConfirmationOptionKind {
+    #[serde(rename = "approve")]
+    Approve,
+    #[serde(rename = "deny")]
+    Deny,
 }
 
 /// Discriminant for tool result content types.
@@ -338,6 +355,22 @@ pub struct RootState {
     /// Known terminals on the server. Subscribe to individual terminal URIs for full state.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub terminals: Option<Vec<TerminalInfo>>,
+    /// Agent host configuration schema and current values
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<RootConfigState>,
+}
+
+/// Live agent-host configuration metadata.
+/// 
+/// The schema describes the available configuration properties and the values
+/// contain the current value for each resolved property.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RootConfigState {
+    /// JSON Schema describing available configuration properties
+    pub schema: ConfigSchema,
+    /// Current configuration values
+    pub values: JsonObject,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -388,14 +421,14 @@ pub struct SessionModelInfo {
     pub policy_state: Option<PolicyState>,
     /// Configuration schema describing model-specific options (e.g. thinking
     /// level). Clients present this as a form and pass the resolved values in
-    /// {@link IModelSelection.config} when creating or changing sessions.
+    /// {@link ModelSelection.config} when creating or changing sessions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_schema: Option<ConfigSchema>,
 }
 
 /// A model selection: the chosen model ID together with any model-specific
 /// configuration values whose keys correspond to the model's
-/// {@link ISessionModelInfo.configSchema}.
+/// {@link SessionModelInfo.configSchema}.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelSelection {
@@ -406,19 +439,19 @@ pub struct ModelSelection {
     pub config: Option<std::collections::HashMap<String, String>>,
 }
 
-/// A JSON Schema-compatible string enum property descriptor with display extensions.
+/// A JSON Schema-compatible property descriptor with display extensions.
 /// 
 /// Standard JSON Schema fields (`type`, `title`, `description`, `default`,
 /// `enum`) allow validators to process the schema. Display extensions
 /// (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI
 /// metadata for each `enum` value.
 /// 
-/// This is the generic base type. See {@link ISessionConfigPropertySchema} for
+/// This is the generic base type. See {@link SessionConfigPropertySchema} for
 /// session-specific extensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigPropertySchema {
-    /// JSON Schema: property type. Only string enum properties are currently supported.
+    /// JSON Schema: property type
     pub r#type: String,
     /// JSON Schema: human-readable label for the property
     pub title: String,
@@ -427,9 +460,10 @@ pub struct ConfigPropertySchema {
     pub description: Option<String>,
     /// JSON Schema: default value
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default: Option<String>,
-    /// JSON Schema: allowed values
-    pub r#enum: Vec<String>,
+    pub default: Option<AnyValue>,
+    /// JSON Schema: allowed values (typically used with `string` type)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r#enum: Option<Vec<String>>,
     /// Display extension: human-readable label per enum value (parallel array)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enum_labels: Option<Vec<String>>,
@@ -439,11 +473,20 @@ pub struct ConfigPropertySchema {
     /// JSON Schema: when `true`, the property is displayed but cannot be modified by the user
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub read_only: Option<bool>,
+    /// JSON Schema: schema for array items (used when `type` is `'array'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub items: Option<Box<ConfigPropertySchema>>,
+    /// JSON Schema: property descriptors for object properties (used when `type` is `'object'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub properties: Option<std::collections::HashMap<String, Box<ConfigPropertySchema>>>,
+    /// JSON Schema: list of required property ids (used when `type` is `'object'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
 }
 
 /// A JSON Schema object describing available configuration properties.
 /// 
-/// This is the generic base type. See {@link ISessionConfigSchema} for
+/// This is the generic base type. See {@link SessionConfigSchema} for
 /// session-specific usage.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -508,7 +551,7 @@ pub struct SessionState {
     /// Server-provided customizations active in this session.
     /// 
     /// Client-provided customizations are available on
-    /// {@link ISessionActiveClient.customizations | activeClient.customizations}.
+    /// {@link SessionActiveClient.customizations | activeClient.customizations}.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<SessionCustomization>>,
 }
@@ -542,7 +585,10 @@ pub struct SessionSummary {
     /// Session title
     pub title: String,
     /// Current session status
-    pub status: SessionStatus,
+    pub status: u32,
+    /// Human-readable description of what the session is currently doing
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
     /// Creation timestamp
     pub created_at: i64,
     /// Last modification timestamp
@@ -556,12 +602,6 @@ pub struct SessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Whether the client has viewed this session since its last modification
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_read: Option<bool>,
-    /// Whether the session has been marked as done by the client
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_done: Option<bool>,
     /// Files changed during this session with diff statistics
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diffs: Option<Vec<FileEdit>>,
@@ -579,12 +619,12 @@ pub struct ProjectInfo {
 
 /// A session configuration property descriptor.
 /// 
-/// Extends the generic {@link IConfigPropertySchema} with session-specific
+/// Extends the generic {@link ConfigPropertySchema} with session-specific
 /// display extensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionConfigPropertySchema {
-    /// JSON Schema: property type. Only string enum properties are currently supported.
+    /// JSON Schema: property type
     pub r#type: String,
     /// JSON Schema: human-readable label for the property
     pub title: String,
@@ -593,9 +633,10 @@ pub struct SessionConfigPropertySchema {
     pub description: Option<String>,
     /// JSON Schema: default value
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default: Option<String>,
-    /// JSON Schema: allowed values
-    pub r#enum: Vec<String>,
+    pub default: Option<AnyValue>,
+    /// JSON Schema: allowed values (typically used with `string` type)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r#enum: Option<Vec<String>>,
     /// Display extension: human-readable label per enum value (parallel array)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enum_labels: Option<Vec<String>>,
@@ -605,6 +646,15 @@ pub struct SessionConfigPropertySchema {
     /// JSON Schema: when `true`, the property is displayed but cannot be modified by the user
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub read_only: Option<bool>,
+    /// JSON Schema: schema for array items (used when `type` is `'array'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub items: Option<ConfigPropertySchema>,
+    /// JSON Schema: property descriptors for object properties (used when `type` is `'object'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub properties: Option<std::collections::HashMap<String, ConfigPropertySchema>>,
+    /// JSON Schema: list of required property ids (used when `type` is `'object'`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required: Option<Vec<String>>,
     /// Display extension: when `true`, the full set of allowed values is too large
     /// to enumerate statically. The client SHOULD use `sessionConfigCompletions`
     /// to fetch matching values based on user input. Any values in `enum` are
@@ -639,7 +689,7 @@ pub struct SessionConfigState {
     /// JSON Schema describing available configuration properties
     pub schema: SessionConfigSchema,
     /// Current configuration values
-    pub values: std::collections::HashMap<String, String>,
+    pub values: JsonObject,
 }
 
 /// A completed request/response cycle.
@@ -997,6 +1047,27 @@ pub struct ToolCallResult {
     pub error: Option<AnyValue>,
 }
 
+/// A confirmation option that the server offers for a tool call awaiting
+/// approval. Allows richer choices beyond simple approve/deny — for example,
+/// "Approve in this Session" or "Deny with reason."
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmationOption {
+    /// Unique identifier for the option, returned in the confirmed action
+    pub id: String,
+    /// Human-readable label displayed to the user
+    pub label: String,
+    /// Whether this option represents an approval or denial
+    pub kind: ConfirmationOptionKind,
+    /// Logical group number for visual categorisation.
+    /// 
+    /// Clients SHOULD display options in the order they are defined and MAY
+    /// use differing group numbers to insert dividers between logical clusters
+    /// of options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<i64>,
+}
+
 /// LM is streaming the tool call parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1070,6 +1141,12 @@ pub struct ToolCallPendingConfirmationState {
     /// Whether the agent host allows the client to edit the tool's input parameters before confirming
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editable: Option<bool>,
+    /// Options the server offers for this confirmation. When present, the client
+    /// SHOULD render these instead of a plain approve/deny UI. Each option
+    /// belongs to a {@link ConfirmationOptionGroup} so the client can still
+    /// categorise the choices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<ConfirmationOption>>,
 }
 
 /// Tool is actively executing.
@@ -1104,6 +1181,9 @@ pub struct ToolCallRunningState {
     pub tool_input: Option<String>,
     /// How the tool was confirmed for execution
     pub confirmed: ToolCallConfirmationReason,
+    /// The confirmation option the user selected, if confirmation options were provided
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option: Option<ConfirmationOption>,
     /// Partial content produced while the tool is still executing.
     /// 
     /// For example, a terminal content block lets clients subscribe to live
@@ -1161,6 +1241,9 @@ pub struct ToolCallPendingResultConfirmationState {
     pub error: Option<AnyValue>,
     /// How the tool was confirmed for execution
     pub confirmed: ToolCallConfirmationReason,
+    /// The confirmation option the user selected, if confirmation options were provided
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option: Option<ConfirmationOption>,
 }
 
 /// Tool completed successfully or with an error.
@@ -1212,6 +1295,9 @@ pub struct ToolCallCompletedState {
     pub error: Option<AnyValue>,
     /// How the tool was confirmed for execution
     pub confirmed: ToolCallConfirmationReason,
+    /// The confirmation option the user selected, if confirmation options were provided
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option: Option<ConfirmationOption>,
 }
 
 /// Tool call was cancelled before execution.
@@ -1252,6 +1338,9 @@ pub struct ToolCallCancelledState {
     /// What the user suggested doing instead
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_suggestion: Option<UserMessage>,
+    /// The confirmation option the user selected, if confirmation options were provided
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option: Option<ConfirmationOption>,
 }
 
 /// Describes a tool available in a session, provided by either the server or the active client.
@@ -1335,7 +1424,7 @@ pub struct ToolResultEmbeddedResourceContent {
 
 /// A reference to a resource stored outside the tool result.
 /// 
-/// Wraps {@link IContentRef} for lazy-loading large results.
+/// Wraps {@link ContentRef} for lazy-loading large results.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolResultResourceContent {

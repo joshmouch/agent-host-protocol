@@ -82,11 +82,7 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   // Primitives
   if (tsType === 'string') return 'String';
   if (tsType === 'number') {
-    const isInputDouble =
-      (containerName === 'SessionInputNumberAnswerValue' && propName === 'value') ||
-      (containerName === 'SessionInputNumberQuestion' && (propName === 'defaultValue' || propName === 'min' || propName === 'max')) ||
-      propName === 'numberValue';
-    return isInputDouble ? 'Double' : 'Int';
+    return 'Int';
   }
   if (tsType === 'boolean') return 'Bool';
   if (tsType === 'unknown') return 'AnyCodable';
@@ -171,6 +167,18 @@ function getPropertyDoc(prop: PropertySignature): string {
   return jsDocs[0].getDescription().trim();
 }
 
+/** Returns true if the property has a `@format float` JSDoc tag. */
+function hasFormatFloat(prop: PropertySignature): boolean {
+  for (const doc of prop.getJsDocs()) {
+    for (const tag of doc.getTags()) {
+      if (tag.getTagName() === 'format' && tag.getCommentText()?.trim() === 'float') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * Recursively collect all properties from an interface, flattening extends.
  */
@@ -215,7 +223,11 @@ function extractProps(iface: InterfaceDeclaration, project: Project): SwiftProp[
     .map(p => {
       const tsName = p.getName();
       const tsType = getPropertyType(p);
-        const swiftT = mapType(tsType, tsName, iface.getName());
+        let swiftT = mapType(tsType, tsName, iface.getName());
+      // `@format float` overrides the default Int → Double for number properties.
+      if (swiftT === 'Int' && hasFormatFloat(p)) {
+        swiftT = 'Double';
+      }
       const hasUnionUndefined = /\|\s*undefined/.test(tsType);
       const isOptional = p.hasQuestionToken() || hasUnionUndefined || swiftT.endsWith('?');
       const finalType = isOptional && !swiftT.endsWith('?') ? swiftT + '?' : swiftT;

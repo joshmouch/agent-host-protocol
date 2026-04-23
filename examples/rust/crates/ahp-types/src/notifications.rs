@@ -80,7 +80,7 @@ pub struct SessionRemovedNotification {
 ///   replayed on reconnect. On reconnect, clients should re-fetch the full
 ///   catalog via `listSessions()` as usual.
 /// - The server SHOULD emit this notification whenever any mutable field on
-///   {@link ISessionSummary | `ISessionSummary`} changes for a session the
+///   {@link SessionSummary | `SessionSummary`} changes for a session the
 ///   server has surfaced via `listSessions()` or `notify/sessionAdded`.
 ///   Servers MAY coalesce or debounce updates for noisy fields (for example,
 ///   `modifiedAt` bumps while a turn is streaming, or rapidly changing
@@ -132,7 +132,10 @@ pub struct PartialSessionSummary {
     pub title: Option<String>,
     /// Current session status
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<SessionStatus>,
+    pub status: Option<u32>,
+    /// Human-readable description of what the session is currently doing
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
     /// Creation timestamp
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<i64>,
@@ -148,12 +151,6 @@ pub struct PartialSessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Whether the client has viewed this session since its last modification
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_read: Option<bool>,
-    /// Whether the session has been marked as done by the client
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_done: Option<bool>,
     /// Files changed during this session with diff statistics
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diffs: Option<Vec<FileEdit>>,

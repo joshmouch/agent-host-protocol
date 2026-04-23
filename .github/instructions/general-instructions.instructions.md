@@ -34,6 +34,7 @@ applyTo: 'types/**/*.ts'
   }
   ```
 
+- `number` types are assumed to be 64-bit integers. If a floating point values are reasonable for a field, you MUST annotate its jsdoc with `@format float`
 - After making a change, always add compatibility checks to the resulting file (current tip: `types/version/v1.ts`) so that any future incompatible changes will be caught by the compiler. See [Versioning](../../docs/specification/versioning.md) for details.
 - For actions or commands that could be implemented by returning an array `T[]` directly, still prefer to wrap it in `{ items: T[] }` for forward compatibility. This allows adding additional fields later without breaking the shape.
 - After making your changes, check to make sure the documentation in `docs` is up to date. For significant new flows or features, consider adding new documentation for it. Note that Mermaid diagrams are allowed.

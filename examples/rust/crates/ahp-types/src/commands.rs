@@ -50,6 +50,11 @@ pub struct InitializeParams {
     /// URIs to subscribe to during handshake
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initial_subscriptions: Option<Vec<Uri>>,
+    /// IETF BCP 47 language tag indicating the client's preferred locale
+    /// (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
+    /// user-facing strings such as confirmation option labels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
 }
 
 /// Result of the `initialize` command.
@@ -155,7 +160,7 @@ pub struct CreateSessionParams {
     /// Agent-specific configuration values collected via `resolveSessionConfig`.
     /// Keys and values correspond to the schema returned by the server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config: Option<std::collections::HashMap<String, String>>,
+    pub config: Option<JsonObject>,
     /// Eagerly claim the active client role for the new session.
     /// 
     /// When provided, the server initializes the session with this client as the
@@ -412,8 +417,8 @@ pub struct DispatchActionParams {
 }
 
 /// Pushes a Bearer token for a protected resource. The `resource` field MUST
-/// match an `IProtectedResourceMetadata.resource` value declared by an agent
-/// in `IAgentInfo.protectedResources`.
+/// match a `ProtectedResourceMetadata.resource` value declared by an agent
+/// in `AgentInfo.protectedResources`.
 /// 
 /// Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
 /// (Bearer Token Usage) semantics. The client obtains the token from the
@@ -423,7 +428,7 @@ pub struct DispatchActionParams {
 #[serde(rename_all = "camelCase")]
 pub struct AuthenticateParams {
     /// The protected resource identifier. MUST match a `resource` value from
-    /// `IProtectedResourceMetadata` declared in `IAgentInfo.protectedResources`.
+    /// `ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`.
     pub resource: String,
     /// Bearer token obtained from the resource's authorization server
     pub token: String,
@@ -496,7 +501,7 @@ pub struct ResolveSessionConfigParams {
     pub working_directory: Option<Uri>,
     /// Current user-filled configuration values
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config: Option<std::collections::HashMap<String, String>>,
+    pub config: Option<JsonObject>,
 }
 
 /// Result of the `resolveSessionConfig` command.
@@ -506,7 +511,7 @@ pub struct ResolveSessionConfigResult {
     /// JSON Schema describing available configuration properties given the current context
     pub schema: SessionConfigSchema,
     /// Current configuration values (echoed back with server-resolved defaults applied)
-    pub values: std::collections::HashMap<String, String>,
+    pub values: JsonObject,
 }
 
 /// Queries the server for allowed values of a dynamic session config property.
@@ -525,7 +530,7 @@ pub struct SessionConfigCompletionsParams {
     pub working_directory: Option<Uri>,
     /// Current user-filled configuration values (provides context for the query)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config: Option<std::collections::HashMap<String, String>>,
+    pub config: Option<JsonObject>,
     /// Property id from the schema to query values for
     pub property: String,
     /// Search filter text (empty or omitted returns default/recent values)

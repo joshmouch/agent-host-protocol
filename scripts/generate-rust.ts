@@ -125,10 +125,7 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
 
   if (tsType === 'string') return 'String';
   if (tsType === 'number') {
-    const isFloat =
-      (containerName === 'ISessionInputNumberAnswerValue' && propName === 'value') ||
-      (containerName === 'ISessionInputNumberQuestion' && (propName === 'defaultValue' || propName === 'min' || propName === 'max'));
-    return isFloat ? 'f64' : 'i64';
+    return 'i64';
   }
   if (tsType === 'boolean') return 'bool';
   if (tsType === 'unknown') return 'AnyValue';
@@ -138,7 +135,11 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   if (tsType === 'URI') return 'Uri';
   if (tsType === 'StringOrMarkdown') return 'StringOrMarkdown';
 
-  if (tsType === 'IRootState | ISessionState' || tsType === 'IRootState | ISessionState | ITerminalState') {
+  // SessionStatus is a bitfield — represent as raw u32 rather than enum.
+  if (tsType === 'SessionStatus') return 'u32';
+
+  if (tsType === 'IRootState | ISessionState' || tsType === 'IRootState | ISessionState | ITerminalState'
+    || tsType === 'RootState | SessionState' || tsType === 'RootState | SessionState | TerminalState') {
     return 'SnapshotState';
   }
 
@@ -206,6 +207,18 @@ function getPropertyDoc(prop: PropertySignature): string {
   const jsDocs = prop.getJsDocs();
   if (jsDocs.length === 0) return '';
   return jsDocs[0].getDescription().trim();
+}
+
+/** Returns true if the property has a `@format float` JSDoc tag. */
+function hasFormatFloat(prop: PropertySignature): boolean {
+  for (const doc of prop.getJsDocs()) {
+    for (const tag of doc.getTags()) {
+      if (tag.getTagName() === 'format' && tag.getCommentText()?.trim() === 'float') {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function getAllProperties(iface: InterfaceDeclaration, project: Project): PropertySignature[] {
@@ -279,6 +292,10 @@ function extractProps(iface: InterfaceDeclaration, project: Project): RustProp[]
     const hasQuestionToken = p.hasQuestionToken();
 
     let rustType = mapType(tsType, tsName, iface.getName());
+    // `@format float` overrides the default i64 → f64 for number properties.
+    if (rustType === 'i64' && hasFormatFloat(p)) {
+      rustType = 'f64';
+    }
     const optional = hasQuestionToken || hasUnionUndefined || rustType.startsWith('Option<');
     if (optional && !rustType.startsWith('Option<')) {
       rustType = `Option<${rustType}>`;
@@ -389,7 +406,12 @@ function generateRustStruct(rustName: string, props: RustProp[], opts: StructOpt
     if (attrs.length > 0) {
       lines.push(`    #[serde(${attrs.join(', ')})]`);
     }
-    lines.push(`    pub ${p.rustName}: ${p.rustType},`);
+    // Box self-referential fields to break infinite size cycles.
+    let rustType = p.rustType;
+    if (rustType.includes(rustName)) {
+      rustType = rustType.replace(new RegExp(`\\b${rustName}\\b`, 'g'), `Box<${rustName}>`);
+    }
+    lines.push(`    pub ${p.rustName}: ${rustType},`);
   }
 
   lines.push('}');
@@ -494,6 +516,7 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'AttachmentType', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
+  'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
 ];
 
@@ -504,71 +527,73 @@ const STATE_ENUMS = [
  */
 const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
   { name: 'Icon' },
-  { name: 'IProtectedResourceMetadata' },
-  { name: 'IRootState' },
-  { name: 'IAgentInfo' },
-  { name: 'ISessionModelInfo' },
-  { name: 'IModelSelection' },
-  { name: 'IConfigPropertySchema' },
-  { name: 'IConfigSchema' },
-  { name: 'IPendingMessage' },
-  { name: 'ISessionState' },
-  { name: 'ISessionActiveClient' },
-  { name: 'ISessionSummary' },
-  { name: 'IProjectInfo' },
-  { name: 'ISessionConfigPropertySchema' },
-  { name: 'ISessionConfigSchema' },
-  { name: 'ISessionConfigState' },
-  { name: 'ITurn' },
-  { name: 'IActiveTurn' },
-  { name: 'IUserMessage' },
-  { name: 'ISessionInputOption' },
-  { name: 'ISessionInputTextAnswerValue', omitDiscriminants: true },
-  { name: 'ISessionInputNumberAnswerValue', omitDiscriminants: true },
-  { name: 'ISessionInputBooleanAnswerValue', omitDiscriminants: true },
-  { name: 'ISessionInputSelectedAnswerValue', omitDiscriminants: true },
-  { name: 'ISessionInputSelectedManyAnswerValue', omitDiscriminants: true },
-  { name: 'ISessionInputAnswered', omitDiscriminants: true },
-  { name: 'ISessionInputSkipped', omitDiscriminants: true },
-  { name: 'ISessionInputTextQuestion', omitDiscriminants: true },
-  { name: 'ISessionInputNumberQuestion', omitDiscriminants: true },
-  { name: 'ISessionInputBooleanQuestion', omitDiscriminants: true },
-  { name: 'ISessionInputSingleSelectQuestion', omitDiscriminants: true },
-  { name: 'ISessionInputMultiSelectQuestion', omitDiscriminants: true },
-  { name: 'ISessionInputRequest' },
-  { name: 'IMessageAttachment' },
-  { name: 'IMarkdownResponsePart', omitDiscriminants: true },
-  { name: 'IContentRef' },
-  { name: 'IResourceReponsePart', omitDiscriminants: true, rustName: 'ResourceResponsePart' },
-  { name: 'IToolCallResponsePart', omitDiscriminants: true },
-  { name: 'IReasoningResponsePart', omitDiscriminants: true },
-  { name: 'IToolCallResult' },
-  { name: 'IToolCallStreamingState', omitDiscriminants: true },
-  { name: 'IToolCallPendingConfirmationState', omitDiscriminants: true },
-  { name: 'IToolCallRunningState', omitDiscriminants: true },
-  { name: 'IToolCallPendingResultConfirmationState', omitDiscriminants: true },
-  { name: 'IToolCallCompletedState', omitDiscriminants: true },
-  { name: 'IToolCallCancelledState', omitDiscriminants: true },
-  { name: 'IToolDefinition' },
-  { name: 'IToolAnnotations' },
-  { name: 'IToolResultTextContent', omitDiscriminants: true },
-  { name: 'IToolResultEmbeddedResourceContent', omitDiscriminants: true },
-  { name: 'IToolResultResourceContent', omitDiscriminants: true },
-  { name: 'IToolResultFileEditContent', omitDiscriminants: true },
-  { name: 'IToolResultTerminalContent', omitDiscriminants: true },
-  { name: 'IToolResultSubagentContent', omitDiscriminants: true },
-  { name: 'ICustomizationRef' },
-  { name: 'ISessionCustomization' },
-  { name: 'IFileEdit' },
-  { name: 'ITerminalInfo' },
-  { name: 'ITerminalClientClaim', omitDiscriminants: true },
-  { name: 'ITerminalSessionClaim', omitDiscriminants: true },
-  { name: 'ITerminalState' },
-  { name: 'ITerminalUnclassifiedPart', omitDiscriminants: true },
-  { name: 'ITerminalCommandPart', omitDiscriminants: true },
-  { name: 'IUsageInfo' },
-  { name: 'IErrorInfo' },
-  { name: 'ISnapshot' },
+  { name: 'ProtectedResourceMetadata' },
+  { name: 'RootState' },
+  { name: 'RootConfigState' },
+  { name: 'AgentInfo' },
+  { name: 'SessionModelInfo' },
+  { name: 'ModelSelection' },
+  { name: 'ConfigPropertySchema' },
+  { name: 'ConfigSchema' },
+  { name: 'PendingMessage' },
+  { name: 'SessionState' },
+  { name: 'SessionActiveClient' },
+  { name: 'SessionSummary' },
+  { name: 'ProjectInfo' },
+  { name: 'SessionConfigPropertySchema' },
+  { name: 'SessionConfigSchema' },
+  { name: 'SessionConfigState' },
+  { name: 'Turn' },
+  { name: 'ActiveTurn' },
+  { name: 'UserMessage' },
+  { name: 'SessionInputOption' },
+  { name: 'SessionInputTextAnswerValue', omitDiscriminants: true },
+  { name: 'SessionInputNumberAnswerValue', omitDiscriminants: true },
+  { name: 'SessionInputBooleanAnswerValue', omitDiscriminants: true },
+  { name: 'SessionInputSelectedAnswerValue', omitDiscriminants: true },
+  { name: 'SessionInputSelectedManyAnswerValue', omitDiscriminants: true },
+  { name: 'SessionInputAnswered', omitDiscriminants: true },
+  { name: 'SessionInputSkipped', omitDiscriminants: true },
+  { name: 'SessionInputTextQuestion', omitDiscriminants: true },
+  { name: 'SessionInputNumberQuestion', omitDiscriminants: true },
+  { name: 'SessionInputBooleanQuestion', omitDiscriminants: true },
+  { name: 'SessionInputSingleSelectQuestion', omitDiscriminants: true },
+  { name: 'SessionInputMultiSelectQuestion', omitDiscriminants: true },
+  { name: 'SessionInputRequest' },
+  { name: 'MessageAttachment' },
+  { name: 'MarkdownResponsePart', omitDiscriminants: true },
+  { name: 'ContentRef' },
+  { name: 'ResourceReponsePart', omitDiscriminants: true, rustName: 'ResourceResponsePart' },
+  { name: 'ToolCallResponsePart', omitDiscriminants: true },
+  { name: 'ReasoningResponsePart', omitDiscriminants: true },
+  { name: 'ToolCallResult' },
+  { name: 'ConfirmationOption' },
+  { name: 'ToolCallStreamingState', omitDiscriminants: true },
+  { name: 'ToolCallPendingConfirmationState', omitDiscriminants: true },
+  { name: 'ToolCallRunningState', omitDiscriminants: true },
+  { name: 'ToolCallPendingResultConfirmationState', omitDiscriminants: true },
+  { name: 'ToolCallCompletedState', omitDiscriminants: true },
+  { name: 'ToolCallCancelledState', omitDiscriminants: true },
+  { name: 'ToolDefinition' },
+  { name: 'ToolAnnotations' },
+  { name: 'ToolResultTextContent', omitDiscriminants: true },
+  { name: 'ToolResultEmbeddedResourceContent', omitDiscriminants: true },
+  { name: 'ToolResultResourceContent', omitDiscriminants: true },
+  { name: 'ToolResultFileEditContent', omitDiscriminants: true },
+  { name: 'ToolResultTerminalContent', omitDiscriminants: true },
+  { name: 'ToolResultSubagentContent', omitDiscriminants: true },
+  { name: 'CustomizationRef' },
+  { name: 'SessionCustomization' },
+  { name: 'FileEdit' },
+  { name: 'TerminalInfo' },
+  { name: 'TerminalClientClaim', omitDiscriminants: true },
+  { name: 'TerminalSessionClaim', omitDiscriminants: true },
+  { name: 'TerminalState' },
+  { name: 'TerminalUnclassifiedPart', omitDiscriminants: true },
+  { name: 'TerminalCommandPart', omitDiscriminants: true },
+  { name: 'UsageInfo' },
+  { name: 'ErrorInfo' },
+  { name: 'Snapshot' },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -748,55 +773,57 @@ const ACTION_VARIANTS: {
   tsInterface: string;
   rustName?: string;
 }[] = [
-  { type: 'root/agentsChanged', variantName: 'RootAgentsChanged', tsInterface: 'IRootAgentsChangedAction' },
-  { type: 'root/activeSessionsChanged', variantName: 'RootActiveSessionsChanged', tsInterface: 'IRootActiveSessionsChangedAction' },
-  { type: 'session/ready', variantName: 'SessionReady', tsInterface: 'ISessionReadyAction' },
-  { type: 'session/creationFailed', variantName: 'SessionCreationFailed', tsInterface: 'ISessionCreationFailedAction' },
-  { type: 'session/turnStarted', variantName: 'SessionTurnStarted', tsInterface: 'ISessionTurnStartedAction' },
-  { type: 'session/delta', variantName: 'SessionDelta', tsInterface: 'ISessionDeltaAction' },
-  { type: 'session/responsePart', variantName: 'SessionResponsePart', tsInterface: 'ISessionResponsePartAction' },
-  { type: 'session/toolCallStart', variantName: 'SessionToolCallStart', tsInterface: 'ISessionToolCallStartAction' },
-  { type: 'session/toolCallDelta', variantName: 'SessionToolCallDelta', tsInterface: 'ISessionToolCallDeltaAction' },
-  { type: 'session/toolCallReady', variantName: 'SessionToolCallReady', tsInterface: 'ISessionToolCallReadyAction' },
+  { type: 'root/agentsChanged', variantName: 'RootAgentsChanged', tsInterface: 'RootAgentsChangedAction' },
+  { type: 'root/activeSessionsChanged', variantName: 'RootActiveSessionsChanged', tsInterface: 'RootActiveSessionsChangedAction' },
+  { type: 'root/configChanged', variantName: 'RootConfigChanged', tsInterface: 'RootConfigChangedAction' },
+  { type: 'session/ready', variantName: 'SessionReady', tsInterface: 'SessionReadyAction' },
+  { type: 'session/creationFailed', variantName: 'SessionCreationFailed', tsInterface: 'SessionCreationFailedAction' },
+  { type: 'session/turnStarted', variantName: 'SessionTurnStarted', tsInterface: 'SessionTurnStartedAction' },
+  { type: 'session/delta', variantName: 'SessionDelta', tsInterface: 'SessionDeltaAction' },
+  { type: 'session/responsePart', variantName: 'SessionResponsePart', tsInterface: 'SessionResponsePartAction' },
+  { type: 'session/toolCallStart', variantName: 'SessionToolCallStart', tsInterface: 'SessionToolCallStartAction' },
+  { type: 'session/toolCallDelta', variantName: 'SessionToolCallDelta', tsInterface: 'SessionToolCallDeltaAction' },
+  { type: 'session/toolCallReady', variantName: 'SessionToolCallReady', tsInterface: 'SessionToolCallReadyAction' },
   { type: 'session/toolCallConfirmed', variantName: 'SessionToolCallConfirmed', tsInterface: '_merged_' },
-  { type: 'session/toolCallComplete', variantName: 'SessionToolCallComplete', tsInterface: 'ISessionToolCallCompleteAction' },
-  { type: 'session/toolCallResultConfirmed', variantName: 'SessionToolCallResultConfirmed', tsInterface: 'ISessionToolCallResultConfirmedAction' },
-  { type: 'session/turnComplete', variantName: 'SessionTurnComplete', tsInterface: 'ISessionTurnCompleteAction' },
-  { type: 'session/turnCancelled', variantName: 'SessionTurnCancelled', tsInterface: 'ISessionTurnCancelledAction' },
-  { type: 'session/error', variantName: 'SessionError', tsInterface: 'ISessionErrorAction' },
-  { type: 'session/titleChanged', variantName: 'SessionTitleChanged', tsInterface: 'ISessionTitleChangedAction' },
-  { type: 'session/usage', variantName: 'SessionUsage', tsInterface: 'ISessionUsageAction' },
-  { type: 'session/reasoning', variantName: 'SessionReasoning', tsInterface: 'ISessionReasoningAction' },
-  { type: 'session/modelChanged', variantName: 'SessionModelChanged', tsInterface: 'ISessionModelChangedAction' },
-  { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'ISessionIsReadChangedAction' },
-  { type: 'session/isDoneChanged', variantName: 'SessionIsDoneChanged', tsInterface: 'ISessionIsDoneChangedAction' },
-  { type: 'session/serverToolsChanged', variantName: 'SessionServerToolsChanged', tsInterface: 'ISessionServerToolsChangedAction' },
-  { type: 'session/activeClientChanged', variantName: 'SessionActiveClientChanged', tsInterface: 'ISessionActiveClientChangedAction' },
-  { type: 'session/activeClientToolsChanged', variantName: 'SessionActiveClientToolsChanged', tsInterface: 'ISessionActiveClientToolsChangedAction' },
-  { type: 'session/pendingMessageSet', variantName: 'SessionPendingMessageSet', tsInterface: 'ISessionPendingMessageSetAction' },
-  { type: 'session/pendingMessageRemoved', variantName: 'SessionPendingMessageRemoved', tsInterface: 'ISessionPendingMessageRemovedAction' },
-  { type: 'session/queuedMessagesReordered', variantName: 'SessionQueuedMessagesReordered', tsInterface: 'ISessionQueuedMessagesReorderedAction' },
-  { type: 'session/inputRequested', variantName: 'SessionInputRequested', tsInterface: 'ISessionInputRequestedAction' },
-  { type: 'session/inputAnswerChanged', variantName: 'SessionInputAnswerChanged', tsInterface: 'ISessionInputAnswerChangedAction' },
-  { type: 'session/inputCompleted', variantName: 'SessionInputCompleted', tsInterface: 'ISessionInputCompletedAction' },
-  { type: 'session/customizationsChanged', variantName: 'SessionCustomizationsChanged', tsInterface: 'ISessionCustomizationsChangedAction' },
-  { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'ISessionCustomizationToggledAction' },
-  { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'ISessionTruncatedAction' },
-  { type: 'session/diffsChanged', variantName: 'SessionDiffsChanged', tsInterface: 'ISessionDiffsChangedAction' },
-  { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'ISessionConfigChangedAction' },
-  { type: 'session/toolCallContentChanged', variantName: 'SessionToolCallContentChanged', tsInterface: 'ISessionToolCallContentChangedAction' },
-  { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'IRootTerminalsChangedAction' },
-  { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'ITerminalDataAction' },
-  { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'ITerminalInputAction' },
-  { type: 'terminal/resized', variantName: 'TerminalResized', tsInterface: 'ITerminalResizedAction' },
-  { type: 'terminal/claimed', variantName: 'TerminalClaimed', tsInterface: 'ITerminalClaimedAction' },
-  { type: 'terminal/titleChanged', variantName: 'TerminalTitleChanged', tsInterface: 'ITerminalTitleChangedAction' },
-  { type: 'terminal/cwdChanged', variantName: 'TerminalCwdChanged', tsInterface: 'ITerminalCwdChangedAction' },
-  { type: 'terminal/exited', variantName: 'TerminalExited', tsInterface: 'ITerminalExitedAction' },
-  { type: 'terminal/cleared', variantName: 'TerminalCleared', tsInterface: 'ITerminalClearedAction' },
-  { type: 'terminal/commandDetectionAvailable', variantName: 'TerminalCommandDetectionAvailable', tsInterface: 'ITerminalCommandDetectionAvailableAction' },
-  { type: 'terminal/commandExecuted', variantName: 'TerminalCommandExecuted', tsInterface: 'ITerminalCommandExecutedAction' },
-  { type: 'terminal/commandFinished', variantName: 'TerminalCommandFinished', tsInterface: 'ITerminalCommandFinishedAction' },
+  { type: 'session/toolCallComplete', variantName: 'SessionToolCallComplete', tsInterface: 'SessionToolCallCompleteAction' },
+  { type: 'session/toolCallResultConfirmed', variantName: 'SessionToolCallResultConfirmed', tsInterface: 'SessionToolCallResultConfirmedAction' },
+  { type: 'session/turnComplete', variantName: 'SessionTurnComplete', tsInterface: 'SessionTurnCompleteAction' },
+  { type: 'session/turnCancelled', variantName: 'SessionTurnCancelled', tsInterface: 'SessionTurnCancelledAction' },
+  { type: 'session/error', variantName: 'SessionError', tsInterface: 'SessionErrorAction' },
+  { type: 'session/titleChanged', variantName: 'SessionTitleChanged', tsInterface: 'SessionTitleChangedAction' },
+  { type: 'session/usage', variantName: 'SessionUsage', tsInterface: 'SessionUsageAction' },
+  { type: 'session/reasoning', variantName: 'SessionReasoning', tsInterface: 'SessionReasoningAction' },
+  { type: 'session/modelChanged', variantName: 'SessionModelChanged', tsInterface: 'SessionModelChangedAction' },
+  { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
+  { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
+  { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
+  { type: 'session/serverToolsChanged', variantName: 'SessionServerToolsChanged', tsInterface: 'SessionServerToolsChangedAction' },
+  { type: 'session/activeClientChanged', variantName: 'SessionActiveClientChanged', tsInterface: 'SessionActiveClientChangedAction' },
+  { type: 'session/activeClientToolsChanged', variantName: 'SessionActiveClientToolsChanged', tsInterface: 'SessionActiveClientToolsChangedAction' },
+  { type: 'session/pendingMessageSet', variantName: 'SessionPendingMessageSet', tsInterface: 'SessionPendingMessageSetAction' },
+  { type: 'session/pendingMessageRemoved', variantName: 'SessionPendingMessageRemoved', tsInterface: 'SessionPendingMessageRemovedAction' },
+  { type: 'session/queuedMessagesReordered', variantName: 'SessionQueuedMessagesReordered', tsInterface: 'SessionQueuedMessagesReorderedAction' },
+  { type: 'session/inputRequested', variantName: 'SessionInputRequested', tsInterface: 'SessionInputRequestedAction' },
+  { type: 'session/inputAnswerChanged', variantName: 'SessionInputAnswerChanged', tsInterface: 'SessionInputAnswerChangedAction' },
+  { type: 'session/inputCompleted', variantName: 'SessionInputCompleted', tsInterface: 'SessionInputCompletedAction' },
+  { type: 'session/customizationsChanged', variantName: 'SessionCustomizationsChanged', tsInterface: 'SessionCustomizationsChangedAction' },
+  { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
+  { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
+  { type: 'session/diffsChanged', variantName: 'SessionDiffsChanged', tsInterface: 'SessionDiffsChangedAction' },
+  { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
+  { type: 'session/toolCallContentChanged', variantName: 'SessionToolCallContentChanged', tsInterface: 'SessionToolCallContentChangedAction' },
+  { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
+  { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },
+  { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'TerminalInputAction' },
+  { type: 'terminal/resized', variantName: 'TerminalResized', tsInterface: 'TerminalResizedAction' },
+  { type: 'terminal/claimed', variantName: 'TerminalClaimed', tsInterface: 'TerminalClaimedAction' },
+  { type: 'terminal/titleChanged', variantName: 'TerminalTitleChanged', tsInterface: 'TerminalTitleChangedAction' },
+  { type: 'terminal/cwdChanged', variantName: 'TerminalCwdChanged', tsInterface: 'TerminalCwdChangedAction' },
+  { type: 'terminal/exited', variantName: 'TerminalExited', tsInterface: 'TerminalExitedAction' },
+  { type: 'terminal/cleared', variantName: 'TerminalCleared', tsInterface: 'TerminalClearedAction' },
+  { type: 'terminal/commandDetectionAvailable', variantName: 'TerminalCommandDetectionAvailable', tsInterface: 'TerminalCommandDetectionAvailableAction' },
+  { type: 'terminal/commandExecuted', variantName: 'TerminalCommandExecuted', tsInterface: 'TerminalCommandExecutedAction' },
+  { type: 'terminal/commandFinished', variantName: 'TerminalCommandFinished', tsInterface: 'TerminalCommandFinishedAction' },
 ];
 
 function generateMergedToolCallConfirmedStruct(): string {
@@ -827,13 +854,16 @@ pub struct SessionToolCallConfirmedAction {
     /// Explanation for the denial.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_message: Option<StringOrMarkdown>,
+    /// ID of the selected confirmation option, if the server provided options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option_id: Option<String>,
 }`;
 }
 
 function generateActionsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'actions.ts')!;
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};');
+  lines.push('use crate::state::{AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};');
   lines.push('');
 
   // ActionType enum
@@ -846,7 +876,7 @@ function generateActionsFile(project: Project): string {
 
   // ActionEnvelope / ActionOrigin
   lines.push('// ─── Action Envelope ─────────────────────────────────────────────────\n');
-  lines.push(generateStructFromInterface(project, 'IActionOrigin'));
+  lines.push(generateStructFromInterface(project, 'ActionOrigin'));
   lines.push('');
   // ActionEnvelope has a field `action: IStateAction` — we need to replace IStateAction with StateAction
   lines.push(`/// Every action is wrapped in an \`ActionEnvelope\`.
@@ -904,28 +934,28 @@ pub struct ActionEnvelope {
 const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding'];
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
-  { name: 'IInitializeParams' }, { name: 'IInitializeResult' },
-  { name: 'IReconnectParams' },
-  { name: 'IReconnectReplayResult', omitDiscriminants: true },
-  { name: 'IReconnectSnapshotResult', omitDiscriminants: true },
-  { name: 'ISubscribeParams' }, { name: 'ISubscribeResult' },
-  { name: 'ISessionForkSource' }, { name: 'ICreateSessionParams' },
-  { name: 'IDisposeSessionParams' },
-  { name: 'IListSessionsParams' }, { name: 'IListSessionsResult' },
-  { name: 'IResourceReadParams' }, { name: 'IResourceReadResult' },
-  { name: 'IResourceWriteParams' }, { name: 'IResourceWriteResult' },
-  { name: 'IResourceListParams' }, { name: 'IResourceListResult' },
-  { name: 'IDirectoryEntry' },
-  { name: 'IResourceCopyParams' }, { name: 'IResourceCopyResult' },
-  { name: 'IResourceDeleteParams' }, { name: 'IResourceDeleteResult' },
-  { name: 'IResourceMoveParams' }, { name: 'IResourceMoveResult' },
-  { name: 'IFetchTurnsParams' }, { name: 'IFetchTurnsResult' },
-  { name: 'IUnsubscribeParams' }, { name: 'IDispatchActionParams' },
-  { name: 'IAuthenticateParams' }, { name: 'IAuthenticateResult' },
-  { name: 'ICreateTerminalParams' }, { name: 'IDisposeTerminalParams' },
-  { name: 'IResolveSessionConfigParams' }, { name: 'IResolveSessionConfigResult' },
-  { name: 'ISessionConfigCompletionsParams' }, { name: 'ISessionConfigCompletionsResult' },
-  { name: 'ISessionConfigValueItem' },
+  { name: 'InitializeParams' }, { name: 'InitializeResult' },
+  { name: 'ReconnectParams' },
+  { name: 'ReconnectReplayResult', omitDiscriminants: true },
+  { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
+  { name: 'SubscribeParams' }, { name: 'SubscribeResult' },
+  { name: 'SessionForkSource' }, { name: 'CreateSessionParams' },
+  { name: 'DisposeSessionParams' },
+  { name: 'ListSessionsParams' }, { name: 'ListSessionsResult' },
+  { name: 'ResourceReadParams' }, { name: 'ResourceReadResult' },
+  { name: 'ResourceWriteParams' }, { name: 'ResourceWriteResult' },
+  { name: 'ResourceListParams' }, { name: 'ResourceListResult' },
+  { name: 'DirectoryEntry' },
+  { name: 'ResourceCopyParams' }, { name: 'ResourceCopyResult' },
+  { name: 'ResourceDeleteParams' }, { name: 'ResourceDeleteResult' },
+  { name: 'ResourceMoveParams' }, { name: 'ResourceMoveResult' },
+  { name: 'FetchTurnsParams' }, { name: 'FetchTurnsResult' },
+  { name: 'UnsubscribeParams' }, { name: 'DispatchActionParams' },
+  { name: 'AuthenticateParams' }, { name: 'AuthenticateResult' },
+  { name: 'CreateTerminalParams' }, { name: 'DisposeTerminalParams' },
+  { name: 'ResolveSessionConfigParams' }, { name: 'ResolveSessionConfigResult' },
+  { name: 'SessionConfigCompletionsParams' }, { name: 'SessionConfigCompletionsResult' },
+  { name: 'SessionConfigValueItem' },
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -984,10 +1014,10 @@ function generateCommandsFile(project: Project): string {
 const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
 
 const NOTIFICATION_STRUCTS = [
-  'ISessionAddedNotification',
-  'ISessionRemovedNotification',
-  'ISessionSummaryChangedNotification',
-  'IAuthRequiredNotification',
+  'SessionAddedNotification',
+  'SessionRemovedNotification',
+  'SessionSummaryChangedNotification',
+  'AuthRequiredNotification',
 ];
 
 const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
@@ -1248,18 +1278,18 @@ function checkExhaustiveness(project: Project): void {
 
   const knownSpecial = new Set<string>([
     'StringOrMarkdown',
-    'IToolCallState',
-    'IStateAction',
-    'IActionEnvelope',
-    'IActionOrigin',
-    'ISessionToolCallApprovedAction',
-    'ISessionToolCallDeniedAction',
-    'IProtocolNotification',
-    'ITerminalClaim',
-    'ITerminalContentPart',
-    'ISessionInputQuestion',
-    'ISessionInputAnswerValue',
-    'ISessionInputAnswer',
+    'ToolCallState',
+    'StateAction',
+    'ActionEnvelope',
+    'ActionOrigin',
+    'SessionToolCallApprovedAction',
+    'SessionToolCallDeniedAction',
+    'ProtocolNotification',
+    'TerminalClaim',
+    'TerminalContentPart',
+    'SessionInputQuestion',
+    'SessionInputAnswerValue',
+    'SessionInputAnswer',
   ]);
 
   const missing = [...imported].filter(n => !coveredByLists.has(n) && !knownSpecial.has(n));

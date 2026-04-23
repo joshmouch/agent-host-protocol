@@ -296,6 +296,7 @@ impl Client {
             } else {
                 Some(initial_subscriptions)
             },
+            locale: None,
         };
         self.request("initialize", params).await
     }

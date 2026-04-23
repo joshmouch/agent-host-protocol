@@ -11,7 +11,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 #[allow(unused_imports)]
 use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
 
-use crate::state::{AgentInfo, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};
+use crate::state::{AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};
 
 // ─── ActionType ──────────────────────────────────────────────────────
 
@@ -86,14 +86,18 @@ pub enum ActionType {
     SessionTruncated,
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged,
-    #[serde(rename = "session/isDoneChanged")]
-    SessionIsDoneChanged,
+    #[serde(rename = "session/isArchivedChanged")]
+    SessionIsArchivedChanged,
+    #[serde(rename = "session/activityChanged")]
+    SessionActivityChanged,
     #[serde(rename = "session/diffsChanged")]
     SessionDiffsChanged,
     #[serde(rename = "session/configChanged")]
     SessionConfigChanged,
     #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged,
+    #[serde(rename = "root/configChanged")]
+    RootConfigChanged,
     #[serde(rename = "terminal/data")]
     TerminalData,
     #[serde(rename = "terminal/input")]
@@ -155,6 +159,20 @@ pub struct RootAgentsChangedAction {
 pub struct RootActiveSessionsChangedAction {
     /// Current count of active sessions
     pub active_sessions: i64,
+}
+
+/// Fired when agent-host configuration values change.
+/// 
+/// By default, the reducer merges the new values into `state.config.values`.
+/// Set `replace` to `true` to replace all values instead of merging.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RootConfigChangedAction {
+    /// Updated config values
+    pub config: JsonObject,
+    /// When `true`, replaces all config values instead of merging
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replace: Option<bool>,
 }
 
 /// Session backend initialized successfully.
@@ -323,6 +341,12 @@ pub struct SessionToolCallReadyAction {
     /// If set, the tool was auto-confirmed and transitions directly to `running`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confirmed: Option<ToolCallConfirmationReason>,
+    /// Options the server offers for this confirmation. When present, the client
+    /// SHOULD render these instead of a plain approve/deny UI. Each option
+    /// belongs to a {@link ConfirmationOptionGroup} so the client can still
+    /// categorise the choices.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub options: Option<Vec<ConfirmationOption>>,
 }
 
 /// Client approves or denies a pending tool call (merged approved + denied variants).
@@ -352,6 +376,9 @@ pub struct SessionToolCallConfirmedAction {
     /// Explanation for the denial.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_message: Option<StringOrMarkdown>,
+    /// ID of the selected confirmation option, if the server provided options.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_option_id: Option<String>,
 }
 
 /// Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
@@ -507,17 +534,31 @@ pub struct SessionIsReadChangedAction {
     pub is_read: bool,
 }
 
-/// The done state of the session changed.
+/// The archived state of the session changed.
 /// 
-/// Dispatched by a client to mark a session as done (e.g. the task is
-/// complete) or to reopen it.
+/// Dispatched by a client to archive a session (e.g. the task is
+/// complete) or to unarchive it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionIsDoneChangedAction {
+pub struct SessionIsArchivedChangedAction {
     /// Session URI
     pub session: Uri,
-    /// Whether the session is done
-    pub is_done: bool,
+    /// Whether the session is archived
+    pub is_archived: bool,
+}
+
+/// The activity description of the session changed.
+/// 
+/// Dispatched by the server to indicate what the session is currently doing
+/// (e.g. running a tool, thinking). Clear activity by setting it to `undefined`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActivityChangedAction {
+    /// Session URI
+    pub session: Uri,
+    /// Human-readable description of current activity, or `undefined` to clear
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
 }
 
 /// Server tools for this session have changed.
@@ -534,7 +575,7 @@ pub struct SessionServerToolsChangedAction {
 
 /// The active client for this session has changed.
 /// 
-/// A client dispatches this action with its own `ISessionActiveClient` to claim
+/// A client dispatches this action with its own `SessionActiveClient` to claim
 /// the active role, or with `null` to release it. The server SHOULD reject if
 /// another client is already active. The server SHOULD automatically dispatch
 /// this action with `activeClient: null` when the active client disconnects.
@@ -733,8 +774,11 @@ pub struct SessionDiffsChangedAction {
 pub struct SessionConfigChangedAction {
     /// Session URI
     pub session: Uri,
-    /// Updated config values (merged into existing config)
-    pub config: std::collections::HashMap<String, String>,
+    /// Updated config values
+    pub config: JsonObject,
+    /// When `true`, replaces all config values instead of merging
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replace: Option<bool>,
 }
 
 /// Partial content produced while a tool is still executing.
@@ -946,6 +990,8 @@ pub enum StateAction {
     RootAgentsChanged(RootAgentsChangedAction),
     #[serde(rename = "root/activeSessionsChanged")]
     RootActiveSessionsChanged(RootActiveSessionsChangedAction),
+    #[serde(rename = "root/configChanged")]
+    RootConfigChanged(RootConfigChangedAction),
     #[serde(rename = "session/ready")]
     SessionReady(SessionReadyAction),
     #[serde(rename = "session/creationFailed")]
@@ -984,8 +1030,10 @@ pub enum StateAction {
     SessionModelChanged(SessionModelChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
-    #[serde(rename = "session/isDoneChanged")]
-    SessionIsDoneChanged(SessionIsDoneChangedAction),
+    #[serde(rename = "session/isArchivedChanged")]
+    SessionIsArchivedChanged(SessionIsArchivedChangedAction),
+    #[serde(rename = "session/activityChanged")]
+    SessionActivityChanged(SessionActivityChangedAction),
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged(SessionServerToolsChangedAction),
     #[serde(rename = "session/activeClientChanged")]
