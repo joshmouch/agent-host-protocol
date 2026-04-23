@@ -1,5 +1,5 @@
 {
-  "description": "session/isDoneChanged marks session as done",
+  "description": "session/activityChanged sets activity on summary",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -15,9 +15,9 @@
   },
   "actions": [
     {
-      "type": "session/isDoneChanged",
+      "type": "session/activityChanged",
       "session": "copilot:/test-session",
-      "isDone": true
+      "activity": "Running terminal command"
     }
   ],
   "expected": {
@@ -26,9 +26,9 @@
       "provider": "copilot",
       "title": "Test Session",
       "status": 1,
+      "activity": "Running terminal command",
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "isDone": true
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
     "turns": []

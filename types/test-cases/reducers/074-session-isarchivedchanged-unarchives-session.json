@@ -1,24 +1,23 @@
 {
-  "description": "session/isDoneChanged reopens a done session",
+  "description": "session/isArchivedChanged unarchives an archived session",
   "reducer": "session",
   "initial": {
     "summary": {
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 1,
+      "status": 65,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "isDone": true
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
     "turns": []
   },
   "actions": [
     {
-      "type": "session/isDoneChanged",
+      "type": "session/isArchivedChanged",
       "session": "copilot:/test-session",
-      "isDone": false
+      "isArchived": false
     }
   ],
   "expected": {
@@ -28,8 +27,7 @@
       "title": "Test Session",
       "status": 1,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "isDone": false
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
     "turns": []

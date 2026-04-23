@@ -7,7 +7,7 @@ The lifecycle defines how AHP connections are established, sessions are created 
 The client initiates the connection with an `initialize` **request**. The server responds with the protocol version and initial state snapshots:
 
 ```
-1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?)
+1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?, locale?)
 2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 
@@ -23,12 +23,15 @@ The client initiates the connection with an `initialize` **request**. The server
   "params": {
     "protocolVersion": 1,
     "clientId": "client-abc",
-    "initialSubscriptions": ["agenthost:/root"]
+    "initialSubscriptions": ["agenthost:/root"],
+    "locale": "en-US"
   }
 }
 ```
 
 `initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions) in the same round-trip as the handshake.
+
+`locale` is an optional IETF BCP 47 language tag (e.g. `"en-US"`, `"ja"`) indicating the client's preferred language. The server SHOULD use this to localise user-facing strings such as confirmation option labels.
 
 ### Initialize Response (Server → Client)
 
@@ -59,7 +62,7 @@ If the server cannot accept the connection (e.g. unsupported protocol version), 
 
 ## Authentication
 
-Agents MAY declare `protectedResources` in their [`IAgentInfo`](/reference/state-types#iagentinfo). Before interacting with a session backed by such an agent, the client SHOULD authenticate by obtaining a Bearer token from the declared authorization server(s) and pushing it via the [`authenticate`](/reference/commands#authenticate) command.
+Agents MAY declare `protectedResources` in their [`AgentInfo`](/reference/state-types#agentinfo). Before interacting with a session backed by such an agent, the client SHOULD authenticate by obtaining a Bearer token from the declared authorization server(s) and pushing it via the [`authenticate`](/reference/commands#authenticate) command.
 
 If a client attempts to create or use a session with an agent that requires authentication and has not yet provided a token, the server SHOULD return error code `-32007` (`AuthRequired`) with the required resource metadata in the error's `data` field.
 
@@ -146,7 +149,7 @@ The server disposes the session and broadcasts a `notify/sessionRemoved` notific
 
 ## Session Summary Updates
 
-While a session is alive, its [summary](/guide/state-model#session-summary) may change in response to agent activity or client actions (for example, the title is auto-generated, the status transitions from `Idle` to `InProgress`, `modifiedAt` advances, or `diffs` accumulate). The server SHOULD broadcast a `notify/sessionSummaryChanged` notification to all connected clients whenever any mutable field of `ISessionSummary` changes, carrying only the changed fields:
+While a session is alive, its [summary](/guide/state-model#session-summary) may change in response to agent activity or client actions (for example, the title is auto-generated, the status transitions from `Idle` to `InProgress`, `modifiedAt` advances, or `diffs` accumulate). The server SHOULD broadcast a `notify/sessionSummaryChanged` notification to all connected clients whenever any mutable field of `SessionSummary` changes, carrying only the changed fields:
 
 ```json
 {

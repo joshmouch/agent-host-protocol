@@ -1,12 +1,13 @@
 {
-  "description": "session/turnStarted clears isRead on a previously-read session",
+  "description": "session/activityChanged clears activity with null",
   "reducer": "session",
   "initial": {
     "summary": {
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 33,
+      "status": 1,
+      "activity": "Thinking",
       "createdAt": 1000,
       "modifiedAt": 1000
     },
@@ -15,12 +16,9 @@
   },
   "actions": [
     {
-      "type": "session/turnStarted",
+      "type": "session/activityChanged",
       "session": "copilot:/test-session",
-      "turnId": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      }
+      "activity": null
     }
   ],
   "expected": {
@@ -28,19 +26,12 @@
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 8,
+      "status": 1,
+      "activity": null,
       "createdAt": 1000,
-      "modifiedAt": 9999
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
-    "turns": [],
-    "activeTurn": {
-      "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
-      },
-      "responseParts": [],
-      "usage": null
-    }
+    "turns": []
   }
 }
