@@ -61,8 +61,7 @@ const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
 
 /** Sets or clears a metadata flag on a status value. */
 function withStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  return (set ? status | flag : status & ~flag) as SessionStatus;
+  return set ? status | flag : status & ~flag;
 }
 
 /** Derives the summary status from live session work, preserving orthogonal flags. */
@@ -77,8 +76,8 @@ function summaryStatus(state: SessionState, terminalStatus?: SessionStatus.Error
   } else {
     activity = SessionStatus.Idle;
   }
-  // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-  return (state.summary.status & ~STATUS_ACTIVITY_MASK | activity) as SessionStatus;
+
+  return state.summary.status & ~STATUS_ACTIVITY_MASK | activity;
 }
 
 /**
