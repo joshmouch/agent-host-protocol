@@ -1108,6 +1108,10 @@
           "$ref": "#/$defs/SessionStatus",
           "description": "Current session status"
         },
+        "activity": {
+          "type": "string",
+          "description": "Human-readable description of what the session is currently doing"
+        },
         "createdAt": {
           "type": "number",
           "description": "Creation timestamp"
@@ -4120,6 +4124,28 @@
         "type",
         "session",
         "isArchived"
+      ]
+    },
+    "SessionActivityChangedAction": {
+      "type": "object",
+      "description": "The activity description of the session changed.\n\nDispatched by the server to indicate what the session is currently doing\n(e.g. running a tool, thinking). Clear activity by setting it to `undefined`.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionActivityChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "activity": {
+          "type": "string",
+          "description": "Human-readable description of current activity, or `undefined` to clear"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "activity"
       ]
     },
     "SessionDiffsChangedAction": {

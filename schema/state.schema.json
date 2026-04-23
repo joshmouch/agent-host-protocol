@@ -410,6 +410,10 @@
           "$ref": "#/$defs/SessionStatus",
           "description": "Current session status"
         },
+        "activity": {
+          "type": "string",
+          "description": "Human-readable description of what the session is currently doing"
+        },
         "createdAt": {
           "type": "number",
           "description": "Creation timestamp"

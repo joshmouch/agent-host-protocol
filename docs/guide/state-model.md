@@ -85,6 +85,7 @@ SessionSummary {
   provider: string
   title: string
   status: number  // SessionStatus bitset
+  activity?: string
   createdAt: number
   modifiedAt: number
   project?: ProjectInfo
@@ -103,7 +104,7 @@ ProjectInfo {
 }
 ```
 
-The `status` bitset encodes both the session's activity state and metadata flags like read/done state. See the [Session Status Bitset](#session-status-bitset) table below for details.
+The `status` bitset encodes both the session's activity state and metadata flags like read/archived state. See the [Session Status Bitset](#session-status-bitset) table below for details.
 
 ### Session Status Bitset
 

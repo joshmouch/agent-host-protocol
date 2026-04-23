@@ -103,6 +103,7 @@ import type {
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
+  SessionActivityChangedAction,
   SessionDiffsChangedAction,
   SessionConfigChangedAction,
   RootTerminalsChangedAction,
@@ -266,6 +267,7 @@ type V1_ISessionCustomizationToggledAction = SessionCustomizationToggledAction;
 type V1_ISessionTruncatedAction = SessionTruncatedAction;
 type V1_ISessionIsReadChangedAction = SessionIsReadChangedAction;
 type V1_ISessionIsArchivedChangedAction = SessionIsArchivedChangedAction;
+type V1_ISessionActivityChangedAction = SessionActivityChangedAction;
 type V1_ISessionDiffsChangedAction = SessionDiffsChangedAction;
 type V1_ISessionConfigChangedAction = SessionConfigChangedAction;
 type V1_ISessionToolCallContentChangedAction = SessionToolCallContentChangedAction;
@@ -496,6 +498,8 @@ type _CheckTruncatedAction = AssertCompatible<V1_ISessionTruncatedAction, Sessio
 type _CheckIsReadChangedAction = AssertCompatible<V1_ISessionIsReadChangedAction, SessionIsReadChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckIsArchivedChangedAction = AssertCompatible<V1_ISessionIsArchivedChangedAction, SessionIsArchivedChangedAction>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckActivityChangedAction = AssertCompatible<V1_ISessionActivityChangedAction, SessionActivityChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckDiffsChangedAction = AssertCompatible<V1_ISessionDiffsChangedAction, SessionDiffsChangedAction>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

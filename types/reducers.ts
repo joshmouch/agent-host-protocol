@@ -578,6 +578,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         summary: { ...state.summary, status: withStatusFlag(state.summary.status, SessionStatus.IsArchived, action.isArchived) },
       };
 
+    case ActionType.SessionActivityChanged:
+      return {
+        ...state,
+        summary: { ...state.summary, activity: action.activity },
+      };
+
     case ActionType.SessionDiffsChanged:
       return {
         ...state,

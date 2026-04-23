@@ -510,6 +510,7 @@ const ACTION_ORDER: ActionMeta[] = [
   { interfaceName: 'SessionModelChangedAction', typeValue: 'session/modelChanged', description: 'Model changed for this session.', clientDispatchable: true, version: 1 },
   { interfaceName: 'SessionIsReadChangedAction', typeValue: 'session/isReadChanged', description: 'Read state changed for this session.', clientDispatchable: true, version: 1 },
   { interfaceName: 'SessionIsArchivedChangedAction', typeValue: 'session/isArchivedChanged', description: 'Archived state changed for this session.', clientDispatchable: true, version: 1 },
+  { interfaceName: 'SessionActivityChangedAction', typeValue: 'session/activityChanged', description: 'Activity description changed for this session.', clientDispatchable: false, version: 1 },
 ];
 
 function generateActionsPage(project: Project): string {

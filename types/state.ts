@@ -375,6 +375,8 @@ export interface SessionSummary {
   title: string;
   /** Current session status */
   status: SessionStatus;
+  /** Human-readable description of what the session is currently doing */
+  activity?: string;
   /** Creation timestamp */
   createdAt: number;
   /** Last modification timestamp */

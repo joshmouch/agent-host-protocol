@@ -140,6 +140,7 @@ export type {
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
+  SessionActivityChangedAction,
   SessionDiffsChangedAction,
   SessionConfigChangedAction,
   StateAction,
