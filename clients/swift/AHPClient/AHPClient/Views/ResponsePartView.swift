@@ -434,13 +434,91 @@ struct ToolResultContentView: View {
             .padding(8)
             .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 8))
         case .terminal(let t):
-            Label(t.title, systemImage: "terminal")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            TerminalToolResultView(ref: t)
         case .subagent(let s):
             Label(s.resource, systemImage: "person.2")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - TerminalToolResultView
+
+/// Renders the live state of a terminal referenced by a tool result. Subscribes
+/// to the terminal URI on appearance and streams its content parts inline.
+struct TerminalToolResultView: View {
+    let ref: ToolResultTerminalContent
+    @Environment(AppStore.self) private var store
+
+    private var state: TerminalState? {
+        store.terminals[ref.resource]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(ref.title, systemImage: "terminal")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            if let state {
+                if state.content.isEmpty {
+                    Text(state.exitCode != nil ? "(no output)" : "(waiting for output…)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(state.content.enumerated()), id: \.offset) { _, part in
+                            TerminalContentPartView(part: part)
+                        }
+                    }
+                }
+                if let code = state.exitCode {
+                    Text("Exited with code \(code)")
+                        .font(.caption2)
+                        .foregroundStyle(code == 0 ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.red))
+                }
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 8))
+        .task(id: ref.resource) {
+            await store.ensureTerminalSubscribed(uri: ref.resource)
+        }
+    }
+}
+
+private struct TerminalContentPartView: View {
+    let part: TerminalContentPart
+
+    var body: some View {
+        switch part {
+        case .unclassified(let u):
+            Text(u.value)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .command(let c):
+            VStack(alignment: .leading, spacing: 2) {
+                Text("$ \(c.commandLine)")
+                    .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    .textSelection(.enabled)
+                if !c.output.isEmpty {
+                    Text(c.output)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if c.isComplete, let code = c.exitCode, code != 0 {
+                    Text("exit \(code)")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                }
+            }
         }
     }
 }

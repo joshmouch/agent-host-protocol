@@ -23,6 +23,13 @@ final class AppStore {
     /// Per-session state keyed by session URI.
     var sessions: [String: SessionState] = [:]
 
+    /// Per-terminal state keyed by terminal URI. Populated lazily when a tool
+    /// result references a terminal resource.
+    var terminals: [String: TerminalState] = [:]
+
+    /// Terminal URIs we have in-flight subscriptions for, to avoid duplicate subscribes.
+    private var subscribingTerminals: Set<String> = []
+
     /// Currently selected session URI.
     var selectedSessionURI: String?
 
@@ -612,9 +619,8 @@ final class AppStore {
             rootState = state
         case .session(let state):
             sessions[snapshot.resource] = state
-        case .terminal:
-            // Terminal snapshots are not handled here.
-            break
+        case .terminal(let state):
+            terminals[snapshot.resource] = state
         }
     }
 
@@ -629,6 +635,12 @@ final class AppStore {
         let sessionURI = extractSessionURI(from: action)
         if let uri = sessionURI {
             applySessionAction(action, sessionURI: uri)
+        }
+
+        // Figure out which terminal this action targets
+        if let uri = extractTerminalURI(from: action),
+           let state = terminals[uri] {
+            terminals[uri] = terminalReducer(state: state, action: action)
         }
     }
 
@@ -662,6 +674,40 @@ final class AppStore {
             break
         case .authRequired:
             errorMessage = "Authentication required"
+        }
+    }
+
+    /// Extract the terminal URI from an action, if applicable.
+    private func extractTerminalURI(from action: StateAction) -> String? {
+        switch action {
+        case .terminalData(let a): return a.terminal
+        case .terminalInput(let a): return a.terminal
+        case .terminalResized(let a): return a.terminal
+        case .terminalClaimed(let a): return a.terminal
+        case .terminalTitleChanged(let a): return a.terminal
+        case .terminalCwdChanged(let a): return a.terminal
+        case .terminalExited(let a): return a.terminal
+        case .terminalCleared(let a): return a.terminal
+        case .terminalCommandDetectionAvailable(let a): return a.terminal
+        case .terminalCommandExecuted(let a): return a.terminal
+        case .terminalCommandFinished(let a): return a.terminal
+        default:
+            return nil
+        }
+    }
+
+    /// Ensure we are subscribed to a terminal URI (no-op if already subscribed or
+    /// a subscribe is in flight). Safe to call repeatedly from view `.task` handlers.
+    func ensureTerminalSubscribed(uri: String) async {
+        if terminals[uri] != nil { return }
+        if subscribingTerminals.contains(uri) { return }
+        subscribingTerminals.insert(uri)
+        defer { subscribingTerminals.remove(uri) }
+        do {
+            let snapshot = try await connection.subscribe(resource: uri)
+            applySnapshot(snapshot)
+        } catch {
+            print("[AHP] Terminal subscribe failed for \(uri): \(error)")
         }
     }
 

@@ -735,3 +735,102 @@ private func updateResponsePart(
     next.activeTurn = activeTurn
     return next
 }
+
+// MARK: - Terminal Reducer
+
+/// Pure reducer for terminal state. Handles all terminal-scoped actions.
+public func terminalReducer(state: TerminalState, action: StateAction) -> TerminalState {
+    switch action {
+    case .terminalData(let a):
+        var content = state.content
+        if let tail = content.last {
+            switch tail {
+            case .command(var cmd) where !cmd.isComplete:
+                cmd.output += a.data
+                content[content.count - 1] = .command(cmd)
+            case .unclassified(var u):
+                u.value += a.data
+                content[content.count - 1] = .unclassified(u)
+            default:
+                content.append(.unclassified(TerminalUnclassifiedPart(type: "unclassified", value: a.data)))
+            }
+        } else {
+            content.append(.unclassified(TerminalUnclassifiedPart(type: "unclassified", value: a.data)))
+        }
+        var next = state
+        next.content = content
+        return next
+
+    case .terminalInput:
+        // Side-effect-only: forwarded to pty by the server.
+        return state
+
+    case .terminalResized(let a):
+        var next = state
+        next.cols = a.cols
+        next.rows = a.rows
+        return next
+
+    case .terminalClaimed(let a):
+        var next = state
+        next.claim = a.claim
+        return next
+
+    case .terminalTitleChanged(let a):
+        var next = state
+        next.title = a.title
+        return next
+
+    case .terminalCwdChanged(let a):
+        var next = state
+        next.cwd = a.cwd
+        return next
+
+    case .terminalExited(let a):
+        var next = state
+        next.exitCode = a.exitCode
+        return next
+
+    case .terminalCleared:
+        var next = state
+        next.content = []
+        return next
+
+    case .terminalCommandDetectionAvailable:
+        var next = state
+        next.supportsCommandDetection = true
+        return next
+
+    case .terminalCommandExecuted(let a):
+        let part = TerminalCommandPart(
+            type: "command",
+            commandId: a.commandId,
+            commandLine: a.commandLine,
+            output: "",
+            timestamp: a.timestamp,
+            isComplete: false,
+            exitCode: nil,
+            durationMs: nil
+        )
+        var next = state
+        next.content.append(.command(part))
+        next.supportsCommandDetection = true
+        return next
+
+    case .terminalCommandFinished(let a):
+        var next = state
+        next.content = next.content.map { part in
+            if case .command(var cmd) = part, cmd.commandId == a.commandId {
+                cmd.isComplete = true
+                cmd.exitCode = a.exitCode
+                cmd.durationMs = a.durationMs
+                return .command(cmd)
+            }
+            return part
+        }
+        return next
+
+    default:
+        return state
+    }
+}
