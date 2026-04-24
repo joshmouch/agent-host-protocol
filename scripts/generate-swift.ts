@@ -256,11 +256,38 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
   const values = enumDecl.getMembers().map(member => member.getValue());
   const rawType = values.every(value => typeof value === 'number') ? 'Int' : 'String';
 
+  // Bitset enums (detected via JSDoc convention "Bitset of …") are emitted
+  // as Swift `OptionSet` structs so OR'd combinations are representable and
+  // Codable decoding accepts any int rawValue rather than only enumerated
+  // cases.
+  const isBitset = rawType === 'Int' && desc !== undefined && /^bitset\b/i.test(desc);
+
   if (desc) {
     for (const docLine of desc.split('\n')) {
       lines.push(`/// ${docLine.trim()}`);
     }
   }
+
+  if (isBitset) {
+    lines.push(`public struct ${name}: OptionSet, Codable, Sendable, Hashable {`);
+    lines.push('    public let rawValue: Int');
+    lines.push('    public init(rawValue: Int) { self.rawValue = rawValue }');
+    lines.push('');
+    for (const member of enumDecl.getMembers()) {
+      const memberName = swiftIdentifier(toCamelCase(member.getName()));
+      const value = member.getValue();
+      const memberDoc = member.getJsDocs()[0]?.getDescription().trim();
+      if (memberDoc) {
+        for (const docLine of memberDoc.split('\n')) {
+          lines.push(`    /// ${docLine.trim()}`);
+        }
+      }
+      lines.push(`    public static let ${memberName} = ${name}(rawValue: ${value})`);
+    }
+    lines.push('}');
+    return lines.join('\n');
+  }
+
   lines.push(`public enum ${name}: ${rawType}, Codable, Sendable {`);
 
   for (const member of enumDecl.getMembers()) {
@@ -287,7 +314,19 @@ function generateSwiftStruct(
   nested?: string,
 ): string {
   const lines: string[] = [];
-  lines.push(`public struct ${swiftName}: Codable, Sendable {`);
+
+  // Detect direct self-recursion. Swift structs cannot store a property
+  // that contains themselves (infinite size). Emit such types as a
+  // `final class` so the stored property becomes a heap reference.
+  // Array/Dictionary of Self are safe (they box via COW storage), so only
+  // bare `Self` or `Self?` property types trigger this.
+  const isRecursive = props.some(p => p.type === swiftName || p.type === `${swiftName}?`);
+
+  if (isRecursive) {
+    lines.push(`public final class ${swiftName}: Codable, @unchecked Sendable {`);
+  } else {
+    lines.push(`public struct ${swiftName}: Codable, Sendable {`);
+  }
 
   // Properties
   for (const p of props) {

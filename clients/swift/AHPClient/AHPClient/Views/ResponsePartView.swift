@@ -396,7 +396,7 @@ struct ToolResultContentView: View {
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 6))
-        case .binary(let b):
+        case .embeddedResource(let b):
             if b.contentType.hasPrefix("image/") == true,
                let data = Data(base64Encoded: b.data),
                let uiImage = UIImage(data: data) {
@@ -410,6 +410,10 @@ struct ToolResultContentView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        case .resource(let r):
+            Label(r.uri, systemImage: "doc")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         case .fileEdit(let edit):
             HStack {
                 Image(systemName: "doc.badge.gearshape")
@@ -429,8 +433,14 @@ struct ToolResultContentView: View {
             }
             .padding(8)
             .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 8))
-        case .contentRef(let ref):
-            ContentRefView(ref: ref)
+        case .terminal(let t):
+            Label(t.title, systemImage: "terminal")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .subagent(let s):
+            Label(s.resource, systemImage: "person.2")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -438,7 +448,7 @@ struct ToolResultContentView: View {
 // MARK: - ContentRefView
 
 struct ContentRefView: View {
-    let ref: ContentRef
+    let ref: ResourceReponsePart
 
     var body: some View {
         HStack {
@@ -597,10 +607,10 @@ struct ContentRefView: View {
 
             // Content Ref
             Text("Content Ref").font(.caption.bold()).foregroundStyle(.secondary)
-            ContentRefView(ref: ContentRef(
-                kind: .contentRef,
+            ContentRefView(ref: ResourceReponsePart(
                 uri: "file:///Users/me/project/README.md",
-                contentType: "text/markdown"
+                contentType: "text/markdown",
+                kind: .contentRef
             ))
         }
         .padding()

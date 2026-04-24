@@ -10,6 +10,16 @@ public var currentTimestampProvider: () -> Int = {
     Int(Date().timeIntervalSince1970 * 1000)
 }
 
+// MARK: - Status Bitset Helpers
+
+/// Bitmask covering the mutually-exclusive activity bits (bits 0–4).
+private let statusActivityMask = SessionStatus(rawValue: (1 << 5) - 1)
+
+/// Sets or clears a metadata flag on a status value.
+private func withStatusFlag(_ status: SessionStatus, _ flag: SessionStatus, _ set: Bool) -> SessionStatus {
+    set ? status.union(flag) : status.subtracting(flag)
+}
+
 // MARK: - Root Reducer
 
 /// Pure reducer for root state.
@@ -60,7 +70,6 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
     case .sessionTurnStarted(let a):
         var next = state
         next.summary.modifiedAt = currentTimestamp()
-        next.summary.isRead = false
         next.activeTurn = ActiveTurn(
             id: a.turnId,
             userMessage: a.userMessage,
@@ -77,7 +86,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 next.queuedMessages = queued.isEmpty ? nil : queued
             }
         }
-        next.summary.status = sessionSummaryStatus(next)
+        next.summary.status = withStatusFlag(sessionSummaryStatus(next), .isRead, false)
         return next
 
     case .sessionDelta(let a):
@@ -377,16 +386,16 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         return next
 
-    // ── Read / Done ──────────────────────────────────────────────────────
+    // ── Read / Archived ─────────────────────────────────────────────────
 
     case .sessionIsReadChanged(let a):
         var next = state
-        next.summary.isRead = a.isRead
+        next.summary.status = withStatusFlag(next.summary.status, .isRead, a.isRead)
         return next
 
-    case .sessionIsDoneChanged(let a):
+    case .sessionIsArchivedChanged(let a):
         var next = state
-        next.summary.isDone = a.isDone
+        next.summary.status = withStatusFlag(next.summary.status, .isArchived, a.isArchived)
         return next
 
     // ── Diffs ─────────────────────────────────────────────────────────────
@@ -514,7 +523,7 @@ public let clientDispatchableActions: Set<String> = [
     "session/inputCompleted",
     "session/customizationToggled",
     "session/isReadChanged",
-    "session/isDoneChanged",
+    "session/isArchivedChanged",
 ]
 
 /// Checks whether an action may be dispatched by a client.
@@ -527,7 +536,7 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
          .sessionPendingMessageRemoved, .sessionQueuedMessagesReordered,
          .sessionInputAnswerChanged, .sessionInputCompleted,
          .sessionCustomizationToggled, .sessionIsReadChanged,
-         .sessionIsDoneChanged:
+         .sessionIsArchivedChanged:
         return true
     default:
         return false
@@ -541,16 +550,17 @@ private func currentTimestamp() -> Int {
 }
 
 private func sessionSummaryStatus(_ state: SessionState, terminalStatus: SessionStatus? = nil) -> SessionStatus {
+    let activity: SessionStatus
     if let terminalStatus {
-        return terminalStatus
+        activity = terminalStatus
+    } else if state.inputRequests?.isEmpty == false || hasPendingToolCallConfirmation(state) {
+        activity = .inputNeeded
+    } else if state.activeTurn != nil {
+        activity = .inProgress
+    } else {
+        activity = .idle
     }
-    if state.inputRequests?.isEmpty == false || hasPendingToolCallConfirmation(state) {
-        return .inputNeeded
-    }
-    if state.activeTurn != nil {
-        return .inProgress
-    }
-    return .idle
+    return state.summary.status.subtracting(statusActivityMask).union(activity)
 }
 
 /// Returns `true` if the active turn has any tool call awaiting user confirmation.
@@ -590,9 +600,8 @@ private func upsertInputRequest(state: SessionState, request: SessionInputReques
         existing.append(request)
     }
     next.inputRequests = existing
-    next.summary.status = sessionSummaryStatus(next)
+    next.summary.status = withStatusFlag(sessionSummaryStatus(next), .isRead, false)
     next.summary.modifiedAt = currentTimestamp()
-    next.summary.isRead = false
     return next
 }
 

@@ -137,7 +137,6 @@ public struct AHPSessionReducer: Reducer {
 
         case .sessionTurnStarted(let a):
             state.summary.modifiedAt = currentTimestamp()
-            state.summary.isRead = false
             state.activeTurn = ActiveTurn(
                 id: a.turnId,
                 userMessage: a.userMessage,
@@ -154,7 +153,7 @@ public struct AHPSessionReducer: Reducer {
                     state.queuedMessages = queued.isEmpty ? nil : queued
                 }
             }
-            state.summary.status = Self.sessionSummaryStatus(state)
+            state.summary.status = Self.withStatusFlag(Self.sessionSummaryStatus(state), .isRead, false)
 
         case .sessionDelta(let a):
             Self.updateResponsePartInPlace(state: &state, turnId: a.turnId, partId: a.partId) { part in
@@ -425,13 +424,13 @@ public struct AHPSessionReducer: Reducer {
             state.summary.status = Self.sessionSummaryStatus(state)
             state.summary.modifiedAt = currentTimestamp()
 
-        // ── Read / Done ──────────────────────────────────────────────────────
+        // ── Read / Archived ─────────────────────────────────────────────────
 
         case .sessionIsReadChanged(let a):
-            state.summary.isRead = a.isRead
+            state.summary.status = Self.withStatusFlag(state.summary.status, .isRead, a.isRead)
 
-        case .sessionIsDoneChanged(let a):
-            state.summary.isDone = a.isDone
+        case .sessionIsArchivedChanged(let a):
+            state.summary.status = Self.withStatusFlag(state.summary.status, .isArchived, a.isArchived)
 
         // ── Diffs ─────────────────────────────────────────────────────────────
 
@@ -528,6 +527,14 @@ public struct AHPSessionReducer: Reducer {
 
     // MARK: - Private Helpers
 
+    /// Bitmask covering the mutually-exclusive activity bits (bits 0–4).
+    private static let statusActivityMask = SessionStatus(rawValue: (1 << 5) - 1)
+
+    /// Sets or clears a metadata flag on a status value.
+    private static func withStatusFlag(_ status: SessionStatus, _ flag: SessionStatus, _ set: Bool) -> SessionStatus {
+        set ? status.union(flag) : status.subtracting(flag)
+    }
+
     // ToolCallBaseFields and toolCallBase() are now shared via
     // ToolCallState.baseFields in ToolCallStateExtensions.swift.
 
@@ -603,16 +610,17 @@ public struct AHPSessionReducer: Reducer {
     }
 
     private static func sessionSummaryStatus(_ state: SessionState, terminalStatus: SessionStatus? = nil) -> SessionStatus {
+        let activity: SessionStatus
         if let terminalStatus {
-            return terminalStatus
+            activity = terminalStatus
+        } else if state.inputRequests?.isEmpty == false || Self.hasPendingToolCallConfirmation(state) {
+            activity = .inputNeeded
+        } else if state.activeTurn != nil {
+            activity = .inProgress
+        } else {
+            activity = .idle
         }
-        if state.inputRequests?.isEmpty == false || Self.hasPendingToolCallConfirmation(state) {
-            return .inputNeeded
-        }
-        if state.activeTurn != nil {
-            return .inProgress
-        }
-        return .idle
+        return state.summary.status.subtracting(Self.statusActivityMask).union(activity)
     }
 
     /// Returns `true` if the active turn has any tool call awaiting user confirmation.
@@ -645,9 +653,8 @@ public struct AHPSessionReducer: Reducer {
             existing.append(request)
         }
         state.inputRequests = existing
-        state.summary.status = Self.sessionSummaryStatus(state)
+        state.summary.status = Self.withStatusFlag(Self.sessionSummaryStatus(state), .isRead, false)
         state.summary.modifiedAt = currentTimestamp()
-        state.summary.isRead = false
     }
 
     /// Updates a tool call inside the active turn's response parts in place.

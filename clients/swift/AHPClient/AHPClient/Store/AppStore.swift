@@ -359,7 +359,7 @@ final class AppStore {
             try await connection.createSession(params: CreateSessionParams(
                 session: uri,
                 provider: provider,
-                model: model,
+                model: model.map { ModelSelection(id: $0) },
                 workingDirectory: workingDirectory
             ))
 
@@ -503,7 +503,7 @@ final class AppStore {
         let action = StateAction.sessionModelChanged(SessionModelChangedAction(
             type: .sessionModelChanged,
             session: uri,
-            model: modelId
+            model: ModelSelection(id: modelId)
         ))
         applySessionAction(action, sessionURI: uri)
         do {
@@ -521,6 +521,9 @@ final class AppStore {
             rootState = state
         case .session(let state):
             sessions[snapshot.resource] = state
+        case .terminal:
+            // Terminal snapshots are not handled here.
+            break
         }
     }
 
@@ -563,6 +566,9 @@ final class AppStore {
             if selectedSessionURI == note.session {
                 selectedSessionURI = sessionSummaries.first?.resource
             }
+        case .sessionSummaryChanged:
+            // Summary updates are applied via reducer actions; nothing to do here.
+            break
         case .authRequired:
             errorMessage = "Authentication required"
         }
@@ -599,6 +605,18 @@ final class AppStore {
         case .sessionQueuedMessagesReordered(let a): return a.session
         case .sessionCustomizationsChanged(let a): return a.session
         case .sessionCustomizationToggled(let a): return a.session
+        case .sessionIsReadChanged(let a): return a.session
+        case .sessionIsArchivedChanged(let a): return a.session
+        case .sessionActivityChanged(let a): return a.session
+        case .sessionInputRequested(let a): return a.session
+        case .sessionInputAnswerChanged(let a): return a.session
+        case .sessionInputCompleted(let a): return a.session
+        case .sessionTruncated(let a): return a.session
+        case .sessionDiffsChanged(let a): return a.session
+        case .sessionConfigChanged(let a): return a.session
+        case .sessionToolCallContentChanged(let a): return a.session
+        default:
+            return nil
         }
     }
 }
