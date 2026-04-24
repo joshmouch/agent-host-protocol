@@ -606,6 +606,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         },
       };
 
+    case ActionType.SessionMetaChanged:
+      return { ...state, _meta: action._meta };
+
     case ActionType.SessionServerToolsChanged:
       return { ...state, serverTools: action.tools };
 

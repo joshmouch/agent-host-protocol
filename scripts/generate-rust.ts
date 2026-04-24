@@ -811,6 +811,7 @@ const ACTION_VARIANTS: {
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/diffsChanged', variantName: 'SessionDiffsChanged', tsInterface: 'SessionDiffsChangedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
+  { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
   { type: 'session/toolCallContentChanged', variantName: 'SessionToolCallContentChanged', tsInterface: 'SessionToolCallContentChangedAction' },
   { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },

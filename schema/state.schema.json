@@ -333,6 +333,11 @@
             "$ref": "#/$defs/SessionCustomization"
           },
           "description": "Server-provided customizations active in this session.\n\nClient-provided customizations are available on\n{@link SessionActiveClient.customizations | activeClient.customizations}."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this session.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `git` key may provide extra git metadata about the session's\nworkingDirectory."
         }
       },
       "required": [

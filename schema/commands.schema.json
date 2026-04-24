@@ -1031,6 +1031,11 @@
             "$ref": "#/$defs/SessionCustomization"
           },
           "description": "Server-provided customizations active in this session.\n\nClient-provided customizations are available on\n{@link SessionActiveClient.customizations | activeClient.customizations}."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this session.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `git` key may provide extra git metadata about the session's\nworkingDirectory."
         }
       },
       "required": [
@@ -4331,6 +4336,29 @@
         "type",
         "session",
         "config"
+      ]
+    },
+    "SessionMetaChangedAction": {
+      "type": "object",
+      "description": "The session's `_meta` side-channel changed. Replaces `state._meta`\nentirely (full-replacement semantics). Producers SHOULD merge any\nkeys they wish to preserve into the new value before dispatching.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionMetaChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "New `_meta` payload, or `undefined` to clear it"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "_meta"
       ]
     },
     "SessionTruncatedAction": {

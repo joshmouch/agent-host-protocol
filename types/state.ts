@@ -330,6 +330,14 @@ export interface SessionState {
    * {@link SessionActiveClient.customizations | activeClient.customizations}.
    */
   customizations?: SessionCustomization[];
+  /**
+   * Additional provider-specific metadata for this session.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI.
+   * For example, a `git` key may provide extra git metadata about the session's
+   * workingDirectory.
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**

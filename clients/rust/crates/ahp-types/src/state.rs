@@ -554,6 +554,13 @@ pub struct SessionState {
     /// {@link SessionActiveClient.customizations | activeClient.customizations}.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<SessionCustomization>>,
+    /// Additional provider-specific metadata for this session.
+    /// 
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    /// For example, a `git` key may provide extra git metadata about the session's
+    /// workingDirectory.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// The client currently providing tools and interactive capabilities to a session.

@@ -757,6 +757,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/truncated', caseName: 'sessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/diffsChanged', caseName: 'sessionDiffsChanged', tsInterface: 'SessionDiffsChangedAction' },
   { type: 'session/configChanged', caseName: 'sessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
+  { type: 'session/metaChanged', caseName: 'sessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
   { type: 'session/toolCallContentChanged', caseName: 'sessionToolCallContentChanged', tsInterface: 'SessionToolCallContentChangedAction' },
   { type: 'root/terminalsChanged', caseName: 'rootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'rootConfigChanged', tsInterface: 'RootConfigChangedAction' },
