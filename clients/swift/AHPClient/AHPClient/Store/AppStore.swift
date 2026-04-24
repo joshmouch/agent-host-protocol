@@ -595,6 +595,48 @@ final class AppStore {
         }
     }
 
+    // MARK: - Input Requests
+
+    /// Update a draft or submitted answer for a question on an input request.
+    func setInputAnswer(requestId: String, questionId: String, answer: SessionInputAnswer?) async {
+        guard let uri = selectedSessionURI else { return }
+        let action = StateAction.sessionInputAnswerChanged(SessionInputAnswerChangedAction(
+            type: .sessionInputAnswerChanged,
+            session: uri,
+            requestId: requestId,
+            questionId: questionId,
+            answer: answer
+        ))
+        applySessionAction(action, sessionURI: uri)
+        do {
+            try await connection.dispatchAction(action)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Complete an input request with the given response.
+    func completeInputRequest(
+        requestId: String,
+        response: SessionInputResponseKind,
+        answers: [String: SessionInputAnswer]? = nil
+    ) async {
+        guard let uri = selectedSessionURI else { return }
+        let action = StateAction.sessionInputCompleted(SessionInputCompletedAction(
+            type: .sessionInputCompleted,
+            session: uri,
+            requestId: requestId,
+            response: response,
+            answers: answers
+        ))
+        applySessionAction(action, sessionURI: uri)
+        do {
+            try await connection.dispatchAction(action)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     /// Change the model for the current session.
     func changeModel(_ modelId: String) async {
         guard let uri = selectedSessionURI else { return }

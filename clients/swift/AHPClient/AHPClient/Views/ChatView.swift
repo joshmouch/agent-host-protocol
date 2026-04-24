@@ -114,11 +114,23 @@ struct ChatView: View {
             // shrinks its visible frame to end above the bar. This ensures
             // scrollToBottom lands at the true visible bottom, not behind the bar.
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                InputBar(text: $inputText, isFocused: $inputFocused) {
-                    guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                    let message = inputText
-                    inputText = ""
-                    Task { await store.sendMessage(message) }
+                VStack(spacing: 8) {
+                    // Pending input requests (elicitation)
+                    if let requests = store.currentSession?.inputRequests, !requests.isEmpty {
+                        VStack(spacing: 8) {
+                            ForEach(requests, id: \.id) { request in
+                                InputRequestView(request: request)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                    }
+
+                    InputBar(text: $inputText, isFocused: $inputFocused) {
+                        guard !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                        let message = inputText
+                        inputText = ""
+                        Task { await store.sendMessage(message) }
+                    }
                 }
             }
         }

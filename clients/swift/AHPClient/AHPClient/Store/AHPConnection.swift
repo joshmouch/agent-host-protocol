@@ -75,8 +75,22 @@ actor AHPConnection {
     }
 
     private struct MessageProbe: Codable {
+        /// Numeric id, if present. Decoded tolerantly: if `id` is a string or
+        /// any non-Int type, this is `nil` (the message is treated as having
+        /// no trackable id rather than failing the entire probe).
         let id: Int?
         let method: String?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.id = try? container.decodeIfPresent(Int.self, forKey: .id)
+            self.method = try container.decodeIfPresent(String.self, forKey: .method)
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case method
+        }
     }
 
     // MARK: - Init
