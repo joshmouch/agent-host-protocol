@@ -2,6 +2,10 @@
 
 This document captures the core security assumptions, risks, and minimum controls for Agent Host Protocol (AHP) implementations. AHP is a bidirectional JSON-RPC protocol that lets clients connect to an agent host, subscribe to session state, dispatch actions, access resources, create terminals, authenticate to protected resources, and optionally contribute client-side tools and customizations.
 
+## Current safety status
+
+The current protocol **is not safe by itself for untrusted remote use**. AHP defines the message shapes and state flows, but it does not itself establish peer identity, authorize capabilities, constrain token forwarding, sandbox resource access, sanitize rendered content, or make client-contributed tools safe to invoke. Implementations must add those controls before treating a remote host or client as safe.
+
 ## Goal: untrusted mode
 
 The desired end state is an **untrusted mode**: AHP and client implementations should let a user connect to an agent host and still get useful work products without risking local compromise or long-lived secrets. In this mode, the client treats the host as hostile by default, disables or tightly scopes client tools, avoids silent token forwarding, and only shares explicit, bounded inputs.
