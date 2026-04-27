@@ -3,6 +3,7 @@
 // Regenerate with: npm run generate:rust
 
 #![allow(missing_docs)]
+#![rustfmt::skip]
 
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};

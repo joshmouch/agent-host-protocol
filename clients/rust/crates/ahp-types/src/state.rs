@@ -3,6 +3,7 @@
 // Regenerate with: npm run generate:rust
 
 #![allow(missing_docs)]
+#![rustfmt::skip]
 
 #[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
@@ -1520,9 +1521,6 @@ pub struct CustomizationRef {
 }
 
 /// A customization active in a session.
-/// 
-/// Entries without a `clientId` are server-provided; entries with a `clientId`
-/// originate from that client.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomization {

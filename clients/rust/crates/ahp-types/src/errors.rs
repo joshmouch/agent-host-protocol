@@ -3,6 +3,7 @@
 // Regenerate with: npm run generate:rust
 
 #![allow(missing_docs)]
+#![rustfmt::skip]
 
 // ─── Standard JSON-RPC Error Codes ─────────────────────────────────────────
 

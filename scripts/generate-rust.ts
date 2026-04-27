@@ -20,7 +20,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 
-const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
+const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n#![rustfmt::skip]\n';
 
 const GENERATED_HEADER = `${GENERATED_BANNER}
 #[allow(unused_imports)]
