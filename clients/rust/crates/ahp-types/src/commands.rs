@@ -5,16 +5,19 @@
 #![allow(missing_docs)]
 
 #[allow(unused_imports)]
+use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
+#[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_repr::{Deserialize_repr, Serialize_repr};
-#[allow(unused_imports)]
-use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
 
 #[allow(unused_imports)]
 use crate::actions::{ActionEnvelope, StateAction};
 #[allow(unused_imports)]
-use crate::state::{ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};
+use crate::state::{
+    ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot,
+    SnapshotState, TerminalClaim, Turn,
+};
 
 // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -58,7 +61,7 @@ pub struct InitializeParams {
 }
 
 /// Result of the `initialize` command.
-/// 
+///
 /// If the server does not support the client's protocol version, it MUST return
 /// error code `-32005` (`UnsupportedProtocolVersion`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -89,7 +92,7 @@ pub struct ReconnectParams {
 }
 
 /// Reconnect result when the server can replay from the requested sequence.
-/// 
+///
 /// The server MUST include all replayed data in the response.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -123,10 +126,10 @@ pub struct SubscribeResult {
 }
 
 /// Creates a new session with the specified agent provider.
-/// 
+///
 /// If the session URI already exists, the server MUST return an error with code
 /// `-32003` (`SessionAlreadyExists`).
-/// 
+///
 /// After creation, the client should subscribe to the session URI to receive state
 /// updates. The server also broadcasts a `notify/sessionAdded` notification to all
 /// clients.
@@ -162,7 +165,7 @@ pub struct CreateSessionParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<JsonObject>,
     /// Eagerly claim the active client role for the new session.
-    /// 
+    ///
     /// When provided, the server initializes the session with this client as the
     /// active client, equivalent to dispatching a `session/activeClientChanged`
     /// action immediately after creation. The `clientId` MUST match the
@@ -172,7 +175,7 @@ pub struct CreateSessionParams {
 }
 
 /// Disposes a session and cleans up server-side resources.
-/// 
+///
 /// The server broadcasts a `notify/sessionRemoved` notification to all clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -182,7 +185,7 @@ pub struct DisposeSessionParams {
 }
 
 /// Returns a list of session summaries. Used to populate session lists and sidebars.
-/// 
+///
 /// The session list is **not** part of the state tree because it can be arbitrarily
 /// large. Clients fetch it imperatively and maintain a local cache updated by
 /// `notify/sessionAdded` and `notify/sessionRemoved` notifications.
@@ -203,10 +206,10 @@ pub struct ListSessionsResult {
 }
 
 /// Reads the content of a resource by URI.
-/// 
+///
 /// Content references keep the state tree small by storing large data (images,
 /// long tool outputs) by reference rather than inline.
-/// 
+///
 /// Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
 /// use `utf-8` encoding.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -220,7 +223,7 @@ pub struct ResourceReadParams {
 }
 
 /// Result of the `resourceRead` command.
-/// 
+///
 /// The server SHOULD honor the `encoding` requested in the params. If the
 /// server cannot provide the requested encoding, it MUST fall back to either
 /// `base64` or `utf-8`.
@@ -237,10 +240,10 @@ pub struct ResourceReadResult {
 }
 
 /// Writes content to a file on the server's filesystem.
-/// 
+///
 /// Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
 /// use `utf-8` encoding.
-/// 
+///
 /// If the file does not exist, it is created. If the file already exists, it is
 /// overwritten unless `createOnly` is set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -262,18 +265,17 @@ pub struct ResourceWriteParams {
 }
 
 /// Result of the `resourceWrite` command.
-/// 
+///
 /// An empty object on success.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceWriteResult {
-}
+pub struct ResourceWriteResult {}
 
 /// Lists directory entries at a file URI on the server's filesystem.
-/// 
+///
 /// This is intended for remote folder pickers and similar UI that needs to let
 /// users navigate the server's local filesystem.
-/// 
+///
 /// The server MUST return success only if the target exists and is a directory.
 /// If the target does not exist, is not a directory, or cannot be accessed, the
 /// server MUST return a JSON-RPC error.
@@ -303,7 +305,7 @@ pub struct DirectoryEntry {
 }
 
 /// Copies a resource from one URI to another on the server's filesystem.
-/// 
+///
 /// If the destination already exists, it is overwritten unless `failIfExists`
 /// is set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -320,12 +322,11 @@ pub struct ResourceCopyParams {
 }
 
 /// Result of the `resourceCopy` command.
-/// 
+///
 /// An empty object on success.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceCopyResult {
-}
+pub struct ResourceCopyResult {}
 
 /// Deletes a resource at a URI on the server's filesystem.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -340,15 +341,14 @@ pub struct ResourceDeleteParams {
 }
 
 /// Result of the `resourceDelete` command.
-/// 
+///
 /// An empty object on success.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceDeleteResult {
-}
+pub struct ResourceDeleteResult {}
 
 /// Moves (renames) a resource from one URI to another on the server's filesystem.
-/// 
+///
 /// If the destination already exists, it is overwritten unless `failIfExists`
 /// is set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -365,12 +365,11 @@ pub struct ResourceMoveParams {
 }
 
 /// Result of the `resourceMove` command.
-/// 
+///
 /// An empty object on success.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ResourceMoveResult {
-}
+pub struct ResourceMoveResult {}
 
 /// Fetches historical turns for a session. Used for lazy loading of conversation
 /// history.
@@ -419,7 +418,7 @@ pub struct DispatchActionParams {
 /// Pushes a Bearer token for a protected resource. The `resource` field MUST
 /// match a `ProtectedResourceMetadata.resource` value declared by an agent
 /// in `AgentInfo.protectedResources`.
-/// 
+///
 /// Tokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)
 /// (Bearer Token Usage) semantics. The client obtains the token from the
 /// authorization server(s) listed in the resource's metadata and pushes it
@@ -435,17 +434,16 @@ pub struct AuthenticateParams {
 }
 
 /// Result of the `authenticate` command.
-/// 
+///
 /// An empty object on success. If the token is invalid or the resource is
 /// unrecognized, the server MUST return a JSON-RPC error (e.g. `AuthRequired`
 /// `-32007` or `InvalidParams` `-32602`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthenticateResult {
-}
+pub struct AuthenticateResult {}
 
 /// Creates a new terminal on the server.
-/// 
+///
 /// After creation, the client should subscribe to the terminal URI to receive
 /// state updates. The server dispatches `root/terminalsChanged` to update the
 /// root terminal list.
@@ -471,7 +469,7 @@ pub struct CreateTerminalParams {
 }
 
 /// Disposes a terminal and kills its process if still running.
-/// 
+///
 /// The server dispatches `root/terminalsChanged` to remove the terminal from
 /// the root terminal list.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -485,7 +483,7 @@ pub struct DisposeTerminalParams {
 /// current partial session config and any user-filled metadata values. The server
 /// returns a property schema describing what additional metadata is needed,
 /// contextual to the current selections.
-/// 
+///
 /// The client calls this command whenever the user changes a significant input
 /// (e.g. picks a working directory, toggles a property). Each response returns
 /// the full current property set (not a delta). The returned `values` contain
@@ -515,7 +513,7 @@ pub struct ResolveSessionConfigResult {
 }
 
 /// Queries the server for allowed values of a dynamic session config property.
-/// 
+///
 /// Used when a property in the schema returned by `resolveSessionConfig` has
 /// `enumDynamic: true`. The client sends a search query and receives matching
 /// values with display metadata.

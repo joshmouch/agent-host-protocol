@@ -5,11 +5,11 @@
 #![allow(missing_docs)]
 
 #[allow(unused_imports)]
+use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
+#[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_repr::{Deserialize_repr, Serialize_repr};
-#[allow(unused_imports)]
-use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
 
 #[allow(unused_imports)]
 use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};
@@ -61,7 +61,7 @@ pub struct SessionRemovedNotification {
 /// Broadcast to all connected clients when an existing session's summary
 /// changes (title, status, `modifiedAt`, model, working directory, read/done
 /// state, or diff statistics).
-/// 
+///
 /// This notification lets clients that maintain a cached session list — for
 /// example, the result of a previous `listSessions()` call — stay in sync with
 /// in-flight sessions without having to subscribe to every session URI
@@ -69,9 +69,9 @@ pub struct SessionRemovedNotification {
 /// `notify/sessionAdded` and `notify/sessionRemoved`: those signal lifecycle
 /// (creation/disposal), while this signals summary-level mutations on an
 /// already-known session.
-/// 
+///
 /// Semantics:
-/// 
+///
 /// - Only fields present in `changes` have new values; omitted fields are
 ///   unchanged on the client's cached summary.
 /// - Identity fields (`resource`, `provider`, `createdAt`) never change and
@@ -93,14 +93,14 @@ pub struct SessionSummaryChangedNotification {
     /// URI of the session whose summary changed
     pub session: Uri,
     /// Mutable summary fields that changed; omitted fields are unchanged.
-    /// 
+    ///
     /// Identity fields (`resource`, `provider`, `createdAt`) never change and
     /// MUST be omitted by senders; receivers SHOULD ignore them if present.
     pub changes: PartialSessionSummary,
 }
 
 /// Sent by the server when a protected resource requires (re-)authentication.
-/// 
+///
 /// This notification is sent when a previously valid token expires or is
 /// revoked, or when the server discovers a new authentication requirement.
 /// Clients should obtain a fresh token and push it via the `authenticate`

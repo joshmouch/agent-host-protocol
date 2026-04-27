@@ -17,6 +17,7 @@ import {
   PropertySignature,
   SourceFile,
 } from 'ts-morph';
+import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -1306,6 +1307,15 @@ function checkExhaustiveness(project: Project): void {
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 export function generateRustCrate(project: Project, outputDir: string): void {
+  // Check that cargo is available; skip generation if not so developers
+  // without a Rust toolchain aren't forced to install one.
+  try {
+    execFileSync('cargo', ['--version'], { stdio: 'ignore' });
+  } catch {
+    console.warn('  ⚠ cargo not found — skipping Rust crate generation.');
+    return;
+  }
+
   checkExhaustiveness(project);
 
   const srcDir = path.join(outputDir, 'crates', 'ahp-types', 'src');
@@ -1318,4 +1328,6 @@ export function generateRustCrate(project: Project, outputDir: string): void {
   fs.writeFileSync(path.join(srcDir, 'errors.rs'), generateErrorsFile());
   fs.writeFileSync(path.join(srcDir, 'messages.rs'), generateMessagesFile());
   fs.writeFileSync(path.join(srcDir, 'version.rs'), generateVersionFile(project));
+
+  execSync('cargo fmt -p ahp-types', { cwd: outputDir, stdio: 'inherit' });
 }

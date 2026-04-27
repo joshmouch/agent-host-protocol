@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Wire protocol types for the Agent Host Protocol (AHP)."
+readme = "README.md"
 
 [dependencies]
 serde = { workspace = true }

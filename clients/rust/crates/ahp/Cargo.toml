@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Agent Host Protocol SDK — transport-agnostic client, reducers, and JSON-RPC plumbing."
+readme = "README.md"
 
 [dependencies]
 ahp-types = { workspace = true }

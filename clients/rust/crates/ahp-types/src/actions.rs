@@ -5,13 +5,19 @@
 #![allow(missing_docs)]
 
 #[allow(unused_imports)]
+use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
+#[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_repr::{Deserialize_repr, Serialize_repr};
-#[allow(unused_imports)]
-use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
 
-use crate::state::{AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};
+use crate::state::{
+    AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, PendingMessageKind,
+    ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer,
+    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
+    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
+    ToolResultContent, UsageInfo, UserMessage,
+};
 
 // ─── ActionType ──────────────────────────────────────────────────────
 
@@ -164,7 +170,7 @@ pub struct RootActiveSessionsChangedAction {
 }
 
 /// Fired when agent-host configuration values change.
-/// 
+///
 /// By default, the reducer merges the new values into `state.config.values`.
 /// Set `replace` to `true` to replace all values instead of merging.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -211,7 +217,7 @@ pub struct SessionTurnStartedAction {
 }
 
 /// Streaming text chunk from the assistant, appended to a specific response part.
-/// 
+///
 /// The server MUST first emit a `session/responsePart` to create the target
 /// part (markdown or reasoning), then use this action to append text to it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -240,7 +246,7 @@ pub struct SessionResponsePartAction {
 }
 
 /// A tool call begins — parameters are streaming from the LM.
-/// 
+///
 /// For client-provided tools, the server sets `toolClientId` to identify the
 /// owning client. That client is responsible for executing the tool once it
 /// reaches the `running` state and dispatching `session/toolCallComplete`.
@@ -254,7 +260,7 @@ pub struct SessionToolCallStartAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -282,7 +288,7 @@ pub struct SessionToolCallDeltaAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -297,15 +303,15 @@ pub struct SessionToolCallDeltaAction {
 }
 
 /// Tool call parameters are complete, or a running tool requires re-confirmation.
-/// 
+///
 /// When dispatched for a `streaming` tool call, transitions to `pending-confirmation`
 /// or directly to `running` if `confirmed` is set.
-/// 
+///
 /// When dispatched for a `running` tool call (e.g. mid-execution permission needed),
 /// transitions back to `pending-confirmation`. The `invocationMessage` and `_meta`
 /// SHOULD be updated to describe the specific confirmation needed. Clients use the
 /// standard `session/toolCallConfirmed` flow to approve or deny.
-/// 
+///
 /// For client-provided tools, the server typically sets `confirmed` to
 /// `'not-needed'` so the tool transitions directly to `running`, where the
 /// owning client can begin execution immediately.
@@ -319,7 +325,7 @@ pub struct SessionToolCallReadyAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -385,11 +391,11 @@ pub struct SessionToolCallConfirmedAction {
 
 /// Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
 /// if `requiresResultConfirmation` is `true`.
-/// 
+///
 /// For client-provided tools (where `toolClientId` is set on the tool call state),
 /// the owning client dispatches this action with the execution result. The server
 /// SHOULD reject this action if the dispatching client does not match `toolClientId`.
-/// 
+///
 /// Servers waiting on a client tool call MAY time out after a reasonable duration
 /// if the implementing client disconnects or becomes unresponsive, and dispatch
 /// this action with `result.success = false` and an appropriate error.
@@ -403,7 +409,7 @@ pub struct SessionToolCallCompleteAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -418,7 +424,7 @@ pub struct SessionToolCallCompleteAction {
 }
 
 /// Client approves or denies a tool's result.
-/// 
+///
 /// If `approved` is `false`, the tool transitions to `cancelled` with reason `result-denied`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -430,7 +436,7 @@ pub struct SessionToolCallResultConfirmedAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -497,7 +503,7 @@ pub struct SessionUsageAction {
 }
 
 /// Reasoning/thinking text from the model, appended to a specific reasoning response part.
-/// 
+///
 /// The server MUST first emit a `session/responsePart` to create the target
 /// reasoning part, then use this action to append text to it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -524,7 +530,7 @@ pub struct SessionModelChangedAction {
 }
 
 /// The read state of the session changed.
-/// 
+///
 /// Dispatched by a client to mark a session as read (e.g. after viewing it)
 /// or unread (e.g. after new activity since the client last looked at it).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -537,7 +543,7 @@ pub struct SessionIsReadChangedAction {
 }
 
 /// The archived state of the session changed.
-/// 
+///
 /// Dispatched by a client to archive a session (e.g. the task is
 /// complete) or to unarchive it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -550,7 +556,7 @@ pub struct SessionIsArchivedChangedAction {
 }
 
 /// The activity description of the session changed.
-/// 
+///
 /// Dispatched by the server to indicate what the session is currently doing
 /// (e.g. running a tool, thinking). Clear activity by setting it to `undefined`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -564,7 +570,7 @@ pub struct SessionActivityChangedAction {
 }
 
 /// Server tools for this session have changed.
-/// 
+///
 /// Full-replacement semantics: the `tools` array replaces the previous `serverTools` entirely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -576,7 +582,7 @@ pub struct SessionServerToolsChangedAction {
 }
 
 /// The active client for this session has changed.
-/// 
+///
 /// A client dispatches this action with its own `SessionActiveClient` to claim
 /// the active role, or with `null` to release it. The server SHOULD reject if
 /// another client is already active. The server SHOULD automatically dispatch
@@ -592,7 +598,7 @@ pub struct SessionActiveClientChangedAction {
 }
 
 /// The active client's tool list has changed.
-/// 
+///
 /// Full-replacement semantics: the `tools` array replaces the active client's
 /// previous tools entirely. The server SHOULD reject if the dispatching client
 /// is not the current active client.
@@ -606,7 +612,7 @@ pub struct SessionActiveClientToolsChangedAction {
 }
 
 /// A pending message was set (upsert semantics: creates or replaces).
-/// 
+///
 /// For steering messages, this always replaces the single steering message.
 /// For queued messages, if a message with the given `id` already exists it is
 /// updated in place; otherwise it is appended to the queue. If the session is
@@ -626,7 +632,7 @@ pub struct SessionPendingMessageSetAction {
 }
 
 /// A pending message was removed (steering or queued).
-/// 
+///
 /// Dispatched by clients to cancel a pending message, or by the server when
 /// it consumes a message (e.g. starting a turn from a queued message or
 /// injecting a steering message into the current turn).
@@ -642,7 +648,7 @@ pub struct SessionPendingMessageRemovedAction {
 }
 
 /// Reorder the queued messages.
-/// 
+///
 /// The `order` array contains the IDs of queued messages in their new
 /// desired order. IDs not present in the current queue are ignored.
 /// Queued messages whose IDs are absent from `order` are appended at
@@ -658,7 +664,7 @@ pub struct SessionQueuedMessagesReorderedAction {
 }
 
 /// A session requested input from the user.
-/// 
+///
 /// Full-request upsert semantics: the `request` replaces any existing request
 /// with the same `id`, or is appended if it is new. Answer drafts are preserved
 /// unless `request.answers` is provided.
@@ -672,7 +678,7 @@ pub struct SessionInputRequestedAction {
 }
 
 /// A client updated, submitted, skipped, or removed a single in-progress answer.
-/// 
+///
 /// Dispatching with `answer: undefined` removes that question's answer draft.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -689,7 +695,7 @@ pub struct SessionInputAnswerChangedAction {
 }
 
 /// A client accepted, declined, or cancelled a session input request.
-/// 
+///
 /// If accepted, the server uses `answers` (when provided) plus the request's
 /// synced answer state to resume the blocked operation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -707,7 +713,7 @@ pub struct SessionInputCompletedAction {
 }
 
 /// The session's customizations have changed.
-/// 
+///
 /// Full-replacement semantics: the `customizations` array replaces the
 /// previous `customizations` entirely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -720,7 +726,7 @@ pub struct SessionCustomizationsChangedAction {
 }
 
 /// A client toggled a customization on or off.
-/// 
+///
 /// The server locates the customization by `uri` in the session's
 /// customization list and sets its `enabled` flag.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -737,10 +743,10 @@ pub struct SessionCustomizationToggledAction {
 /// Truncates a session's history. If `turnId` is provided, all turns after that
 /// turn are removed and the specified turn is kept. If `turnId` is omitted, all
 /// turns are removed.
-/// 
+///
 /// If there is an active turn it is silently dropped and the session status
 /// returns to `idle`.
-/// 
+///
 /// Common use-case: truncate old data then dispatch a new
 /// `session/turnStarted` with an edited message.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -754,7 +760,7 @@ pub struct SessionTruncatedAction {
 }
 
 /// The file diffs for the session changed.
-/// 
+///
 /// Full-replacement semantics: the `diffs` array replaces the previous
 /// `summary.diffs` entirely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -767,7 +773,7 @@ pub struct SessionDiffsChangedAction {
 }
 
 /// Client changed a mutable config value mid-session.
-/// 
+///
 /// Only properties with `sessionMutable: true` in the config schema may be
 /// changed. The server validates and broadcasts the action; the reducer merges
 /// the new values into `state.config.values`.
@@ -797,11 +803,11 @@ pub struct SessionMetaChangedAction {
 }
 
 /// Partial content produced while a tool is still executing.
-/// 
+///
 /// Replaces the `content` array on the running tool call state. Clients can
 /// use this to display live feedback (e.g. a terminal reference) before the
 /// tool completes.
-/// 
+///
 /// For client-provided tools (where `toolClientId` is set on the tool call state),
 /// the owning client dispatches this action to stream intermediate content while
 /// executing. The server SHOULD reject this action if the dispatching client does
@@ -816,7 +822,7 @@ pub struct SessionToolCallContentChangedAction {
     /// Tool call identifier
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -828,7 +834,7 @@ pub struct SessionToolCallContentChangedAction {
 }
 
 /// Fired when the list of known terminals changes.
-/// 
+///
 /// Full-replacement semantics: the `terminals` array replaces the previous
 /// `terminals` entirely.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -839,9 +845,9 @@ pub struct RootTerminalsChangedAction {
 }
 
 /// Terminal output data (pty → client direction).
-/// 
+///
 /// Appends `data` to the terminal's `content` in the reducer.
-/// 
+///
 /// `terminal/data` and `terminal/input` are intentionally separate actions
 /// because standard write-ahead reconciliation is not safe for terminal I/O.
 /// A pty is a stateful, mutable process — optimistically applying input or
@@ -858,11 +864,11 @@ pub struct TerminalDataAction {
 }
 
 /// Keyboard input sent to the terminal process (client → pty direction).
-/// 
+///
 /// This is a side-effect-only action: the server forwards the data to the
 /// terminal's pty. The reducer treats this as a no-op since `terminal/data`
 /// actions will reflect any resulting output.
-/// 
+///
 /// See `terminal/data` for why these two actions are kept separate.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -874,7 +880,7 @@ pub struct TerminalInputAction {
 }
 
 /// Terminal dimensions changed.
-/// 
+///
 /// Dispatchable by clients to request a resize, or by the server to inform
 /// clients of the actual terminal dimensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -889,7 +895,7 @@ pub struct TerminalResizedAction {
 }
 
 /// Terminal claim changed. A client or session transfers ownership of the terminal.
-/// 
+///
 /// The server SHOULD reject if the dispatching client does not currently hold
 /// the claim.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -902,7 +908,7 @@ pub struct TerminalClaimedAction {
 }
 
 /// Terminal title changed.
-/// 
+///
 /// Fired by the server when the terminal process updates its title (e.g. via
 /// escape sequences), or dispatched by a client to rename a terminal.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -946,7 +952,7 @@ pub struct TerminalClearedAction {
 /// Shell integration has loaded and the terminal now supports command
 /// detection. The server dispatches this when shell integration becomes
 /// available (which may happen asynchronously after the terminal is created).
-/// 
+///
 /// Clients MUST NOT assume command detection is available until this action
 /// (or `terminal/commandExecuted`) has been received.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -975,7 +981,7 @@ pub struct TerminalCommandExecutedAction {
 }
 
 /// A command has finished executing.
-/// 
+///
 /// The sequence of `terminal/data` actions between the preceding
 /// `terminal/commandExecuted` (same `commandId`) and this action constitutes
 /// the complete output of the command.

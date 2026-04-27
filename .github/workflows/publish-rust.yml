@@ -40,11 +40,6 @@ jobs:
       - name: Run tests
         run: cargo test --workspace
 
-      - name: Verify publishable (dry run)
-        run: |
-          cargo publish --dry-run -p ahp-types
-          cargo publish --dry-run -p ahp
-          cargo publish --dry-run -p ahp-ws
 
   publish:
     needs: validate

@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "WebSocket transport adapter for the Agent Host Protocol SDK."
+readme = "README.md"
 
 [dependencies]
 ahp = { workspace = true }

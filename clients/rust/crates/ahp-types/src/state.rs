@@ -5,11 +5,11 @@
 #![allow(missing_docs)]
 
 #[allow(unused_imports)]
+use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
+#[allow(unused_imports)]
 use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_repr::{Deserialize_repr, Serialize_repr};
-#[allow(unused_imports)]
-use crate::common::{AnyValue, JsonObject, StringOrMarkdown, Uri};
 
 // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ pub enum SessionLifecycle {
 }
 
 /// Bitset of summary-level session status flags.
-/// 
+///
 /// Use bitwise checks instead of equality for non-terminal activity. For example,
 /// `status & SessionStatus.InProgress` matches both ordinary in-progress turns
 /// and turns that are paused waiting for input.
@@ -175,7 +175,7 @@ pub enum ToolCallStatus {
 }
 
 /// How a tool call was confirmed for execution.
-/// 
+///
 /// - `NotNeeded` — No confirmation required (auto-approved)
 /// - `UserAction` — User explicitly approved
 /// - `Setting` — Approved by a persistent user setting
@@ -260,10 +260,10 @@ pub enum TerminalClaimKind {
 pub struct Icon {
     /// A standard URI pointing to an icon resource. May be an HTTP/HTTPS URL or a
     /// `data:` URI with Base64-encoded image data.
-    /// 
+    ///
     /// Consumers SHOULD take steps to ensure URLs serving icons are from the
     /// same domain as the client/server or a trusted domain.
-    /// 
+    ///
     /// Consumers SHOULD take appropriate precautions when consuming SVGs as they can contain
     /// executable JavaScript.
     pub src: Uri,
@@ -273,14 +273,14 @@ pub struct Icon {
     pub content_type: Option<String>,
     /// Optional array of strings that specify sizes at which the icon can be used.
     /// Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
-    /// 
+    ///
     /// If not provided, the client should assume that the icon can be used at any size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sizes: Option<Vec<String>>,
     /// Optional specifier for the theme this icon is designed for. `"light"` indicates
     /// the icon is designed to be used with a light background, and `"dark"` indicates
     /// the icon is designed to be used with a dark background.
-    /// 
+    ///
     /// If not provided, the client should assume the icon can be used with any theme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
@@ -289,7 +289,7 @@ pub struct Icon {
 /// Describes a protected resource's authentication requirements using
 /// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) (OAuth 2.0
 /// Protected Resource Metadata) semantics.
-/// 
+///
 /// Field names use snake_case to match the RFC 9728 JSON format.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -298,46 +298,86 @@ pub struct ProtectedResourceMetadata {
     /// `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
     pub resource: String,
     /// OPTIONAL. Human-readable name of the protected resource.
-    #[serde(rename = "resource_name", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_name",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_name: Option<String>,
     /// OPTIONAL. JSON array of OAuth authorization server identifier URLs.
-    #[serde(rename = "authorization_servers", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "authorization_servers",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub authorization_servers: Option<Vec<String>>,
     /// OPTIONAL. URL of the protected resource's JWK Set document.
     #[serde(rename = "jwks_uri", default, skip_serializing_if = "Option::is_none")]
     pub jwks_uri: Option<String>,
     /// RECOMMENDED. JSON array of OAuth 2.0 scope values used in authorization requests.
-    #[serde(rename = "scopes_supported", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "scopes_supported",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub scopes_supported: Option<Vec<String>>,
     /// OPTIONAL. JSON array of Bearer Token presentation methods supported.
-    #[serde(rename = "bearer_methods_supported", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "bearer_methods_supported",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub bearer_methods_supported: Option<Vec<String>>,
     /// OPTIONAL. JSON array of JWS signing algorithms supported.
-    #[serde(rename = "resource_signing_alg_values_supported", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_signing_alg_values_supported",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_signing_alg_values_supported: Option<Vec<String>>,
     /// OPTIONAL. JSON array of JWE encryption algorithms (alg) supported.
-    #[serde(rename = "resource_encryption_alg_values_supported", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_encryption_alg_values_supported",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_encryption_alg_values_supported: Option<Vec<String>>,
     /// OPTIONAL. JSON array of JWE encryption algorithms (enc) supported.
-    #[serde(rename = "resource_encryption_enc_values_supported", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_encryption_enc_values_supported",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_encryption_enc_values_supported: Option<Vec<String>>,
     /// OPTIONAL. URL of human-readable documentation for the resource.
-    #[serde(rename = "resource_documentation", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_documentation",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_documentation: Option<String>,
     /// OPTIONAL. URL of the resource's data-usage policy.
-    #[serde(rename = "resource_policy_uri", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_policy_uri",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_policy_uri: Option<String>,
     /// OPTIONAL. URL of the resource's terms of service.
-    #[serde(rename = "resource_tos_uri", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "resource_tos_uri",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub resource_tos_uri: Option<String>,
     /// AHP extension. Whether authentication is required for this resource.
-    /// 
+    ///
     /// - `true` (default) — the agent cannot be used without a valid token.
     ///   The server SHOULD return `AuthRequired` (`-32007`) if the client
     ///   attempts to use the agent without authenticating.
     /// - `false` — the agent works without authentication but MAY offer
     ///   enhanced capabilities when a token is provided.
-    /// 
+    ///
     /// Clients SHOULD treat an absent field the same as `true`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub required: Option<bool>,
@@ -361,7 +401,7 @@ pub struct RootState {
 }
 
 /// Live agent-host configuration metadata.
-/// 
+///
 /// The schema describes the available configuration properties and the values
 /// contain the current value for each resolved property.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -385,7 +425,7 @@ pub struct AgentInfo {
     /// Available models for this agent
     pub models: Vec<SessionModelInfo>,
     /// Protected resources this agent requires authentication for.
-    /// 
+    ///
     /// Each entry describes an OAuth 2.0 protected resource using
     /// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) semantics.
     /// Clients should obtain tokens from the declared `authorization_servers`
@@ -394,7 +434,7 @@ pub struct AgentInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protected_resources: Option<Vec<ProtectedResourceMetadata>>,
     /// Customizations (Open Plugins) associated with this agent.
-    /// 
+    ///
     /// Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
     /// plugin that the agent host can activate for sessions using this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -440,12 +480,12 @@ pub struct ModelSelection {
 }
 
 /// A JSON Schema-compatible property descriptor with display extensions.
-/// 
+///
 /// Standard JSON Schema fields (`type`, `title`, `description`, `default`,
 /// `enum`) allow validators to process the schema. Display extensions
 /// (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI
 /// metadata for each `enum` value.
-/// 
+///
 /// This is the generic base type. See {@link SessionConfigPropertySchema} for
 /// session-specific extensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -485,7 +525,7 @@ pub struct ConfigPropertySchema {
 }
 
 /// A JSON Schema object describing available configuration properties.
-/// 
+///
 /// This is the generic base type. See {@link SessionConfigSchema} for
 /// session-specific usage.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -501,7 +541,7 @@ pub struct ConfigSchema {
 }
 
 /// A message queued for future delivery to the agent.
-/// 
+///
 /// Steering messages are injected into the current turn mid-flight.
 /// Queued messages are automatically started as new turns after the
 /// current turn naturally finishes.
@@ -549,13 +589,13 @@ pub struct SessionState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<SessionConfigState>,
     /// Server-provided customizations active in this session.
-    /// 
+    ///
     /// Client-provided customizations are available on
     /// {@link SessionActiveClient.customizations | activeClient.customizations}.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<SessionCustomization>>,
     /// Additional provider-specific metadata for this session.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `git` key may provide extra git metadata about the session's
     /// workingDirectory.
@@ -564,7 +604,7 @@ pub struct SessionState {
 }
 
 /// The client currently providing tools and interactive capabilities to a session.
-/// 
+///
 /// Only one client may be active per session at a time. The server SHOULD
 /// automatically unset the active client if that client disconnects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -625,7 +665,7 @@ pub struct ProjectInfo {
 }
 
 /// A session configuration property descriptor.
-/// 
+///
 /// Extends the generic {@link ConfigPropertySchema} with session-specific
 /// display extensions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -687,7 +727,7 @@ pub struct SessionConfigSchema {
 }
 
 /// Live session configuration metadata.
-/// 
+///
 /// The schema describes the available configuration properties and the values
 /// contain the current value for each resolved property.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -708,7 +748,7 @@ pub struct Turn {
     /// The user's input
     pub user_message: UserMessage,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
-    /// 
+    ///
     /// Consumers should derive display text by concatenating markdown parts,
     /// and find tool calls by filtering for `ToolCall` parts.
     pub response_parts: Vec<ResponsePart>,
@@ -731,7 +771,7 @@ pub struct ActiveTurn {
     /// The user's input
     pub user_message: UserMessage,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
-    /// 
+    ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
     pub response_parts: Vec<ResponsePart>,
     /// Token usage info
@@ -938,7 +978,7 @@ pub struct SessionInputMultiSelectQuestion {
 }
 
 /// A live request for user input.
-/// 
+///
 /// The server creates or replaces requests with `session/inputRequested`.
 /// Clients sync drafts with `session/inputAnswerChanged` and complete requests
 /// with `session/inputCompleted`.
@@ -1011,7 +1051,7 @@ pub struct ResourceResponsePart {
 }
 
 /// A tool call represented as a response part.
-/// 
+///
 /// Tool calls are part of the response stream, interleaved with text and
 /// reasoning. The `toolCall.toolCallId` serves as the part identifier for
 /// actions that target this part.
@@ -1041,12 +1081,12 @@ pub struct ToolCallResult {
     /// Past-tense description of what the tool did
     pub past_tense_message: StringOrMarkdown,
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<Vec<ToolResultContent>>,
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<JsonObject>,
@@ -1068,7 +1108,7 @@ pub struct ConfirmationOption {
     /// Whether this option represents an approval or denial
     pub kind: ConfirmationOptionKind,
     /// Logical group number for visual categorisation.
-    /// 
+    ///
     /// Clients SHOULD display options in the order they are defined and MAY
     /// use differing group numbers to insert dividers between logical clusters
     /// of options.
@@ -1088,13 +1128,13 @@ pub struct ToolCallStreamingState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1122,13 +1162,13 @@ pub struct ToolCallPendingConfirmationState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1169,13 +1209,13 @@ pub struct ToolCallRunningState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1193,7 +1233,7 @@ pub struct ToolCallRunningState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_option: Option<ConfirmationOption>,
     /// Partial content produced while the tool is still executing.
-    /// 
+    ///
     /// For example, a terminal content block lets clients subscribe to live
     /// output before the tool completes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1212,13 +1252,13 @@ pub struct ToolCallPendingResultConfirmationState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1235,12 +1275,12 @@ pub struct ToolCallPendingResultConfirmationState {
     /// Past-tense description of what the tool did
     pub past_tense_message: StringOrMarkdown,
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<Vec<ToolResultContent>>,
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<JsonObject>,
@@ -1266,13 +1306,13 @@ pub struct ToolCallCompletedState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1289,12 +1329,12 @@ pub struct ToolCallCompletedState {
     /// Past-tense description of what the tool did
     pub past_tense_message: StringOrMarkdown,
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content: Option<Vec<ToolResultContent>>,
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub structured_content: Option<JsonObject>,
@@ -1320,13 +1360,13 @@ pub struct ToolCallCancelledState {
     pub display_name: String,
     /// If this tool is provided by a client, the `clientId` of the owning client.
     /// Absent for server-side tools.
-    /// 
+    ///
     /// When set, the identified client is responsible for executing the tool and
     /// dispatching `session/toolCallComplete` with the result.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_client_id: Option<String>,
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1364,13 +1404,13 @@ pub struct ToolDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// JSON Schema defining the expected input parameters.
-    /// 
+    ///
     /// Optional because client-provided tools may not have formal schemas.
     /// Mirrors MCP `Tool.inputSchema`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_schema: Option<AnyValue>,
     /// JSON Schema defining the structure of the tool's output.
-    /// 
+    ///
     /// Mirrors MCP `Tool.outputSchema`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_schema: Option<AnyValue>,
@@ -1378,7 +1418,7 @@ pub struct ToolDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotations: Option<ToolAnnotations>,
     /// Additional provider-specific metadata.
-    /// 
+    ///
     /// Mirrors the MCP `_meta` convention.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
@@ -1386,7 +1426,7 @@ pub struct ToolDefinition {
 
 /// Behavioral hints about a tool. All properties are advisory and not
 /// guaranteed to faithfully describe tool behavior.
-/// 
+///
 /// Mirrors MCP `ToolAnnotations` from the Model Context Protocol specification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -1409,7 +1449,7 @@ pub struct ToolAnnotations {
 }
 
 /// Text content in a tool result.
-/// 
+///
 /// Mirrors MCP `TextContent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1419,7 +1459,7 @@ pub struct ToolResultTextContent {
 }
 
 /// Base64-encoded binary content embedded in a tool result.
-/// 
+///
 /// Mirrors MCP `EmbeddedResource` for inline binary data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1431,7 +1471,7 @@ pub struct ToolResultEmbeddedResourceContent {
 }
 
 /// A reference to a resource stored outside the tool result.
-/// 
+///
 /// Wraps {@link ContentRef} for lazy-loading large results.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1462,7 +1502,7 @@ pub struct ToolResultFileEditContent {
 }
 
 /// A reference to a terminal whose output is relevant to this tool result.
-/// 
+///
 /// Clients can subscribe to the terminal's URI to stream its output in real
 /// time, providing live feedback while a tool is executing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1475,7 +1515,7 @@ pub struct ToolResultTerminalContent {
 }
 
 /// A reference to a subagent session spawned by a tool.
-/// 
+///
 /// Clients can subscribe to the subagent's session URI to stream its
 /// progress in real time, including inner tool calls and responses.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1494,7 +1534,7 @@ pub struct ToolResultSubagentContent {
 }
 
 /// A reference to an [Open Plugins](https://open-plugins.com/) plugin.
-/// 
+///
 /// This is intentionally thin — AHP specifies plugin identity and metadata
 /// but not implementation details, which are defined by the Open Plugins spec.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1511,7 +1551,7 @@ pub struct CustomizationRef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icons: Option<Vec<Icon>>,
     /// Opaque version token for this customization.
-    /// 
+    ///
     /// Clients SHOULD include a nonce with every customization they provide.
     /// Consumers can compare nonces to detect whether a customization has
     /// changed since it was last seen, avoiding redundant reloads or copies.
@@ -1520,9 +1560,6 @@ pub struct CustomizationRef {
 }
 
 /// A customization active in a session.
-/// 
-/// Entries without a `clientId` are server-provided; entries with a `clientId`
-/// originate from that client.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomization {
@@ -1543,7 +1580,7 @@ pub struct SessionCustomization {
 }
 
 /// Describes a file modification with before/after state and diff metadata.
-/// 
+///
 /// Supports creates (only `after`), deletes (only `before`), renames/moves
 /// (different `uri` in `before` and `after`), and edits (same `uri`, different content).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -1613,10 +1650,10 @@ pub struct TerminalState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rows: Option<i64>,
     /// Typed content parts, replacing the flat `content: string`.
-    /// 
+    ///
     /// Naive consumers that only need the raw VT stream can reconstruct it with:
     ///   `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
-    /// 
+    ///
     /// Consumers that need command boundaries can filter by part type.
     pub content: Vec<TerminalContentPart>,
     /// Process exit code, set when the terminal process exits
@@ -1626,7 +1663,7 @@ pub struct TerminalState {
     pub claim: TerminalClaim,
     /// Whether this terminal emits `terminal/commandExecuted` and
     /// `terminal/commandFinished` actions and populates `command`-typed parts.
-    /// 
+    ///
     /// Clients MUST check this flag before relying on command detection.
     /// Do NOT use the presence of a `command` part as a feature flag — parts
     /// are absent in the normal idle state.
@@ -1644,7 +1681,7 @@ pub struct TerminalUnclassifiedPart {
 }
 
 /// A single command: its command line and the output it produced.
-/// 
+///
 /// While `isComplete` is false the command is still executing; `output` grows
 /// as `terminal/data` actions arrive. At `terminal/commandFinished` the part
 /// is mutated in-place with `isComplete: true` and the completion metadata.
