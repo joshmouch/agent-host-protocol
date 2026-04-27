@@ -1,12 +1,11 @@
 //! WebSocket transport implementation built on `tokio-tungstenite`.
 
 use ahp::{Transport, TransportError, TransportMessage};
-use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
 use thiserror::Error;
+use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-use tokio::net::TcpStream;
 use url::Url;
 
 /// Errors that can occur while building a [`WebSocketTransport`].
@@ -45,17 +44,16 @@ impl WebSocketTransport {
     }
 }
 
-#[async_trait]
 impl Transport for WebSocketTransport {
     async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
         let frame = match msg {
             TransportMessage::Parsed(m) => {
                 let s = serde_json::to_string(&m)
                     .map_err(|e| TransportError::Protocol(e.to_string()))?;
-                Message::Text(s)
+                Message::Text(s.into())
             }
-            TransportMessage::Text(s) => Message::Text(s),
-            TransportMessage::Binary(b) => Message::Binary(b),
+            TransportMessage::Text(s) => Message::Text(s.into()),
+            TransportMessage::Binary(b) => Message::Binary(b.into()),
         };
         self.inner
             .send(frame)
@@ -68,8 +66,12 @@ impl Transport for WebSocketTransport {
             match self.inner.next().await {
                 None => return Ok(None),
                 Some(Err(e)) => return Err(TransportError::Io(e.to_string())),
-                Some(Ok(Message::Text(s))) => return Ok(Some(TransportMessage::Text(s))),
-                Some(Ok(Message::Binary(b))) => return Ok(Some(TransportMessage::Binary(b))),
+                Some(Ok(Message::Text(s))) => {
+                    return Ok(Some(TransportMessage::Text(s.to_string())))
+                }
+                Some(Ok(Message::Binary(b))) => {
+                    return Ok(Some(TransportMessage::Binary(b.into())))
+                }
                 Some(Ok(Message::Close(_))) => return Ok(None),
                 // Ping, Pong, Frame: keep looping, tungstenite handles protocol-level response.
                 Some(Ok(_)) => continue,

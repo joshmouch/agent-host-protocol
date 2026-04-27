@@ -37,11 +37,13 @@ socket, an in-memory channel pair, a TCP connection with your own
 framing, etc. The trait surface is three async methods:
 
 ```rust
-#[async_trait]
 pub trait Transport: Send + 'static {
-    async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError>;
-    async fn recv(&mut self) -> Result<Option<TransportMessage>, TransportError>;
-    async fn close(&mut self) -> Result<(), TransportError> { Ok(()) }
+    fn send(&mut self, msg: TransportMessage)
+        -> impl Future<Output = Result<(), TransportError>> + Send;
+    fn recv(&mut self)
+        -> impl Future<Output = Result<Option<TransportMessage>, TransportError>> + Send;
+    fn close(&mut self)
+        -> impl Future<Output = Result<(), TransportError>> + Send { async { Ok(()) } }
 }
 ```
 

@@ -4,13 +4,12 @@
 //! Exercises the full client state machine end-to-end: request/response
 //! correlation, subscription fan-out, and dispatch notification routing.
 
-use ahp::{Client, ClientConfig, SubscriptionEvent, Transport, TransportMessage, TransportError};
+use ahp::{Client, ClientConfig, SubscriptionEvent, Transport, TransportError, TransportMessage};
 use ahp_types::actions::{ActionEnvelope, SessionTitleChangedAction, StateAction};
 use ahp_types::messages::{
     ActionNotificationParams, JsonRpcMessage, JsonRpcNotification, JsonRpcSuccessResponse,
     JsonRpcVersion,
 };
-use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 /// A bidirectional in-memory transport pair. Each half owns one sender
@@ -23,16 +22,15 @@ struct MemTransport {
 fn pair() -> (MemTransport, MemTransport) {
     let (a_tx, b_rx) = mpsc::channel(16);
     let (b_tx, a_rx) = mpsc::channel(16);
-    (MemTransport { tx: a_tx, rx: a_rx }, MemTransport { tx: b_tx, rx: b_rx })
+    (
+        MemTransport { tx: a_tx, rx: a_rx },
+        MemTransport { tx: b_tx, rx: b_rx },
+    )
 }
 
-#[async_trait]
 impl Transport for MemTransport {
     async fn send(&mut self, msg: TransportMessage) -> Result<(), TransportError> {
-        self.tx
-            .send(msg)
-            .await
-            .map_err(|_| TransportError::Closed)
+        self.tx.send(msg).await.map_err(|_| TransportError::Closed)
     }
 
     async fn recv(&mut self) -> Result<Option<TransportMessage>, TransportError> {
@@ -53,7 +51,9 @@ async fn request_response_and_action_fanout() {
         // Read initialize request.
         let msg = server_side.recv().await.unwrap().unwrap();
         let parsed = msg.into_parsed().unwrap();
-        let JsonRpcMessage::Request(req) = parsed else { panic!("expected Request") };
+        let JsonRpcMessage::Request(req) = parsed else {
+            panic!("expected Request")
+        };
         assert_eq!(req.method, "initialize");
 
         // Reply with a minimal InitializeResult.
@@ -67,12 +67,17 @@ async fn request_response_and_action_fanout() {
             id: req.id,
             result: ahp_types::common::AnyValue::from(result),
         });
-        server_side.send(TransportMessage::encode(&resp).unwrap()).await.unwrap();
+        server_side
+            .send(TransportMessage::encode(&resp).unwrap())
+            .await
+            .unwrap();
 
         // Read subscribe request.
         let msg = server_side.recv().await.unwrap().unwrap();
         let parsed = msg.into_parsed().unwrap();
-        let JsonRpcMessage::Request(req) = parsed else { panic!("expected Request") };
+        let JsonRpcMessage::Request(req) = parsed else {
+            panic!("expected Request")
+        };
         assert_eq!(req.method, "subscribe");
 
         let sub_result = serde_json::json!({
@@ -87,7 +92,10 @@ async fn request_response_and_action_fanout() {
             id: req.id,
             result: ahp_types::common::AnyValue::from(sub_result),
         });
-        server_side.send(TransportMessage::encode(&resp).unwrap()).await.unwrap();
+        server_side
+            .send(TransportMessage::encode(&resp).unwrap())
+            .await
+            .unwrap();
 
         // Fan out an action envelope for the subscribed session.
         let envelope = ActionEnvelope {
@@ -106,7 +114,10 @@ async fn request_response_and_action_fanout() {
                 serde_json::to_value(ActionNotificationParams::from(envelope)).unwrap(),
             )),
         });
-        server_side.send(TransportMessage::encode(&notif).unwrap()).await.unwrap();
+        server_side
+            .send(TransportMessage::encode(&notif).unwrap())
+            .await
+            .unwrap();
     });
 
     // Initialize handshake.

@@ -318,7 +318,10 @@ impl Client {
 
     /// Subscribe to a URI and obtain a handle that streams
     /// [`SubscriptionEvent`]s for that resource.
-    pub async fn subscribe(&self, uri: String) -> Result<(SubscribeResult, SessionSubscription), ClientError> {
+    pub async fn subscribe(
+        &self,
+        uri: String,
+    ) -> Result<(SubscribeResult, SessionSubscription), ClientError> {
         let sub = self.attach_subscription(&uri).await;
         let result: SubscribeResult = self
             .request("subscribe", SubscribeParams { resource: uri })
@@ -333,9 +336,7 @@ impl Client {
         let mut subs = self.shared.subscriptions.lock().await;
         let tx = subs
             .entry(uri.to_string())
-            .or_insert_with(|| {
-                broadcast::channel(self.shared.config.subscription_buffer).0
-            });
+            .or_insert_with(|| broadcast::channel(self.shared.config.subscription_buffer).0);
         SessionSubscription {
             rx: tx.subscribe(),
             uri: uri.to_string(),
@@ -464,7 +465,9 @@ async fn handle_notification(shared: &Shared, n: JsonRpcNotification) {
                 // to every active subscription. Callers that care about a
                 // specific notification can filter.
                 for tx in subs.values() {
-                    let _ = tx.send(SubscriptionEvent::Notification(wrapped.notification.clone()));
+                    let _ = tx.send(SubscriptionEvent::Notification(
+                        wrapped.notification.clone(),
+                    ));
                 }
             }
         }

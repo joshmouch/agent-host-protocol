@@ -9,10 +9,9 @@ description = "WebSocket transport adapter for the Agent Host Protocol SDK."
 
 [dependencies]
 ahp = { workspace = true }
-async-trait = { workspace = true }
 futures-util = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync", "macros"] }
-tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.29", features = ["native-tls"] }
 thiserror = { workspace = true }
 url = "2"

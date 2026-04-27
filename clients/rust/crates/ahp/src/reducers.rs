@@ -16,13 +16,13 @@ use ahp_types::actions::{
     SessionToolCallResultConfirmedAction, SessionTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, ConfirmationOption, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart, RootState,
-    SessionInputRequest, SessionLifecycle, SessionState, SessionStatus, TerminalCommandPart,
-    TerminalContentPart, TerminalState, TerminalUnclassifiedPart, ToolCallCancellationReason,
-    ToolCallCancelledState, ToolCallCompletedState, ToolCallConfirmationReason,
-    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState,
-    ToolCallResponsePart, ToolCallRunningState, ToolCallState, ToolCallStreamingState, Turn,
-    TurnState,
+    ActiveTurn, ConfirmationOption, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart,
+    RootState, SessionInputRequest, SessionLifecycle, SessionState, SessionStatus,
+    TerminalCommandPart, TerminalContentPart, TerminalState, TerminalUnclassifiedPart,
+    ToolCallCancellationReason, ToolCallCancelledState, ToolCallCompletedState,
+    ToolCallConfirmationReason, ToolCallPendingConfirmationState,
+    ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
+    ToolCallState, ToolCallStreamingState, Turn, TurnState,
 };
 
 /// What happened when an action was applied.
@@ -56,7 +56,15 @@ fn now_ms() -> i64 {
         .unwrap_or(0)
 }
 
-fn tool_call_meta(tc: &ToolCallState) -> (String, String, String, Option<String>, Option<serde_json::Map<String, serde_json::Value>>) {
+fn tool_call_meta(
+    tc: &ToolCallState,
+) -> (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<serde_json::Map<String, serde_json::Value>>,
+) {
     match tc {
         ToolCallState::Streaming(s) => (
             s.tool_call_id.clone(),
@@ -100,13 +108,7 @@ fn tool_call_meta(tc: &ToolCallState) -> (String, String, String, Option<String>
             s.tool_client_id.clone(),
             s.meta.clone(),
         ),
-        ToolCallState::Unknown(_) => (
-            String::new(),
-            String::new(),
-            String::new(),
-            None,
-            None,
-        ),
+        ToolCallState::Unknown(_) => (String::new(), String::new(), String::new(), None, None),
     }
 }
 
@@ -141,13 +143,21 @@ const STATUS_ACTIVITY_MASK: u32 = (1 << 5) - 1;
 /// Sets or clears a metadata flag on a status value.
 fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
     let f = flag as u32;
-    if set { status | f } else { status & !f }
+    if set {
+        status | f
+    } else {
+        status & !f
+    }
 }
 
 fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 {
     let activity: u32 = if let Some(t) = terminal {
         t as u32
-    } else if state.input_requests.as_ref().map(|r| !r.is_empty()).unwrap_or(false)
+    } else if state
+        .input_requests
+        .as_ref()
+        .map(|r| !r.is_empty())
+        .unwrap_or(false)
         || has_pending_tool_call_confirmation(state)
     {
         SessionStatus::InputNeeded as u32
@@ -196,10 +206,9 @@ fn end_turn(
                         let (tool_call_id, tool_name, display_name, tool_client_id, meta) =
                             tool_call_meta(&tc);
                         let invocation_message = match &tc {
-                            ToolCallState::Streaming(s) => s
-                                .invocation_message
-                                .clone()
-                                .unwrap_or_default(),
+                            ToolCallState::Streaming(s) => {
+                                s.invocation_message.clone().unwrap_or_default()
+                            }
                             ToolCallState::PendingConfirmation(s) => s.invocation_message.clone(),
                             ToolCallState::Running(s) => s.invocation_message.clone(),
                             ToolCallState::PendingResultConfirmation(s) => {
@@ -256,7 +265,10 @@ fn end_turn(
 fn upsert_input_request(state: &mut SessionState, request: SessionInputRequest) {
     let existing = state.input_requests.get_or_insert_with(Vec::new);
     if let Some(idx) = existing.iter().position(|r| r.id == request.id) {
-        let answers = request.answers.clone().or_else(|| existing[idx].answers.clone());
+        let answers = request
+            .answers
+            .clone()
+            .or_else(|| existing[idx].answers.clone());
         let mut next = request;
         next.answers = answers;
         existing[idx] = next;
@@ -405,7 +417,9 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             active.response_parts.push(a.part.clone());
             ReduceOutcome::Applied
         }
-        StateAction::SessionTurnComplete(a) => end_turn(state, &a.turn_id, TurnState::Complete, None, None),
+        StateAction::SessionTurnComplete(a) => {
+            end_turn(state, &a.turn_id, TurnState::Complete, None, None)
+        }
         StateAction::SessionTurnCancelled(a) => {
             end_turn(state, &a.turn_id, TurnState::Cancelled, None, None)
         }
@@ -423,17 +437,19 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             if active.id != a.turn_id {
                 return ReduceOutcome::NoOp;
             }
-            active.response_parts.push(ResponsePart::ToolCall(Box::new(ToolCallResponsePart {
-                tool_call: ToolCallState::Streaming(ToolCallStreamingState {
-                    tool_call_id: a.tool_call_id.clone(),
-                    tool_name: a.tool_name.clone(),
-                    display_name: a.display_name.clone(),
-                    tool_client_id: a.tool_client_id.clone(),
-                    meta: a.meta.clone(),
-                    partial_input: None,
-                    invocation_message: None,
-                }),
-            })));
+            active
+                .response_parts
+                .push(ResponsePart::ToolCall(Box::new(ToolCallResponsePart {
+                    tool_call: ToolCallState::Streaming(ToolCallStreamingState {
+                        tool_call_id: a.tool_call_id.clone(),
+                        tool_name: a.tool_name.clone(),
+                        display_name: a.display_name.clone(),
+                        tool_client_id: a.tool_client_id.clone(),
+                        meta: a.meta.clone(),
+                        partial_input: None,
+                        invocation_message: None,
+                    }),
+                })));
             ReduceOutcome::Applied
         }
         StateAction::SessionToolCallDelta(a) => apply_tool_call_delta(state, a),
@@ -494,11 +510,16 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionIsReadChanged(a) => {
-            state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
+            state.summary.status =
+                with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
             ReduceOutcome::Applied
         }
         StateAction::SessionIsArchivedChanged(a) => {
-            state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsArchived, a.is_archived);
+            state.summary.status = with_status_flag(
+                state.summary.status,
+                SessionStatus::IsArchived,
+                a.is_archived,
+            );
             ReduceOutcome::Applied
         }
         StateAction::SessionActivityChanged(a) => {
@@ -599,15 +620,13 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionPendingMessageRemoved(a) => match a.kind {
-            PendingMessageKind::Steering => {
-                match &state.steering_message {
-                    Some(m) if m.id == a.id => {
-                        state.steering_message = None;
-                        ReduceOutcome::Applied
-                    }
-                    _ => ReduceOutcome::NoOp,
+            PendingMessageKind::Steering => match &state.steering_message {
+                Some(m) if m.id == a.id => {
+                    state.steering_message = None;
+                    ReduceOutcome::Applied
                 }
-            }
+                _ => ReduceOutcome::NoOp,
+            },
             PendingMessageKind::Queued => {
                 let Some(list) = state.queued_messages.as_mut() else {
                     return ReduceOutcome::NoOp;
@@ -733,7 +752,10 @@ fn apply_tool_call_ready(
     })
 }
 
-fn resolve_selected_option(options: Option<&[ConfirmationOption]>, id: Option<&str>) -> Option<ConfirmationOption> {
+fn resolve_selected_option(
+    options: Option<&[ConfirmationOption]>,
+    id: Option<&str>,
+) -> Option<ConfirmationOption> {
     let id = id?;
     let opts = options?;
     opts.iter().find(|o| o.id == id).cloned()
@@ -747,10 +769,8 @@ fn apply_tool_call_confirmed(
         let ToolCallState::PendingConfirmation(s) = tc else {
             return tc;
         };
-        let selected_option = resolve_selected_option(
-            s.options.as_deref(),
-            a.selected_option_id.as_deref(),
-        );
+        let selected_option =
+            resolve_selected_option(s.options.as_deref(), a.selected_option_id.as_deref());
         let tool_call_id = s.tool_call_id;
         let tool_name = s.tool_name;
         let display_name = s.display_name;
@@ -796,7 +816,12 @@ fn apply_tool_call_complete(
     update_tool_call(state, &a.turn_id, &a.tool_call_id, |tc| {
         let (tool_call_id, tool_name, display_name, tool_client_id, meta) = tool_call_meta(&tc);
         let (invocation_message, tool_input, confirmed, selected_option) = match tc {
-            ToolCallState::Running(s) => (s.invocation_message, s.tool_input, s.confirmed, s.selected_option),
+            ToolCallState::Running(s) => (
+                s.invocation_message,
+                s.tool_input,
+                s.confirmed,
+                s.selected_option,
+            ),
             ToolCallState::PendingConfirmation(s) => (
                 s.invocation_message,
                 s.tool_input,
@@ -948,10 +973,7 @@ fn apply_input_answer_changed(
 // ─── Terminal Reducer ─────────────────────────────────────────────────
 
 /// Apply a [`StateAction`] to a [`TerminalState`] in place.
-pub fn apply_action_to_terminal(
-    state: &mut TerminalState,
-    action: &StateAction,
-) -> ReduceOutcome {
+pub fn apply_action_to_terminal(state: &mut TerminalState, action: &StateAction) -> ReduceOutcome {
     match action {
         StateAction::TerminalData(a) => {
             let tail = state.content.last_mut();
@@ -964,7 +986,9 @@ pub fn apply_action_to_terminal(
                 }
                 _ => {
                     state.content.push(TerminalContentPart::Unclassified(
-                        TerminalUnclassifiedPart { value: a.data.clone() },
+                        TerminalUnclassifiedPart {
+                            value: a.data.clone(),
+                        },
                     ));
                 }
             }
@@ -1001,15 +1025,17 @@ pub fn apply_action_to_terminal(
             ReduceOutcome::Applied
         }
         StateAction::TerminalCommandExecuted(a) => {
-            state.content.push(TerminalContentPart::Command(TerminalCommandPart {
-                command_id: a.command_id.clone(),
-                command_line: a.command_line.clone(),
-                output: String::new(),
-                timestamp: a.timestamp,
-                is_complete: false,
-                exit_code: None,
-                duration_ms: None,
-            }));
+            state
+                .content
+                .push(TerminalContentPart::Command(TerminalCommandPart {
+                    command_id: a.command_id.clone(),
+                    command_line: a.command_line.clone(),
+                    output: String::new(),
+                    timestamp: a.timestamp,
+                    is_complete: false,
+                    exit_code: None,
+                    duration_ms: None,
+                }));
             state.supports_command_detection = Some(true);
             ReduceOutcome::Applied
         }
@@ -1071,10 +1097,16 @@ mod tests {
         let action = StateAction::SessionTurnStarted(SessionTurnStartedAction {
             session: "copilot:/s1".into(),
             turn_id: "t1".into(),
-            user_message: UserMessage { text: "hi".into(), attachments: None },
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+            },
             queued_message_id: None,
         });
-        assert_eq!(apply_action_to_session(&mut s, &action), ReduceOutcome::Applied);
+        assert_eq!(
+            apply_action_to_session(&mut s, &action),
+            ReduceOutcome::Applied
+        );
         assert_eq!(s.summary.status, SessionStatus::InProgress as u32);
         assert_eq!(s.active_turn.unwrap().id, "t1");
     }
@@ -1084,7 +1116,10 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            user_message: UserMessage { text: "hi".into(), attachments: None },
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+            },
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
                 content: "Hello".into(),
@@ -1109,7 +1144,10 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            user_message: UserMessage { text: "hi".into(), attachments: None },
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+            },
             response_parts: Vec::new(),
             usage: None,
         });
@@ -1272,8 +1310,9 @@ mod tests {
             let parsed_actions: Vec<StateAction> = actions
                 .iter()
                 .map(|v| {
-                    serde_json::from_value::<StateAction>(v.clone())
-                        .unwrap_or_else(|e| panic!("{file_name} ({description}): failed to deserialize action: {e}"))
+                    serde_json::from_value::<StateAction>(v.clone()).unwrap_or_else(|e| {
+                        panic!("{file_name} ({description}): failed to deserialize action: {e}")
+                    })
                 })
                 .collect();
 
@@ -1287,12 +1326,12 @@ mod tests {
                 apply: fn(&mut S, &StateAction) -> ReduceOutcome,
                 file_name: &str,
                 description: &str,
-            )
-            where
+            ) where
                 S: serde::de::DeserializeOwned + serde::Serialize,
             {
-                let state: S = serde_json::from_value(initial.clone())
-                    .unwrap_or_else(|e| panic!("{file_name} ({description}): failed to deserialize initial state: {e}"));
+                let state: S = serde_json::from_value(initial.clone()).unwrap_or_else(|e| {
+                    panic!("{file_name} ({description}): failed to deserialize initial state: {e}")
+                });
                 // Verify the initial state round-trips. If this fails, either the
                 // fixture data is wrong or the Rust types are dropping fields.
                 let rt = strip_nulls(serde_json::to_value(&state).unwrap());
@@ -1319,19 +1358,28 @@ mod tests {
 
             match reducer {
                 "root" => run_fixture::<RootState>(
-                    initial, expected, &parsed_actions,
+                    initial,
+                    expected,
+                    &parsed_actions,
                     |s, a| apply_action_to_root(s, a),
-                    &file_name, description,
+                    &file_name,
+                    description,
                 ),
                 "session" => run_fixture::<SessionState>(
-                    initial, expected, &parsed_actions,
+                    initial,
+                    expected,
+                    &parsed_actions,
                     |s, a| apply_action_to_session(s, a),
-                    &file_name, description,
+                    &file_name,
+                    description,
                 ),
                 "terminal" => run_fixture::<TerminalState>(
-                    initial, expected, &parsed_actions,
+                    initial,
+                    expected,
+                    &parsed_actions,
                     |s, a| apply_action_to_terminal(s, a),
-                    &file_name, description,
+                    &file_name,
+                    description,
                 ),
                 other => {
                     panic!("{file_name}: unknown reducer type '{other}'");
@@ -1343,10 +1391,7 @@ mod tests {
 
         clear_mock_time();
 
-        eprintln!(
-            "Fixture results: {passed} passed, {} total",
-            entries.len()
-        );
+        eprintln!("Fixture results: {passed} passed, {} total", entries.len());
         assert_eq!(
             passed,
             entries.len(),
