@@ -10,7 +10,7 @@ Transport-agnostic SDK that builds on [`ahp-types`](https://crates.io/crates/ahp
 ## Features
 
 - **[`Client`](https://docs.rs/ahp/latest/ahp/client/struct.Client.html)** — async JSON-RPC client with action subscription, write-ahead dispatch, and background I/O task
-- **[`reducers`](https://docs.rs/ahp/latest/ahp/reducers/)** — pure state reducers ported from `types/reducers.ts`; apply `StateAction`s to `RootState` / `SessionState` / terminal state
+- **[`reducers`](https://docs.rs/ahp/latest/ahp/reducers/)** — pure state reducers; apply `StateAction`s to `RootState` / `SessionState` / terminal state
 - **[`Transport`](https://docs.rs/ahp/latest/ahp/transport/trait.Transport.html)** — pluggable trait for any framed message stream
 
 ## Usage

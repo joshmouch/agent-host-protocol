@@ -5,7 +5,7 @@ Wire protocol types for the [Agent Host Protocol (AHP)](https://github.com/micro
 [![crates.io](https://img.shields.io/crates/v/ahp-types.svg)](https://crates.io/crates/ahp-types)
 [![docs.rs](https://img.shields.io/docsrs/ahp-types)](https://docs.rs/ahp-types)
 
-This crate provides Rust counterparts for the TypeScript source-of-truth types. All types are `Serialize + Deserialize` and use the same JSON field names as the protocol wire format.
+Rust types for every message, action, command, and state object defined by the [AHP specification](https://microsoft.github.io/agent-host-protocol/). All types implement `Serialize + Deserialize` and use the same JSON field names as the wire format.
 
 ## Modules
 
@@ -42,12 +42,8 @@ match env.action {
 }
 ```
 
-## Code generation
+## See also
 
-These files are generated from the TypeScript source of truth in [`types/`](../../../../types/). Regenerate with:
-
-```sh
-npm run generate:rust
-```
-
-from the repository root (requires Node.js and a Rust toolchain).
+- [`ahp`](https://crates.io/crates/ahp) — async client, reducers, and transport trait
+- [`ahp-ws`](https://crates.io/crates/ahp-ws) — WebSocket transport
+- [Protocol documentation](https://microsoft.github.io/agent-host-protocol/)
