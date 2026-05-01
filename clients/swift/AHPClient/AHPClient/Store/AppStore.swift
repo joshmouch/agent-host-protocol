@@ -501,18 +501,34 @@ final class AppStore {
 
     // MARK: - Conversation
 
-    /// Send a user message to the current session, starting a new turn.
+    /// Send a user message to the current session.
+    ///
+    /// The message is dispatched as a queued ``PendingMessageKind/queued`` pending
+    /// message rather than a `session/turnStarted` action. Per the AHP state-model
+    /// spec, when a queued message is set on an idle session the server SHOULD
+    /// immediately consume it and emit its own `session/turnStarted` (with
+    /// `queuedMessageId` linking back to the queued entry). When a turn is already
+    /// in progress, the message stays in the queue and is auto-started after the
+    /// current turn completes.
+    ///
+    /// This is the canonical client-to-server "send a new user message" flow.
+    /// Clients only dispatch `session/turnStarted` directly for the truncate-and-
+    /// resume-with-edited-message pattern documented in the state-model guide.
     func sendMessage(_ text: String, attachments: [MessageAttachment]? = nil) async {
         guard let uri = selectedSessionURI else { return }
-        let turnId = UUID().uuidString
-        let action = StateAction.sessionTurnStarted(SessionTurnStartedAction(
-            type: .sessionTurnStarted,
+        let messageId = UUID().uuidString
+        let action = StateAction.sessionPendingMessageSet(SessionPendingMessageSetAction(
+            type: .sessionPendingMessageSet,
             session: uri,
-            turnId: turnId,
+            kind: .queued,
+            id: messageId,
             userMessage: UserMessage(text: text, attachments: attachments)
         ))
 
-        // Optimistically apply the action locally
+        // Optimistically apply the action locally so the message appears
+        // immediately as a queued entry; the server-dispatched
+        // `session/pendingMessageRemoved` + `session/turnStarted` pair will
+        // promote it into an active turn shortly after.
         applySessionAction(action, sessionURI: uri)
 
         // Dispatch to server

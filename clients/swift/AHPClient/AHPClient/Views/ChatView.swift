@@ -51,6 +51,31 @@ struct ChatView: View {
                                 ActiveTurnView(turn: activeTurn)
                                     .id("active-\(activeTurn.id)")
                             }
+
+                            // Steering message — will be injected into the
+                            // current turn at the server's next opportunity.
+                            if let steering = session.steeringMessage {
+                                PendingMessageView(
+                                    message: steering,
+                                    caption: "Steering",
+                                    captionIcon: "arrow.turn.down.right"
+                                )
+                                .id("steering-\(steering.id)")
+                            }
+
+                            // Queued messages — auto-started as new turns
+                            // after the current turn completes (or immediately
+                            // when the session is idle).
+                            if let queued = session.queuedMessages {
+                                ForEach(queued, id: \.id) { msg in
+                                    PendingMessageView(
+                                        message: msg,
+                                        caption: "Queued",
+                                        captionIcon: "clock"
+                                    )
+                                    .id("queued-\(msg.id)")
+                                }
+                            }
                         }
 
                         // Bottom sentinel — scroll target and at-bottom detection.
@@ -79,6 +104,20 @@ struct ChatView: View {
                     }
                 }
                 .onChange(of: store.currentSession?.turns.count) {
+                    if isAtBottom {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            scrollToBottom(proxy, animated: true)
+                        }
+                    }
+                }
+                .onChange(of: store.currentSession?.queuedMessages?.count) {
+                    if isAtBottom {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            scrollToBottom(proxy, animated: true)
+                        }
+                    }
+                }
+                .onChange(of: store.currentSession?.steeringMessage?.id) {
                     if isAtBottom {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                             scrollToBottom(proxy, animated: true)
@@ -542,6 +581,34 @@ struct ActiveTurnView: View {
             if let usage = turn.usage {
                 UsageBadge(usage: usage)
             }
+        }
+    }
+}
+
+// MARK: - PendingMessageView (queued / steering)
+
+/// Renders a pending user message — either a queued message (will start
+/// a new turn after the current one finishes, or immediately if the
+/// session is idle) or a steering message (will be injected into the
+/// current turn at the server's next opportunity).
+struct PendingMessageView: View {
+    let message: PendingMessage
+    let caption: String
+    let captionIcon: String
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            UserBubble(text: message.userMessage.text, attachments: message.userMessage.attachments)
+                .opacity(0.7)
+
+            HStack(spacing: 4) {
+                Image(systemName: captionIcon)
+                    .font(.caption2)
+                Text(caption)
+                    .font(.caption2)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.trailing, 4)
         }
     }
 }
