@@ -364,6 +364,11 @@
         "configSchema": {
           "$ref": "#/$defs/ConfigSchema",
           "description": "Configuration schema describing model-specific options (e.g. thinking\nlevel). Clients present this as a form and pass the resolved values in\n{@link ModelSelection.config} when creating or changing sessions."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this model.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `pricing` key may carry model pricing metadata."
         }
       },
       "required": [

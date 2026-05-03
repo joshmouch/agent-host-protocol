@@ -466,6 +466,12 @@ pub struct SessionModelInfo {
     /// {@link ModelSelection.config} when creating or changing sessions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_schema: Option<ConfigSchema>,
+    /// Additional provider-specific metadata for this model.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    /// For example, a `pricing` key may carry model pricing metadata.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// A model selection: the chosen model ID together with any model-specific

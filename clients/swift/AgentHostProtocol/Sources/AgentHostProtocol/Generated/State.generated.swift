@@ -422,6 +422,22 @@ public struct SessionModelInfo: Codable, Sendable {
     /// level). Clients present this as a form and pass the resolved values in
     /// {@link ModelSelection.config} when creating or changing sessions.
     public var configSchema: ConfigSchema?
+    /// Additional provider-specific metadata for this model.
+    /// 
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    /// For example, a `pricing` key may carry model pricing metadata.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case provider
+        case name
+        case maxContextWindow
+        case supportsVision
+        case policyState
+        case configSchema
+        case meta = "_meta"
+    }
 
     public init(
         id: String,
@@ -430,7 +446,8 @@ public struct SessionModelInfo: Codable, Sendable {
         maxContextWindow: Int? = nil,
         supportsVision: Bool? = nil,
         policyState: PolicyState? = nil,
-        configSchema: ConfigSchema? = nil
+        configSchema: ConfigSchema? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.id = id
         self.provider = provider
@@ -439,6 +456,7 @@ public struct SessionModelInfo: Codable, Sendable {
         self.supportsVision = supportsVision
         self.policyState = policyState
         self.configSchema = configSchema
+        self.meta = meta
     }
 }
 

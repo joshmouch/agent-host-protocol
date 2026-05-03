@@ -212,6 +212,13 @@ export interface SessionModelInfo {
    * {@link ModelSelection.config} when creating or changing sessions.
    */
   configSchema?: ConfigSchema;
+  /**
+   * Additional provider-specific metadata for this model.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI.
+   * For example, a `pricing` key may carry model pricing metadata.
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**
