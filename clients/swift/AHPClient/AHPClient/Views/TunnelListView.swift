@@ -7,9 +7,25 @@ import SwiftUI
 extension Tunnel: @retroactive Identifiable {
     public var id: String { tunnelId ?? UUID().uuidString }
 
-    /// Human-readable display name: prefers the tunnel name, falls back to tunnel ID.
+    /// Tunnel labels used by VS Code's CLI to mark service-owned tunnels.
+    /// These are infrastructure tags, not user-visible names, so we filter
+    /// them out when picking a friendly label for display.
+    /// Source: `cli/src/tunnels/dev_tunnels.rs` in microsoft/vscode.
+    private static let vscodeReservedLabels: Set<String> = [
+        "vscode-server-launcher",
+        "vscode-port-forward",
+    ]
+
+    /// Human-readable display name. Prefers (in order): the tunnel's `name`
+    /// field, the first non-reserved entry in `labels` (VS Code's CLI stores
+    /// the user-facing machine name there), and finally the tunnel ID.
     var displayName: String {
         if let name, !name.isEmpty { return name }
+        if let labels {
+            if let friendly = labels.first(where: { !$0.isEmpty && !Self.vscodeReservedLabels.contains($0) }) {
+                return friendly
+            }
+        }
         return tunnelId ?? ""
     }
 }
@@ -328,7 +344,7 @@ struct TunnelDetailView: View {
     var body: some View {
         List {
             Section("Info") {
-                LabeledContent("Name", value: tunnel.name ?? "")
+                LabeledContent("Name", value: tunnel.displayName)
                 LabeledContent("Tunnel ID", value: tunnel.tunnelId ?? "")
                 LabeledContent("Cluster", value: tunnel.clusterId ?? "")
             }
