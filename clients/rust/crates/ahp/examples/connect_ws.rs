@@ -27,7 +27,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::connect(transport, ClientConfig::default()).await?;
 
     let init = client
-        .initialize("rust-example".into(), 1, vec!["root:/".into()])
+        .initialize("rust-example".into(), vec![ahp_types::PROTOCOL_VERSION.to_string()], vec!["root:/".into()])
         .await?;
     println!("connected (protocolVersion={})", init.protocol_version);
 

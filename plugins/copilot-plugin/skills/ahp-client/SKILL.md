@@ -57,7 +57,7 @@ Send an `initialize` **notification** (no `id` field):
   "jsonrpc": "2.0",
   "method": "initialize",
   "params": {
-    "protocolVersion": 1,
+    "protocolVersions": ["0.1.0"],
     "clientId": "<unique-client-id>",
     "initialSubscriptions": ["agenthost:/root"]
   }

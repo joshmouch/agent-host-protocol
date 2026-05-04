@@ -58,7 +58,7 @@ async fn request_response_and_action_fanout() {
 
         // Reply with a minimal InitializeResult.
         let result = serde_json::json!({
-            "protocolVersion": 1,
+            "protocolVersion": "0.1.0",
             "serverSeq": 0,
             "snapshots": [],
         });
@@ -122,10 +122,10 @@ async fn request_response_and_action_fanout() {
 
     // Initialize handshake.
     let init = client
-        .initialize("test-client".into(), 1, vec![])
+        .initialize("test-client".into(), vec!["0.1.0".into()], vec![])
         .await
         .expect("initialize");
-    assert_eq!(init.protocol_version, 1);
+    assert_eq!(init.protocol_version, "0.1.0");
 
     // Subscribe and await the action broadcast.
     let (_snap, mut sub) = client

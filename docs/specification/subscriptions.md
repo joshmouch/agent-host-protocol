@@ -86,7 +86,7 @@ During the connection handshake, clients MAY include `initialSubscriptions` in t
   "id": 1,
   "method": "initialize",
   "params": {
-    "protocolVersion": 1,
+    "protocolVersions": ["0.1.0"],
     "clientId": "client-abc",
     "initialSubscriptions": ["agenthost:/root", "copilot:/<prev-session>"]
   }

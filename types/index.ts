@@ -289,11 +289,9 @@ export type {
 // Version registry
 export {
   PROTOCOL_VERSION,
-  MIN_PROTOCOL_VERSION,
   ACTION_INTRODUCED_IN,
   NOTIFICATION_INTRODUCED_IN,
   isActionKnownToVersion,
   isNotificationKnownToVersion,
-  capabilitiesForVersion,
+  compareProtocolVersions,
 } from './version/registry.js';
-export type { ProtocolCapabilities } from './version/registry.js';

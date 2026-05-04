@@ -46,8 +46,14 @@ pub enum ContentEncoding {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeParams {
-    /// Protocol version the client speaks
-    pub protocol_version: i64,
+    /// Protocol versions the client is willing to speak, ordered from most
+    /// preferred to least preferred. Each entry is a [SemVer](https://semver.org)
+    /// `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+    ///
+    /// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
+    /// If the server cannot speak any of the offered versions, it MUST return
+    /// error code `-32005` (`UnsupportedProtocolVersion`).
+    pub protocol_versions: Vec<String>,
     /// Unique client identifier
     pub client_id: String,
     /// URIs to subscribe to during handshake
@@ -62,13 +68,18 @@ pub struct InitializeParams {
 
 /// Result of the `initialize` command.
 ///
-/// If the server does not support the client's protocol version, it MUST return
-/// error code `-32005` (`UnsupportedProtocolVersion`).
+/// `protocolVersion` is the version the server has selected from the client's
+/// `protocolVersions` list. The client and server MUST use this version for
+/// the rest of the connection. If the server cannot speak any of the offered
+/// versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
+/// instead of a result.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeResult {
-    /// Protocol version the server speaks
-    pub protocol_version: i64,
+    /// Protocol version selected by the server. MUST be one of the entries in
+    /// `InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)
+    /// `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
+    pub protocol_version: String,
     /// Current server sequence number
     pub server_seq: i64,
     /// Snapshots for each `initialSubscriptions` URI

@@ -165,7 +165,7 @@ actor AHPConnection {
             await installWebSocket(ws)
 
             let params = InitializeParams(
-                protocolVersion: 1,
+                protocolVersions: ["0.1.0"],
                 clientId: clientId,
                 initialSubscriptions: ["agenthost:/root"]
             )

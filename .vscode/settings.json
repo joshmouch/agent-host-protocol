@@ -16,6 +16,7 @@
   },
   "files.readonlyExclude": {
     "clients/rust/crates/ahp-types/src/common.rs": true,
+    "clients/rust/crates/ahp-types/src/lib.rs": true,
   },
 	"rust-analyzer.linkedProjects": [
 		"clients/rust/Cargo.toml"

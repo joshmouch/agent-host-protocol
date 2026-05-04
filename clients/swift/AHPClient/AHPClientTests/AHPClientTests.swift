@@ -1484,7 +1484,7 @@ private func decodeNotification<Params: Codable & Sendable>(
 
 private func makeInitializeResult(serverSeq: Int) -> InitializeResult {
     InitializeResult(
-        protocolVersion: 1,
+        protocolVersion: "0.1.0",
         serverSeq: serverSeq,
         snapshots: [Snapshot(
             resource: "agenthost:/root",

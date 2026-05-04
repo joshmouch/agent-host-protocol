@@ -7,7 +7,7 @@ This guide walks through a basic client-server interaction using the Agent Host 
 Every AHP session starts with a JSON-RPC handshake over the transport (WebSocket, MessagePort, etc.):
 
 ```
-1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?)
+1. Client → Server:  initialize(protocolVersions[], clientId, initialSubscriptions?)
 2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 

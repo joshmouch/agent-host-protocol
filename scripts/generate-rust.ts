@@ -1122,7 +1122,8 @@ pub mod ahp_error_codes {
     pub const SESSION_ALREADY_EXISTS: i32 = -32003;
     /// The operation requires no active turn, but one is in progress.
     pub const TURN_IN_PROGRESS: i32 = -32004;
-    /// The client's protocol version is not supported by the server.
+    /// The server cannot speak any of the protocol versions offered by the
+    /// client in \`InitializeParams.protocolVersions\`.
     pub const UNSUPPORTED_PROTOCOL_VERSION: i32 = -32005;
     /// The requested content URI does not exist.
     pub const CONTENT_NOT_FOUND: i32 = -32006;
@@ -1254,26 +1255,21 @@ pub type ActionNotificationParams = ActionEnvelope;
 
 function generateVersionFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName().endsWith('registry.ts'));
-  let protocolVersion = 1;
-  let minProtocolVersion = 1;
+  let protocolVersion = '0.1.0';
   if (sf) {
     for (const decl of sf.getVariableDeclarations()) {
-      if (decl.getName() === 'PROTOCOL_VERSION') {
-        const init = decl.getInitializer()?.getText() ?? '1';
-        protocolVersion = Number(init) || 1;
-      } else if (decl.getName() === 'MIN_PROTOCOL_VERSION') {
-        const init = decl.getInitializer()?.getText() ?? '1';
-        minProtocolVersion = Number(init) || 1;
+      const init = decl.getInitializer()?.getText() ?? '';
+      // Initializers are TS source text, e.g. `'0.1.0'`. Strip surrounding quotes.
+      const literal = init.replace(/^['"`]|['"`]$/g, '');
+      if (decl.getName() === 'PROTOCOL_VERSION' && literal) {
+        protocolVersion = literal;
       }
     }
   }
 
   return `${GENERATED_BANNER}
-/// Current protocol version.
-pub const PROTOCOL_VERSION: u32 = ${protocolVersion};
-
-/// Minimum protocol version this SDK can negotiate.
-pub const MIN_PROTOCOL_VERSION: u32 = ${minProtocolVersion};
+/// Current protocol version (SemVer \`MAJOR.MINOR.PATCH\`).
+pub const PROTOCOL_VERSION: &str = ${JSON.stringify(protocolVersion)};
 `;
 }
 

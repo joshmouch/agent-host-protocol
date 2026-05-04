@@ -4,8 +4,5 @@
 
 #![allow(missing_docs)]
 
-/// Current protocol version.
-pub const PROTOCOL_VERSION: u32 = 1;
-
-/// Minimum protocol version this SDK can negotiate.
-pub const MIN_PROTOCOL_VERSION: u32 = 1;
+/// Current protocol version (SemVer `MAJOR.MINOR.PATCH`).
+pub const PROTOCOL_VERSION: &str = "0.1.0";

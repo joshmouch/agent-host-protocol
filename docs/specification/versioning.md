@@ -1,121 +1,62 @@
 # Versioning
 
-AHP uses a forward-compatible versioning strategy. Newer clients can connect to older servers and degrade gracefully. A single protocol version number maps to a capabilities object.
+AI is an evolving space. Unlike LSP or DAP — which largely guarantee backwards compatibility in perpetuity — the design space for agent hosts is open-ended and moving quickly. Backwards-incompatible changes to AHP are inevitable. Versioning gives clients and hosts a shared vocabulary for negotiating which behaviors are safe to use on a given connection.
 
-## Protocol Version Constants
+## Version Format
 
-Two constants define the version window:
+Protocol versions are [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` strings (e.g. `"0.1.0"`). Pre-release and build metadata are not used.
 
-- **`PROTOCOL_VERSION`** — The current version that new code speaks.
-- **`MIN_PROTOCOL_VERSION`** — The oldest version the implementation maintains compatibility with.
+## Negotiation
 
-```
-Version history:
-  1 — Initial: core session lifecycle, streaming, tools, permissions
-```
+Version selection happens once, during the [`initialize`](/specification/lifecycle) handshake — modelled after WebSocket subprotocol negotiation:
 
-## When to Bump the Version
+1. The client sends `InitializeParams.protocolVersions`: an array of every protocol version it is willing to speak, ordered from most preferred to least preferred.
+2. The server picks one entry it can speak and returns it as `InitializeResult.protocolVersion`. Servers SHOULD honor the client's preference order when multiple offered versions are acceptable.
+3. If the server cannot speak any of the offered versions, it MUST respond with [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) instead of a result, and close the connection.
 
-Bump `PROTOCOL_VERSION` when:
-- A new feature area requires capability negotiation (client must know server supports it before sending commands).
-- Behavioral semantics of existing actions change.
+Both peers MUST use the selected version for the rest of the connection. There is no per-message renegotiation.
 
-The following do **not** require a version bump:
-- Adding **optional** fields to existing action/state types.
-- Adding new action types (they're filtered by version automatically).
+## Compatibility Guarantee
 
-## Version Type Snapshots
+AHP follows standard SemVer compatibility:
 
-Each protocol version has a type file (`v1.ts`, `v2.ts`, etc.) that captures the wire format shape of every state type and action type in that version.
+- Two peers speaking versions `X.y.z` and `X.y'.z'` (same `MAJOR ≥ 1`) are compatible.
+- Two peers speaking versions `0.X.y` and `0.X.y'` (same pre-1.0 `MINOR`) are compatible.
+- Any other combination is **not** guaranteed to be compatible.
 
-The **latest** version file is the editable "tip" — it can be modified alongside the living types. When `PROTOCOL_VERSION` is bumped, the previous version file becomes frozen and a new tip is created.
+Within a compatible range, additive changes — new optional fields on existing types, new action types, new commands — are introduced in `PATCH` (or `MINOR`, while `MAJOR` is `0`) bumps and MUST be ignored by older peers that do not understand them.
 
-## Compatibility Checks
+## Capabilities First, Then Required
 
-The version registry performs **bidirectional assignability checks** between version types and living types:
+New behavior generally lands in two stages:
 
-```typescript
-// AssertCompatible requires BOTH directions:
-//   Current extends Frozen → can't remove fields or change field types
-//   Frozen extends Current → can't add required fields
-// The only allowed evolution is adding optional fields.
-type AssertCompatible<Frozen, Current extends Frozen> =
-  Frozen extends Current ? true : never;
-```
+1. **Capability-gated.** A new feature is introduced as an opt-in capability advertised by a host or clients. Implementors check for the capability before exercising the feature. This lets hosts and clients adopt the feature on independent schedules without a version bump.
+2. **Required.** Once a capability has matured, a future protocol version may promote it to baseline behavior and remove the capability flag. This reduces long-term implementation complexity.
 
-| Change to living type | Compile result |
-|---|---|
-| Add optional field | ✅ Passes |
-| Remove a field | ❌ `Current extends Frozen` fails |
-| Change a field's type | ❌ `Current extends Frozen` fails |
-| Add required field | ❌ `Frozen extends Current` fails |
+## Client and Host Update Cadence
 
-## Exhaustive Action → Version Map
+Agent hosts may be remote machines, cloud services, or other external APIs that the user does not control. Clients (IDEs, CLI tools, embedded UIs) are typically easier for a user to update than hosts.
 
-The registry maintains a runtime map with a TypeScript index signature that forces an entry for every action type in the union:
+As a result:
 
-```typescript
-const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: number } = {
-  'root/agentsChanged': 1,
-  'session/turnStarted': 1,
-  'session/delta': 1,
-  // ...every action type must have an entry
-};
-```
-
-Adding a new action to the union without adding it to this map is a compile error.
-
-The server uses this for one-line filtering:
-
-```typescript
-function isActionKnownToVersion(action: StateAction, clientVersion: number): boolean {
-  return ACTION_INTRODUCED_IN[action.type] <= clientVersion;
-}
-```
-
-## Capabilities
-
-The protocol version maps to a `ProtocolCapabilities` interface for feature gating:
-
-```typescript
-interface ProtocolCapabilities {
-  // v1 — always present
-  readonly sessions: true;
-  readonly tools: true;
-  readonly permissions: true;
-  // v2+ (example)
-  readonly reasoning?: true;
-}
-
-function capabilitiesForVersion(version: number): ProtocolCapabilities {
-  return {
-    sessions: true,
-    tools: true,
-    permissions: true,
-    // ...(version >= 2 ? { reasoning: true } : {}),
-  };
-}
-```
+- **Clients SHOULD offer a wide range of protocol versions** when feasible so that older hosts can still pick a version they understand. Clients then degrade features gracefully when the negotiated version lacks a capability they would otherwise use.
+- **Hosts SHOULD pick the highest offered version they implement.** Lower entries in the client's array are fallbacks for older hosts.
+- **Hosts MUST refuse incompatible clients** by returning [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) when no offered version is acceptable.
 
 ## Forward Compatibility
 
-A newer client connecting to an older server:
+When a newer client connects to an older host:
 
-1. During handshake, the client learns the server's protocol version from the `initialize` response.
-2. The client derives `ProtocolCapabilities` from the server version.
-3. Command factories check capabilities before dispatching; if unsupported, the client degrades gracefully.
-4. The server only sends action types known to the client's declared version (via `isActionKnownToVersion`).
-5. As a safety net, clients SHOULD silently ignore actions with unrecognized `type` values.
+1. The client offers its full version list, including older versions it can fall back to.
+2. The host picks the newest entry it understands and returns it.
+3. The client checks the capability set advertised by the host before using newer features.
+4. If a feature is unavailable, the client degrades gracefully — disabling UI affordances, falling back to older code paths, or surfacing a clear message to the user.
+5. The host only sends action types known to the negotiated version. As a safety net, clients SHOULD silently ignore actions with unrecognized `type` values.
 
 ## Backward Compatibility
 
-Backward compatibility (older clients connecting to newer servers) is not guaranteed. Clients should update before the server.
+When an older client connects to a newer host:
 
-## Raising the Minimum Version
-
-When `MIN_PROTOCOL_VERSION` is raised from N to N+1:
-
-1. Delete the version N type file (`vN.ts`).
-2. Remove the vN compatibility checks from the version registry.
-3. The compiler surfaces any dead code that only existed for vN compatibility.
-4. Clean up that dead code.
+1. The client offers only the versions it knows.
+2. The host picks one of those (typically the newest the client offered) or returns `UnsupportedProtocolVersion` if it can no longer speak any of them.
+3. On a successful negotiation the host MUST NOT use newer-version-only behaviors on that connection unless gated behind a capability the client has acknowledged.

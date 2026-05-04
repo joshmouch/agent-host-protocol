@@ -2653,9 +2653,12 @@
       "type": "object",
       "description": "Establishes a new connection and negotiates the protocol version.\nThis MUST be the first message sent by the client.",
       "properties": {
-        "protocolVersion": {
-          "type": "number",
-          "description": "Protocol version the client speaks"
+        "protocolVersions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Protocol versions the client is willing to speak, ordered from most\npreferred to least preferred. Each entry is a [SemVer](https://semver.org)\n`MAJOR.MINOR.PATCH` string (e.g. `\"0.1.0\"`).\n\nThe server selects one entry and returns it as `InitializeResult.protocolVersion`.\nIf the server cannot speak any of the offered versions, it MUST return\nerror code `-32005` (`UnsupportedProtocolVersion`)."
         },
         "clientId": {
           "type": "string",
@@ -2674,17 +2677,17 @@
         }
       },
       "required": [
-        "protocolVersion",
+        "protocolVersions",
         "clientId"
       ]
     },
     "InitializeResult": {
       "type": "object",
-      "description": "Result of the `initialize` command.\n\nIf the server does not support the client's protocol version, it MUST return\nerror code `-32005` (`UnsupportedProtocolVersion`).",
+      "description": "Result of the `initialize` command.\n\n`protocolVersion` is the version the server has selected from the client's\n`protocolVersions` list. The client and server MUST use this version for\nthe rest of the connection. If the server cannot speak any of the offered\nversions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)\ninstead of a result.",
       "properties": {
         "protocolVersion": {
-          "type": "number",
-          "description": "Protocol version the server speaks"
+          "type": "string",
+          "description": "Protocol version selected by the server. MUST be one of the entries in\n`InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)\n`MAJOR.MINOR.PATCH` string (e.g. `\"0.1.0\"`)."
         },
         "serverSeq": {
           "type": "number",

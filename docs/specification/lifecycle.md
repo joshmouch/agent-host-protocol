@@ -4,10 +4,10 @@ The lifecycle defines how AHP connections are established, sessions are created 
 
 ## Connection Handshake
 
-The client initiates the connection with an `initialize` **request**. The server responds with the protocol version and initial state snapshots:
+The client initiates the connection with an `initialize` **request**. The client offers a list of protocol versions it can speak; the server picks one and responds with the negotiated version and initial state snapshots:
 
 ```
-1. Client → Server:  initialize(protocolVersion, clientId, initialSubscriptions?, locale?)
+1. Client → Server:  initialize(protocolVersions[], clientId, initialSubscriptions?, locale?)
 2. Server → Client:  { protocolVersion, serverSeq, snapshots[], defaultDirectory? }
 ```
 
@@ -21,13 +21,15 @@ The client initiates the connection with an `initialize` **request**. The server
   "id": 1,
   "method": "initialize",
   "params": {
-    "protocolVersion": 1,
+    "protocolVersions": ["0.1.0"],
     "clientId": "client-abc",
     "initialSubscriptions": ["agenthost:/root"],
     "locale": "en-US"
   }
 }
 ```
+
+`protocolVersions` is ordered from most preferred to least preferred. The server picks one entry and returns it as `InitializeResult.protocolVersion`. If the server cannot speak any of the offered versions it MUST return [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) instead of a result. See [Versioning](/specification/versioning) for the negotiation rules.
 
 `initialSubscriptions` allows the client to subscribe to root state (and any previously-open sessions) in the same round-trip as the handshake.
 
@@ -40,7 +42,7 @@ The client initiates the connection with an `initialize` **request**. The server
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": 1,
+    "protocolVersion": "0.1.0",
     "serverSeq": 42,
     "defaultDirectory": "file:///home/testuser",
     "snapshots": [
@@ -54,11 +56,11 @@ The client initiates the connection with an `initialize` **request**. The server
 }
 ```
 
-The `protocolVersion` in the response tells the client what version the server speaks. The client derives `ProtocolCapabilities` from this and gates feature usage accordingly.
+`protocolVersion` is the version the server selected from the client's `protocolVersions` list. Both peers MUST use this version for the rest of the connection.
 
 If present, `defaultDirectory` provides a server-local starting location for remote filesystem browsing.
 
-If the server cannot accept the connection (e.g. unsupported protocol version), it MUST return a JSON-RPC error. See [Error Codes](/reference/error-codes) for defined codes.
+If the server cannot accept the connection for any other reason, it MUST return a JSON-RPC error. See [Error Codes](/reference/error-codes) for defined codes.
 
 ## Authentication
 

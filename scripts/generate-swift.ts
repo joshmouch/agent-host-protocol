@@ -1133,7 +1133,7 @@ function generateErrorsFile(project: Project): string {
   lines.push('    public static let sessionAlreadyExists = -32003');
   lines.push('    /// The operation requires no active turn, but one is in progress');
   lines.push('    public static let turnInProgress = -32004');
-  lines.push('    /// The client\'s protocol version is not supported by the server');
+  lines.push('    /// The server cannot speak any of the protocol versions offered by the client in `InitializeParams.protocolVersions`');
   lines.push('    public static let unsupportedProtocolVersion = -32005');
   lines.push('    /// The requested content URI does not exist');
   lines.push('    public static let contentNotFound = -32006');

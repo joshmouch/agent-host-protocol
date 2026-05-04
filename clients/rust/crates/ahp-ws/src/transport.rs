@@ -36,7 +36,7 @@ type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// # async fn run() -> Result<(), Box<dyn std::error::Error>> {
 /// let transport = WebSocketTransport::connect("ws://localhost:12345").await?;
 /// let client = Client::connect(transport, ClientConfig::default()).await?;
-/// client.initialize("demo".into(), 1, vec![]).await?;
+/// client.initialize("demo".into(), vec!["0.1.0".into()], vec![]).await?;
 /// # Ok(()) }
 /// ```
 pub struct WebSocketTransport {

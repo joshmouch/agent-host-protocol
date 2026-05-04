@@ -24,7 +24,7 @@
 //! let transport = WebSocketTransport::connect("ws://localhost:12345").await?;
 //! let client = Client::connect(transport, ClientConfig::default()).await?;
 //!
-//! client.initialize("my-client".into(), 1, vec!["agenthost:/root".into()]).await?;
+//! client.initialize("my-client".into(), vec!["0.1.0".into()], vec!["agenthost:/root".into()]).await?;
 //!
 //! let mut sub = client.attach_subscription("agenthost:/root").await;
 //! while let Some(SubscriptionEvent::Action(env)) = sub.recv().await {

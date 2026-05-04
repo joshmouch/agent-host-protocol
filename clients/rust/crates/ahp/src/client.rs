@@ -12,7 +12,7 @@
 //! use ahp::{Client, ClientConfig};
 //!
 //! let client = Client::connect(transport, ClientConfig::default()).await?;
-//! let init = client.initialize("my-client".into(), 1, vec![]).await?;
+//! let init = client.initialize("my-client".into(), vec!["0.1.0".into()], vec![]).await?;
 //! // ... use client ...
 //! client.shutdown().await;
 //! # Ok(()) }
@@ -282,14 +282,18 @@ impl Client {
     }
 
     /// Issue the `initialize` handshake.
+    ///
+    /// `protocol_versions` is the list of protocol versions the client is
+    /// willing to speak, ordered most preferred first. The server picks one
+    /// and returns it as `InitializeResult.protocol_version`.
     pub async fn initialize(
         &self,
         client_id: String,
-        protocol_version: i64,
+        protocol_versions: Vec<String>,
         initial_subscriptions: Vec<String>,
     ) -> Result<InitializeResult, ClientError> {
         let params = InitializeParams {
-            protocol_version,
+            protocol_versions,
             client_id,
             initial_subscriptions: if initial_subscriptions.is_empty() {
                 None

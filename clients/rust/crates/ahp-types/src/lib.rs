@@ -61,7 +61,7 @@
 //! use ahp_types::common::AnyValue;
 //!
 //! let params = InitializeParams {
-//!     protocol_version: ahp_types::PROTOCOL_VERSION as i64,
+//!     protocol_versions: vec![ahp_types::PROTOCOL_VERSION.to_string()],
 //!     client_id: "my-host/1.0".into(),
 //!     initial_subscriptions: Some(vec!["agenthost:/root".into()]),
 //!     locale: Some("en".into()),

@@ -40,7 +40,8 @@ pub mod ahp_error_codes {
     pub const SESSION_ALREADY_EXISTS: i32 = -32003;
     /// The operation requires no active turn, but one is in progress.
     pub const TURN_IN_PROGRESS: i32 = -32004;
-    /// The client's protocol version is not supported by the server.
+    /// The server cannot speak any of the protocol versions offered by the
+    /// client in `InitializeParams.protocolVersions`.
     pub const UNSUPPORTED_PROTOCOL_VERSION: i32 = -32005;
     /// The requested content URI does not exist.
     pub const CONTENT_NOT_FOUND: i32 = -32006;
