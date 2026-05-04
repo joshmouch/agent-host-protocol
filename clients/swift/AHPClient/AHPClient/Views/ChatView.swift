@@ -5,7 +5,7 @@ import UIKit
 /// Main chat view showing the conversation with the agent.
 struct ChatView: View {
     @Environment(AppStore.self) private var store
-    @AppStorage("showSessionDebugStatus") private var showSessionDebugStatus = true
+    @AppStorage("showSessionDebugStatus") private var showSessionDebugStatus = false
     @State private var inputText = ""
     @FocusState private var inputFocused: Bool
     /// Tracks whether the scroll position is at (or near) the bottom.

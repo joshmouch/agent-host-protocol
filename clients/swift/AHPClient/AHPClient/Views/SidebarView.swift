@@ -73,6 +73,7 @@ struct SidebarView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.colorScheme) private var colorScheme
     @Binding var navigationPath: [String]
+    let onShowSettings: () -> Void
 
     @State private var searchText = ""
     @State private var showingAddServer = false
@@ -254,6 +255,12 @@ struct SidebarView: View {
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
+                    Section {
+                        Button(action: onShowSettings) {
+                            Label("Settings", systemImage: "gearshape")
+                        }
+                    }
+
                     if store.selectedServer != nil {
                         Section {
                             Button {

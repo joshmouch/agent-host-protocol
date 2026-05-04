@@ -14,7 +14,10 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            SidebarView(navigationPath: $navigationPath)
+            SidebarView(
+                navigationPath: $navigationPath,
+                onShowSettings: { showSettings = true }
+            )
                 .navigationDestination(for: String.self) { value in
                     if value.hasPrefix("folder:") {
                         let path = String(value.dropFirst("folder:".count))
