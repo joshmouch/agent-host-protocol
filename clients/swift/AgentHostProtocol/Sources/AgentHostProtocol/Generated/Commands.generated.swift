@@ -16,6 +16,14 @@ public enum ContentEncoding: String, Codable, Sendable {
     case utf8 = "utf-8"
 }
 
+/// The kind of completion items being requested.
+public enum CompletionItemKind: String, Codable, Sendable {
+    /// Completions for the text of a {@link UserMessage} the user is composing.
+    /// Each returned item carries an attachment that gets associated with the
+    /// message when accepted.
+    case userMessage = "userMessage"
+}
+
 // MARK: - Command Types
 
 public struct InitializeParams: Codable, Sendable {
@@ -52,17 +60,24 @@ public struct InitializeResult: Codable, Sendable {
     public var snapshots: [Snapshot]
     /// Suggested default directory for remote filesystem browsing
     public var defaultDirectory: String?
+    /// Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+    /// the client to issue a `completions` request with
+    /// {@link CompletionItemKind.UserMessage}. Typically includes characters like
+    /// `'@'` or `'/'`.
+    public var completionTriggerCharacters: [String]?
 
     public init(
         protocolVersion: Int,
         serverSeq: Int,
         snapshots: [Snapshot],
-        defaultDirectory: String? = nil
+        defaultDirectory: String? = nil,
+        completionTriggerCharacters: [String]? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
         self.snapshots = snapshots
         self.defaultDirectory = defaultDirectory
+        self.completionTriggerCharacters = completionTriggerCharacters
     }
 }
 
@@ -761,6 +776,76 @@ public struct SessionConfigValueItem: Codable, Sendable {
         self.value = value
         self.label = label
         self.description = description
+    }
+}
+
+public struct CompletionsParams: Codable, Sendable {
+    /// What kind of completion is being requested.
+    public var kind: CompletionItemKind
+    /// The session URI the completion is being requested for.
+    public var session: String
+    /// The complete text of the input being completed (e.g. the full user
+    /// message text typed so far).
+    public var text: String
+    /// The character offset within `text` at which the completion is requested,
+    /// measured in UTF-16 code units. MUST satisfy `0 <= offset <= text.length`.
+    public var offset: Int
+
+    public init(
+        kind: CompletionItemKind,
+        session: String,
+        text: String,
+        offset: Int
+    ) {
+        self.kind = kind
+        self.session = session
+        self.text = text
+        self.offset = offset
+    }
+}
+
+public struct CompletionItem: Codable, Sendable {
+    /// The text inserted into the input when this item is accepted.
+    public var insertText: String
+    /// If defined, the start of the range in the input's `text` that is replaced
+    /// by `insertText`. The range is the half-open interval
+    /// `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+    /// units.
+    /// 
+    /// When omitted, the client SHOULD insert `insertText` at the cursor.
+    /// 
+    /// Note: this range refers to positions in the *current* input. The
+    /// attachment's own `rangeStart`/`rangeEnd` (when present) refer to
+    /// positions in the final {@link UserMessage.text} after the item is
+    /// accepted.
+    public var rangeStart: Int?
+    /// The end of the range in the input's `text` that is replaced by
+    /// `insertText`. See {@link rangeStart}.
+    public var rangeEnd: Int?
+    /// The attachment associated with this completion item.
+    public var attachment: MessageAttachment
+
+    public init(
+        insertText: String,
+        rangeStart: Int? = nil,
+        rangeEnd: Int? = nil,
+        attachment: MessageAttachment
+    ) {
+        self.insertText = insertText
+        self.rangeStart = rangeStart
+        self.rangeEnd = rangeEnd
+        self.attachment = attachment
+    }
+}
+
+public struct CompletionsResult: Codable, Sendable {
+    /// The completion items, in the order the server suggests displaying them.
+    public var items: [CompletionItem]
+
+    public init(
+        items: [CompletionItem]
+    ) {
+        self.items = items
     }
 }
 

@@ -125,11 +125,14 @@ public enum TurnState: String, Codable, Sendable {
     case error = "error"
 }
 
-/// Type of a message attachment.
-public enum AttachmentType: String, Codable, Sendable {
-    case file = "file"
-    case directory = "directory"
-    case selection = "selection"
+/// Discriminant for {@link MessageAttachment} variants.
+public enum MessageAttachmentKind: String, Codable, Sendable {
+    /// A simple, opaque attachment whose representation is described by the producer.
+    case simple = "simple"
+    /// An attachment whose data is embedded inline as a base64 string.
+    case embeddedResource = "embeddedResource"
+    /// An attachment that references a resource by URI.
+    case resource = "resource"
 }
 
 /// Discriminant for response part types.
@@ -1173,22 +1176,224 @@ public struct SessionInputRequest: Codable, Sendable {
     }
 }
 
-public struct MessageAttachment: Codable, Sendable {
-    /// Attachment type
-    public var type: AttachmentType
-    /// File/directory URI
-    public var uri: String
-    /// Display name
-    public var displayName: String?
+public struct SimpleMessageAttachment: Codable, Sendable {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    public var label: String
+    /// If defined, the start of the range in {@link UserMessage.text} that
+    /// references this attachment. The range is the half-open interval
+    /// `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+    /// units.
+    /// 
+    /// When present, `rangeEnd` MUST also be present and MUST be greater than or
+    /// equal to `rangeStart`.
+    public var rangeStart: Int?
+    /// The end of the range in {@link UserMessage.text} that references this
+    /// attachment. See {@link rangeStart}.
+    public var rangeEnd: Int?
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    /// 
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    /// 
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var displayKind: String?
+    /// Additional implementation-defined metadata for the attachment.
+    /// 
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    public var meta: [String: AnyCodable]?
+    /// Discriminant
+    public var type: MessageAttachmentKind
+    /// Representation of the attachment as it should be shown to the model.
+    /// 
+    /// If the attachment was produced by the client, this property MUST be
+    /// defined so the agent host can correctly interpret the attachment. This
+    /// property MAY be omitted when the attachment originated from a
+    /// `completions` response.
+    public var modelRepresentation: String?
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case rangeStart
+        case rangeEnd
+        case displayKind
+        case meta = "_meta"
+        case type
+        case modelRepresentation
+    }
 
     public init(
-        type: AttachmentType,
-        uri: String,
-        displayName: String? = nil
+        label: String,
+        rangeStart: Int? = nil,
+        rangeEnd: Int? = nil,
+        displayKind: String? = nil,
+        meta: [String: AnyCodable]? = nil,
+        type: MessageAttachmentKind,
+        modelRepresentation: String? = nil
     ) {
+        self.label = label
+        self.rangeStart = rangeStart
+        self.rangeEnd = rangeEnd
+        self.displayKind = displayKind
+        self.meta = meta
         self.type = type
+        self.modelRepresentation = modelRepresentation
+    }
+}
+
+public struct MessageEmbeddedResourceAttachment: Codable, Sendable {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    public var label: String
+    /// If defined, the start of the range in {@link UserMessage.text} that
+    /// references this attachment. The range is the half-open interval
+    /// `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+    /// units.
+    /// 
+    /// When present, `rangeEnd` MUST also be present and MUST be greater than or
+    /// equal to `rangeStart`.
+    public var rangeStart: Int?
+    /// The end of the range in {@link UserMessage.text} that references this
+    /// attachment. See {@link rangeStart}.
+    public var rangeEnd: Int?
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    /// 
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    /// 
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var displayKind: String?
+    /// Additional implementation-defined metadata for the attachment.
+    /// 
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    public var meta: [String: AnyCodable]?
+    /// Discriminant
+    public var type: MessageAttachmentKind
+    /// Base64-encoded binary data
+    public var data: String
+    /// Content MIME type (e.g. `"image/png"`, `"application/pdf"`)
+    public var contentType: String
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case rangeStart
+        case rangeEnd
+        case displayKind
+        case meta = "_meta"
+        case type
+        case data
+        case contentType
+    }
+
+    public init(
+        label: String,
+        rangeStart: Int? = nil,
+        rangeEnd: Int? = nil,
+        displayKind: String? = nil,
+        meta: [String: AnyCodable]? = nil,
+        type: MessageAttachmentKind,
+        data: String,
+        contentType: String
+    ) {
+        self.label = label
+        self.rangeStart = rangeStart
+        self.rangeEnd = rangeEnd
+        self.displayKind = displayKind
+        self.meta = meta
+        self.type = type
+        self.data = data
+        self.contentType = contentType
+    }
+}
+
+public struct MessageResourceAttachment: Codable, Sendable {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    public var label: String
+    /// If defined, the start of the range in {@link UserMessage.text} that
+    /// references this attachment. The range is the half-open interval
+    /// `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+    /// units.
+    /// 
+    /// When present, `rangeEnd` MUST also be present and MUST be greater than or
+    /// equal to `rangeStart`.
+    public var rangeStart: Int?
+    /// The end of the range in {@link UserMessage.text} that references this
+    /// attachment. See {@link rangeStart}.
+    public var rangeEnd: Int?
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    /// 
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    /// 
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var displayKind: String?
+    /// Additional implementation-defined metadata for the attachment.
+    /// 
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    public var meta: [String: AnyCodable]?
+    /// Content URI
+    public var uri: String
+    /// Approximate size in bytes
+    public var sizeHint: Int?
+    /// Content MIME type
+    public var contentType: String?
+    /// Discriminant
+    public var type: MessageAttachmentKind
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case rangeStart
+        case rangeEnd
+        case displayKind
+        case meta = "_meta"
+        case uri
+        case sizeHint
+        case contentType
+        case type
+    }
+
+    public init(
+        label: String,
+        rangeStart: Int? = nil,
+        rangeEnd: Int? = nil,
+        displayKind: String? = nil,
+        meta: [String: AnyCodable]? = nil,
+        uri: String,
+        sizeHint: Int? = nil,
+        contentType: String? = nil,
+        type: MessageAttachmentKind
+    ) {
+        self.label = label
+        self.rangeStart = rangeStart
+        self.rangeEnd = rangeEnd
+        self.displayKind = displayKind
+        self.meta = meta
         self.uri = uri
-        self.displayName = displayName
+        self.sizeHint = sizeHint
+        self.contentType = contentType
+        self.type = type
     }
 }
 
@@ -2610,6 +2815,39 @@ public enum SessionInputAnswer: Codable, Sendable {
         case .draft(let value): try value.encode(to: encoder)
         case .submitted(let value): try value.encode(to: encoder)
         case .skipped(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum MessageAttachment: Codable, Sendable {
+    case simple(SimpleMessageAttachment)
+    case embeddedResource(MessageEmbeddedResourceAttachment)
+    case resource(MessageResourceAttachment)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "type"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "simple":
+            self = .simple(try SimpleMessageAttachment(from: decoder))
+        case "embeddedResource":
+            self = .embeddedResource(try MessageEmbeddedResourceAttachment(from: decoder))
+        case "resource":
+            self = .resource(try MessageResourceAttachment(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown MessageAttachment discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .simple(let value): try value.encode(to: encoder)
+        case .embeddedResource(let value): try value.encode(to: encoder)
+        case .resource(let value): try value.encode(to: encoder)
         }
     }
 }

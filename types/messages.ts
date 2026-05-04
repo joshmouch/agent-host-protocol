@@ -44,6 +44,8 @@ import type {
   ResolveSessionConfigResult,
   SessionConfigCompletionsParams,
   SessionConfigCompletionsResult,
+  CompletionsParams,
+  CompletionsResult,
 } from './commands.js';
 
 import type { ActionEnvelope } from './actions.js';
@@ -130,6 +132,7 @@ export interface CommandMap {
   'authenticate': { params: AuthenticateParams; result: AuthenticateResult };
   'resolveSessionConfig': { params: ResolveSessionConfigParams; result: ResolveSessionConfigResult };
   'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
+  'completions': { params: CompletionsParams; result: CompletionsResult };
 }
 
 /**

@@ -25,6 +25,10 @@ export type {
   ActiveTurn,
   UserMessage,
   MessageAttachment,
+  MessageAttachmentBase,
+  SimpleMessageAttachment,
+  MessageEmbeddedResourceAttachment,
+  MessageResourceAttachment,
   MarkdownResponsePart,
   ContentRef,
   ToolCallResponsePart,
@@ -87,7 +91,7 @@ export {
   SessionLifecycle,
   SessionStatus,
   TurnState,
-  AttachmentType,
+  MessageAttachmentKind,
   ResponsePartKind,
   ToolCallStatus,
   ToolCallConfirmationReason,
@@ -230,9 +234,12 @@ export type {
   SessionConfigCompletionsParams,
   SessionConfigCompletionsResult,
   SessionConfigValueItem,
+  CompletionsParams,
+  CompletionsResult,
+  CompletionItem,
 } from './commands.js';
 
-export { ReconnectResultType, ContentEncoding } from './commands.js';
+export { ReconnectResultType, ContentEncoding, CompletionItemKind } from './commands.js';
 
 // Notification types
 export type {
