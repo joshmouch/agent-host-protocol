@@ -12,6 +12,8 @@ struct ChatView: View {
     @State private var isAtBottom = true
     /// URI of an interactive terminal to navigate to.
     @State private var activeTerminalURI: String?
+    /// Currently presented input request in the modal sheet.
+    @State private var presentedInputRequestId: String?
 
     // MARK: - Scroll helpers
 
@@ -24,6 +26,22 @@ struct ChatView: View {
     private var sessionModelPickerModel: SessionModelPickerModel? {
         guard let session = store.currentSession else { return nil }
         return SessionModelPickerModel(session: session, agents: store.agents)
+    }
+
+    /// True when the active turn has at least one streaming or running tool
+    /// call. Used to suppress the floating input-request prompt because the
+    /// owning tool card already shows its own "Respond" CTA.
+    private var hasInProgressToolCall: Bool {
+        guard let parts = store.currentSession?.activeTurn?.responseParts else { return false }
+        for part in parts {
+            if case .toolCall(let tc) = part {
+                switch tc.toolCall {
+                case .streaming, .running: return true
+                default: continue
+                }
+            }
+        }
+        return false
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
@@ -176,11 +194,17 @@ struct ChatView: View {
             // scrollToBottom lands at the true visible bottom, not behind the bar.
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 VStack(spacing: 8) {
-                    // Pending input requests (elicitation)
-                    if let requests = store.currentSession?.inputRequests, !requests.isEmpty {
+                    // Pending input requests (elicitation) — shown only when
+                    // no in-progress tool call owns the request. The active
+                    // tool card embeds its own "Respond" CTA in that case.
+                    if let requests = store.currentSession?.inputRequests,
+                       !requests.isEmpty,
+                       !hasInProgressToolCall {
                         VStack(spacing: 8) {
                             ForEach(requests, id: \.id) { request in
-                                InputRequestView(request: request)
+                                InputRequestPrompt(request: request) {
+                                    presentedInputRequestId = request.id
+                                }
                             }
                         }
                         .padding(.horizontal, 14)
@@ -234,7 +258,34 @@ struct ChatView: View {
         .navigationDestination(item: $activeTerminalURI) { uri in
             InteractiveTerminalView(terminalURI: uri)
         }
+        .sheet(item: Binding(
+            get: { presentedInputRequest.map { IdentifiedRequest(request: $0) } },
+            set: { presentedInputRequestId = $0?.request.id }
+        )) { wrapper in
+            InputRequestSheet(request: wrapper.request) {
+                presentedInputRequestId = nil
+            }
+        }
+        .onChange(of: store.currentSession?.inputRequests?.map(\.id) ?? []) { _, ids in
+            // Auto-dismiss the sheet if the active request was resolved.
+            if let id = presentedInputRequestId, !ids.contains(id) {
+                presentedInputRequestId = nil
+            }
+        }
     }
+
+    /// The full request currently presented in the modal sheet, if any.
+    private var presentedInputRequest: SessionInputRequest? {
+        guard let id = presentedInputRequestId,
+              let requests = store.currentSession?.inputRequests else { return nil }
+        return requests.first(where: { $0.id == id })
+    }
+}
+
+/// Wrapper to make `SessionInputRequest` `Identifiable` for `.sheet(item:)`.
+private struct IdentifiedRequest: Identifiable {
+    let request: SessionInputRequest
+    var id: String { request.id }
 }
 
 // MARK: - SessionSyncStatusBar

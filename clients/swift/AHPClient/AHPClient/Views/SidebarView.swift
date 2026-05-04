@@ -297,7 +297,6 @@ struct SidebarView: View {
             AddServerView { server in
                 store.addServer(server)
                 store.selectServer(server.id)
-                Task { await store.connect() }
             }
             .environment(store)
         }
@@ -333,7 +332,6 @@ struct SidebarView: View {
                     // Find by host — addServer may have deduplicated to an existing entry.
                     let serverId = store.servers.first(where: { $0.host == server.host })?.id ?? server.id
                     store.selectServer(serverId)
-                    Task { await store.connect() }
                 })
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -354,7 +352,7 @@ struct SidebarView: View {
                 .textCase(.uppercase)
 
             ForEach(sessions, id: \.resource) { summary in
-                sessionButton(for: summary)
+                sessionButton(for: summary, showModel: false)
             }
         }
     }
@@ -404,7 +402,7 @@ struct SidebarView: View {
         }
     }
 
-    private func sessionButton(for summary: SessionSummary, showFolder: Bool = true) -> some View {
+    private func sessionButton(for summary: SessionSummary, showFolder: Bool = true, showModel: Bool = true) -> some View {
         Button {
             Task {
                 await store.selectSession(uri: summary.resource)
@@ -414,7 +412,8 @@ struct SidebarView: View {
             SessionRow(
                 summary: summary,
                 isActive: summary.status == .inProgress,
-                showFolder: showFolder
+                showFolder: showFolder,
+                showModel: showModel
             )
         }
         .buttonStyle(.plain)
@@ -434,7 +433,6 @@ struct SidebarView: View {
                     ForEach(store.servers) { server in
                         Button {
                             store.selectServer(server.id)
-                            Task { await store.connect() }
                         } label: {
                             HStack {
                                 Text(server.name)
@@ -635,6 +633,7 @@ struct SessionRow: View {
     let summary: SessionSummary
     var isActive: Bool = false
     var showFolder: Bool = true
+    var showModel: Bool = true
 
     var body: some View {
         HStack(spacing: 14) {
@@ -662,7 +661,7 @@ struct SessionRow: View {
                     }
                     Text(summary.provider)
                         .font(.caption)
-                    if let model = summary.model {
+                    if showModel, let model = summary.model {
                         Text("·")
                             .font(.caption)
                             .foregroundStyle(.tertiary)

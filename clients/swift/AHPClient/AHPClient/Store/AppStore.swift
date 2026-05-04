@@ -442,18 +442,23 @@ final class AppStore {
         }
     }
 
-    /// Select a server and connect to it.
+    /// Select a server and (re)connect to it.
+    ///
+    /// Always handles connection lifecycle internally — callers MUST NOT call
+    /// `connect()` afterwards. If the same server is already selected and
+    /// connected, this is a no-op. If a different server is currently active
+    /// it is disconnected first so per-server state (sessions, subscriptions,
+    /// the live WebSocket) can't leak between servers.
     func selectServer(_ id: UUID) {
         guard servers.contains(where: { $0.id == id }) else { return }
-        let wasConnected = selectedServerId != nil && connectionState == .connected
-        if wasConnected {
-            Task {
+        if selectedServerId == id && connectionState == .connected { return }
+        let needsDisconnect = selectedServerId != nil && connectionState != .disconnected
+        Task {
+            if needsDisconnect {
                 await disconnect()
-                selectedServerId = id
-                await connect()
             }
-        } else {
             selectedServerId = id
+            await connect()
         }
     }
 
