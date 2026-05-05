@@ -549,6 +549,11 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             touch_modified(state);
             ReduceOutcome::Applied
         }
+        StateAction::SessionAgentChanged(a) => {
+            state.summary.agent = Some(a.agent.clone());
+            touch_modified(state);
+            ReduceOutcome::Applied
+        }
         StateAction::SessionIsReadChanged(a) => {
             state.summary.status =
                 with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
@@ -1113,6 +1118,7 @@ mod tests {
                 modified_at: 0,
                 project: None,
                 model: None,
+                agent: None,
                 working_directory: None,
                 diffs: None,
             },
