@@ -531,6 +531,17 @@ pub struct SessionModelChangedAction {
     pub model: ModelSelection,
 }
 
+/// Custom agent changed for this session.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAgentChangedAction {
+    /// Session URI
+    pub session: Uri,
+    /// New agent selection, or `undefined` to clear the selection
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
+}
+
 /// The read state of the session changed.
 ///
 /// Dispatched by a client to mark a session as read (e.g. after viewing it)
@@ -1051,6 +1062,8 @@ pub enum StateAction {
     SessionReasoning(SessionReasoningAction),
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged(SessionModelChangedAction),
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged(SessionAgentChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]
