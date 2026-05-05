@@ -9,7 +9,10 @@
       "status": 1,
       "createdAt": 1000,
       "modifiedAt": 1000,
-      "agent": { "id": "file:///agents/reviewer.agent.md" }
+    "agent": {
+        "id": "file:///agents/reviewer.agent.md",
+        "name": "reviewer"
+    }
     },
     "lifecycle": "creating",
     "turns": []

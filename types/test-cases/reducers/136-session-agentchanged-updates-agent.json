@@ -17,7 +17,10 @@
     {
       "type": "session/agentChanged",
       "session": "copilot:/test-session",
-      "agent": { "id": "file:///agents/reviewer.agent.md" }
+      "agent": {
+        "id": "file:///agents/reviewer.agent.md",
+        "name": "reviewer"
+      }
     }
   ],
   "expected": {
@@ -28,7 +31,10 @@
       "status": 1,
       "createdAt": 1000,
       "modifiedAt": 9999,
-      "agent": { "id": "file:///agents/reviewer.agent.md" }
+      "agent": {
+        "id": "file:///agents/reviewer.agent.md",
+        "name": "reviewer"
+      }
     },
     "lifecycle": "creating",
     "turns": []
