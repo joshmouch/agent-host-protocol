@@ -26,6 +26,7 @@ import type {
   SessionUsageAction,
   SessionReasoningAction,
   SessionModelChangedAction,
+  SessionAgentChangedAction,
   SessionServerToolsChangedAction,
   SessionActiveClientChangedAction,
   SessionActiveClientToolsChangedAction,
@@ -102,6 +103,7 @@ export type SessionAction =
   | SessionUsageAction
   | SessionReasoningAction
   | SessionModelChangedAction
+  | SessionAgentChangedAction
   | SessionServerToolsChangedAction
   | SessionActiveClientChangedAction
   | SessionActiveClientToolsChangedAction
@@ -132,6 +134,7 @@ export type ClientSessionAction =
   | SessionTurnCancelledAction
   | SessionTitleChangedAction
   | SessionModelChangedAction
+  | SessionAgentChangedAction
   | SessionActiveClientChangedAction
   | SessionActiveClientToolsChangedAction
   | SessionPendingMessageSetAction
@@ -231,6 +234,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.SessionUsage]: false,
   [ActionType.SessionReasoning]: false,
   [ActionType.SessionModelChanged]: true,
+  [ActionType.SessionAgentChanged]: true,
   [ActionType.SessionServerToolsChanged]: false,
   [ActionType.SessionActiveClientChanged]: true,
   [ActionType.SessionActiveClientToolsChanged]: true,

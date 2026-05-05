@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, PendingMessageKind,
-    ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer,
-    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
+    AgentInfo, AgentSelection, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection,
+    PendingMessageKind, ResponsePart, SessionActiveClient, SessionCustomization,
+    SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
     ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
     ToolResultContent, UsageInfo, UserMessage,
 };
@@ -66,6 +66,8 @@ pub enum ActionType {
     SessionReasoning,
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged,
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
     #[serde(rename = "session/activeClientChanged")]

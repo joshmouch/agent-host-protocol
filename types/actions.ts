@@ -12,6 +12,7 @@ import type {
   AgentInfo,
   ErrorInfo,
   ModelSelection,
+  AgentSelection,
   UserMessage,
   ResponsePart,
   ToolCallResult,
@@ -60,6 +61,7 @@ export const enum ActionType {
   SessionUsage = 'session/usage',
   SessionReasoning = 'session/reasoning',
   SessionModelChanged = 'session/modelChanged',
+  SessionAgentChanged = 'session/agentChanged',
   SessionServerToolsChanged = 'session/serverToolsChanged',
   SessionActiveClientChanged = 'session/activeClientChanged',
   SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
@@ -584,6 +586,21 @@ export interface SessionModelChangedAction {
   session: URI;
   /** New model selection */
   model: ModelSelection;
+}
+
+/**
+ * Custom agent changed for this session.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionAgentChangedAction {
+  type: ActionType.SessionAgentChanged;
+  /** Session URI */
+  session: URI;
+  /** New agent selection, or `undefined` to clear the selection */
+  agent: AgentSelection | undefined;
 }
 
 /**
@@ -1186,6 +1203,7 @@ export type StateAction =
   | SessionUsageAction
   | SessionReasoningAction
   | SessionModelChangedAction
+  | SessionAgentChangedAction
   | SessionServerToolsChangedAction
   | SessionActiveClientChangedAction
   | SessionActiveClientToolsChangedAction

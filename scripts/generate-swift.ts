@@ -487,7 +487,7 @@ const STATE_ENUMS = [
 
 const STATE_STRUCTS = [
   'Icon', 'ProtectedResourceMetadata', 'RootState', 'RootConfigState', 'AgentInfo',
-  'SessionModelInfo', 'ModelSelection', 'ConfigPropertySchema', 'ConfigSchema',
+  'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
   'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'UserMessage',
   'SessionInputOption',

@@ -27,6 +27,7 @@ public enum ActionType: String, Codable, Sendable {
     case sessionUsage = "session/usage"
     case sessionReasoning = "session/reasoning"
     case sessionModelChanged = "session/modelChanged"
+    case sessionAgentChanged = "session/agentChanged"
     case sessionServerToolsChanged = "session/serverToolsChanged"
     case sessionActiveClientChanged = "session/activeClientChanged"
     case sessionActiveClientToolsChanged = "session/activeClientToolsChanged"
