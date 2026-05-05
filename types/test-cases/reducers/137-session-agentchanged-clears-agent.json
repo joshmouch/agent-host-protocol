@@ -28,7 +28,8 @@
       "title": "Test Session",
       "status": 1,
       "createdAt": 1000,
-      "modifiedAt": 9999
+      "modifiedAt": 9999,
+      "agent": null
     },
     "lifecycle": "creating",
     "turns": []
