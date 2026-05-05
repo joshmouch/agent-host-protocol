@@ -362,6 +362,12 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         return next
 
+    case .sessionAgentChanged(let a):
+        var next = state
+        next.summary.agent = a.agent
+        next.summary.modifiedAt = currentTimestamp()
+        return next
+
     case .sessionActivityChanged(let a):
         var next = state
         next.summary.activity = a.activity
@@ -579,7 +585,7 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
     switch action {
     case .sessionTurnStarted, .sessionToolCallConfirmed, .sessionToolCallComplete,
          .sessionToolCallResultConfirmed, .sessionTurnCancelled,
-         .sessionModelChanged, .sessionActiveClientChanged,
+         .sessionModelChanged, .sessionAgentChanged, .sessionActiveClientChanged,
          .sessionActiveClientToolsChanged, .sessionPendingMessageSet,
          .sessionPendingMessageRemoved, .sessionQueuedMessagesReordered,
          .sessionInputAnswerChanged, .sessionInputCompleted,
