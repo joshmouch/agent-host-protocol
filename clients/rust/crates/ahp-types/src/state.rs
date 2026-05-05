@@ -1039,6 +1039,10 @@ pub struct TextRange {
 }
 
 /// A selection within a textual resource.
+///
+/// This is only meaningful for textual resources. Binary resources may still
+/// use resource or embedded resource attachments, but they should not use this
+/// text selection field.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextSelection {
@@ -1129,6 +1133,8 @@ pub struct MessageEmbeddedResourceAttachment {
     /// Content MIME type (e.g. `"image/png"`, `"application/pdf"`)
     pub content_type: String,
     /// Optional selection within the attached textual resource.
+    ///
+    /// Only meaningful for textual resources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<TextSelection>,
 }
@@ -1174,6 +1180,8 @@ pub struct MessageResourceAttachment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
     /// Optional selection within the referenced textual resource.
+    ///
+    /// Only meaningful for textual resources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<TextSelection>,
 }

@@ -1314,6 +1314,8 @@ public struct MessageEmbeddedResourceAttachment: Codable, Sendable {
     /// Content MIME type (e.g. `"image/png"`, `"application/pdf"`)
     public var contentType: String
     /// Optional selection within the attached textual resource.
+    /// 
+    /// Only meaningful for textual resources.
     public var selection: TextSelection?
 
     enum CodingKeys: String, CodingKey {
@@ -1382,6 +1384,8 @@ public struct MessageResourceAttachment: Codable, Sendable {
     /// Discriminant
     public var type: MessageAttachmentKind
     /// Optional selection within the referenced textual resource.
+    /// 
+    /// Only meaningful for textual resources.
     public var selection: TextSelection?
 
     enum CodingKeys: String, CodingKey {

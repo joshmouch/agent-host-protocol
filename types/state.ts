@@ -925,6 +925,10 @@ export interface TextRange {
 /**
  * A selection within a textual resource.
  *
+ * This is only meaningful for textual resources. Binary resources may still
+ * use resource or embedded resource attachments, but they should not use this
+ * text selection field.
+ *
  * @category Turn Types
  */
 export interface TextSelection {
@@ -970,7 +974,11 @@ export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase
   data: string;
   /** Content MIME type (e.g. `"image/png"`, `"application/pdf"`) */
   contentType: string;
-  /** Optional selection within the attached textual resource. */
+  /**
+   * Optional selection within the attached textual resource.
+   *
+   * Only meaningful for textual resources.
+   */
   selection?: TextSelection;
 }
 
@@ -983,7 +991,11 @@ export interface MessageEmbeddedResourceAttachment extends MessageAttachmentBase
 export interface MessageResourceAttachment extends MessageAttachmentBase, ContentRef {
   /** Discriminant */
   type: MessageAttachmentKind.Resource;
-  /** Optional selection within the referenced textual resource. */
+  /**
+   * Optional selection within the referenced textual resource.
+   *
+   * Only meaningful for textual resources.
+   */
   selection?: TextSelection;
 }
 

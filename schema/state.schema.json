@@ -1317,7 +1317,7 @@
     },
     "TextSelection": {
       "type": "object",
-      "description": "A selection within a textual resource.",
+      "description": "A selection within a textual resource.\n\nThis is only meaningful for textual resources. Binary resources may still\nuse resource or embedded resource attachments, but they should not use this\ntext selection field.",
       "properties": {
         "value": {
           "type": "string",
@@ -1403,7 +1403,7 @@
         },
         "selection": {
           "$ref": "#/$defs/TextSelection",
-          "description": "Optional selection within the attached textual resource."
+          "description": "Optional selection within the attached textual resource.\n\nOnly meaningful for textual resources."
         }
       },
       "required": [
@@ -1452,7 +1452,7 @@
         },
         "selection": {
           "$ref": "#/$defs/TextSelection",
-          "description": "Optional selection within the referenced textual resource."
+          "description": "Optional selection within the referenced textual resource.\n\nOnly meaningful for textual resources."
         }
       },
       "required": [
