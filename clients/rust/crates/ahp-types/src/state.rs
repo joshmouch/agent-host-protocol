@@ -490,6 +490,20 @@ pub struct ModelSelection {
     pub config: Option<std::collections::HashMap<String, String>>,
 }
 
+/// An agent selection: the URI of the chosen agent's source `.agent.md`
+/// file (matching `INamedPluginResource.uri` / `ICustomAgent.uri` in the
+/// customization pipeline). URIs are unique by construction, so selection is
+/// unambiguous even when two plugins contribute agents with the same `name`.
+/// Selection is opaque to the protocol — providers translate the URI to their
+/// backend's representation (e.g. the Copilot SDK addresses agents by `name`,
+/// so the Copilot provider does a URI → name lookup at its SDK boundary).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSelection {
+    /// URI of the agent's source file (a stringified URI; same shape as `ModelSelection.id`).
+    pub id: Uri,
+}
+
 /// A JSON Schema-compatible property descriptor with display extensions.
 ///
 /// Standard JSON Schema fields (`type`, `title`, `description`, `default`,
@@ -657,6 +671,9 @@ pub struct SessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,

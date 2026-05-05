@@ -478,6 +478,17 @@ public struct ModelSelection: Codable, Sendable {
     }
 }
 
+public struct AgentSelection: Codable, Sendable {
+    /// URI of the agent's source file (a stringified URI; same shape as `ModelSelection.id`).
+    public var id: String
+
+    public init(
+        id: String
+    ) {
+        self.id = id
+    }
+}
+
 public final class ConfigPropertySchema: Codable, @unchecked Sendable {
     /// JSON Schema: property type
     public var type: String
@@ -701,6 +712,8 @@ public struct SessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
     /// Files changed during this session with diff statistics
@@ -716,6 +729,7 @@ public struct SessionSummary: Codable, Sendable {
         modifiedAt: Int,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
         diffs: [FileEdit]? = nil
     ) {
@@ -728,6 +742,7 @@ public struct SessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
         self.diffs = diffs
     }

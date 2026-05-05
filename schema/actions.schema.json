@@ -840,6 +840,28 @@
         "model"
       ]
     },
+    "SessionAgentChangedAction": {
+      "type": "object",
+      "description": "Custom agent changed for this session.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionAgentChanged"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "New agent selection, or `undefined` to clear the selection"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "agent"
+      ]
+    },
     "SessionIsReadChangedAction": {
       "type": "object",
       "description": "The read state of the session changed.\n\nDispatched by a client to mark a session as read (e.g. after viewing it)\nor unread (e.g. after new activity since the client last looked at it).",
@@ -1817,6 +1839,19 @@
         "id"
       ]
     },
+    "AgentSelection": {
+      "type": "object",
+      "description": "An agent selection: the URI of the chosen agent's source `.agent.md`\nfile (matching `INamedPluginResource.uri` / `ICustomAgent.uri` in the\ncustomization pipeline). URIs are unique by construction, so selection is\nunambiguous even when two plugins contribute agents with the same `name`.\nSelection is opaque to the protocol — providers translate the URI to their\nbackend's representation (e.g. the Copilot SDK addresses agents by `name`,\nso the Copilot provider does a URI → name lookup at its SDK boundary).",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/URI",
+          "description": "URI of the agent's source file (a stringified URI; same shape as `ModelSelection.id`)."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
     "PendingMessage": {
       "type": "object",
       "description": "A message queued for future delivery to the agent.\n\nSteering messages are injected into the current turn mid-flight.\nQueued messages are automatically started as new turns after the\ncurrent turn naturally finishes.",
@@ -2002,6 +2037,10 @@
         "model": {
           "$ref": "#/$defs/ModelSelection",
           "description": "Currently selected model"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Currently selected custom agent"
         },
         "workingDirectory": {
           "$ref": "#/$defs/URI",
@@ -4534,6 +4573,9 @@
         },
         {
           "$ref": "#/$defs/SessionModelChangedAction"
+        },
+        {
+          "$ref": "#/$defs/SessionAgentChangedAction"
         },
         {
           "$ref": "#/$defs/SessionServerToolsChangedAction"

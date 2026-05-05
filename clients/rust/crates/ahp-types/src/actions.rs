@@ -12,9 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, PendingMessageKind,
-    ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer,
-    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
+    AgentInfo, AgentSelection, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection,
+    PendingMessageKind, ResponsePart, SessionActiveClient, SessionCustomization,
+    SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
     ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
     ToolResultContent, UsageInfo, UserMessage,
 };
@@ -66,6 +66,8 @@ pub enum ActionType {
     SessionReasoning,
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged,
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
     #[serde(rename = "session/activeClientChanged")]
@@ -527,6 +529,17 @@ pub struct SessionModelChangedAction {
     pub session: Uri,
     /// New model selection
     pub model: ModelSelection,
+}
+
+/// Custom agent changed for this session.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAgentChangedAction {
+    /// Session URI
+    pub session: Uri,
+    /// New agent selection, or `undefined` to clear the selection
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
 }
 
 /// The read state of the session changed.
@@ -1049,6 +1062,8 @@ pub enum StateAction {
     SessionReasoning(SessionReasoningAction),
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged(SessionModelChangedAction),
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged(SessionAgentChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]

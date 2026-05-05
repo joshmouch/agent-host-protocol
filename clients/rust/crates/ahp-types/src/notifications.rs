@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
-use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};
+use crate::state::{
+    AgentSelection, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary,
+};
 
 // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -148,6 +150,9 @@ pub struct PartialSessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,

@@ -15,8 +15,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use crate::actions::{ActionEnvelope, StateAction};
 #[allow(unused_imports)]
 use crate::state::{
-    MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary,
-    Snapshot, SnapshotState, TerminalClaim, Turn,
+    AgentSelection, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema,
+    SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -185,6 +185,9 @@ pub struct CreateSessionParams {
     /// Model selection (ID and optional model-specific configuration)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Custom agent selection (name) — selects a customization-pipeline agent for this session
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// Working directory for the session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,

@@ -15,6 +15,7 @@ import type {
   AgentInfo,
   SessionModelInfo,
   ModelSelection,
+  AgentSelection,
   ProtectedResourceMetadata,
   StringOrMarkdown,
   SessionState,
@@ -217,6 +218,7 @@ type V1_IAgentInfo = AgentInfo;
 type V1_IProtectedResourceMetadata = ProtectedResourceMetadata;
 type V1_ISessionModelInfo = SessionModelInfo;
 type V1_IModelSelection = ModelSelection;
+type V1_IAgentSelection = AgentSelection;
 type V1_ISessionState = SessionState;
 type V1_ISessionSummary = SessionSummary;
 type V1_ISessionConfigState = SessionConfigState;
@@ -393,6 +395,8 @@ type _CheckAgentInfo = AssertCompatible<V1_IAgentInfo, AgentInfo>;
 type _CheckSessionModelInfo = AssertCompatible<V1_ISessionModelInfo, SessionModelInfo>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckModelSelection = AssertCompatible<V1_IModelSelection, ModelSelection>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckAgentSelection = AssertCompatible<V1_IAgentSelection, AgentSelection>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionState = AssertCompatible<V1_ISessionState, SessionState>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

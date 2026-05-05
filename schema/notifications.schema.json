@@ -89,6 +89,10 @@
               "$ref": "#/$defs/ModelSelection",
               "description": "Currently selected model"
             },
+            "agent": {
+              "$ref": "#/$defs/AgentSelection",
+              "description": "Currently selected custom agent"
+            },
             "workingDirectory": {
               "$ref": "#/$defs/URI",
               "description": "The working directory URI for this session"
@@ -397,6 +401,19 @@
         "id"
       ]
     },
+    "AgentSelection": {
+      "type": "object",
+      "description": "An agent selection: the URI of the chosen agent's source `.agent.md`\nfile (matching `INamedPluginResource.uri` / `ICustomAgent.uri` in the\ncustomization pipeline). URIs are unique by construction, so selection is\nunambiguous even when two plugins contribute agents with the same `name`.\nSelection is opaque to the protocol — providers translate the URI to their\nbackend's representation (e.g. the Copilot SDK addresses agents by `name`,\nso the Copilot provider does a URI → name lookup at its SDK boundary).",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/URI",
+          "description": "URI of the agent's source file (a stringified URI; same shape as `ModelSelection.id`)."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
     "PendingMessage": {
       "type": "object",
       "description": "A message queued for future delivery to the agent.\n\nSteering messages are injected into the current turn mid-flight.\nQueued messages are automatically started as new turns after the\ncurrent turn naturally finishes.",
@@ -582,6 +599,10 @@
         "model": {
           "$ref": "#/$defs/ModelSelection",
           "description": "Currently selected model"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Currently selected custom agent"
         },
         "workingDirectory": {
           "$ref": "#/$defs/URI",

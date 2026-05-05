@@ -534,6 +534,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'AgentInfo' },
   { name: 'SessionModelInfo' },
   { name: 'ModelSelection' },
+  { name: 'AgentSelection' },
   { name: 'ConfigPropertySchema' },
   { name: 'ConfigSchema' },
   { name: 'PendingMessage' },
@@ -813,6 +814,7 @@ const ACTION_VARIANTS: {
   { type: 'session/usage', variantName: 'SessionUsage', tsInterface: 'SessionUsageAction' },
   { type: 'session/reasoning', variantName: 'SessionReasoning', tsInterface: 'SessionReasoningAction' },
   { type: 'session/modelChanged', variantName: 'SessionModelChanged', tsInterface: 'SessionModelChangedAction' },
+  { type: 'session/agentChanged', variantName: 'SessionAgentChanged', tsInterface: 'SessionAgentChangedAction' },
   { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
@@ -883,7 +885,7 @@ pub struct SessionToolCallConfirmedAction {
 function generateActionsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'actions.ts')!;
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};');
+  lines.push('use crate::state::{AgentInfo, ConfirmationOption, ErrorInfo, FileEdit, ModelSelection, AgentSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};');
   lines.push('');
 
   // ActionType enum
@@ -996,7 +998,7 @@ function generateCommandsFile(project: Project): string {
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};');
+  lines.push('use crate::state::{MessageAttachment, ModelSelection, AgentSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1058,7 +1060,7 @@ function generateNotificationsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');

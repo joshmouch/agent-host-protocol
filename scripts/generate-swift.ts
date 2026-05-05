@@ -487,7 +487,7 @@ const STATE_ENUMS = [
 
 const STATE_STRUCTS = [
   'Icon', 'ProtectedResourceMetadata', 'RootState', 'RootConfigState', 'AgentInfo',
-  'SessionModelInfo', 'ModelSelection', 'ConfigPropertySchema', 'ConfigSchema',
+  'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
   'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'UserMessage',
   'SessionInputOption',
@@ -800,6 +800,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/usage', caseName: 'sessionUsage', tsInterface: 'SessionUsageAction' },
   { type: 'session/reasoning', caseName: 'sessionReasoning', tsInterface: 'SessionReasoningAction' },
   { type: 'session/modelChanged', caseName: 'sessionModelChanged', tsInterface: 'SessionModelChangedAction' },
+  { type: 'session/agentChanged', caseName: 'sessionAgentChanged', tsInterface: 'SessionAgentChangedAction' },
   { type: 'session/isReadChanged', caseName: 'sessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', caseName: 'sessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', caseName: 'sessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },

@@ -1,0 +1,39 @@
+{
+  "description": "session/agentChanged with undefined clears agent",
+  "reducer": "session",
+  "initial": {
+    "summary": {
+      "resource": "copilot:/test-session",
+      "provider": "copilot",
+      "title": "Test Session",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 1000,
+    "agent": {
+        "id": "file:///agents/reviewer.agent.md"
+    }
+    },
+    "lifecycle": "creating",
+    "turns": []
+  },
+  "actions": [
+    {
+      "type": "session/agentChanged",
+      "session": "copilot:/test-session",
+      "agent": null
+    }
+  ],
+  "expected": {
+    "summary": {
+      "resource": "copilot:/test-session",
+      "provider": "copilot",
+      "title": "Test Session",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 9999,
+      "agent": null
+    },
+    "lifecycle": "creating",
+    "turns": []
+  }
+}

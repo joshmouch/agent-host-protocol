@@ -110,6 +110,8 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
     /// Files changed during this session with diff statistics
@@ -125,6 +127,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         modifiedAt: Int? = nil,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
         diffs: [FileEdit]? = nil
     ) {
@@ -137,6 +140,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
         self.diffs = diffs
     }
