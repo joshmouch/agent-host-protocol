@@ -550,7 +550,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionAgentChanged(a) => {
-            state.summary.agent = Some(a.agent.clone());
+            state.summary.agent = a.agent.clone();
             touch_modified(state);
             ReduceOutcome::Applied
         }
