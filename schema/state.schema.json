@@ -1235,7 +1235,7 @@
     },
     "UserMessage": {
       "type": "object",
-      "description": "A user message and its associated attachments.\n\nAttachments MAY be referenced inside {@link UserMessage.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
+      "description": "A user message and its associated attachments.\n\nAttachments MAY be referenced inside {@link UserMessage.text} via their\n{@link MessageAttachmentBase.rangeStart}/{@link MessageAttachmentBase.rangeEnd}\nfields. Attachments without a range are still associated with the message\nbut do not correspond to a specific span in the text.",
       "properties": {
         "text": {
           "type": "string",
@@ -1261,9 +1261,13 @@
           "type": "string",
           "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
         },
-        "range": {
-          "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+        "rangeStart": {
+          "type": "number",
+          "description": "If defined, the start of the range in {@link UserMessage.text} that\nreferences this attachment. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen present, `rangeEnd` MUST also be present and MUST be greater than or\nequal to `rangeStart`."
+        },
+        "rangeEnd": {
+          "type": "number",
+          "description": "The end of the range in {@link UserMessage.text} that references this\nattachment. See {@link rangeStart}."
         },
         "displayKind": {
           "type": "string",
@@ -1340,9 +1344,13 @@
           "type": "string",
           "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
         },
-        "range": {
-          "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+        "rangeStart": {
+          "type": "number",
+          "description": "If defined, the start of the range in {@link UserMessage.text} that\nreferences this attachment. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen present, `rangeEnd` MUST also be present and MUST be greater than or\nequal to `rangeStart`."
+        },
+        "rangeEnd": {
+          "type": "number",
+          "description": "The end of the range in {@link UserMessage.text} that references this\nattachment. See {@link rangeStart}."
         },
         "displayKind": {
           "type": "string",
@@ -1375,9 +1383,13 @@
           "type": "string",
           "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
         },
-        "range": {
-          "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+        "rangeStart": {
+          "type": "number",
+          "description": "If defined, the start of the range in {@link UserMessage.text} that\nreferences this attachment. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen present, `rangeEnd` MUST also be present and MUST be greater than or\nequal to `rangeStart`."
+        },
+        "rangeEnd": {
+          "type": "number",
+          "description": "The end of the range in {@link UserMessage.text} that references this\nattachment. See {@link rangeStart}."
         },
         "displayKind": {
           "type": "string",
@@ -1420,9 +1432,13 @@
           "type": "string",
           "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
         },
-        "range": {
-          "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+        "rangeStart": {
+          "type": "number",
+          "description": "If defined, the start of the range in {@link UserMessage.text} that\nreferences this attachment. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen present, `rangeEnd` MUST also be present and MUST be greater than or\nequal to `rangeStart`."
+        },
+        "rangeEnd": {
+          "type": "number",
+          "description": "The end of the range in {@link UserMessage.text} that references this\nattachment. See {@link rangeStart}."
         },
         "displayKind": {
           "type": "string",

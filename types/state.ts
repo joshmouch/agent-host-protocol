@@ -842,9 +842,9 @@ export interface ActiveTurn {
  * A user message and its associated attachments.
  *
  * Attachments MAY be referenced inside {@link UserMessage.text} via their
- * {@link MessageAttachmentBase.range} field. Attachments without a range are
- * still associated with the message but do not correspond to a specific span
- * in the text.
+ * {@link MessageAttachmentBase.rangeStart}/{@link MessageAttachmentBase.rangeEnd}
+ * fields. Attachments without a range are still associated with the message
+ * but do not correspond to a specific span in the text.
  *
  * @category Turn Types
  */
@@ -868,10 +868,21 @@ export interface MessageAttachmentBase {
   label: string;
 
   /**
-   * If defined, the range in {@link UserMessage.text} that references this
-   * attachment. This is a text range, not a byte range.
+   * If defined, the start of the range in {@link UserMessage.text} that
+   * references this attachment. The range is the half-open interval
+   * `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
+   * units.
+   *
+   * When present, `rangeEnd` MUST also be present and MUST be greater than or
+   * equal to `rangeStart`.
    */
-  range?: TextRange;
+  rangeStart?: number;
+
+  /**
+   * The end of the range in {@link UserMessage.text} that references this
+   * attachment. See {@link rangeStart}.
+   */
+  rangeEnd?: number;
 
   /**
    * Advisory display hint for clients rendering this attachment. Recognized
