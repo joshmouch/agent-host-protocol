@@ -180,7 +180,7 @@ MessageAttachmentBase {
 }
 
 TextRange {
-  start: { line: number, character: number }
+  start: { line: number, character: number }  // zero-based text position
   end: { line: number, character: number }
 }
 
