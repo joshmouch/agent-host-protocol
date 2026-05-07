@@ -228,8 +228,6 @@ export type {
   DispatchActionParams,
   AuthenticateParams,
   AuthenticateResult,
-  ResolveSessionConfigParams,
-  ResolveSessionConfigResult,
   ConfigPropertySchema,
   ConfigSchema,
   SessionConfigPropertySchema,
@@ -240,6 +238,9 @@ export type {
   CompletionsParams,
   CompletionsResult,
   CompletionItem,
+  StartTurnParams,
+  StartTurnResult,
+  StartTurnInvalidConfigErrorData,
 } from './commands.js';
 
 export { ReconnectResultType, ContentEncoding, CompletionItemKind } from './commands.js';

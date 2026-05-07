@@ -40,12 +40,12 @@ import type {
   DispatchActionParams,
   AuthenticateParams,
   AuthenticateResult,
-  ResolveSessionConfigParams,
-  ResolveSessionConfigResult,
   SessionConfigCompletionsParams,
   SessionConfigCompletionsResult,
   CompletionsParams,
   CompletionsResult,
+  StartTurnParams,
+  StartTurnResult,
 } from './commands.js';
 
 import type { ActionEnvelope } from './actions.js';
@@ -130,9 +130,9 @@ export interface CommandMap {
   'resourceRequest': { params: ResourceRequestParams; result: ResourceRequestResult };
   'fetchTurns': { params: FetchTurnsParams; result: FetchTurnsResult };
   'authenticate': { params: AuthenticateParams; result: AuthenticateResult };
-  'resolveSessionConfig': { params: ResolveSessionConfigParams; result: ResolveSessionConfigResult };
   'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
   'completions': { params: CompletionsParams; result: CompletionsResult };
+  'startTurn': { params: StartTurnParams; result: StartTurnResult };
 }
 
 /**
