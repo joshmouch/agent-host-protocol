@@ -659,7 +659,10 @@ pub struct CompletionsParams {
 /// When the user accepts an item, the client SHOULD:
 /// 1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`
 ///    (or insert `insertText` at the cursor when the range is omitted).
-/// 2. Associate the item's `attachment` with the resulting {@link UserMessage}.
+/// 2. If {@link attachment} is present, associate it with the resulting
+///    {@link UserMessage}. When `attachment` is omitted, the item is a pure
+///    text-expansion completion: the input is updated and nothing else is
+///    associated with the message.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionItem {
@@ -682,8 +685,12 @@ pub struct CompletionItem {
     /// `insertText`. See {@link rangeStart}.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_end: Option<i64>,
-    /// The attachment associated with this completion item.
-    pub attachment: MessageAttachment,
+    /// The attachment associated with this completion item. When omitted, the
+    /// item is a pure text-expansion completion — accepting it only performs
+    /// the range replacement and does not associate any attachment with the
+    /// resulting {@link UserMessage}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachment: Option<MessageAttachment>,
 }
 
 /// Result of the `completions` command.

@@ -782,7 +782,7 @@
     },
     "CompletionItem": {
       "type": "object",
-      "description": "A single completion item returned by the `completions` command.\n\nWhen the user accepts an item, the client SHOULD:\n1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`\n   (or insert `insertText` at the cursor when the range is omitted).\n2. Associate the item's `attachment` with the resulting {@link UserMessage}.",
+      "description": "A single completion item returned by the `completions` command.\n\nWhen the user accepts an item, the client SHOULD:\n1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`\n   (or insert `insertText` at the cursor when the range is omitted).\n2. If {@link attachment} is present, associate it with the resulting\n   {@link UserMessage}. When `attachment` is omitted, the item is a pure\n   text-expansion completion: the input is updated and nothing else is\n   associated with the message.",
       "properties": {
         "insertText": {
           "type": "string",
@@ -798,12 +798,11 @@
         },
         "attachment": {
           "$ref": "#/$defs/MessageAttachment",
-          "description": "The attachment associated with this completion item."
+          "description": "The attachment associated with this completion item. When omitted, the\nitem is a pure text-expansion completion — accepting it only performs\nthe range replacement and does not associate any attachment with the\nresulting {@link UserMessage}."
         }
       },
       "required": [
-        "insertText",
-        "attachment"
+        "insertText"
       ]
     },
     "CompletionsResult": {

@@ -830,14 +830,17 @@ public struct CompletionItem: Codable, Sendable {
     /// The end of the range in the input's `text` that is replaced by
     /// `insertText`. See {@link rangeStart}.
     public var rangeEnd: Int?
-    /// The attachment associated with this completion item.
-    public var attachment: MessageAttachment
+    /// The attachment associated with this completion item. When omitted, the
+    /// item is a pure text-expansion completion — accepting it only performs
+    /// the range replacement and does not associate any attachment with the
+    /// resulting {@link UserMessage}.
+    public var attachment: MessageAttachment?
 
     public init(
         insertText: String,
         rangeStart: Int? = nil,
         rangeEnd: Int? = nil,
-        attachment: MessageAttachment
+        attachment: MessageAttachment? = nil
     ) {
         self.insertText = insertText
         self.rangeStart = rangeStart
