@@ -1,0 +1,689 @@
+// HostRuntime — per-host supervisor.
+//
+// Owns the current `AHPClient`, the reconnect state machine, the per-host
+// root-state mirror, and the session-summary cache. Receives commands over
+// a single internal `AsyncStream<HostCommand>` and forwards inbound events
+// to the multi-host fan-in.
+
+import Foundation
+import AgentHostProtocol
+
+/// Per-host supervisor task. Internal to the multi-host SDK.
+///
+/// Constructed by `MultiHostClient.add(_:)`. The `MultiHostClient` enqueues
+/// commands via the public methods (`subscribe`, `dispatch`, …) which all
+/// reduce to sending a `HostCommand` into the supervisor's queue.
+internal final class HostRuntime: Sendable {
+    /// Shared, generation-checked state. Public to the multi-host layer so
+    /// `HostClientHandle.checkAlive()` can read generations without going
+    /// through the supervisor command queue.
+    let shared: HostShared
+
+    private let config: HostConfig
+    private let clientId: String
+
+    /// Sink the multi-host facade fans events into. Awaited from the pump
+    /// so per-host event ordering is preserved (a fresh per-event Task
+    /// would interleave on the way to the consumer actor).
+    private let fanOut: @Sendable (HostSubscriptionEvent) async -> Void
+    /// Sink for connection-level events. Awaited for the same reason.
+    private let hostEventSink: @Sendable (HostEvent) async -> Void
+
+    private let cmdContinuation: AsyncStream<HostCommand>.Continuation
+    private let cmdStream: AsyncStream<HostCommand>
+
+    /// Long-running supervisor task. Captured so `shutdown()` can await it.
+    nonisolated(unsafe) private var supervisorTask: Task<Void, Never>?
+
+    /// Monotonic counter that mints a fresh token for each pump task and
+    /// each backoff sleep. Stale `.connectionEnded`/`.backoffElapsed`
+    /// signals from a previous cycle are filtered out by token mismatch.
+    private let signalTokenSource = SignalTokenSource()
+
+    init(
+        config: HostConfig,
+        clientIdStore: ClientIdStore,
+        fanOut: @escaping @Sendable (HostSubscriptionEvent) async -> Void,
+        hostEventSink: @escaping @Sendable (HostEvent) async -> Void
+    ) async {
+        self.config = config
+        self.fanOut = fanOut
+        self.hostEventSink = hostEventSink
+
+        let resolved: String
+        if let explicit = config.clientId {
+            resolved = explicit
+        } else if let stored = await clientIdStore.load(config.id) {
+            resolved = stored
+        } else {
+            resolved = generateClientId()
+        }
+        await clientIdStore.store(config.id, clientId: resolved)
+        self.clientId = resolved
+
+        let initial = HostInternal(
+            id: config.id,
+            label: config.label,
+            clientId: resolved,
+            state: .disconnected,
+            lastError: nil,
+            lastConnectedAt: nil,
+            protocolVersion: nil,
+            serverSeq: 0,
+            defaultDirectory: nil,
+            rootState: RootState(agents: []),
+            subscriptions: config.initialSubscriptions,
+            completionTriggerCharacters: [],
+            sessionSummaries: [:],
+            generation: 0,
+            currentClient: nil
+        )
+        self.shared = HostShared(initial)
+
+        var cont: AsyncStream<HostCommand>.Continuation!
+        let stream = AsyncStream<HostCommand>(bufferingPolicy: .unbounded) { c in
+            cont = c
+        }
+        self.cmdContinuation = cont
+        self.cmdStream = stream
+    }
+
+    /// Start the supervisor task. Call exactly once after `init`.
+    func start() {
+        let task = Task { [self] in
+            await self.run()
+        }
+        self.supervisorTask = task
+    }
+
+    // MARK: - Public command surface (called by `MultiHostClient`)
+
+    /// Snapshot the current `HostHandle` directly from `HostShared`. Bypasses
+    /// the command queue — `HostShared` is its own actor so this is safe and
+    /// won't deadlock when the supervisor is mid-await on transport I/O.
+    func snapshot() async -> HostHandle {
+        await shared.snapshot()
+    }
+
+    /// Acquire a generation-checked client handle, when connected.
+    func clientHandle() async -> HostClientHandle? {
+        let state = await shared.internalState
+        guard let client = state.currentClient else { return nil }
+        return HostClientHandle(
+            hostId: state.id,
+            generation: state.generation,
+            client: client,
+            shared: shared
+        )
+    }
+
+    /// Send a manual reconnect signal. Returns once the supervisor has
+    /// observed the request (it cancels any pending backoff sleep).
+    func reconnect() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            cmdContinuation.yield(.manualReconnect(reply: continuation))
+        }
+    }
+
+    /// Subscribe to `uri` on the current connection. Tracks the URI so it
+    /// is replayed across reconnects. Returns `HostError.hostShutDown` if
+    /// the host is disconnected.
+    func subscribe(_ uri: String) async throws -> SubscribeResult {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SubscribeResult, Error>) in
+            cmdContinuation.yield(.subscribe(uri: uri, reply: continuation))
+        }
+    }
+
+    /// Unsubscribe from `uri`. Stops replay of `uri` across reconnects. Safe
+    /// to call when disconnected — drops the URI from the replay set.
+    func unsubscribe(_ uri: String) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            cmdContinuation.yield(.unsubscribe(uri: uri, reply: continuation))
+        }
+    }
+
+    /// Dispatch an action through the current connection. Throws
+    /// `HostError.hostShutDown` if the host is disconnected.
+    @discardableResult
+    func dispatch(_ action: StateAction) async throws -> DispatchHandle {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
+            cmdContinuation.yield(.dispatch(action: action, reply: continuation))
+        }
+    }
+
+    /// Tear down the supervisor: cancel any in-flight connect/sleep, close
+    /// the current `AHPClient` if any, and finish the supervisor task.
+    func shutdown() async {
+        cmdContinuation.yield(.shutdown)
+        cmdContinuation.finish()
+        await supervisorTask?.value
+    }
+
+    // MARK: - Supervisor loop
+
+    private func run() async {
+        await hostEventSink(.added(config.id))
+
+        var attempt = 0
+        var iter = cmdStream.makeAsyncIterator()
+
+        outer: while true {
+            attempt += 1
+            await transition(to: attempt == 1 ? .connecting : .reconnecting(attempt: attempt - 1), error: nil)
+
+            // Try to connect. On success we run the connection until it ends.
+            do {
+                let events = try await connectOnce()
+                if config.reconnectPolicy.resetOnSuccess {
+                    attempt = 0
+                }
+                let outcome = await runConnection(events: events, iter: &iter)
+                await tearDownClient()
+                switch outcome {
+                case .shutdown:
+                    return
+                case .manualReconnect(let reply):
+                    reply.resume()
+                    attempt = 0
+                    continue outer
+                case .disconnected:
+                    break // fall through to retry policy
+                }
+            } catch {
+                let reason = String(describing: error)
+                await shared.update { $0.lastError = reason }
+            }
+
+            if config.reconnectPolicy.attemptsExhausted(attempt) {
+                let reason = (await shared.lastError()) ?? "reconnect attempts exhausted"
+                await transition(to: .failed(reason: reason), error: reason)
+                let outcome = await waitForManualReconnectOrShutdown(iter: &iter)
+                switch outcome {
+                case .shutdown: return
+                case .manualReconnect(let reply):
+                    reply.resume()
+                    attempt = 0
+                    continue outer
+                case .disconnected:
+                    return
+                }
+            }
+
+            let delay = config.reconnectPolicy.delay(forAttempt: attempt, sample: jitterSample())
+            let outcome = await sleepOrCommand(delay: delay, iter: &iter)
+            switch outcome {
+            case .shutdown:
+                return
+            case .manualReconnect(let reply):
+                reply.resume()
+                attempt = 0
+                continue outer
+            case .disconnected:
+                continue outer // backoff elapsed; loop to next connect attempt
+            }
+        }
+    }
+
+    /// Open a transport, hand it to a fresh `AHPClient`, attach the events
+    /// tap *before* the handshake, and complete `initialize`/`reconnect`
+    /// plus an opportunistic `listSessions`. Returns the `client.events`
+    /// stream so the caller can pump it.
+    private func connectOnce() async throws -> AsyncStream<ClientEvent> {
+        let transport = try await config.transportFactory(config.id)
+        let client = AHPClient(transport: transport, config: config.clientConfig)
+
+        // Attach the events tap BEFORE the initialize/reconnect handshake so
+        // any notifications the server pushes between the response and the
+        // moment we enter the run loop are captured rather than dropped.
+        // PR 2's `events_tap_captures_handshake_notifications` test exists to
+        // protect this contract.
+        let events = await client.events
+
+        try await client.connect()
+
+        // Decide between initialize and reconnect based on prior state.
+        let priorSnapshot = await shared.internalState
+        let canReconnect = priorSnapshot.serverSeq > 0 && !priorSnapshot.subscriptions.isEmpty
+        let priorSubscriptions = priorSnapshot.subscriptions
+        let priorSeq = priorSnapshot.serverSeq
+
+        var initResult: InitializeResult? = nil
+        var newSeq = priorSeq
+
+        if canReconnect {
+            do {
+                _ = try await client.reconnect(
+                    clientId: clientId,
+                    lastSeenServerSeq: priorSeq,
+                    subscriptions: priorSubscriptions
+                )
+                // NOTE: Replay actions returned by `reconnect` are not
+                // explicitly applied here — they ride through the same path
+                // as live events when delivered as `notify/action` frames.
+                // This mirrors the Rust `ahp::hosts` runtime and inherits
+                // the same gap: replays returned synchronously from
+                // `reconnect` are not fanned out. Tracked for both SDKs.
+            } catch let error as AHPClientError {
+                if case .rpc = error {
+                    let init1 = try await client.initialize(
+                        clientId: clientId,
+                        protocolVersions: [supportedProtocolVersion],
+                        initialSubscriptions: priorSubscriptions
+                    )
+                    initResult = init1
+                    newSeq = init1.serverSeq
+                } else {
+                    await client.shutdown()
+                    throw error
+                }
+            }
+        } else {
+            let init1 = try await client.initialize(
+                clientId: clientId,
+                protocolVersions: [supportedProtocolVersion],
+                initialSubscriptions: priorSubscriptions
+            )
+            initResult = init1
+            newSeq = init1.serverSeq
+        }
+
+        // Refresh session summaries from `listSessions`. Cheap on first
+        // connect; kept in sync by notifications afterward. Failures are
+        // non-fatal: the cache stays as-is.
+        let summaries: ListSessionsResult? = try? await client.request(
+            method: "listSessions",
+            params: ListSessionsParams()
+        )
+
+        let newGeneration: UInt64 = await {
+            var generation: UInt64 = 0
+            await shared.update { state in
+                state.generation = state.generation &+ 1
+                state.currentClient = client
+                state.lastConnectedAt = Date()
+                state.lastError = nil
+                state.serverSeq = newSeq
+                if let init1 = initResult {
+                    state.protocolVersion = init1.protocolVersion
+                    state.defaultDirectory = init1.defaultDirectory
+                    state.completionTriggerCharacters = init1.completionTriggerCharacters ?? []
+                    if let snap = init1.snapshots.first(where: { $0.resource == RootResourceURI }) {
+                        if case .root(let root) = snap.state {
+                            state.rootState = root
+                        }
+                    }
+                }
+                if let list = summaries {
+                    state.sessionSummaries.removeAll()
+                    for summary in list.items {
+                        state.sessionSummaries[summary.resource] = summary
+                    }
+                }
+                generation = state.generation
+            }
+            return generation
+        }()
+
+        await transition(to: .connected, error: nil)
+        await hostEventSink(.connected(config.id, generation: newGeneration))
+        return events
+    }
+
+    /// Drain commands and the event pump until the connection ends, the user
+    /// asks for a manual reconnect, or shutdown is requested.
+    private func runConnection(
+        events: AsyncStream<ClientEvent>,
+        iter: inout AsyncStream<HostCommand>.AsyncIterator
+    ) async -> RunOutcome {
+        // Per-connection token so a stale `.connectionEnded` from a prior
+        // pump task can't trick this drain loop into thinking the new
+        // connection has already failed.
+        let connectionToken = signalTokenSource.next()
+        let pumpTask = Task { [weak self, cmdContinuation] in
+            guard let self else { return }
+            for await event in events {
+                await self.handleEvent(event)
+            }
+            cmdContinuation.yield(.connectionEnded(token: connectionToken))
+        }
+
+        defer { pumpTask.cancel() }
+
+        while let cmd = await iter.next() {
+            switch cmd {
+            case .shutdown:
+                return .shutdown
+            case .connectionEnded(let token):
+                if token == connectionToken {
+                    return .disconnected
+                }
+                continue
+            case .backoffElapsed:
+                continue
+            case .manualReconnect(let reply):
+                return .manualReconnect(reply: reply)
+            case .subscribe(let uri, let reply):
+                let result = await handleSubscribe(uri)
+                resumeCommand(reply: reply, with: result)
+            case .unsubscribe(let uri, let reply):
+                let result = await handleUnsubscribe(uri)
+                resumeCommand(reply: reply, with: result)
+            case .dispatch(let action, let reply):
+                let result = await handleDispatch(action)
+                resumeCommand(reply: reply, with: result)
+            }
+        }
+        return .shutdown
+    }
+
+    /// Wait for either a manual reconnect or shutdown while in the
+    /// `.failed` terminal state. Subscribe/unsubscribe still mutate the
+    /// replay set so the next reconnect picks them up.
+    private func waitForManualReconnectOrShutdown(
+        iter: inout AsyncStream<HostCommand>.AsyncIterator
+    ) async -> RunOutcome {
+        while let cmd = await iter.next() {
+            switch cmd {
+            case .shutdown:
+                return .shutdown
+            case .manualReconnect(let reply):
+                return .manualReconnect(reply: reply)
+            case .backoffElapsed, .connectionEnded:
+                continue
+            case .subscribe(let uri, let reply):
+                await shared.appendSubscription(uri)
+                reply.resume(throwing: HostError.hostShutDown(config.id))
+            case .unsubscribe(let uri, let reply):
+                await shared.removeSubscription(uri)
+                reply.resume(returning: ())
+            case .dispatch(_, let reply):
+                reply.resume(throwing: HostError.hostShutDown(config.id))
+            }
+        }
+        return .shutdown
+    }
+
+    /// Sleep for `delay` while still servicing snapshot-class commands.
+    /// Manual reconnect or shutdown short-circuits the sleep.
+    private func sleepOrCommand(
+        delay: Duration,
+        iter: inout AsyncStream<HostCommand>.AsyncIterator
+    ) async -> RunOutcome {
+        if delay == .zero {
+            return .disconnected
+        }
+        let cont = cmdContinuation
+        let sleepToken = signalTokenSource.next()
+        let sleepTask = Task<Void, Never> {
+            try? await Task.sleep(for: delay)
+            cont.yield(.backoffElapsed(token: sleepToken))
+        }
+        defer { sleepTask.cancel() }
+
+        while let cmd = await iter.next() {
+            switch cmd {
+            case .shutdown:
+                return .shutdown
+            case .manualReconnect(let reply):
+                return .manualReconnect(reply: reply)
+            case .backoffElapsed(let token):
+                if token == sleepToken {
+                    return .disconnected
+                }
+                continue
+            case .connectionEnded:
+                continue
+            case .subscribe(let uri, let reply):
+                await shared.appendSubscription(uri)
+                reply.resume(throwing: HostError.hostShutDown(config.id))
+            case .unsubscribe(let uri, let reply):
+                await shared.removeSubscription(uri)
+                reply.resume(returning: ())
+            case .dispatch(_, let reply):
+                reply.resume(throwing: HostError.hostShutDown(config.id))
+            }
+        }
+        return .shutdown
+    }
+
+    // MARK: - Event handling
+
+    private func handleEvent(_ event: ClientEvent) async {
+        // Mutate per-host mirrors before broadcasting so observers reading
+        // the next snapshot see the post-event state.
+        switch event.event {
+        case .action(let envelope):
+            await applyAction(envelope)
+        case .notification(let notification):
+            await applyNotification(notification)
+        }
+        let hostEvent = HostSubscriptionEvent(
+            hostId: config.id,
+            resource: event.resource,
+            event: event.event
+        )
+        await fanOut(hostEvent)
+    }
+
+    private func applyAction(_ envelope: ActionEnvelope) async {
+        await shared.update { state in
+            if envelope.serverSeq > state.serverSeq {
+                state.serverSeq = envelope.serverSeq
+            }
+            // Best-effort root state mirror update via the existing pure
+            // reducer. Non-root actions slip through without effect — that's
+            // the same posture as the Rust SDK.
+            let resource = actionResource(for: envelope.action)
+            if resource == RootResourceURI {
+                state.rootState = rootReducer(state: state.rootState, action: envelope.action)
+            }
+        }
+    }
+
+    private func applyNotification(_ notification: ProtocolNotification) async {
+        await shared.update { state in
+            switch notification {
+            case .sessionAdded(let n):
+                state.sessionSummaries[n.summary.resource] = n.summary
+            case .sessionRemoved(let n):
+                state.sessionSummaries.removeValue(forKey: n.session)
+            case .sessionSummaryChanged(let n):
+                if var existing = state.sessionSummaries[n.session] {
+                    applySummaryChanges(&existing, changes: n.changes)
+                    state.sessionSummaries[n.session] = existing
+                }
+            case .authRequired:
+                break
+            }
+        }
+    }
+
+    // MARK: - Active-connection command handlers
+
+    private func handleSubscribe(_ uri: String) async -> Result<SubscribeResult, HostError> {
+        guard let client = await shared.currentClient() else {
+            return .failure(.hostShutDown(config.id))
+        }
+        do {
+            let (result, _) = try await client.subscribe(uri)
+            await shared.appendSubscription(uri)
+            return .success(result)
+        } catch let error as AHPClientError {
+            return .failure(.client(error))
+        } catch {
+            return .failure(.client(.transport(.io(String(describing: error)))))
+        }
+    }
+
+    private func handleUnsubscribe(_ uri: String) async -> Result<Void, HostError> {
+        let client = await shared.currentClient()
+        if let client {
+            do {
+                try await client.unsubscribe(uri)
+            } catch let error as AHPClientError {
+                return .failure(.client(error))
+            } catch {
+                return .failure(.client(.transport(.io(String(describing: error)))))
+            }
+        }
+        await shared.removeSubscription(uri)
+        return .success(())
+    }
+
+    private func handleDispatch(_ action: StateAction) async -> Result<DispatchHandle, HostError> {
+        guard let client = await shared.currentClient() else {
+            return .failure(.hostShutDown(config.id))
+        }
+        do {
+            let handle = try await client.dispatch(action)
+            return .success(handle)
+        } catch let error as AHPClientError {
+            return .failure(.client(error))
+        } catch {
+            return .failure(.client(.transport(.io(String(describing: error)))))
+        }
+    }
+
+    // MARK: - State transitions and tear-down
+
+    private func transition(to state: HostState, error: String?) async {
+        await shared.update { s in
+            s.state = state
+            if let error {
+                s.lastError = error
+            }
+        }
+        await hostEventSink(.stateChanged(config.id, state, lastError: error))
+    }
+
+    private func tearDownClient() async {
+        let prev: AHPClient? = await {
+            var captured: AHPClient? = nil
+            await shared.update { state in
+                captured = state.currentClient
+                state.currentClient = nil
+            }
+            return captured
+        }()
+        if let prev {
+            await prev.shutdown()
+        }
+    }
+}
+
+// MARK: - Helpers
+
+/// Commands the supervisor consumes. All public API on `HostRuntime` reduces
+/// to enqueueing one of these.
+internal enum HostCommand: Sendable {
+    case shutdown
+    /// Sentinel from a connection's event-pump task signalling that the
+    /// underlying transport drained. The token identifies *which*
+    /// connection ended, so stale signals queued after `runConnection`
+    /// already returned (e.g. for a manual reconnect) are ignored by the
+    /// next runConnection cycle instead of being mistaken for an immediate
+    /// disconnect on the brand-new connection.
+    case connectionEnded(token: UInt64)
+    /// Sentinel from `sleepOrCommand`'s sleep task signalling that the
+    /// backoff delay elapsed. Tagged with a token for the same reason as
+    /// `connectionEnded`.
+    case backoffElapsed(token: UInt64)
+    case manualReconnect(reply: CheckedContinuation<Void, Error>)
+    case subscribe(uri: String, reply: CheckedContinuation<SubscribeResult, Error>)
+    case unsubscribe(uri: String, reply: CheckedContinuation<Void, Error>)
+    case dispatch(action: StateAction, reply: CheckedContinuation<DispatchHandle, Error>)
+}
+
+/// Outcome of one of the supervisor's drain loops.
+private enum RunOutcome {
+    case shutdown
+    case disconnected
+    case manualReconnect(reply: CheckedContinuation<Void, Error>)
+}
+
+/// Resume a `CheckedContinuation<T, Error>` with a `Result<T, HostError>`.
+private func resumeCommand<T: Sendable>(
+    reply: CheckedContinuation<T, Error>,
+    with result: Result<T, HostError>
+) {
+    switch result {
+    case .success(let value): reply.resume(returning: value)
+    case .failure(let error): reply.resume(throwing: error)
+    }
+}
+
+/// Mirror Rust: SipHash + atomic counter is enough randomness for jitter.
+private func jitterSample() -> Double {
+    var hasher = Hasher()
+    hasher.combine(jitterCounter.bumpAndGet())
+    hasher.combine(Date().timeIntervalSince1970.bitPattern)
+    let bits = UInt64(bitPattern: Int64(hasher.finalize()))
+    return Double(bits) / Double(UInt64.max)
+}
+
+private final class JitterCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var n: UInt64 = 0
+    func bumpAndGet() -> UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        n &+= 1
+        return n
+    }
+}
+
+private let jitterCounter = JitterCounter()
+
+/// Thread-safe monotonic counter producing per-connection / per-sleep tokens
+/// so stale signals from prior pump tasks can't leak into a fresh
+/// `runConnection`/`sleepOrCommand` cycle.
+internal final class SignalTokenSource: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counter: UInt64 = 0
+
+    func next() -> UInt64 {
+        lock.lock(); defer { lock.unlock() }
+        counter &+= 1
+        return counter
+    }
+}
+
+/// Generate a UUIDv4-shaped client id without taking a UUID dependency from
+/// other targets. Foundation's `UUID()` is fine here.
+private func generateClientId() -> String {
+    UUID().uuidString.lowercased()
+}
+
+/// Mirror the resource-routing logic in `AHPClient.actionResource(for:)`.
+private func actionResource(for action: StateAction) -> String? {
+    let encoder = JSONEncoder()
+    guard let data = try? encoder.encode(action),
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else {
+        return RootResourceURI
+    }
+    if let session = object["session"] as? String { return session }
+    if let terminal = object["terminal"] as? String { return terminal }
+    return RootResourceURI
+}
+
+/// Apply a `PartialSessionSummary` patch in-place. Identity fields are
+/// ignored per spec.
+private func applySummaryChanges(
+    _ existing: inout SessionSummary,
+    changes: PartialSessionSummary
+) {
+    if let v = changes.title { existing.title = v }
+    if let v = changes.status { existing.status = v }
+    if let v = changes.activity { existing.activity = v }
+    if let v = changes.modifiedAt { existing.modifiedAt = v }
+    if let v = changes.project { existing.project = v }
+    if let v = changes.model { existing.model = v }
+    if let v = changes.workingDirectory { existing.workingDirectory = v }
+    if let v = changes.diffs { existing.diffs = v }
+}
+
+/// Protocol version offered on `initialize`. Mirrors the Rust SDK's use of
+/// the canonical `PROTOCOL_VERSION` constant; the Swift types library
+/// doesn't ship one yet, so this is a constant string co-located with the
+/// rest of the multi-host code. TODO(codegen): source from generated types.
+private let supportedProtocolVersion = "0.1.0"
