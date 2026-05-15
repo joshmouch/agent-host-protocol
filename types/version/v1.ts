@@ -134,9 +134,10 @@ import type {
 } from '../actions.js';
 
 import type {
-  ProtocolNotification,
-  AuthRequiredNotification,
-  SessionSummaryChangedNotification,
+  SessionAddedParams,
+  SessionRemovedParams,
+  SessionSummaryChangedParams,
+  AuthRequiredParams,
 } from '../notifications.js';
 
 import type {
@@ -184,7 +185,6 @@ import type {
   ServerCommandMap,
   ClientNotificationMap,
   ServerNotificationMap,
-  NotificationMethodParams,
 } from '../messages.js';
 
 import type {
@@ -333,9 +333,10 @@ type V1_ICreateTerminalParams = CreateTerminalParams;
 type V1_ICreateSessionParams = CreateSessionParams;
 type V1_IDisposeTerminalParams = DisposeTerminalParams;
 type V1_ISessionForkSource = SessionForkSource;
-type V1_IProtocolNotification = ProtocolNotification;
-type V1_IAuthRequiredNotification = AuthRequiredNotification;
-type V1_ISessionSummaryChangedNotification = SessionSummaryChangedNotification;
+type V1_ISessionAddedParams = SessionAddedParams;
+type V1_ISessionRemovedParams = SessionRemovedParams;
+type V1_ISessionSummaryChangedParams = SessionSummaryChangedParams;
+type V1_IAuthRequiredParams = AuthRequiredParams;
 type V1_IListSessionsResult = ListSessionsResult;
 type V1_IAuthenticateParams = AuthenticateParams;
 type V1_IAuthenticateResult = AuthenticateResult;
@@ -375,7 +376,6 @@ type V1_ICommandMap = CommandMap;
 type V1_IServerCommandMap = ServerCommandMap;
 type V1_IClientNotificationMap = ClientNotificationMap;
 type V1_IServerNotificationMap = ServerNotificationMap;
-type V1_INotificationMethodParams = NotificationMethodParams;
 type V1_IAhpError = AhpError;
 type V1_IAhpErrorDetailsMap = AhpErrorDetailsMap;
 type V1_IAuthRequiredErrorData = AuthRequiredErrorData;
@@ -574,9 +574,11 @@ type _CheckToolCallContentChangedAction = AssertCompatible<V1_ISessionToolCallCo
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckSessionForkSource = AssertCompatible<V1_ISessionForkSource, SessionForkSource>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckProtocolNotification = AssertCompatible<V1_IProtocolNotification, ProtocolNotification>;
+type _CheckSessionAddedParams = AssertCompatible<V1_ISessionAddedParams, SessionAddedParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckSessionSummaryChangedNotification = AssertCompatible<V1_ISessionSummaryChangedNotification, SessionSummaryChangedNotification>;
+type _CheckSessionRemovedParams = AssertCompatible<V1_ISessionRemovedParams, SessionRemovedParams>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckSessionSummaryChangedParams = AssertCompatible<V1_ISessionSummaryChangedParams, SessionSummaryChangedParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckListSessionsResult = AssertCompatible<V1_IListSessionsResult, ListSessionsResult>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -614,7 +616,7 @@ type _CheckResourceRequestResult = AssertCompatible<V1_IResourceRequestResult, R
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckProtectedResourceMetadata = AssertCompatible<V1_IProtectedResourceMetadata, ProtectedResourceMetadata>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckAuthRequiredNotification = AssertCompatible<V1_IAuthRequiredNotification, AuthRequiredNotification>;
+type _CheckAuthRequiredParams = AssertCompatible<V1_IAuthRequiredParams, AuthRequiredParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckCommandMap = AssertCompatible<V1_ICommandMap, CommandMap>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -623,8 +625,6 @@ type _CheckServerCommandMap = AssertCompatible<V1_IServerCommandMap, ServerComma
 type _CheckClientNotificationMap = AssertCompatible<V1_IClientNotificationMap, ClientNotificationMap>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckServerNotificationMap = AssertCompatible<V1_IServerNotificationMap, ServerNotificationMap>;
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type _CheckNotificationMethodParams = AssertCompatible<V1_INotificationMethodParams, NotificationMethodParams>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckAhpError = AssertCompatible<V1_IAhpError, AhpError>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

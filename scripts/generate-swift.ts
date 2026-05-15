@@ -1051,22 +1051,11 @@ function generateCommandsFile(project: Project): string {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedNotification', 'SessionRemovedNotification', 'SessionSummaryChangedNotification', 'AuthRequiredNotification',
+  'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'AuthRequiredParams',
 ];
-
-const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
-  name: 'ProtocolNotification',
-  discriminantField: 'type',
-  variants: [
-    { caseName: 'sessionAdded', structName: 'SessionAddedNotification', discriminantValue: 'notify/sessionAdded' },
-    { caseName: 'sessionRemoved', structName: 'SessionRemovedNotification', discriminantValue: 'notify/sessionRemoved' },
-    { caseName: 'sessionSummaryChanged', structName: 'SessionSummaryChangedNotification', discriminantValue: 'notify/sessionSummaryChanged' },
-    { caseName: 'authRequired', structName: 'AuthRequiredNotification', discriminantValue: 'notify/authRequired' },
-  ],
-};
 
 function generateNotificationsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
@@ -1110,10 +1099,6 @@ function generateNotificationsFile(project: Project): string {
       }
     }
   }
-
-  lines.push('// MARK: - ProtocolNotification Union\n');
-  lines.push(generateDiscriminatedUnion(PROTOCOL_NOTIFICATION_UNION));
-  lines.push('');
 
   return lines.join('\n');
 }
@@ -1242,15 +1227,6 @@ public struct JsonRpcNotification<Params: Codable>: Codable, Sendable where Para
 
 /// Params for the server → client \`action\` notification.
 public typealias ActionNotificationParams = ActionEnvelope
-
-/// Params for the server → client \`notification\` method.
-public struct NotificationMethodParams: Codable, Sendable {
-    public let notification: ProtocolNotification
-
-    public init(notification: ProtocolNotification) {
-        self.notification = notification
-    }
-}
 
 // MARK: - AHP Command Helpers
 
@@ -1464,7 +1440,6 @@ function checkExhaustiveness(project: Project): void {
     'ActionOrigin',                 // generateStructFromInterface() call in generateActionsFile()
     'SessionToolCallApprovedAction', // merged into SessionToolCallConfirmedAction
     'SessionToolCallDeniedAction',   // merged into SessionToolCallConfirmedAction
-    'ProtocolNotification',         // PROTOCOL_NOTIFICATION_UNION discriminated union
     'TerminalClaim',                // TERMINAL_CLAIM_UNION discriminated union
     'TerminalContentPart',           // TERMINAL_CONTENT_PART_UNION discriminated union
     'SessionInputQuestion',         // SESSION_INPUT_QUESTION_UNION discriminated union

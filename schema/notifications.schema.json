@@ -5,12 +5,13 @@
   "title": "AHP Notification Types",
   "description": "All notification types in the Agent Host Protocol.",
   "$defs": {
-    "SessionAddedNotification": {
+    "SessionAddedParams": {
       "type": "object",
-      "description": "Broadcast to all connected clients when a new session is created.",
+      "description": "Broadcast to all clients subscribed to the root channel when a new session\nis created.",
       "properties": {
-        "type": {
-          "$ref": "#/$defs/NotificationType.SessionAdded"
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this notification belongs to (the root channel)"
         },
         "summary": {
           "$ref": "#/$defs/SessionSummary",
@@ -18,16 +19,17 @@
         }
       },
       "required": [
-        "type",
+        "channel",
         "summary"
       ]
     },
-    "SessionRemovedNotification": {
+    "SessionRemovedParams": {
       "type": "object",
-      "description": "Broadcast to all connected clients when a session is disposed.",
+      "description": "Broadcast to all clients subscribed to the root channel when a session is\ndisposed.",
       "properties": {
-        "type": {
-          "$ref": "#/$defs/NotificationType.SessionRemoved"
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this notification belongs to (the root channel)"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -35,16 +37,17 @@
         }
       },
       "required": [
-        "type",
+        "channel",
         "session"
       ]
     },
-    "SessionSummaryChangedNotification": {
+    "SessionSummaryChangedParams": {
       "type": "object",
-      "description": "Broadcast to all connected clients when an existing session's summary\nchanges (title, status, `modifiedAt`, model, working directory, read/done\nstate, or diff statistics).\n\nThis notification lets clients that maintain a cached session list — for\nexample, the result of a previous `listSessions()` call — stay in sync with\nin-flight sessions without having to subscribe to every session URI\nindividually. It is complementary to, not a replacement for,\n`notify/sessionAdded` and `notify/sessionRemoved`: those signal lifecycle\n(creation/disposal), while this signals summary-level mutations on an\nalready-known session.\n\nSemantics:\n\n- Only fields present in `changes` have new values; omitted fields are\n  unchanged on the client's cached summary.\n- Identity fields (`resource`, `provider`, `createdAt`) never change and\n  are not carried.\n- Like all protocol notifications, this is ephemeral: it is **not**\n  replayed on reconnect. On reconnect, clients should re-fetch the full\n  catalog via `listSessions()` as usual.\n- The server SHOULD emit this notification whenever any mutable field on\n  {@link SessionSummary | `SessionSummary`} changes for a session the\n  server has surfaced via `listSessions()` or `notify/sessionAdded`.\n  Servers MAY coalesce or debounce updates for noisy fields (for example,\n  `modifiedAt` bumps while a turn is streaming, or rapidly changing\n  `diffs`) at their discretion.\n- Clients that have no cached entry for `session` MAY ignore the\n  notification; it is not a substitute for `notify/sessionAdded`.",
+      "description": "Broadcast to all clients subscribed to the root channel when an existing\nsession's summary changes (title, status, `modifiedAt`, model, working\ndirectory, read/done state, or diff statistics).\n\nThis notification lets clients that maintain a cached session list — for\nexample, the result of a previous `listSessions()` call — stay in sync with\nin-flight sessions without having to subscribe to every session URI\nindividually. It is complementary to, not a replacement for,\n`root/sessionAdded` and `root/sessionRemoved`: those signal lifecycle\n(creation/disposal), while this signals summary-level mutations on an\nalready-known session.\n\nSemantics:\n\n- Only fields present in `changes` have new values; omitted fields are\n  unchanged on the client's cached summary.\n- Identity fields (`resource`, `provider`, `createdAt`) never change and\n  are not carried.\n- Like all protocol notifications, this is ephemeral: it is **not**\n  replayed on reconnect. On reconnect, clients should re-fetch the full\n  catalog via `listSessions()` as usual.\n- The server SHOULD emit this notification whenever any mutable field on\n  {@link SessionSummary | `SessionSummary`} changes for a session the\n  server has surfaced via `listSessions()` or `root/sessionAdded`.\n  Servers MAY coalesce or debounce updates for noisy fields (for example,\n  `modifiedAt` bumps while a turn is streaming, or rapidly changing\n  `diffs`) at their discretion.\n- Clients that have no cached entry for `session` MAY ignore the\n  notification; it is not a substitute for `root/sessionAdded`.",
       "properties": {
-        "type": {
-          "$ref": "#/$defs/NotificationType.SessionSummaryChanged"
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this notification belongs to (the root channel)"
         },
         "session": {
           "$ref": "#/$defs/URI",
@@ -105,17 +108,18 @@
         }
       },
       "required": [
-        "type",
+        "channel",
         "session",
         "changes"
       ]
     },
-    "AuthRequiredNotification": {
+    "AuthRequiredParams": {
       "type": "object",
-      "description": "Sent by the server when a protected resource requires (re-)authentication.\n\nThis notification is sent when a previously valid token expires or is\nrevoked, or when the server discovers a new authentication requirement.\nClients should obtain a fresh token and push it via the `authenticate`\ncommand.",
+      "description": "Sent by the server when a protected resource requires (re-)authentication.\n\nThis notification MAY be associated with any channel — for example, an\nagent advertised on the root channel, or a per-session resource. The\n`channel` field identifies the subscription the auth requirement belongs\nto; the `resource` field carries the OAuth-protected resource identifier\n(per RFC 9728).\n\nClients should obtain a fresh token and push it via the `authenticate`\ncommand.",
       "properties": {
-        "type": {
-          "$ref": "#/$defs/NotificationType.AuthRequired"
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this notification belongs to"
         },
         "resource": {
           "type": "string",
@@ -127,7 +131,7 @@
         }
       },
       "required": [
-        "type",
+        "channel",
         "resource"
       ]
     },
@@ -135,16 +139,16 @@
       "description": "Discriminated union of all protocol notifications.",
       "oneOf": [
         {
-          "$ref": "#/$defs/SessionAddedNotification"
+          "$ref": "#/$defs/SessionAddedParams"
         },
         {
-          "$ref": "#/$defs/SessionRemovedNotification"
+          "$ref": "#/$defs/SessionRemovedParams"
         },
         {
-          "$ref": "#/$defs/SessionSummaryChangedNotification"
+          "$ref": "#/$defs/SessionSummaryChangedParams"
         },
         {
-          "$ref": "#/$defs/AuthRequiredNotification"
+          "$ref": "#/$defs/AuthRequiredParams"
         }
       ]
     },
@@ -261,7 +265,7 @@
     },
     "RootState": {
       "type": "object",
-      "description": "Global state shared with every client subscribed to `agenthost:/root`.",
+      "description": "Global state shared with every client subscribed to `ahp-root://`.",
       "properties": {
         "agents": {
           "type": "array",
@@ -2884,7 +2888,7 @@
       "properties": {
         "resource": {
           "$ref": "#/$defs/URI",
-          "description": "The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)"
+          "description": "The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)"
         },
         "state": {
           "oneOf": [

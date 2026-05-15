@@ -146,22 +146,22 @@ public struct ReconnectSnapshotResult: Codable, Sendable {
 }
 
 public struct SubscribeParams: Codable, Sendable {
-    /// URI to subscribe to
-    public var resource: String
+    /// Channel URI to subscribe to
+    public var channel: String
 
     public init(
-        resource: String
+        channel: String
     ) {
-        self.resource = resource
+        self.channel = channel
     }
 }
 
 public struct SubscribeResult: Codable, Sendable {
-    /// Snapshot of the subscribed resource
-    public var snapshot: Snapshot
+    /// Snapshot of the subscribed channel's state (omitted for stateless channels)
+    public var snapshot: Snapshot?
 
     public init(
-        snapshot: Snapshot
+        snapshot: Snapshot? = nil
     ) {
         self.snapshot = snapshot
     }
@@ -183,7 +183,7 @@ public struct SessionForkSource: Codable, Sendable {
 }
 
 public struct CreateSessionParams: Codable, Sendable {
-    /// Session URI (client-chosen, e.g. `copilot:/<uuid>`)
+    /// Session URI (client-chosen, e.g. `ahp-session:/<uuid>`)
     public var session: String
     /// Agent provider ID
     public var provider: String?
@@ -508,26 +508,30 @@ public struct FetchTurnsResult: Codable, Sendable {
 }
 
 public struct UnsubscribeParams: Codable, Sendable {
-    /// URI to unsubscribe from
-    public var resource: String
+    /// Channel URI to unsubscribe from
+    public var channel: String
 
     public init(
-        resource: String
+        channel: String
     ) {
-        self.resource = resource
+        self.channel = channel
     }
 }
 
 public struct DispatchActionParams: Codable, Sendable {
+    /// Channel URI this action targets
+    public var channel: String
     /// Client sequence number
     public var clientSeq: Int
     /// The action to dispatch
     public var action: StateAction
 
     public init(
+        channel: String,
         clientSeq: Int,
         action: StateAction
     ) {
+        self.channel = channel
         self.clientSeq = clientSeq
         self.action = action
     }

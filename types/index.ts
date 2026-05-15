@@ -247,14 +247,13 @@ export { ReconnectResultType, ContentEncoding, CompletionItemKind } from './comm
 
 // Notification types
 export type {
-  SessionAddedNotification,
-  SessionRemovedNotification,
-  SessionSummaryChangedNotification,
-  AuthRequiredNotification,
-  ProtocolNotification,
+  SessionAddedParams,
+  SessionRemovedParams,
+  SessionSummaryChangedParams,
+  AuthRequiredParams,
 } from './notifications.js';
 
-export { NotificationType, AuthRequiredReason } from './notifications.js';
+export { AuthRequiredReason } from './notifications.js';
 
 // Message types (JSON-RPC wire format)
 export type {
@@ -266,10 +265,8 @@ export type {
   AhpErrorResponse,
   CommandMap,
   ServerCommandMap,
-  NotificationMethodParams,
   ClientNotificationMap,
   ServerNotificationMap,
-  NotificationMap,
   AhpRequest,
   AhpServerRequest,
   AhpSuccessResponse,

@@ -16,15 +16,29 @@
   "actions": [
     {
       "type": "session/diffsChanged",
-      "session": "copilot:/test-session",
       "diffs": [
         {
-          "after": { "uri": "file:///src/index.ts", "content": { "uri": "content:/abc" } },
-          "diff": { "added": 10, "removed": 3 }
+          "after": {
+            "uri": "file:///src/index.ts",
+            "content": {
+              "uri": "content:/abc"
+            }
+          },
+          "diff": {
+            "added": 10,
+            "removed": 3
+          }
         },
         {
-          "after": { "uri": "file:///src/utils.ts", "content": { "uri": "content:/def" } },
-          "diff": { "added": 5 }
+          "after": {
+            "uri": "file:///src/utils.ts",
+            "content": {
+              "uri": "content:/def"
+            }
+          },
+          "diff": {
+            "added": 5
+          }
         }
       ]
     }
@@ -39,12 +53,27 @@
       "modifiedAt": 1000,
       "diffs": [
         {
-          "after": { "uri": "file:///src/index.ts", "content": { "uri": "content:/abc" } },
-          "diff": { "added": 10, "removed": 3 }
+          "after": {
+            "uri": "file:///src/index.ts",
+            "content": {
+              "uri": "content:/abc"
+            }
+          },
+          "diff": {
+            "added": 10,
+            "removed": 3
+          }
         },
         {
-          "after": { "uri": "file:///src/utils.ts", "content": { "uri": "content:/def" } },
-          "diff": { "added": 5 }
+          "after": {
+            "uri": "file:///src/utils.ts",
+            "content": {
+              "uri": "content:/def"
+            }
+          },
+          "diff": {
+            "added": 5
+          }
         }
       ]
     },

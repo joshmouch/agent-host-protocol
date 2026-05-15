@@ -388,7 +388,7 @@ pub struct ProtectedResourceMetadata {
     pub required: Option<bool>,
 }
 
-/// Global state shared with every client subscribed to `agenthost:/root`.
+/// Global state shared with every client subscribed to `ahp-root://`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RootState {
@@ -1930,7 +1930,7 @@ pub struct ErrorInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
-    /// The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)
+    /// The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)
     pub resource: Uri,
     /// The current state of the resource
     pub state: SnapshotState,

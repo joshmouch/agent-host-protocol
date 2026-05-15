@@ -1036,26 +1036,14 @@ function generateCommandsFile(project: Project): string {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedNotification',
-  'SessionRemovedNotification',
-  'SessionSummaryChangedNotification',
-  'AuthRequiredNotification',
+  'SessionAddedParams',
+  'SessionRemovedParams',
+  'SessionSummaryChangedParams',
+  'AuthRequiredParams',
 ];
-
-const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
-  name: 'ProtocolNotification',
-  discriminantField: 'type',
-  doc: 'Discriminated union of all protocol notifications.',
-  variants: [
-    { variantName: 'SessionAdded', innerType: 'SessionAddedNotification', wireValue: 'notify/sessionAdded' },
-    { variantName: 'SessionRemoved', innerType: 'SessionRemovedNotification', wireValue: 'notify/sessionRemoved' },
-    { variantName: 'SessionSummaryChanged', innerType: 'SessionSummaryChangedNotification', wireValue: 'notify/sessionSummaryChanged' },
-    { variantName: 'AuthRequired', innerType: 'AuthRequiredNotification', wireValue: 'notify/authRequired' },
-  ],
-};
 
 function generateNotificationsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
@@ -1101,10 +1089,6 @@ function generateNotificationsFile(project: Project): string {
       }
     }
   }
-
-  lines.push('// ─── ProtocolNotification Union ───────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(PROTOCOL_NOTIFICATION_UNION));
-  lines.push('');
 
   return lines.join('\n');
 }
@@ -1201,7 +1185,6 @@ pub struct UnsupportedProtocolVersionErrorData {
 function generateMessagesFile(): string {
   return `${GENERATED_HEADER}
 use crate::actions::ActionEnvelope;
-use crate::notifications::ProtocolNotification;
 
 // ─── JSON-RPC Envelope ────────────────────────────────────────────────────
 
@@ -1271,12 +1254,6 @@ pub enum JsonRpcMessage {
     Notification(JsonRpcNotification),
 }
 
-/// Params for the server → client \`notification\` method.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NotificationMethodParams {
-    pub notification: ProtocolNotification,
-}
-
 /// Params for the server → client \`action\` method.
 pub type ActionNotificationParams = ActionEnvelope;
 `;
@@ -1340,7 +1317,6 @@ function checkExhaustiveness(project: Project): void {
     'ActionOrigin',
     'SessionToolCallApprovedAction',
     'SessionToolCallDeniedAction',
-    'ProtocolNotification',
     'TerminalClaim',
     'TerminalContentPart',
     'SessionInputQuestion',

@@ -141,20 +141,29 @@ pub struct ReconnectSnapshotResult {
     pub snapshots: Vec<Snapshot>,
 }
 
-/// Subscribe to a URI-identified state resource.
+/// Subscribe to a URI-identified channel.
+///
+/// A channel MAY have state associated with it (e.g. root, sessions,
+/// terminals) or be stateless (pure pub/sub for streaming data). For
+/// state-bearing channels the result includes a snapshot; for stateless
+/// channels `snapshot` is omitted.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeParams {
-    /// URI to subscribe to
-    pub resource: Uri,
+    /// Channel URI to subscribe to
+    pub channel: Uri,
 }
 
 /// Result of the `subscribe` command.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+///
+/// `snapshot` is present when the subscribed channel has associated state, and
+/// absent for stateless channels.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeResult {
-    /// Snapshot of the subscribed resource
-    pub snapshot: Snapshot,
+    /// Snapshot of the subscribed channel's state (omitted for stateless channels)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<Snapshot>,
 }
 
 /// Creates a new session with the specified agent provider.
@@ -177,7 +186,7 @@ pub struct SessionForkSource {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSessionParams {
-    /// Session URI (client-chosen, e.g. `copilot:/<uuid>`)
+    /// Session URI (client-chosen, e.g. `ahp-session:/<uuid>`)
     pub session: Uri,
     /// Agent provider ID
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -471,19 +480,26 @@ pub struct FetchTurnsResult {
     pub has_more: bool,
 }
 
-/// Stop receiving updates for a URI.
+/// Stop receiving updates for a channel.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UnsubscribeParams {
-    /// URI to unsubscribe from
-    pub resource: Uri,
+    /// Channel URI to unsubscribe from
+    pub channel: Uri,
 }
 
 /// Fire-and-forget action dispatch (write-ahead). The client applies actions
-/// optimistically to local state.
+/// optimistically to local state and the server echoes them back as an
+/// {@link ActionEnvelope} once accepted.
+///
+/// The client → server method is named `dispatchAction`; the server's reply
+/// arrives on the server → client `action` notification (params:
+/// {@link ActionEnvelope}).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DispatchActionParams {
+    /// Channel URI this action targets
+    pub channel: Uri,
     /// Client sequence number
     pub client_seq: i64,
     /// The action to dispatch

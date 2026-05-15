@@ -164,7 +164,12 @@ export type ReconnectResult = ReconnectReplayResult | ReconnectSnapshotResult;
 // ─── subscribe ───────────────────────────────────────────────────────────────
 
 /**
- * Subscribe to a URI-identified state resource.
+ * Subscribe to a URI-identified channel.
+ *
+ * A channel MAY have state associated with it (e.g. root, sessions,
+ * terminals) or be stateless (pure pub/sub for streaming data). For
+ * state-bearing channels the result includes a snapshot; for stateless
+ * channels `snapshot` is omitted.
  *
  * @category Commands
  * @method subscribe
@@ -174,16 +179,19 @@ export type ReconnectResult = ReconnectReplayResult | ReconnectSnapshotResult;
  * @see {@link /specification/subscriptions | Subscriptions}
  */
 export interface SubscribeParams {
-  /** URI to subscribe to */
-  resource: URI;
+  /** Channel URI to subscribe to */
+  channel: URI;
 }
 
 /**
  * Result of the `subscribe` command.
+ *
+ * `snapshot` is present when the subscribed channel has associated state, and
+ * absent for stateless channels.
  */
 export interface SubscribeResult {
-  /** Snapshot of the subscribed resource */
-  snapshot: Snapshot;
+  /** Snapshot of the subscribed channel's state (omitted for stateless channels) */
+  snapshot?: Snapshot;
 }
 
 // ─── createSession ───────────────────────────────────────────────────────────
@@ -207,7 +215,7 @@ export interface SubscribeResult {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 2, "method": "createSession",
- *   "params": { "session": "copilot:/<uuid>", "provider": "copilot", "model": "gpt-4o" } }
+ *   "params": { "session": "ahp-session:/<uuid>", "provider": "copilot", "model": "gpt-4o" } }
  *
  * // Server → Client (success)
  * { "jsonrpc": "2.0", "id": 2, "result": null }
@@ -234,7 +242,7 @@ export interface SessionForkSource {
 }
 
 export interface CreateSessionParams {
-  /** Session URI (client-chosen, e.g. `copilot:/<uuid>`) */
+  /** Session URI (client-chosen, e.g. `ahp-session:/<uuid>`) */
   session: URI;
   /** Agent provider ID */
   provider?: string;
@@ -388,7 +396,7 @@ export const enum ContentEncoding {
  * ```jsonc
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 10, "method": "resourceRead",
- *   "params": { "uri": "copilot:/<uuid>/content/img-1" } }
+ *   "params": { "uri": "ahp-session:/<uuid>/content/img-1" } }
  *
  * // Server → Client
  * { "jsonrpc": "2.0", "id": 10, "result": {
@@ -533,7 +541,7 @@ export interface ResourceListResult {
  * ```jsonc
  * // Client → Server (fetch the 20 most recent turns)
  * { "jsonrpc": "2.0", "id": 8, "method": "fetchTurns",
- *   "params": { "session": "copilot:/<uuid>", "limit": 20 } }
+ *   "params": { "session": "ahp-session:/<uuid>", "limit": 20 } }
  *
  * // Server → Client
  * { "jsonrpc": "2.0", "id": 8, "result": {
@@ -543,7 +551,7 @@ export interface ResourceListResult {
  *
  * // Client → Server (fetch 20 turns before t1)
  * { "jsonrpc": "2.0", "id": 9, "method": "fetchTurns",
- *   "params": { "session": "copilot:/<uuid>", "before": "t1", "limit": 20 } }
+ *   "params": { "session": "ahp-session:/<uuid>", "before": "t1", "limit": 20 } }
  * ```
  */
 export interface FetchTurnsParams {
@@ -568,7 +576,7 @@ export interface FetchTurnsResult {
 // ─── unsubscribe ─────────────────────────────────────────────────────────────
 
 /**
- * Stop receiving updates for a URI.
+ * Stop receiving updates for a channel.
  *
  * @category Commands
  * @method unsubscribe
@@ -578,15 +586,20 @@ export interface FetchTurnsResult {
  * @see {@link /specification/subscriptions | Subscriptions}
  */
 export interface UnsubscribeParams {
-  /** URI to unsubscribe from */
-  resource: URI;
+  /** Channel URI to unsubscribe from */
+  channel: URI;
 }
 
 // ─── dispatchAction ──────────────────────────────────────────────────────────
 
 /**
  * Fire-and-forget action dispatch (write-ahead). The client applies actions
- * optimistically to local state.
+ * optimistically to local state and the server echoes them back as an
+ * {@link ActionEnvelope} once accepted.
+ *
+ * The client → server method is named `dispatchAction`; the server's reply
+ * arrives on the server → client `action` notification (params:
+ * {@link ActionEnvelope}).
  *
  * @category Commands
  * @method dispatchAction
@@ -596,6 +609,8 @@ export interface UnsubscribeParams {
  * @see {@link /guide/actions | Actions} for the full list of client-dispatchable actions.
  */
 export interface DispatchActionParams {
+  /** Channel URI this action targets */
+  channel: URI;
   /** Client sequence number */
   clientSeq: number;
   /** The action to dispatch */
@@ -989,7 +1004,7 @@ export const enum CompletionItemKind {
  * // User has typed "look at @foo" and the cursor is just after "@foo".
  * // Client → Server
  * { "jsonrpc": "2.0", "id": 12, "method": "completions",
- *   "params": { "kind": "userMessage", "session": "copilot:/<uuid>",
+ *   "params": { "kind": "userMessage", "session": "ahp-session:/<uuid>",
  *               "text": "look at @foo", "offset": 12 } }
  *
  * // Server → Client
