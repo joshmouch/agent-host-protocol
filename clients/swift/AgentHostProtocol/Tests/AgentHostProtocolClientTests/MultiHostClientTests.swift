@@ -382,6 +382,151 @@ final class MultiHostClientTests: XCTestCase {
         await multi.shutdown()
     }
 
+    // MARK: - state_during_backoff_after_drop_is_reconnecting
+
+    /// Regression: while the supervisor is sleeping in backoff after a
+    /// successful connection dropped, snapshots must report
+    /// `.reconnecting(...)` rather than `.connected`. The previous
+    /// implementation only transitioned at the *top* of the next iteration
+    /// so consumers observed `.connected` for the entire backoff window.
+    func testStateDuringBackoffAfterDropIsReconnecting() async throws {
+        // Build a transport factory whose first server side answers the
+        // handshake + listSessions and then waits for a "drop now" signal
+        // before closing — that way we can deterministically wait for
+        // `.connected`, then trigger the drop, then assert the state
+        // transitioned to `.reconnecting` during the backoff sleep.
+        // Subsequent connect attempts park (never reply) so the runtime
+        // stays in the post-drop backoff/reconnecting window.
+        let dropSignal = DropSignal()
+        let didFirstConnect = ActorBool()
+        let factory: HostTransportFactory = { _ in
+            let (clientSide, serverSide) = InMemoryTransport.pair()
+            if !(await didFirstConnect.value) {
+                await didFirstConnect.set(true)
+                Task {
+                    // Answer requests until the drop signal is set.
+                    while !dropSignal.isReady {
+                        let frame: TransportMessage?
+                        do { frame = try await serverSide.recv() } catch { return }
+                        guard let frame, case .text(let text) = frame,
+                              let data = text.data(using: .utf8),
+                              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                              let id = object["id"] as? Int,
+                              let method = object["method"] as? String
+                        else { continue }
+                        let result: Any
+                        switch method {
+                        case "initialize":
+                            let snap: [String: Any] = [
+                                "resource": RootResourceURI,
+                                "state": ["agents": [], "activeSessions": 0] as [String: Any],
+                                "fromSeq": 0,
+                            ]
+                            result = [
+                                "protocolVersion": "0.1.0",
+                                "serverSeq": 0,
+                                "snapshots": [snap],
+                            ] as [String: Any]
+                        case "listSessions":
+                            result = ["items": []] as [String: Any]
+                        default:
+                            result = [:] as [String: Any]
+                        }
+                        let resp: [String: Any] = [
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "result": result,
+                        ]
+                        if let bytes = try? JSONSerialization.data(withJSONObject: resp),
+                           let body = String(data: bytes, encoding: .utf8) {
+                            try? await serverSide.send(.text(body))
+                        }
+                    }
+                    try? await serverSide.close()
+                }
+                // Sample the drop signal periodically so we close even if
+                // no further request arrives. This keeps the test
+                // deterministic when there's no in-flight request to
+                // unblock the recv() loop.
+                Task {
+                    while !dropSignal.isReady {
+                        try? await Task.sleep(for: .milliseconds(20))
+                    }
+                    try? await serverSide.close()
+                }
+            } else {
+                // Subsequent attempts: park (never reply) so the runtime
+                // stays in `.reconnecting` while we observe.
+                Task { _ = try? await serverSide.recv() }
+            }
+            return clientSide
+        }
+        // Long initial backoff so we have a generous window to observe
+        // `.reconnecting` during sleep.
+        let policy = ReconnectPolicy(
+            backoff: .constant(.seconds(5)),
+            jitter: 0.0,
+            maxAttempts: nil,
+            resetOnSuccess: true
+        )
+        let config = HostConfig(id: "drop", label: "Drop", transportFactory: factory)
+            .withReconnectPolicy(policy)
+
+        let multi = MultiHostClient()
+        _ = try await multi.add(config)
+
+        // Wait for the first connect to land.
+        await waitForHostState(multi, id: "drop") { $0.isConnected }
+
+        // Trigger the drop, then wait for the runtime to surface
+        // `.reconnecting`. Without the fix, this poll would spin until
+        // timeout because state stayed `.connected` through the entire
+        // backoff sleep.
+        dropSignal.trigger()
+        await waitForHostState(multi, id: "drop", timeout: .seconds(2)) { state in
+            if case .reconnecting = state { return true }
+            return false
+        }
+
+        await multi.shutdown()
+    }
+
+    // MARK: - failed_handshake_shuts_down_underlying_client
+
+    /// Regression: if `initialize`/`reconnect` throws after `client.connect()`
+    /// has already started the writer/receive tasks, the supervisor must
+    /// shut the `AHPClient` down before propagating — otherwise the
+    /// orphaned client's tasks keep holding the transport indefinitely
+    /// while the supervisor opens a fresh one for the next attempt.
+    /// We assert this indirectly by observing that the wrapped transport's
+    /// `close()` is invoked.
+    func testFailedHandshakeShutsDownUnderlyingClient() async throws {
+        let observer = ClosedObserver()
+        let factory: HostTransportFactory = { _ in
+            let (clientSide, serverSide) = InMemoryTransport.pair()
+            // Server returns an RPC error response to `initialize`.
+            _ = startFailingInitFakeHost(transport: serverSide)
+            return TrackingTransport(clientSide, observer: observer)
+        }
+        // `disabled` so the host bails into `.failed` after one failed
+        // handshake instead of looping forever.
+        let config = HostConfig(id: "fail", label: "Fail", transportFactory: factory)
+            .withReconnectPolicy(.disabled)
+
+        let multi = MultiHostClient()
+        _ = try await multi.add(config)
+
+        // Wait for the host to hit `.failed`.
+        await waitForHostState(multi, id: "fail", timeout: .seconds(2)) { $0.isFailed }
+
+        // The supervisor should have shut down the AHPClient on the
+        // handshake failure, which closes the wrapped transport.
+        let closed = await observer.isClosed
+        XCTAssertTrue(closed, "AHPClient.shutdown() should have closed the transport on a failed handshake")
+
+        await multi.shutdown()
+    }
+
     // MARK: - Helpers
 
     /// Like `nextWithTimeout` from `AHPClientTestHelpers` but typed for any
@@ -417,4 +562,109 @@ private actor ActorBool {
     func set(_ v: Bool) { flag = v }
 }
 
+/// `Sendable` flag used by drop-driven tests. Using a `final class` with a
+/// lock instead of an actor so the server-side `recv` loop can poll it
+/// without `await`-ing into actor isolation between every frame.
+private final class DropSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flag: Bool = false
+    var isReady: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return flag
+    }
+    func trigger() {
+        lock.lock(); defer { lock.unlock() }
+        flag = true
+    }
+}
+
 private struct TestTimeoutError: Error {}
+
+// MARK: - Failing-handshake fake host
+
+/// Fake-host driver that responds to `initialize` with a JSON-RPC error
+/// instead of a result. Causes the client's `initialize` request to throw
+/// `AHPClientError.rpc(...)`. Used to assert the supervisor tears the
+/// `AHPClient` down on a failed handshake.
+private func startFailingInitFakeHost(
+    transport: InMemoryTransport,
+    code: Int = -32000,
+    message: String = "init refused for test"
+) -> Task<Void, Never> {
+    Task {
+        while !Task.isCancelled {
+            let frame: TransportMessage?
+            do {
+                frame = try await transport.recv()
+            } catch {
+                return
+            }
+            guard let frame else { return }
+            guard case .text(let text) = frame,
+                  let data = text.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let id = object["id"] as? Int,
+                  let method = object["method"] as? String
+            else { continue }
+            if method == "initialize" || method == "reconnect" {
+                let resp: [String: Any] = [
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": [
+                        "code": code,
+                        "message": message,
+                    ] as [String: Any],
+                ]
+                if let respData = try? JSONSerialization.data(withJSONObject: resp),
+                   let respText = String(data: respData, encoding: .utf8) {
+                    try? await transport.send(.text(respText))
+                }
+            } else {
+                let resp: [String: Any] = [
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "result": [:] as [String: Any],
+                ]
+                if let respData = try? JSONSerialization.data(withJSONObject: resp),
+                   let respText = String(data: respData, encoding: .utf8) {
+                    try? await transport.send(.text(respText))
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Tracking transport wrapper
+
+/// A `Sendable` thin wrapper around `InMemoryTransport` that flips an
+/// observable `isClosed` flag when `close()` runs. Used to assert that the
+/// supervisor calls `AHPClient.shutdown()` (which calls `transport.close()`)
+/// on a failed handshake.
+private final class TrackingTransport: AHPTransport, @unchecked Sendable {
+    private let underlying: InMemoryTransport
+    private let observer: ClosedObserver
+
+    init(_ underlying: InMemoryTransport, observer: ClosedObserver) {
+        self.underlying = underlying
+        self.observer = observer
+    }
+
+    func send(_ message: TransportMessage) async throws {
+        try await underlying.send(message)
+    }
+
+    func recv() async throws -> TransportMessage? {
+        try await underlying.recv()
+    }
+
+    func close() async throws {
+        await observer.markClosed()
+        try await underlying.close()
+    }
+}
+
+private actor ClosedObserver {
+    private(set) var closeCount: Int = 0
+    var isClosed: Bool { closeCount > 0 }
+    func markClosed() { closeCount += 1 }
+}

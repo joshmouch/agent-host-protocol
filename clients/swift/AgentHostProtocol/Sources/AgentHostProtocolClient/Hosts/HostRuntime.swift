@@ -167,17 +167,24 @@ internal final class HostRuntime: Sendable {
         var attempt = 0
         var iter = cmdStream.makeAsyncIterator()
 
+        // Initial state announce — the host is about to make its first
+        // connect attempt. Subsequent transitions to `.reconnecting`
+        // happen at the moment the prior attempt's connection ends, so
+        // `HostHandle.state` accurately reflects "we are no longer
+        // connected; backoff is in flight" rather than continuing to
+        // report `.connected` through the entire backoff sleep.
+        await transition(to: .connecting, error: nil)
+
         outer: while true {
             attempt += 1
-            await transition(to: attempt == 1 ? .connecting : .reconnecting(attempt: attempt - 1), error: nil)
 
             // Try to connect. On success we run the connection until it ends.
             do {
-                let events = try await connectOnce()
+                let streams = try await connectOnce()
                 if config.reconnectPolicy.resetOnSuccess {
                     attempt = 0
                 }
-                let outcome = await runConnection(events: events, iter: &iter)
+                let outcome = await runConnection(streams: streams, iter: &iter)
                 await tearDownClient()
                 switch outcome {
                 case .shutdown:
@@ -185,13 +192,28 @@ internal final class HostRuntime: Sendable {
                 case .manualReconnect(let reply):
                     reply.resume()
                     attempt = 0
+                    await transition(to: .connecting, error: nil)
                     continue outer
                 case .disconnected:
-                    break // fall through to retry policy
+                    // Connection dropped. Surface that immediately so
+                    // `HostHandle.state` doesn't keep reporting `.connected`
+                    // through the backoff sleep. `attempt` here is either
+                    // the count of consecutive failures since last success
+                    // (no reset) or 0 (just reset by `resetOnSuccess`); the
+                    // displayed attempt is clamped to ≥ 1 per the
+                    // 1-based contract on `HostState.reconnecting`.
+                    let lastErr = await shared.lastError()
+                    await transition(
+                        to: .reconnecting(attempt: max(1, attempt)),
+                        error: lastErr
+                    )
                 }
             } catch {
                 let reason = String(describing: error)
                 await shared.update { $0.lastError = reason }
+                // Failed connect attempt. `attempt` was just bumped at the
+                // top of this iteration so it is ≥ 1.
+                await transition(to: .reconnecting(attempt: attempt), error: reason)
             }
 
             if config.reconnectPolicy.attemptsExhausted(attempt) {
@@ -203,6 +225,7 @@ internal final class HostRuntime: Sendable {
                 case .manualReconnect(let reply):
                     reply.resume()
                     attempt = 0
+                    await transition(to: .connecting, error: nil)
                     continue outer
                 case .disconnected:
                     return
@@ -217,30 +240,65 @@ internal final class HostRuntime: Sendable {
             case .manualReconnect(let reply):
                 reply.resume()
                 attempt = 0
+                await transition(to: .connecting, error: nil)
                 continue outer
             case .disconnected:
-                continue outer // backoff elapsed; loop to next connect attempt
+                // Backoff elapsed; `state` is already `.reconnecting(attempt:)`
+                // from the disconnect / failure branch above. The next
+                // iteration runs the actual connect.
+                continue outer
             }
         }
     }
 
     /// Open a transport, hand it to a fresh `AHPClient`, attach the events
     /// tap *before* the handshake, and complete `initialize`/`reconnect`
-    /// plus an opportunistic `listSessions`. Returns the `client.events`
-    /// stream so the caller can pump it.
-    private func connectOnce() async throws -> AsyncStream<ClientEvent> {
+    /// plus an opportunistic `listSessions`. Returns both the `client.events`
+    /// stream and the `client.stateChanges` stream so the caller can drive
+    /// the per-connection event pump *and* a drop detector.
+    ///
+    /// Any failure after `client.connect()` has started the writer/receive
+    /// tasks is funneled through `withClientShutdownOnThrow` so the
+    /// orphaned `AHPClient` is torn down before the error propagates back
+    /// to the supervisor (which would otherwise open a fresh transport on
+    /// the next attempt while the previous client's tasks remain alive).
+    private func connectOnce() async throws -> ConnectionStreams {
         let transport = try await config.transportFactory(config.id)
         let client = AHPClient(transport: transport, config: config.clientConfig)
 
-        // Attach the events tap BEFORE the initialize/reconnect handshake so
-        // any notifications the server pushes between the response and the
-        // moment we enter the run loop are captured rather than dropped.
-        // PR 2's `events_tap_captures_handshake_notifications` test exists to
-        // protect this contract.
+        // Attach the events and state-change taps BEFORE the
+        // initialize/reconnect handshake so any notifications the server
+        // pushes between the response and the moment we enter the run
+        // loop are captured rather than dropped. PR 2's
+        // `events_tap_captures_handshake_notifications` test exists to
+        // protect this contract for `events`. We also need
+        // `stateChanges` because `AHPClient.handleTransportFailure`
+        // intentionally keeps the events stream alive after a transport
+        // drop (so consumers can observe later state transitions); the
+        // only signal we get on a real drop is `connectionState` flipping
+        // to `.disconnected`.
         let events = await client.events
+        let stateChanges = await client.stateChanges
 
         try await client.connect()
 
+        // From here on, every `throw` must shut down `client` before
+        // propagating — `client.connect()` started writer/receive tasks
+        // that hold the transport. `withClientShutdownOnThrow` enforces it.
+        return try await withClientShutdownOnThrow(client) {
+            try await self.completeHandshake(client: client, events: events, stateChanges: stateChanges)
+        }
+    }
+
+    /// Run the `initialize`/`reconnect` handshake, the opportunistic
+    /// `listSessions` seed, and atomically install the new client in
+    /// `HostShared`. Called inside `withClientShutdownOnThrow` so a throw
+    /// from any of these steps tears the client down before bubbling up.
+    private func completeHandshake(
+        client: AHPClient,
+        events: AsyncStream<ClientEvent>,
+        stateChanges: AsyncStream<ConnectionState>
+    ) async throws -> ConnectionStreams {
         // Decide between initialize and reconnect based on prior state.
         let priorSnapshot = await shared.internalState
         let canReconnect = priorSnapshot.serverSeq > 0 && !priorSnapshot.subscriptions.isEmpty
@@ -257,12 +315,22 @@ internal final class HostRuntime: Sendable {
                     lastSeenServerSeq: priorSeq,
                     subscriptions: priorSubscriptions
                 )
-                // NOTE: Replay actions returned by `reconnect` are not
-                // explicitly applied here — they ride through the same path
-                // as live events when delivered as `notify/action` frames.
-                // This mirrors the Rust `ahp::hosts` runtime and inherits
-                // the same gap: replays returned synchronously from
-                // `reconnect` are not fanned out. Tracked for both SDKs.
+                // NOTE: the `ReconnectResult` is intentionally discarded
+                // here, mirroring the Rust `ahp::hosts` runtime. Three
+                // related gaps follow from this and are tracked together
+                // for both SDKs as a follow-up:
+                //   1. Replay actions returned synchronously by the server
+                //      are not fanned out (live `notify/action` frames after
+                //      reconnect still reach consumers normally).
+                //   2. `replay.missing` URIs (subscriptions the server
+                //      cannot resume) are not pruned from the replay set,
+                //      so the next reconnect re-asks for them.
+                //   3. `snapshot` results are not applied to the per-host
+                //      root mirror / `serverSeq`, so `HostHandle` can lag
+                //      behind the post-snapshot state until live events
+                //      catch up.
+                // All three should be fixed atomically across SDKs — see the
+                // parent multi-host series for tracking.
             } catch let error as AHPClientError {
                 if case .rpc = error {
                     let init1 = try await client.initialize(
@@ -273,7 +341,6 @@ internal final class HostRuntime: Sendable {
                     initResult = init1
                     newSeq = init1.serverSeq
                 } else {
-                    await client.shutdown()
                     throw error
                 }
             }
@@ -326,19 +393,21 @@ internal final class HostRuntime: Sendable {
 
         await transition(to: .connected, error: nil)
         await hostEventSink(.connected(config.id, generation: newGeneration))
-        return events
+        return ConnectionStreams(events: events, stateChanges: stateChanges)
     }
 
     /// Drain commands and the event pump until the connection ends, the user
     /// asks for a manual reconnect, or shutdown is requested.
     private func runConnection(
-        events: AsyncStream<ClientEvent>,
+        streams: ConnectionStreams,
         iter: inout AsyncStream<HostCommand>.AsyncIterator
     ) async -> RunOutcome {
         // Per-connection token so a stale `.connectionEnded` from a prior
         // pump task can't trick this drain loop into thinking the new
         // connection has already failed.
         let connectionToken = signalTokenSource.next()
+        let events = streams.events
+        let stateChanges = streams.stateChanges
         let pumpTask = Task { [weak self, cmdContinuation] in
             guard let self else { return }
             for await event in events {
@@ -346,8 +415,25 @@ internal final class HostRuntime: Sendable {
             }
             cmdContinuation.yield(.connectionEnded(token: connectionToken))
         }
+        // Drop detector. `AHPClient.handleTransportFailure` does not finish
+        // the events stream after a transport drop (it intentionally keeps
+        // the multicast taps alive so consumers can observe later state
+        // transitions), so the only signal we get on a real drop is
+        // `connectionState` flipping to `.disconnected`. This task converts
+        // that into a `.connectionEnded(token:)` sentinel.
+        let dropDetector = Task { [cmdContinuation] in
+            for await state in stateChanges {
+                if case .disconnected = state {
+                    cmdContinuation.yield(.connectionEnded(token: connectionToken))
+                    return
+                }
+            }
+        }
 
-        defer { pumpTask.cancel() }
+        defer {
+            pumpTask.cancel()
+            dropDetector.cancel()
+        }
 
         while let cmd = await iter.next() {
             switch cmd {
@@ -601,6 +687,13 @@ private enum RunOutcome {
     case manualReconnect(reply: CheckedContinuation<Void, Error>)
 }
 
+/// Bundle of multicast streams attached to the per-connection `AHPClient`.
+/// Returned by `connectOnce` and consumed by `runConnection`.
+internal struct ConnectionStreams: @unchecked Sendable {
+    let events: AsyncStream<ClientEvent>
+    let stateChanges: AsyncStream<ConnectionState>
+}
+
 /// Resume a `CheckedContinuation<T, Error>` with a `Result<T, HostError>`.
 private func resumeCommand<T: Sendable>(
     reply: CheckedContinuation<T, Error>,
@@ -609,6 +702,24 @@ private func resumeCommand<T: Sendable>(
     switch result {
     case .success(let value): reply.resume(returning: value)
     case .failure(let error): reply.resume(throwing: error)
+    }
+}
+
+/// Run `body`; if it throws, shut down `client` before rethrowing. Used to
+/// keep handshake failures (`initialize`, `reconnect`, `listSessions`) from
+/// leaking an `AHPClient` whose writer/receive tasks are already running —
+/// without it, a failed connect attempt would leave the previous client's
+/// tasks alive while the supervisor opens a fresh transport for the next
+/// retry, holding the original transport indefinitely.
+private func withClientShutdownOnThrow<T: Sendable>(
+    _ client: AHPClient,
+    _ body: () async throws -> T
+) async throws -> T {
+    do {
+        return try await body()
+    } catch {
+        await client.shutdown()
+        throw error
     }
 }
 
