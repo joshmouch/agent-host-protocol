@@ -175,7 +175,14 @@ type PendingMap = HashMap<u64, oneshot::Sender<Result<Value, JsonRpcError>>>;
 struct Shared {
     pending: Mutex<PendingMap>,
     subscriptions: Mutex<HashMap<String, broadcast::Sender<SubscriptionEvent>>>,
-    all_events: broadcast::Sender<ClientEvent>,
+    /// Top-level all-events broadcast.
+    ///
+    /// Wrapped in a `std::sync::Mutex<Option<_>>` so [`drive_transport`]
+    /// can drop the sender during teardown — without that, every
+    /// [`ClientEventStream`] receiver would hang on `recv()` forever
+    /// after the underlying transport closes (the `Sender` would stay
+    /// alive inside the still-`Arc`-held `Shared`).
+    all_events: std::sync::Mutex<Option<broadcast::Sender<ClientEvent>>>,
     outbound: mpsc::Sender<Outbound>,
     next_id: AtomicU64,
     next_client_seq: AtomicU64,
@@ -223,7 +230,7 @@ impl Client {
         let shared = Arc::new(Shared {
             pending: Mutex::new(HashMap::new()),
             subscriptions: Mutex::new(HashMap::new()),
-            all_events: all_events_tx,
+            all_events: std::sync::Mutex::new(Some(all_events_tx)),
             outbound: outbound_tx,
             next_id: AtomicU64::new(1),
             next_client_seq: AtomicU64::new(1),
@@ -420,10 +427,23 @@ impl Client {
     /// [`ProtocolNotification`]s have `resource: None` because they
     /// aren't bound to a single resource — they are also still delivered
     /// once to each per-URI [`SessionSubscription`] (existing behaviour).
+    ///
+    /// Once the underlying transport has closed, any in-flight call to
+    /// [`ClientEventStream::recv`] resolves with `None` and subsequent
+    /// calls to `events()` return a stream that immediately yields
+    /// `None`.
     pub fn events(&self) -> ClientEventStream {
-        ClientEventStream {
-            rx: self.shared.all_events.subscribe(),
-        }
+        let rx = match self.shared.all_events.lock() {
+            Ok(guard) => guard.as_ref().map(|s| s.subscribe()),
+            Err(_) => None,
+        };
+        let rx = rx.unwrap_or_else(|| {
+            // Channel was already torn down; return a receiver bound to
+            // a sender we immediately drop so `recv()` resolves to None.
+            let (_, rx) = broadcast::channel(1);
+            rx
+        });
+        ClientEventStream { rx }
     }
 
     /// Fire a write-ahead `dispatchAction` notification with a
@@ -491,6 +511,13 @@ async fn drive_transport<T: Transport>(
     }
     let mut subs = shared.subscriptions.lock().await;
     subs.clear();
+    // Drop the top-level fan-out sender so any active
+    // `ClientEventStream::recv()` resolves with `None` rather than
+    // hanging forever (the `Sender` would otherwise stay alive inside
+    // the still-`Arc`-held `Shared`).
+    if let Ok(mut guard) = shared.all_events.lock() {
+        guard.take();
+    }
 }
 
 async fn dispatch_inbound(shared: &Shared, msg: JsonRpcMessage) {
@@ -529,10 +556,14 @@ async fn handle_notification(shared: &Shared, n: JsonRpcNotification) {
                         }
                     }
                 }
-                let _ = shared.all_events.send(ClientEvent {
-                    resource,
-                    event: SubscriptionEvent::Action(envelope),
-                });
+                if let Ok(guard) = shared.all_events.lock() {
+                    if let Some(tx) = guard.as_ref() {
+                        let _ = tx.send(ClientEvent {
+                            resource,
+                            event: SubscriptionEvent::Action(envelope),
+                        });
+                    }
+                }
             }
         }
         "notification" => {
@@ -548,10 +579,14 @@ async fn handle_notification(shared: &Shared, n: JsonRpcNotification) {
                         ));
                     }
                 }
-                let _ = shared.all_events.send(ClientEvent {
-                    resource: None,
-                    event: SubscriptionEvent::Notification(wrapped.notification),
-                });
+                if let Ok(guard) = shared.all_events.lock() {
+                    if let Some(tx) = guard.as_ref() {
+                        let _ = tx.send(ClientEvent {
+                            resource: None,
+                            event: SubscriptionEvent::Notification(wrapped.notification),
+                        });
+                    }
+                }
             }
         }
         other => {

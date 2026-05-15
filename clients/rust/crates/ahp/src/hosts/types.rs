@@ -16,8 +16,8 @@ use super::policy::ReconnectPolicy;
 /// Stable identifier for a host registered with [`super::MultiHostClient`].
 ///
 /// This is opaque to the SDK — consumers pick the format. It's used as
-/// the persistence key for [`ClientIdStore`], the routing key for
-/// commands, and the tag on every [`HostSubscriptionEvent`].
+/// the routing key for commands and the tag on every
+/// [`HostSubscriptionEvent`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HostId(String);
 
@@ -52,7 +52,8 @@ impl From<&str> for HostId {
 }
 
 /// Connection state for a single host.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum HostState {
     /// The host has been added but no transport is open.
     Disconnected,
@@ -69,24 +70,50 @@ pub enum HostState {
     /// Reconnect attempts were exhausted (or [`ReconnectPolicy::disabled`]
     /// was configured) and the host is no longer trying.
     Failed {
-        /// Human-readable reason. Mirrors [`HostHandle::last_error`].
-        reason: String,
+        /// Most recent failure that drove the host into this state. Cloned
+        /// references survive across snapshots without copying the
+        /// underlying error.
+        error: Arc<ClientError>,
     },
+}
+
+impl PartialEq for HostState {
+    /// Equality compares the discriminant and any payload that has a
+    /// natural equality. [`HostState::Failed`] always compares unequal
+    /// because [`ClientError`] is not [`PartialEq`] (it wraps
+    /// `serde_json::Error` and JSON-RPC error payloads).
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (HostState::Disconnected, HostState::Disconnected) => true,
+            (HostState::Connecting, HostState::Connecting) => true,
+            (HostState::Connected, HostState::Connected) => true,
+            (HostState::Reconnecting { attempt: a }, HostState::Reconnecting { attempt: b }) => {
+                a == b
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Configuration for a single host registered with [`super::MultiHostClient`].
 ///
 /// Use [`HostConfig::new`] for the common case (id + label + transport
 /// factory). Override individual fields with the `with_*` methods.
+///
+/// # `client_id`
+///
+/// Each host needs a stable `clientId` so the AHP `reconnect` flow
+/// works across launches. By default [`HostConfig::new`] generates a
+/// session-stable UUID; pass [`HostConfig::with_client_id`] (typically
+/// loaded from your app's keychain or settings store) for a value that
+/// survives restarts.
 pub struct HostConfig {
-    /// Stable host identifier. Doubles as the [`ClientIdStore`] persistence key.
+    /// Stable host identifier.
     pub id: HostId,
     /// Human-readable label. Surfaced through [`HostHandle::label`].
     pub label: String,
-    /// Optional override for the `clientId` sent to this host. When
-    /// `None`, the multi-host client asks its [`ClientIdStore`] for a
-    /// stable id keyed on [`HostConfig::id`].
-    pub client_id: Option<String>,
+    /// `clientId` sent to this host on `initialize` / `reconnect`.
+    pub client_id: String,
     /// URIs to include in the `initialize` handshake. Defaults to
     /// `["agenthost:/root"]` so root state is always tracked.
     pub initial_subscriptions: Vec<String>,
@@ -100,6 +127,11 @@ pub struct HostConfig {
 
 impl HostConfig {
     /// Build a [`HostConfig`] with sensible defaults.
+    ///
+    /// Generates a fresh, session-stable `clientId`. If you want
+    /// reconnect identity to survive process restarts, persist the id
+    /// you supply here yourself and pass it via
+    /// [`HostConfig::with_client_id`] on subsequent launches.
     pub fn new(
         id: impl Into<HostId>,
         label: impl Into<String>,
@@ -108,7 +140,7 @@ impl HostConfig {
         Self {
             id: id.into(),
             label: label.into(),
-            client_id: None,
+            client_id: generate_client_id(),
             initial_subscriptions: vec![ahp_types::ROOT_RESOURCE_URI.to_string()],
             client_config: ClientConfig::default(),
             transport_factory: Arc::new(transport_factory),
@@ -116,10 +148,9 @@ impl HostConfig {
         }
     }
 
-    /// Override the explicit `clientId` for this host (skips the
-    /// [`ClientIdStore`] lookup).
+    /// Override the `clientId` for this host.
     pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
-        self.client_id = Some(client_id.into());
+        self.client_id = client_id.into();
         self
     }
 
@@ -174,10 +205,12 @@ pub struct HostHandle {
     pub client_id: String,
     /// Current connection state.
     pub state: HostState,
-    /// Most recent error message, set when the supervisor enters
-    /// [`HostState::Reconnecting`] or [`HostState::Failed`]. Cleared on a
-    /// successful connect.
-    pub last_error: Option<String>,
+    /// Most recent failure that drove the host into a non-connected
+    /// state, set when the supervisor enters
+    /// [`HostState::Reconnecting`] or [`HostState::Failed`]. Cleared on
+    /// a successful connect. Wrapped in [`Arc`] so cloning a snapshot
+    /// doesn't copy the underlying error.
+    pub last_error: Option<Arc<ClientError>>,
     /// Wall-clock time of the most recent successful `initialize` or
     /// `reconnect`. `None` until the host first connects.
     pub last_connected_at: Option<SystemTime>,
@@ -213,10 +246,16 @@ pub struct HostHandle {
 /// Everything else still surfaces as [`ClientError`] from the
 /// underlying [`Client`].
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum HostError {
     /// No host with that id is currently registered.
     #[error("no host registered with id {0}")]
     UnknownHost(HostId),
+
+    /// A host with this id is already registered. Remove the existing
+    /// host first if you want to replace it.
+    #[error("a host with id {0} is already registered")]
+    DuplicateHost(HostId),
 
     /// The [`HostClientHandle`] was issued for a connection that has
     /// since been replaced by a reconnect. Acquire a fresh handle via
@@ -362,6 +401,7 @@ impl HostSubscriptionStream {
 
 /// Connection-level event for UX.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum HostEvent {
     /// A new host was registered.
     Added {
@@ -375,7 +415,7 @@ pub enum HostEvent {
         /// New state.
         state: HostState,
         /// Last error, when [`HostState::Reconnecting`] or [`HostState::Failed`].
-        last_error: Option<String>,
+        last_error: Option<Arc<ClientError>>,
     },
     /// The host successfully (re)connected; `generation` is the new value.
     Connected {
@@ -470,7 +510,7 @@ pub(super) struct HostInternal {
     pub(super) label: String,
     pub(super) client_id: String,
     pub(super) state: HostState,
-    pub(super) last_error: Option<String>,
+    pub(super) last_error: Option<Arc<ClientError>>,
     pub(super) last_connected_at: Option<SystemTime>,
     pub(super) protocol_version: Option<String>,
     pub(super) server_seq: i64,
@@ -513,4 +553,39 @@ impl HostInternal {
 /// `ReconnectParams::last_seen_server_seq`).
 pub(super) fn server_seq_from_envelope(env: &ActionEnvelope) -> i64 {
     env.server_seq as i64
+}
+
+/// Generate a session-stable UUIDv4-shaped string for use as a default
+/// `clientId`. Consumers that want cross-launch stability should
+/// persist the id themselves and pass it via [`HostConfig::with_client_id`].
+pub(super) fn generate_client_id() -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut hasher = DefaultHasher::new();
+    let mut out = [0u8; 16];
+    let now_nanos = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    for i in 0..2 {
+        n.hash(&mut hasher);
+        now_nanos.hash(&mut hasher);
+        i.hash(&mut hasher);
+        let bytes = hasher.finish().to_be_bytes();
+        out[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
+    }
+    out[6] = (out[6] & 0x0f) | 0x40;
+    out[8] = (out[8] & 0x3f) | 0x80;
+    format!(
+        "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+        u32::from_be_bytes([out[0], out[1], out[2], out[3]]),
+        u16::from_be_bytes([out[4], out[5]]),
+        u16::from_be_bytes([out[6], out[7]]),
+        u16::from_be_bytes([out[8], out[9]]),
+        u64::from_be_bytes([0, 0, out[10], out[11], out[12], out[13], out[14], out[15]])
+            & 0xffff_ffff_ffff,
+    )
 }

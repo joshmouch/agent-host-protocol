@@ -14,11 +14,11 @@
 //!
 //! - [`HostId`] — opaque, stable, consumer-supplied identifier per host.
 //! - [`HostConfig`] — what the multi-host client needs to open a host:
-//!   id, label, [`HostTransportFactory`], reconnect policy, optional
-//!   `clientId`, initial subscriptions, [`crate::ClientConfig`].
+//!   id, label, [`HostTransportFactory`], reconnect policy, `clientId`,
+//!   initial subscriptions, [`crate::ClientConfig`].
 //! - [`HostHandle`] — observable snapshot per host: connection state,
-//!   protocol version, last error, agents, session summaries, etc.
-//!   This is the surface UIs render.
+//!   protocol version, last error (a typed [`crate::ClientError`]),
+//!   agents, session summaries, etc. This is the surface UIs render.
 //! - [`HostClientHandle`] — generation-checked escape hatch. Wraps the
 //!   underlying single-host [`crate::Client`] and refuses to dispatch
 //!   through a connection that has since been replaced.
@@ -28,16 +28,24 @@
 //!   reconnect attempts, etc.).
 //! - [`MultiHostClient`] — the public API.
 //!
+//! # `clientId`
+//!
+//! Each host needs a stable `clientId` so the AHP `reconnect` flow
+//! works. [`HostConfig::new`] generates a session-stable UUID by
+//! default; for cross-launch identity persist the value yourself (e.g.
+//! in your app's keychain) and pass it via
+//! [`HostConfig::with_client_id`] on subsequent launches.
+//!
 //! # Quickstart (single-host)
 //!
 //! ```no_run
-//! # use std::sync::Arc;
 //! # use ahp::transport::BoxedTransport;
-//! # use ahp::{ClientError, TransportError};
+//! # use ahp::TransportError;
+//! # use ahp::hosts::HostError;
 //! # async fn open(_: ahp::hosts::HostId) -> Result<BoxedTransport, TransportError> {
 //! #     unimplemented!()
 //! # }
-//! # async fn run() -> Result<(), ClientError> {
+//! # async fn run() -> Result<(), HostError> {
 //! use ahp::hosts::{HostConfig, MultiHostClient};
 //!
 //! let config = HostConfig::new("local", "Local sessions server", open);
@@ -50,10 +58,11 @@
 //!
 //! ```no_run
 //! # use ahp::transport::BoxedTransport;
-//! # use ahp::{ClientError, TransportError};
+//! # use ahp::TransportError;
+//! # use ahp::hosts::HostError;
 //! # async fn open_local(_: ahp::hosts::HostId) -> Result<BoxedTransport, TransportError> { unimplemented!() }
 //! # async fn open_remote(_: ahp::hosts::HostId) -> Result<BoxedTransport, TransportError> { unimplemented!() }
-//! # async fn run() -> Result<(), ClientError> {
+//! # async fn run() -> Result<(), HostError> {
 //! use ahp::hosts::{HostConfig, MultiHostClient};
 //!
 //! let multi = MultiHostClient::new();
@@ -87,7 +96,7 @@ mod policy;
 mod runtime;
 mod types;
 
-pub use factory::{ClientIdStore, HostTransportFactory, InMemoryClientIdStore};
+pub use factory::HostTransportFactory;
 pub use multi::MultiHostClient;
 pub use policy::{Backoff, ReconnectPolicy};
 pub use types::{

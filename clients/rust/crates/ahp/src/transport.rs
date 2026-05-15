@@ -45,14 +45,14 @@
 //! vs stdio at runtime, etc.), wrap each one in [`BoxedTransport`]:
 //!
 //! ```no_run
-//! # async fn open_a() -> Result<impl ahp::Transport, ahp::TransportError> { unimplemented!() as Result<ahp::transport::BoxedTransport, _> }
-//! # async fn open_b() -> Result<impl ahp::Transport, ahp::TransportError> { unimplemented!() as Result<ahp::transport::BoxedTransport, _> }
-//! # async fn run() -> Result<(), ahp::TransportError> {
-//! use ahp::transport::BoxedTransport;
-//!
+//! # use ahp::transport::BoxedTransport;
+//! # use ahp::TransportError;
+//! # async fn open_a() -> Result<BoxedTransport, TransportError> { unimplemented!() }
+//! # async fn open_b() -> Result<BoxedTransport, TransportError> { unimplemented!() }
+//! # async fn run() -> Result<(), TransportError> {
 //! let transports: Vec<BoxedTransport> = vec![
-//!     BoxedTransport::new(open_a().await?),
-//!     BoxedTransport::new(open_b().await?),
+//!     open_a().await?,
+//!     open_b().await?,
 //! ];
 //! # let _ = transports;
 //! # Ok(()) }

@@ -5,9 +5,6 @@ use std::sync::Arc;
 
 use tokio::sync::{broadcast, RwLock};
 
-use crate::ClientError;
-
-use super::factory::{ClientIdStore, InMemoryClientIdStore};
 use super::runtime::{spawn, HostHandleTx};
 use super::types::{
     HostClientHandle, HostConfig, HostError, HostEvent, HostEventStream, HostHandle, HostId,
@@ -39,19 +36,11 @@ struct MultiInner {
     hosts: RwLock<HashMap<HostId, HostHandleTx>>,
     fan_out: broadcast::Sender<HostSubscriptionEvent>,
     host_events: broadcast::Sender<HostEvent>,
-    client_id_store: Arc<dyn ClientIdStore>,
 }
 
 impl MultiHostClient {
-    /// Build an empty multi-host client backed by an
-    /// [`InMemoryClientIdStore`].
+    /// Build an empty multi-host client.
     pub fn new() -> Self {
-        Self::with_client_id_store(Arc::new(InMemoryClientIdStore::new()))
-    }
-
-    /// Build an empty multi-host client backed by a custom
-    /// [`ClientIdStore`] (e.g. keychain or filesystem).
-    pub fn with_client_id_store(store: Arc<dyn ClientIdStore>) -> Self {
         let (fan_out, _) = broadcast::channel(DEFAULT_EVENT_BUFFER);
         let (host_events, _) = broadcast::channel(DEFAULT_EVENT_BUFFER);
         Self {
@@ -59,7 +48,6 @@ impl MultiHostClient {
                 hosts: RwLock::new(HashMap::new()),
                 fan_out,
                 host_events,
-                client_id_store: store,
             }),
         }
     }
@@ -76,7 +64,7 @@ impl MultiHostClient {
     /// Designed so single-host consumers don't have to think about
     /// "registry" concepts — `let (client, host) = MultiHostClient::single(config).await?;`
     /// is the whole onboarding.
-    pub async fn single(config: HostConfig) -> Result<(Self, HostHandle), ClientError> {
+    pub async fn single(config: HostConfig) -> Result<(Self, HostHandle), HostError> {
         let multi = Self::new();
         let handle = multi.add_host(config).await?;
         Ok((multi, handle))
@@ -92,22 +80,38 @@ impl MultiHostClient {
     /// `Connecting`, or already `Reconnecting` if the first attempt
     /// failed.
     ///
-    /// Returns [`ClientError::Shutdown`] if the host id is already in
+    /// This call is non-blocking with respect to the host's own
+    /// supervisor: the snapshot is read directly from per-host shared
+    /// state, never via the supervisor's command channel. A slow or
+    /// hung transport factory therefore cannot block other registry
+    /// operations.
+    ///
+    /// Returns [`HostError::DuplicateHost`] if the host id is already in
     /// use; remove the existing host first.
-    pub async fn add_host(&self, config: HostConfig) -> Result<HostHandle, ClientError> {
+    pub async fn add_host(&self, config: HostConfig) -> Result<HostHandle, HostError> {
         let id = config.id.clone();
-        let mut hosts = self.inner.hosts.write().await;
-        if hosts.contains_key(&id) {
-            return Err(ClientError::Shutdown);
-        }
-        let tx = spawn(
-            config,
-            self.inner.client_id_store.clone(),
-            self.inner.fan_out.clone(),
-            self.inner.host_events.clone(),
-        );
-        let snapshot = tx.snapshot().await.ok_or(ClientError::Shutdown)?;
-        hosts.insert(id, tx);
+        let shared = {
+            // Reserve the id atomically — release the write lock before
+            // awaiting anything so a slow connect path can't block other
+            // registry operations behind us.
+            let mut hosts = self.inner.hosts.write().await;
+            if hosts.contains_key(&id) {
+                return Err(HostError::DuplicateHost(id));
+            }
+            let tx = spawn(
+                config,
+                self.inner.fan_out.clone(),
+                self.inner.host_events.clone(),
+            );
+            let shared = tx.shared.clone();
+            hosts.insert(id, tx);
+            shared
+        };
+        // Snapshot directly from per-host shared state. Doing this via
+        // the supervisor's command channel would block here when the
+        // supervisor is busy in `connect_once` (e.g. a hung transport
+        // factory) — see Copilot review on #121 for the bug this avoids.
+        let snapshot = shared.lock().await.snapshot();
         Ok(snapshot)
     }
 
@@ -157,41 +161,38 @@ impl MultiHostClient {
     }
 
     /// Snapshot the current state of `id`.
+    ///
+    /// Reads from per-host shared state directly; safe to call even if
+    /// the host's supervisor is mid-`connect_once` and unable to
+    /// process commands.
     pub async fn host(&self, id: &HostId) -> Option<HostHandle> {
-        let entry_clone = self
+        let shared = self
             .inner
             .hosts
             .read()
             .await
             .get(id)
-            .map(|e| HostHandleTxRef {
-                cmd_tx: e.cmd_tx.clone(),
-                shared: e.shared.clone(),
-            });
-        match entry_clone {
-            Some(entry) => entry.snapshot().await,
-            None => None,
-        }
+            .map(|e| e.shared.clone())?;
+        let snapshot = shared.lock().await.snapshot();
+        Some(snapshot)
     }
 
     /// Snapshot every registered host. Order is unspecified.
+    ///
+    /// Reads from per-host shared state directly; safe to call even if
+    /// some hosts' supervisors are mid-`connect_once`.
     pub async fn hosts(&self) -> Vec<HostHandle> {
-        let entries: Vec<_> = self
+        let shareds: Vec<_> = self
             .inner
             .hosts
             .read()
             .await
             .values()
-            .map(|e| HostHandleTxRef {
-                cmd_tx: e.cmd_tx.clone(),
-                shared: e.shared.clone(),
-            })
+            .map(|e| e.shared.clone())
             .collect();
-        let mut out = Vec::with_capacity(entries.len());
-        for entry in entries {
-            if let Some(snap) = entry.snapshot().await {
-                out.push(snap);
-            }
+        let mut out = Vec::with_capacity(shareds.len());
+        for shared in shareds {
+            out.push(shared.lock().await.snapshot());
         }
         out
     }
@@ -203,14 +204,23 @@ impl MultiHostClient {
     /// connection that has been replaced by a reconnect — request a
     /// fresh handle in that case.
     pub async fn client(&self, id: &HostId) -> Option<HostClientHandle> {
-        let entry = {
-            let guard = self.inner.hosts.read().await;
-            guard.get(id).map(|e| HostHandleTxRef {
-                cmd_tx: e.cmd_tx.clone(),
-                shared: e.shared.clone(),
-            })
-        }?;
-        entry.client_handle().await
+        // Read the current generation + Client clone directly from
+        // shared state. No need to round-trip through the supervisor.
+        let shared = self
+            .inner
+            .hosts
+            .read()
+            .await
+            .get(id)
+            .map(|e| e.shared.clone())?;
+        let state = shared.lock().await;
+        let client = state.current_client.clone()?;
+        Some(HostClientHandle {
+            host_id: id.clone(),
+            generation: state.generation,
+            client,
+            shared: shared.clone(),
+        })
     }
 
     /// Convenience: subscribe to `uri` on `host_id`.
@@ -328,24 +338,6 @@ struct HostHandleTxRef {
 }
 
 impl HostHandleTxRef {
-    async fn snapshot(&self) -> Option<HostHandle> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.cmd_tx
-            .send(super::runtime::HostCommand::Snapshot { reply: tx })
-            .await
-            .ok()?;
-        rx.await.ok()
-    }
-
-    async fn client_handle(&self) -> Option<HostClientHandle> {
-        let (tx, rx) = tokio::sync::oneshot::channel();
-        self.cmd_tx
-            .send(super::runtime::HostCommand::GetClient { reply: tx })
-            .await
-            .ok()?;
-        rx.await.ok().flatten()
-    }
-
     async fn subscribe(
         &self,
         uri: String,

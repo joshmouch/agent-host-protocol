@@ -7,7 +7,7 @@
 //! occasional `subscribe`, then optionally close their side of the
 //! socket to force a reconnect.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -522,7 +522,7 @@ async fn transport_factory_is_called_for_each_reconnect() {
 }
 
 #[tokio::test]
-async fn duplicate_host_id_is_rejected() {
+async fn duplicate_host_id_is_rejected_with_typed_error() {
     let multi = MultiHostClient::new();
     multi
         .add_host(HostConfig::new(
@@ -540,8 +540,176 @@ async fn duplicate_host_id_is_rejected() {
             make_basic_factory(FakeHostState::new()),
         ))
         .await
-        .err();
-    assert!(err.is_some(), "expected duplicate-id rejection");
+        .expect_err("expected duplicate-id rejection");
+    match err {
+        HostError::DuplicateHost(id) => assert_eq!(id, HostId::new("dup")),
+        other => panic!("expected DuplicateHost, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn reconnect_replay_actions_are_fanned_out_with_advanced_seq() {
+    use ahp_types::actions::{RootActiveSessionsChangedAction, StateAction};
+
+    // Force a reconnect handshake by pre-seeding a non-zero serverSeq +
+    // subscription set, then make the second connect return a Replay
+    // arm carrying a single root-state action.
+    let drop_after_init = Arc::new(AtomicBool::new(false));
+    let return_replay = Arc::new(Mutex::new(false));
+    let state = FakeHostState::new();
+
+    let multi = MultiHostClient::new();
+    let mut events = multi.events();
+
+    multi
+        .add_host(HostConfig::new(
+            "h",
+            "Host",
+            make_replay_factory(state, drop_after_init.clone(), return_replay.clone()),
+        ))
+        .await
+        .unwrap();
+
+    wait_for_state(&multi, &HostId::new("h"), |s| s.is_connected(), 2000).await;
+
+    // Drain the live events from the first connect so the replay
+    // assertions below aren't polluted.
+    drain_events(&mut events, Duration::from_millis(150)).await;
+
+    // Now flip the next-connect to use Replay, force a manual reconnect.
+    *return_replay.lock().await = true;
+    drop_after_init.store(true, Ordering::SeqCst);
+    multi
+        .reconnect_host(&HostId::new("h"))
+        .await
+        .expect("reconnect");
+
+    // Expect to see the replayed action through the fan-in stream.
+    let mut saw_replayed_action = false;
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(2500);
+    while tokio::time::Instant::now() < deadline {
+        match tokio::time::timeout(Duration::from_millis(500), events.recv()).await {
+            Ok(Some(event)) => {
+                if let ahp::SubscriptionEvent::Action(env) = event.event {
+                    if matches!(
+                        env.action,
+                        StateAction::RootActiveSessionsChanged(RootActiveSessionsChangedAction {
+                            active_sessions: 7
+                        })
+                    ) {
+                        assert_eq!(event.host_id, HostId::new("h"));
+                        assert_eq!(
+                            event.resource.as_deref(),
+                            Some(ahp_types::ROOT_RESOURCE_URI)
+                        );
+                        saw_replayed_action = true;
+                        break;
+                    }
+                }
+            }
+            _ => break,
+        }
+    }
+    assert!(
+        saw_replayed_action,
+        "expected the replayed RootActiveSessionsChanged action to fan out via events()"
+    );
+
+    // server_seq should have advanced past the replay envelope.
+    let snap = multi.host(&HostId::new("h")).await.expect("host");
+    assert!(
+        snap.server_seq >= 42,
+        "expected server_seq advanced past replay (got {})",
+        snap.server_seq
+    );
+}
+
+#[tokio::test]
+async fn client_events_recv_returns_none_after_transport_close() {
+    use ahp::{Client, ClientConfig};
+
+    // Build a Client over an in-memory transport, attach an events
+    // receiver, then drop the server side so the transport closes.
+    let (client_side, mut server_side) = pair();
+    let client = Client::connect(client_side, ClientConfig::default())
+        .await
+        .expect("connect");
+    let mut events = client.events();
+
+    // Server task: ack initialize, then close.
+    tokio::spawn(async move {
+        if let Ok(Some(frame)) = server_side.recv().await {
+            if let Ok(JsonRpcMessage::Request(req)) = frame.into_parsed() {
+                let resp = JsonRpcMessage::SuccessResponse(JsonRpcSuccessResponse {
+                    jsonrpc: JsonRpcVersion::V2,
+                    id: req.id,
+                    result: ahp_types::common::AnyValue::from(serde_json::json!({
+                        "protocolVersion": ahp_types::PROTOCOL_VERSION,
+                        "serverSeq": 0,
+                        "snapshots": []
+                    })),
+                });
+                let _ = server_side
+                    .send(TransportMessage::encode(&resp).unwrap())
+                    .await;
+            }
+        }
+        // Drop server_side to close the transport from the server side.
+        drop(server_side);
+    });
+
+    let _ = client
+        .initialize(
+            "test".into(),
+            vec![ahp_types::PROTOCOL_VERSION.to_string()],
+            vec![],
+        )
+        .await
+        .expect("init");
+
+    // events.recv() should resolve to None once the transport closes
+    // and `drive_transport` runs teardown — without the all_events
+    // sender being explicitly dropped, this would hang forever.
+    let next = tokio::time::timeout(Duration::from_secs(2), events.recv()).await;
+    assert!(matches!(next, Ok(None)), "expected None, got {next:?}");
+}
+
+#[tokio::test]
+async fn shutdown_is_not_blocked_by_a_hung_transport_factory() {
+    // Factory that never returns — simulates a hung token refresh / DNS
+    // lookup / TLS handshake. Without the shutdown signal racing
+    // `connect_once`, `remove_host` would block forever (or until the
+    // request timeout, whichever came first).
+    let factory = |_host_id: HostId| -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<BoxedTransport, TransportError>> + Send>,
+    > {
+        Box::pin(async move {
+            // Sleep effectively forever.
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Err::<BoxedTransport, TransportError>(TransportError::Closed)
+        })
+    };
+
+    let multi = MultiHostClient::new();
+    let _ = multi
+        .add_host(HostConfig::new("hung", "Hung", factory))
+        .await;
+
+    // Give the runtime a beat to enter `connect_once`.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Remove must complete promptly. Bound to a generous timeout so a
+    // regression of this fix would surface as a clear test failure
+    // rather than a CI hang.
+    let removed = tokio::time::timeout(
+        Duration::from_secs(2),
+        multi.remove_host(&HostId::new("hung")),
+    )
+    .await;
+    assert!(
+        matches!(removed, Ok(Ok(()))),
+        "remove_host should not block on a hung connect; got {removed:?}"
+    );
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -605,6 +773,115 @@ fn make_injecting_factory(
             ));
             Ok(BoxedTransport::new(client_side))
         })
+    }
+}
+
+/// Factory used by the reconnect-replay test. The first connect responds
+/// to `initialize` normally with a non-zero `serverSeq` and a single
+/// subscription so the next connect chooses the `reconnect` arm. When
+/// `drop_after_init` is set, the server drops its side of the
+/// connection right after the handshake to force the runtime into a
+/// reconnect cycle. When `return_replay` is set, that reconnect's
+/// response carries a single `RootActiveSessionsChanged` action.
+fn make_replay_factory(
+    state: FakeHostState,
+    drop_after_init: Arc<AtomicBool>,
+    return_replay: Arc<Mutex<bool>>,
+) -> impl Fn(
+    HostId,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<BoxedTransport, TransportError>> + Send>,
+> + Send
+       + Sync
+       + 'static {
+    let state = Arc::new(state);
+    state.server_seq.store(40, Ordering::SeqCst);
+    move |_host_id| {
+        let state = state.clone();
+        let drop_after_init = drop_after_init.clone();
+        let return_replay = return_replay.clone();
+        Box::pin(async move {
+            let (client_side, server_side) = pair();
+            tokio::spawn(drive_fake_host_replay(
+                server_side,
+                (*state).clone(),
+                drop_after_init,
+                return_replay,
+            ));
+            Ok(BoxedTransport::new(client_side))
+        })
+    }
+}
+
+async fn drive_fake_host_replay(
+    mut transport: MemTransport,
+    state: FakeHostState,
+    drop_after_init: Arc<AtomicBool>,
+    return_replay: Arc<Mutex<bool>>,
+) {
+    loop {
+        let frame = match transport.recv().await {
+            Ok(Some(f)) => f,
+            _ => return,
+        };
+        let msg = match frame.into_parsed() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if let JsonRpcMessage::Request(req) = msg {
+            let result = if req.method == "reconnect" && *return_replay.lock().await {
+                // Replay arm with a single RootActiveSessionsChanged
+                // action carrying serverSeq=42 (advances past the
+                // pre-seeded 40).
+                serde_json::json!({
+                    "type": "replay",
+                    "actions": [
+                        {
+                            "action": {
+                                "type": "root/activeSessionsChanged",
+                                "activeSessions": 7
+                            },
+                            "serverSeq": 42,
+                            "origin": null,
+                        }
+                    ],
+                    "missing": []
+                })
+            } else {
+                handle_request(&req, &state)
+            };
+            let resp = JsonRpcMessage::SuccessResponse(JsonRpcSuccessResponse {
+                jsonrpc: JsonRpcVersion::V2,
+                id: req.id,
+                result: ahp_types::common::AnyValue::from(result),
+            });
+            if transport
+                .send(TransportMessage::encode(&resp).unwrap())
+                .await
+                .is_err()
+            {
+                return;
+            }
+
+            if (req.method == "initialize" || req.method == "reconnect")
+                && drop_after_init.swap(false, Ordering::SeqCst)
+            {
+                // Close the transport from the server side so the
+                // client supervisor sees a disconnect and reconnects.
+                drop(transport);
+                return;
+            }
+        }
+    }
+}
+
+async fn drain_events(events: &mut ahp::hosts::HostSubscriptionStream, window: Duration) {
+    let deadline = tokio::time::Instant::now() + window;
+    while tokio::time::Instant::now() < deadline {
+        match tokio::time::timeout(Duration::from_millis(20), events.recv()).await {
+            Ok(Some(_)) => continue,
+            _ => break,
+        }
     }
 }
 

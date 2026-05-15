@@ -129,13 +129,13 @@ handle.check_alive().await?;
 # Ok(()) }
 ```
 
-Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`. For persistent identity across launches, build the multi-host client with a custom store via `MultiHostClient::with_client_id_store(...)`.
+Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`. For persistent identity across launches, persist the `clientId` you pass to [`HostConfig::with_client_id`](https://docs.rs/ahp/latest/ahp/hosts/struct.HostConfig.html#method.with_client_id) yourself (e.g. in your app's keychain or settings store) and supply it on subsequent launches.
 
 See the `ahp::hosts` rustdoc and `crates/ahp/tests/hosts.rs` for the full surface.
 
 ## Swift
 
-The Swift multi-host client lives in the `AgentHostProtocolClient` SwiftPM product and mirrors the Rust shape: `HostId`, `HostConfig`, `HostHandle`, `HostClientHandle`, `MultiHostClient`, `MultiHostClient.single(...)`, `events()`/`hostEvents()`, `aggregatedSessions`/`aggregatedAgents`. See the [Swift client guide](#) for usage. _(Coming with the Swift PRs.)_
+A matching `MultiHostClient` is planned for the Swift SDK in a follow-up PR — same shape (`HostId`, `HostConfig`, `HostHandle`, `HostClientHandle`, `MultiHostClient.single(...)`, multicast `events`/`hostEvents`, aggregated views) so consumers can apply the same mental model to both languages. This page will be updated when the Swift implementation lands.
 
 ## Choosing single-host vs multi-host
 

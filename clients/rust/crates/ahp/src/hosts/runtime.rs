@@ -11,30 +11,22 @@ use std::time::SystemTime;
 
 use ahp_types::actions::{ActionEnvelope, StateAction};
 use ahp_types::commands::{
-    ListSessionsParams, ListSessionsResult, SubscribeParams, SubscribeResult,
+    ListSessionsParams, ListSessionsResult, ReconnectResult, SubscribeParams, SubscribeResult,
 };
 use ahp_types::notifications::ProtocolNotification;
 use ahp_types::state::{RootState, SessionSummary, SnapshotState};
-use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot, Notify};
 use tokio::task::JoinHandle;
 
 use crate::reducers::{apply_action_to_root, ReduceOutcome};
 use crate::{Client, ClientError, ClientEvent, DispatchHandle, SubscriptionEvent};
 
-use super::factory::ClientIdStore;
 use super::types::{
-    HostClientHandle, HostConfig, HostError, HostEvent, HostHandle, HostInternal, HostShared,
-    HostState, HostSubscriptionEvent,
+    HostConfig, HostError, HostEvent, HostInternal, HostShared, HostState, HostSubscriptionEvent,
 };
 
 /// Commands the runtime accepts from the [`MultiHostClient`].
 pub(super) enum HostCommand {
-    Snapshot {
-        reply: oneshot::Sender<HostHandle>,
-    },
-    GetClient {
-        reply: oneshot::Sender<Option<HostClientHandle>>,
-    },
     Reconnect {
         reply: oneshot::Sender<()>,
     },
@@ -50,30 +42,29 @@ pub(super) enum HostCommand {
         action: Box<StateAction>,
         reply: oneshot::Sender<Result<DispatchHandle, HostError>>,
     },
-    Shutdown,
 }
 
 /// Inbox handle exposed to the multi-host facade.
 pub(super) struct HostHandleTx {
     pub(super) cmd_tx: mpsc::Sender<HostCommand>,
     pub(super) shared: Arc<HostShared>,
+    pub(super) shutdown_signal: Arc<Notify>,
     pub(super) join: JoinHandle<()>,
 }
 
 impl HostHandleTx {
-    pub(super) async fn snapshot(&self) -> Option<HostHandle> {
-        let (tx, rx) = oneshot::channel();
-        self.cmd_tx
-            .send(HostCommand::Snapshot { reply: tx })
-            .await
-            .ok()?;
-        rx.await.ok()
-    }
-
+    /// Initiate shutdown.
+    ///
+    /// Notifies the supervisor (which interrupts in-flight `connect_once`
+    /// or backoff sleeps), drops the command channel so the runtime sees
+    /// the disconnect, and awaits the join handle.
+    ///
+    /// Uses [`Notify::notify_one`] (rather than `notify_waiters`) so the
+    /// signal queues a permit if the supervisor isn't yet awaiting on
+    /// it — this avoids a race where shutdown is called before the
+    /// supervisor's first `select!` has registered as a waiter.
     pub(super) async fn shutdown(self) {
-        let _ = self.cmd_tx.send(HostCommand::Shutdown).await;
-        // Drop the sender first so the runtime sees `None` if Shutdown
-        // wasn't delivered before the receive loop exited.
+        self.shutdown_signal.notify_one();
         drop(self.cmd_tx);
         let _ = self.join.await;
     }
@@ -82,34 +73,13 @@ impl HostHandleTx {
 /// Spawn a runtime for `config` and return its inbox.
 pub(super) fn spawn(
     config: HostConfig,
-    client_id_store: Arc<dyn ClientIdStore>,
     fan_out: broadcast::Sender<HostSubscriptionEvent>,
     host_events: broadcast::Sender<HostEvent>,
 ) -> HostHandleTx {
-    let resolved_client_id = config
-        .client_id
-        .clone()
-        .or_else(|| client_id_store.load(&config.id))
-        .unwrap_or_else(|| {
-            // Generate a deterministic-ish UUIDv4-style id.
-            let bytes = uuid_v4_bytes();
-            format!(
-                "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
-                u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]),
-                u16::from_be_bytes([bytes[4], bytes[5]]),
-                u16::from_be_bytes([bytes[6], bytes[7]]),
-                u16::from_be_bytes([bytes[8], bytes[9]]),
-                u64::from_be_bytes([
-                    0, 0, bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-                ]) & 0xffff_ffff_ffff,
-            )
-        });
-    client_id_store.store(&config.id, &resolved_client_id);
-
     let initial = HostInternal {
         id: config.id.clone(),
         label: config.label.clone(),
-        client_id: resolved_client_id.clone(),
+        client_id: config.client_id.clone(),
         state: HostState::Disconnected,
         last_error: None,
         last_connected_at: None,
@@ -129,21 +99,24 @@ pub(super) fn spawn(
         current_client: None,
     };
     let shared = HostShared::new(initial);
+    let shutdown_signal = Arc::new(Notify::new());
 
     let (cmd_tx, cmd_rx) = mpsc::channel(32);
     let runtime = HostRuntime {
+        client_id: config.client_id.clone(),
         config,
-        client_id: resolved_client_id,
         cmd_rx,
         shared: shared.clone(),
         fan_out,
         host_events,
+        shutdown_signal: shutdown_signal.clone(),
     };
     let join = tokio::spawn(runtime.run());
 
     HostHandleTx {
         cmd_tx,
         shared,
+        shutdown_signal,
         join,
     }
 }
@@ -155,6 +128,7 @@ struct HostRuntime {
     shared: Arc<HostShared>,
     fan_out: broadcast::Sender<HostSubscriptionEvent>,
     host_events: broadcast::Sender<HostEvent>,
+    shutdown_signal: Arc<Notify>,
 }
 
 enum InnerOutcome {
@@ -190,7 +164,22 @@ impl HostRuntime {
                 .await;
             }
 
-            match self.connect_once().await {
+            // Race the connect attempt with shutdown. A hung transport
+            // factory (or a slow handshake) would otherwise block
+            // `remove_host` for the request timeout — or indefinitely
+            // if the factory never returns.
+            let shutdown = self.shutdown_signal.clone();
+            let connect = tokio::select! {
+                result = self.connect_once() => Some(result),
+                _ = shutdown.notified() => None,
+            };
+
+            let connect_result = match connect {
+                Some(r) => r,
+                None => break,
+            };
+
+            match connect_result {
                 Ok(events) => {
                     if self.config.reconnect_policy.reset_on_success {
                         attempt = 0;
@@ -211,29 +200,29 @@ impl HostRuntime {
                     }
                 }
                 Err(err) => {
-                    let reason = err.to_string();
-                    tracing::warn!(host_id = %self.config.id, attempt, error = %reason, "host connect failed");
+                    let arc_err = Arc::new(err);
+                    tracing::warn!(
+                        host_id = %self.config.id,
+                        attempt,
+                        error = %arc_err,
+                        "host connect failed"
+                    );
                     {
                         let mut state = self.shared.lock().await;
-                        state.last_error = Some(reason.clone());
+                        state.last_error = Some(arc_err);
                     }
                 }
             }
 
             // Decide whether to retry.
             if self.config.reconnect_policy.attempts_exhausted(attempt) {
-                let reason = self
-                    .shared
-                    .lock()
-                    .await
-                    .last_error
-                    .clone()
-                    .unwrap_or_else(|| "reconnect attempts exhausted".to_string());
+                let last_error = self.shared.lock().await.last_error.clone();
+                let error = last_error.unwrap_or_else(|| Arc::new(ClientError::Shutdown));
                 self.set_state(
                     HostState::Failed {
-                        reason: reason.clone(),
+                        error: error.clone(),
                     },
-                    Some(reason),
+                    Some(error),
                 )
                 .await;
                 // Stay alive so commands can still inspect state, request manual
@@ -264,14 +253,14 @@ impl HostRuntime {
 
         let client = Client::connect(transport, self.config.client_config.clone()).await?;
 
-        // Attach the events receiver BEFORE the initialize handshake so
-        // any notifications the server pushes between the handshake
-        // response and the moment we enter `run_connection` are
-        // captured rather than dropped.
+        // Attach the events receiver BEFORE the initialize/reconnect
+        // handshake so any notifications the server pushes between the
+        // handshake response and the moment we enter `run_connection`
+        // are captured rather than dropped.
         let events = client.events();
 
         // Decide between initialize and reconnect based on prior state.
-        let (server_seq_after, init_result, did_reconnect) = {
+        let (subscriptions, server_seq_after, init_result, reconnect_result) = {
             let snapshot = self.shared.lock().await;
             let can_reconnect = snapshot.server_seq > 0 && !snapshot.subscriptions.is_empty();
             let subscriptions = snapshot.subscriptions.clone();
@@ -283,12 +272,7 @@ impl HostRuntime {
                     .reconnect(self.client_id.clone(), server_seq, subscriptions.clone())
                     .await
                 {
-                    Ok(_result) => {
-                        // Reconnect succeeds; keep the existing serverSeq for now —
-                        // replayed actions and snapshots will catch us up. We
-                        // optimistically use the server's reconciliation here.
-                        (server_seq, None, true)
-                    }
+                    Ok(result) => (subscriptions, server_seq, None, Some(result)),
                     Err(ClientError::Rpc(_)) => {
                         // Server refused reconnect (likely too much state has
                         // elapsed); fall back to initialize.
@@ -296,11 +280,11 @@ impl HostRuntime {
                             .initialize(
                                 self.client_id.clone(),
                                 vec![ahp_types::PROTOCOL_VERSION.to_string()],
-                                subscriptions,
+                                subscriptions.clone(),
                             )
                             .await?;
                         let new_seq = init.server_seq;
-                        (new_seq, Some(init), false)
+                        (subscriptions, new_seq, Some(init), None)
                     }
                     Err(other) => return Err(other),
                 }
@@ -309,11 +293,11 @@ impl HostRuntime {
                     .initialize(
                         self.client_id.clone(),
                         vec![ahp_types::PROTOCOL_VERSION.to_string()],
-                        subscriptions,
+                        subscriptions.clone(),
                     )
                     .await?;
                 let new_seq = init.server_seq;
-                (new_seq, Some(init), false)
+                (subscriptions, new_seq, Some(init), None)
             }
         };
 
@@ -331,8 +315,10 @@ impl HostRuntime {
             state.current_client = Some(client.clone());
             state.last_connected_at = Some(SystemTime::now());
             state.last_error = None;
-            state.server_seq = server_seq_after;
-            if let Some(init) = init_result {
+            if state.server_seq < server_seq_after {
+                state.server_seq = server_seq_after;
+            }
+            if let Some(init) = init_result.as_ref() {
                 if let Some(snapshot) = init
                     .snapshots
                     .iter()
@@ -342,10 +328,12 @@ impl HostRuntime {
                         state.root_state = root.as_ref().clone();
                     }
                 }
-                state.protocol_version = Some(init.protocol_version);
-                state.default_directory = init.default_directory;
-                state.completion_trigger_characters =
-                    init.completion_trigger_characters.unwrap_or_default();
+                state.protocol_version = Some(init.protocol_version.clone());
+                state.default_directory = init.default_directory.clone();
+                state.completion_trigger_characters = init
+                    .completion_trigger_characters
+                    .clone()
+                    .unwrap_or_default();
             }
             if let Ok(list) = summaries {
                 state.session_summaries.clear();
@@ -358,13 +346,22 @@ impl HostRuntime {
             state.generation
         };
 
+        // Apply the reconnect response (if this was a reconnect rather
+        // than a fresh initialize). Replayed actions must be fanned out
+        // through the same path live envelopes take so consumers' state
+        // mirrors and aggregated views stay correct; missing
+        // subscriptions must be dropped from the cache.
+        if let Some(result) = reconnect_result {
+            self.apply_reconnect_result(result, &subscriptions).await;
+        }
+
         self.set_state(HostState::Connected, None).await;
         let _ = self.host_events.send(HostEvent::Connected {
             host_id: self.config.id.clone(),
             generation: new_generation,
         });
 
-        let _ = did_reconnect; // currently used only for tracing
+        let did_reconnect = init_result.is_none();
         tracing::info!(
             host_id = %self.config.id,
             generation = new_generation,
@@ -374,9 +371,68 @@ impl HostRuntime {
         Ok(events)
     }
 
+    /// Apply the result of a `reconnect` call.
+    ///
+    /// For [`ReconnectResult::Replay`]: fans the missed action envelopes
+    /// through the per-host event tap and the per-host state mirror so
+    /// consumers see them in `serverSeq` order, then drops any
+    /// `missing` URIs from the local subscription set.
+    ///
+    /// For [`ReconnectResult::Snapshot`]: refreshes the per-host root
+    /// state mirror and records the snapshot's `from_seq` in the
+    /// supervisor's `serverSeq`. URIs the server didn't return a
+    /// snapshot for are dropped from the local subscription set.
+    async fn apply_reconnect_result(
+        &self,
+        result: ReconnectResult,
+        prior_subscriptions: &[String],
+    ) {
+        match result {
+            ReconnectResult::Replay(replay) => {
+                for envelope in replay.actions {
+                    let resource = action_resource(&envelope.action);
+                    self.apply_action(&envelope).await;
+                    let host_event = HostSubscriptionEvent {
+                        host_id: self.config.id.clone(),
+                        resource: Some(resource),
+                        event: SubscriptionEvent::Action(envelope),
+                    };
+                    let _ = self.fan_out.send(host_event);
+                }
+                if !replay.missing.is_empty() {
+                    let mut state = self.shared.lock().await;
+                    state.subscriptions.retain(|u| !replay.missing.contains(u));
+                }
+                let _ = prior_subscriptions; // intentionally unused on replay
+            }
+            ReconnectResult::Snapshot(snap) => {
+                let mut state = self.shared.lock().await;
+                let mut surviving: Vec<String> = Vec::with_capacity(snap.snapshots.len());
+                for snapshot in snap.snapshots {
+                    if snapshot.from_seq > state.server_seq {
+                        state.server_seq = snapshot.from_seq;
+                    }
+                    if snapshot.resource == ahp_types::ROOT_RESOURCE_URI {
+                        if let SnapshotState::Root(root) = &snapshot.state {
+                            state.root_state = root.as_ref().clone();
+                        }
+                    }
+                    surviving.push(snapshot.resource);
+                }
+                // Drop subscriptions the server didn't return a snapshot
+                // for — they're effectively `missing` even though the
+                // snapshot arm doesn't carry an explicit list.
+                state
+                    .subscriptions
+                    .retain(|u| surviving.contains(u) || !prior_subscriptions.contains(u));
+            }
+        }
+    }
+
     async fn run_connection(&mut self, mut events: crate::ClientEventStream) -> InnerOutcome {
         loop {
             tokio::select! {
+                _ = self.shutdown_signal.notified() => return InnerOutcome::Shutdown,
                 ev = events.recv() => match ev {
                     Some(event) => {
                         self.handle_event(event).await;
@@ -385,18 +441,9 @@ impl HostRuntime {
                 },
                 cmd = self.cmd_rx.recv() => match cmd {
                     None => return InnerOutcome::Shutdown,
-                    Some(HostCommand::Shutdown) => return InnerOutcome::Shutdown,
                     Some(HostCommand::Reconnect { reply }) => {
                         let _ = reply.send(());
                         return InnerOutcome::ManualReconnect;
-                    }
-                    Some(HostCommand::Snapshot { reply }) => {
-                        let snap = self.shared.lock().await.snapshot();
-                        let _ = reply.send(snap);
-                    }
-                    Some(HostCommand::GetClient { reply }) => {
-                        let handle = self.client_handle().await;
-                        let _ = reply.send(handle);
                     }
                     Some(HostCommand::Subscribe { uri, reply }) => {
                         let result = self.handle_subscribe(uri).await;
@@ -417,45 +464,41 @@ impl HostRuntime {
 
     async fn wait_for_manual_reconnect_or_shutdown(&mut self) -> bool {
         loop {
-            match self.cmd_rx.recv().await {
-                None | Some(HostCommand::Shutdown) => return false,
-                Some(HostCommand::Reconnect { reply }) => {
-                    let _ = reply.send(());
-                    return true;
-                }
-                Some(HostCommand::Snapshot { reply }) => {
-                    let snap = self.shared.lock().await.snapshot();
-                    let _ = reply.send(snap);
-                }
-                Some(HostCommand::GetClient { reply }) => {
-                    let _ = reply.send(None);
-                }
-                Some(HostCommand::Subscribe { uri, reply }) => {
-                    // Defer to next connect; remember the URI so we resubscribe.
-                    {
-                        let mut state = self.shared.lock().await;
-                        if !state.subscriptions.contains(&uri) {
-                            state.subscriptions.push(uri.clone());
+            tokio::select! {
+                _ = self.shutdown_signal.notified() => return false,
+                cmd = self.cmd_rx.recv() => match cmd {
+                    None => return false,
+                    Some(HostCommand::Reconnect { reply }) => {
+                        let _ = reply.send(());
+                        return true;
+                    }
+                    Some(HostCommand::Subscribe { uri, reply }) => {
+                        // Defer to next connect; remember the URI so we resubscribe.
+                        {
+                            let mut state = self.shared.lock().await;
+                            if !state.subscriptions.contains(&uri) {
+                                state.subscriptions.push(uri.clone());
+                            }
                         }
+                        let _ = reply.send(Err(HostError::HostShutDown(self.config.id.clone())));
                     }
-                    let _ = reply.send(Err(HostError::HostShutDown(self.config.id.clone())));
-                }
-                Some(HostCommand::Unsubscribe { uri, reply }) => {
-                    {
-                        let mut state = self.shared.lock().await;
-                        state.subscriptions.retain(|u| u != &uri);
+                    Some(HostCommand::Unsubscribe { uri, reply }) => {
+                        {
+                            let mut state = self.shared.lock().await;
+                            state.subscriptions.retain(|u| u != &uri);
+                        }
+                        let _ = reply.send(Ok(()));
                     }
-                    let _ = reply.send(Ok(()));
-                }
-                Some(HostCommand::Dispatch { reply, .. }) => {
-                    let _ = reply.send(Err(HostError::HostShutDown(self.config.id.clone())));
-                }
+                    Some(HostCommand::Dispatch { reply, .. }) => {
+                        let _ = reply.send(Err(HostError::HostShutDown(self.config.id.clone())));
+                    }
+                },
             }
         }
     }
 
-    /// Sleep for `delay`, but exit early on inbound commands. Returns
-    /// `true` to keep looping, `false` to shut down the runtime.
+    /// Sleep for `delay`, but exit early on inbound commands or
+    /// shutdown. Returns `true` to keep looping, `false` to shut down.
     async fn sleep_or_command(&mut self, delay: std::time::Duration) -> bool {
         if delay.is_zero() {
             return true;
@@ -464,19 +507,13 @@ impl HostRuntime {
         tokio::pin!(sleep);
         loop {
             tokio::select! {
+                _ = self.shutdown_signal.notified() => return false,
                 _ = &mut sleep => return true,
                 cmd = self.cmd_rx.recv() => match cmd {
-                    None | Some(HostCommand::Shutdown) => return false,
+                    None => return false,
                     Some(HostCommand::Reconnect { reply }) => {
                         let _ = reply.send(());
                         return true;
-                    }
-                    Some(HostCommand::Snapshot { reply }) => {
-                        let snap = self.shared.lock().await.snapshot();
-                        let _ = reply.send(snap);
-                    }
-                    Some(HostCommand::GetClient { reply }) => {
-                        let _ = reply.send(None);
                     }
                     Some(HostCommand::Subscribe { uri, reply }) => {
                         {
@@ -617,17 +654,6 @@ impl HostRuntime {
         client.dispatch(action).await.map_err(HostError::Client)
     }
 
-    async fn client_handle(&self) -> Option<HostClientHandle> {
-        let state = self.shared.lock().await;
-        let client = state.current_client.clone()?;
-        Some(HostClientHandle {
-            host_id: self.config.id.clone(),
-            generation: state.generation,
-            client,
-            shared: self.shared.clone(),
-        })
-    }
-
     async fn tear_down_client(&self) {
         let prev = {
             let mut state = self.shared.lock().await;
@@ -638,7 +664,7 @@ impl HostRuntime {
         }
     }
 
-    async fn set_state(&self, state: HostState, last_error: Option<String>) {
+    async fn set_state(&self, state: HostState, last_error: Option<Arc<ClientError>>) {
         {
             let mut s = self.shared.lock().await;
             s.state = state.clone();
@@ -685,6 +711,22 @@ fn apply_summary_changes(
     }
 }
 
+/// Extract the resource URI a state action is scoped to.
+///
+/// Mirrors the helper in `client.rs` so `apply_reconnect_result` can
+/// tag replayed envelopes with the same URI semantics live envelopes
+/// carry.
+fn action_resource(action: &StateAction) -> String {
+    let val = serde_json::to_value(action).unwrap_or(serde_json::Value::Null);
+    if let Some(uri) = val.get("session").and_then(|v| v.as_str()) {
+        return uri.to_string();
+    }
+    if let Some(uri) = val.get("terminal").and_then(|v| v.as_str()) {
+        return uri.to_string();
+    }
+    ahp_types::ROOT_RESOURCE_URI.to_string()
+}
+
 // ─── Random helpers (no external dep on `rand`) ─────────────────────────────
 
 fn jitter_sample() -> f64 {
@@ -706,29 +748,4 @@ fn jitter_sample() -> f64 {
     let raw = hasher.finish();
     // Map 64 random bits into [0.0, 1.0).
     (raw as f64) / (u64::MAX as f64)
-}
-
-fn uuid_v4_bytes() -> [u8; 16] {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let mut hasher = DefaultHasher::new();
-    let mut out = [0u8; 16];
-    let now_nanos = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    for i in 0..2 {
-        n.hash(&mut hasher);
-        now_nanos.hash(&mut hasher);
-        i.hash(&mut hasher);
-        let bytes = hasher.finish().to_be_bytes();
-        out[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
-    }
-    // Stamp version (4) and variant (RFC 4122) bits.
-    out[6] = (out[6] & 0x0f) | 0x40;
-    out[8] = (out[8] & 0x3f) | 0x80;
-    out
 }
