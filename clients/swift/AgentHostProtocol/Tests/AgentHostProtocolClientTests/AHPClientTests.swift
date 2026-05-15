@@ -226,6 +226,32 @@ final class AHPClientTests: XCTestCase {
         await client.shutdown()
     }
 
+    func testUnsubscribeFinishesAllStreamsForUri() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        let firstStream = await client.attachSubscription("copilot:/s1")
+        let secondStream = await client.attachSubscription("copilot:/s1")
+
+        let serverTask = Task {
+            _ = try await readNotification(from: serverSide, expectedMethod: "unsubscribe")
+        }
+
+        try await client.unsubscribe("copilot:/s1")
+
+        var firstIter = firstStream.makeAsyncIterator()
+        let firstEvent = try await nextWithTimeout(&firstIter)
+        XCTAssertNil(firstEvent)
+
+        var secondIter = secondStream.makeAsyncIterator()
+        let secondEvent = try await nextWithTimeout(&secondIter)
+        XCTAssertNil(secondEvent)
+
+        try await serverTask.value
+        await client.shutdown()
+    }
+
     // MARK: - shutdown finishes streams
 
     func testShutdownTerminatesAllStreams() async throws {
@@ -303,6 +329,37 @@ final class AHPClientTests: XCTestCase {
         await client.shutdown()
     }
 
+    // MARK: - dispatch supports caller-owned clientSeq
+
+    func testDispatchCanUseExplicitClientSeq() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        let action = StateAction.sessionTitleChanged(SessionTitleChangedAction(
+            type: .sessionTitleChanged,
+            session: "copilot:/s1",
+            title: "From app outbox"
+        ))
+
+        let serverTask = Task {
+            let first = try await readDispatchNotification(from: serverSide)
+            XCTAssertEqual(first.clientSeq, 42)
+
+            let second = try await readDispatchNotification(from: serverSide)
+            XCTAssertEqual(second.clientSeq, 43)
+        }
+
+        let explicit = try await client.dispatch(action, clientSeq: 42)
+        XCTAssertEqual(explicit.clientSeq, 42)
+
+        let automatic = try await client.dispatch(action)
+        XCTAssertEqual(automatic.clientSeq, 43)
+
+        try await serverTask.value
+        await client.shutdown()
+    }
+
 
     private struct ParsedRequest { let id: Int; let method: String; let params: AnyCodable? }
 
@@ -334,6 +391,14 @@ final class AHPClientTests: XCTestCase {
         }
         XCTAssertEqual(method, expectedMethod)
         return params
+    }
+
+    private func readDispatchNotification(from transport: InMemoryTransport) async throws -> DispatchActionParams {
+        guard let params = try await readNotification(from: transport, expectedMethod: "dispatchAction") else {
+            throw TestError.unexpectedMessage("dispatchAction notification missing params")
+        }
+        let data = try JSONEncoder().encode(params)
+        return try JSONDecoder().decode(DispatchActionParams.self, from: data)
     }
 
     private func respond<R: Encodable>(

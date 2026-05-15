@@ -349,11 +349,26 @@ public actor AHPClient {
     public func dispatch(_ action: StateAction) async throws -> DispatchHandle {
         let seq = nextClientSeq
         nextClientSeq += 1
+        return try await dispatch(action, clientSeq: seq)
+    }
+
+    /// Fire a write-ahead `dispatchAction` notification with a caller-owned
+    /// `clientSeq`.
+    ///
+    /// Use this overload when a higher layer owns an outbound action queue and
+    /// needs to replay unacknowledged actions across reconnects with stable
+    /// sequence numbers. The convenience `dispatch(_:)` overload remains
+    /// suitable for simple fire-and-forget clients.
+    @discardableResult
+    public func dispatch(_ action: StateAction, clientSeq: Int) async throws -> DispatchHandle {
+        if clientSeq >= nextClientSeq {
+            nextClientSeq = clientSeq + 1
+        }
         try await notify(
             method: "dispatchAction",
-            params: DispatchActionParams(clientSeq: seq, action: action)
+            params: DispatchActionParams(clientSeq: clientSeq, action: action)
         )
-        return DispatchHandle(clientSeq: seq)
+        return DispatchHandle(clientSeq: clientSeq)
     }
 
     // MARK: - Generic request
