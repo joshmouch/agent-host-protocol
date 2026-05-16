@@ -74,6 +74,11 @@
         "snapshots"
       ]
     },
+    "PingParams": {
+      "type": "object",
+      "description": "Verifies that the AHP connection is still alive and keeps it from being\nclosed by idle-timeout intermediaries (proxies, load balancers, etc.).\n\nThe server MUST respond regardless of whether the client has completed\n`initialize` or holds any subscriptions. Ping carries no payload in either\ndirection; the response itself is the signal.",
+      "properties": {}
+    },
     "ReconnectParams": {
       "type": "object",
       "description": "Re-establishes a dropped connection. The server replays missed actions or\nprovides fresh snapshots.",
@@ -3524,6 +3529,11 @@
         "cacheReadTokens": {
           "type": "number",
           "description": "Tokens read from cache"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this usage report.\nClients MAY look for well-known optional keys here to provide enhanced UI."
         }
       }
     },
@@ -4634,6 +4644,40 @@
         "session",
         "uri",
         "enabled"
+      ]
+    },
+    "SessionCustomizationUpdatedAction": {
+      "type": "object",
+      "description": "Upserts mutable fields on a single customization.\n\nDispatched by the server to update one or more fields on a customization,\nor to add a new customization to the session, without republishing the\nentire `customizations` list. The reducer locates the existing entry by\n`customization.uri`:\n\n- If an entry exists, each provided field is assigned; absent (or\n  `undefined`) fields are left unchanged. The stored `customization`\n  ref is replaced with the one in the action.\n- If no entry exists, a new {@link SessionCustomization} is appended\n  using the provided fields; `enabled` defaults to `false` when absent.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionCustomizationUpdated"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI"
+        },
+        "customization": {
+          "$ref": "#/$defs/CustomizationRef",
+          "description": "The customization to update or insert (matched by `customization.uri`)"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "New enabled state (defaults to `false` on insert)"
+        },
+        "status": {
+          "$ref": "#/$defs/CustomizationStatus",
+          "description": "New loading status"
+        },
+        "statusMessage": {
+          "type": "string",
+          "description": "New human-readable status detail"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "customization"
       ]
     },
     "SessionConfigChangedAction": {

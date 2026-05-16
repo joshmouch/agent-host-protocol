@@ -25,9 +25,9 @@ async fn main() -> anyhow::Result<()> {
     let transport = WebSocketTransport::connect("ws://localhost:12345").await?;
     let client = Client::connect(transport, ClientConfig::default()).await?;
 
-    client.initialize("my-client".into(), 1, vec!["root:/".into()]).await?;
+    client.initialize("my-client".into(), vec![ahp_types::PROTOCOL_VERSION.to_string()], vec![ahp_types::ROOT_RESOURCE_URI.to_string()]).await?;
 
-    let mut sub = client.attach_subscription("root:/").await;
+    let mut sub = client.attach_subscription(ahp_types::ROOT_RESOURCE_URI).await;
     while let Some(SubscriptionEvent::Action(a)) = sub.recv().await {
         println!("{:?}", a.action);
     }

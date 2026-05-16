@@ -117,7 +117,7 @@ pub mod state;
 pub mod version;
 
 pub use actions::{ActionEnvelope, ActionOrigin, ActionType, StateAction};
-pub use common::{StringOrMarkdown, Uri};
+pub use common::{StringOrMarkdown, Uri, ROOT_RESOURCE_URI};
 pub use errors::{AhpErrorCode, JsonRpcErrorCode};
 pub use messages::{JsonRpcError, JsonRpcErrorResponse, JsonRpcMessage};
 pub use notifications::{NotificationType, ProtocolNotification};

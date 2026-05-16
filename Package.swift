@@ -22,16 +22,30 @@ let package = Package(
             name: "AgentHostProtocol",
             targets: ["AgentHostProtocol"]
         ),
+        .library(
+            name: "AgentHostProtocolClient",
+            targets: ["AgentHostProtocolClient"]
+        ),
     ],
     targets: [
         .target(
             name: "AgentHostProtocol",
             path: "clients/swift/AgentHostProtocol/Sources/AgentHostProtocol"
         ),
+        .target(
+            name: "AgentHostProtocolClient",
+            dependencies: ["AgentHostProtocol"],
+            path: "clients/swift/AgentHostProtocol/Sources/AgentHostProtocolClient"
+        ),
         .testTarget(
             name: "AgentHostProtocolTests",
             dependencies: ["AgentHostProtocol"],
             path: "clients/swift/AgentHostProtocol/Tests/AgentHostProtocolTests"
+        ),
+        .testTarget(
+            name: "AgentHostProtocolClientTests",
+            dependencies: ["AgentHostProtocolClient"],
+            path: "clients/swift/AgentHostProtocol/Tests/AgentHostProtocolClientTests"
         ),
     ]
 )

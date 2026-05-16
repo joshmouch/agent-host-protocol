@@ -146,14 +146,18 @@
 
 pub mod client;
 pub mod error;
+pub mod hosts;
 pub mod reducers;
 pub mod transport;
 
 pub use ahp_types;
 
-pub use client::{Client, ClientConfig, DispatchHandle, SessionSubscription, SubscriptionEvent};
+pub use client::{
+    Client, ClientConfig, ClientEvent, ClientEventStream, DispatchHandle, SessionSubscription,
+    SubscriptionEvent,
+};
 pub use error::{ClientError, TransportError};
 pub use reducers::{
     apply_action_to_root, apply_action_to_session, apply_action_to_terminal, ReduceOutcome,
 };
-pub use transport::{Transport, TransportMessage};
+pub use transport::{BoxedTransport, DynTransport, Transport, TransportMessage};

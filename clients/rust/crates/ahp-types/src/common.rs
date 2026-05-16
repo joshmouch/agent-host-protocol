@@ -10,6 +10,13 @@ use serde::{Deserialize, Serialize};
 /// A URI string, e.g. `agenthost:/root` or `copilot:/<uuid>`.
 pub type Uri = String;
 
+/// Well-known resource URI for global agent host state.
+///
+/// Subscribe to this URI to receive [`crate::state::RootState`] snapshots
+/// and root-level actions (agents changed, active sessions changed,
+/// terminals changed, config changed). Always present on every host.
+pub const ROOT_RESOURCE_URI: &str = "agenthost:/root";
+
 /// A string that may optionally be rendered as Markdown.
 ///
 /// Serialized as either a plain JSON string or `{ "markdown": "..." }`.

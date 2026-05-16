@@ -27,11 +27,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::connect(transport, ClientConfig::default()).await?;
 
     let init = client
-        .initialize("rust-example".into(), vec![ahp_types::PROTOCOL_VERSION.to_string()], vec!["root:/".into()])
+        .initialize(
+            "rust-example".into(),
+            vec![ahp_types::PROTOCOL_VERSION.to_string()],
+            vec![ahp_types::ROOT_RESOURCE_URI.to_string()],
+        )
         .await?;
     println!("connected (protocolVersion={})", init.protocol_version);
 
-    let mut sub = client.attach_subscription("root:/").await;
+    let mut sub = client
+        .attach_subscription(ahp_types::ROOT_RESOURCE_URI)
+        .await;
     println!("subscribed; streaming events (Ctrl+C to quit)...");
 
     loop {

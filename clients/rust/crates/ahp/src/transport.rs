@@ -35,8 +35,34 @@
 //!
 //! For ready-made transports, see the [`ahp-ws`](https://docs.rs/ahp-ws)
 //! crate (WebSocket via `tokio-tungstenite`).
+//!
+//! # Type-erased transports
+//!
+//! [`Transport`] is intentionally generic and not object-safe — the
+//! `impl Future` returns let it stay zero-cost on the hot path. When you
+//! need to store transports of different concrete types behind one
+//! handle (a registry of hosts, a transport factory that picks WebSocket
+//! vs stdio at runtime, etc.), wrap each one in [`BoxedTransport`]:
+//!
+//! ```no_run
+//! # use ahp::transport::BoxedTransport;
+//! # use ahp::TransportError;
+//! # async fn open_a() -> Result<BoxedTransport, TransportError> { unimplemented!() }
+//! # async fn open_b() -> Result<BoxedTransport, TransportError> { unimplemented!() }
+//! # async fn run() -> Result<(), TransportError> {
+//! let transports: Vec<BoxedTransport> = vec![
+//!     open_a().await?,
+//!     open_b().await?,
+//! ];
+//! # let _ = transports;
+//! # Ok(()) }
+//! ```
+//!
+//! `BoxedTransport` itself implements [`Transport`], so it can be passed
+//! straight to [`crate::Client::connect`].
 
 use std::future::Future;
+use std::pin::Pin;
 
 use crate::error::TransportError;
 use ahp_types::messages::JsonRpcMessage;
@@ -110,5 +136,131 @@ pub trait Transport: Send + 'static {
     /// owned resources (sockets, tasks) should override.
     fn close(&mut self) -> impl Future<Output = Result<(), TransportError>> + Send {
         async { Ok(()) }
+    }
+}
+
+// ─── Object-safe adapter ────────────────────────────────────────────────────
+
+/// Object-safe sibling of [`Transport`].
+///
+/// This trait is what [`BoxedTransport`] stores internally. It is
+/// implemented automatically for every type implementing [`Transport`],
+/// so users never need to implement it directly — wrap any
+/// [`Transport`] in [`BoxedTransport::new`] to type-erase it.
+///
+/// The futures returned here are heap-allocated, so [`BoxedTransport`]
+/// is slightly more expensive than using a concrete [`Transport`].
+/// Reach for it when heterogeneous storage is more important than the
+/// allocation cost (typically: registries that hold one transport per
+/// host).
+pub trait DynTransport: Send + 'static {
+    /// Object-safe analogue of [`Transport::send`].
+    fn send<'a>(
+        &'a mut self,
+        msg: TransportMessage,
+    ) -> Pin<Box<dyn Future<Output = Result<(), TransportError>> + Send + 'a>>;
+
+    /// Object-safe analogue of [`Transport::recv`].
+    fn recv<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<TransportMessage>, TransportError>> + Send + 'a>>;
+
+    /// Object-safe analogue of [`Transport::close`].
+    fn close<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), TransportError>> + Send + 'a>>;
+}
+
+impl<T: Transport> DynTransport for T {
+    fn send<'a>(
+        &'a mut self,
+        msg: TransportMessage,
+    ) -> Pin<Box<dyn Future<Output = Result<(), TransportError>> + Send + 'a>> {
+        Box::pin(<T as Transport>::send(self, msg))
+    }
+
+    fn recv<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<TransportMessage>, TransportError>> + Send + 'a>>
+    {
+        Box::pin(<T as Transport>::recv(self))
+    }
+
+    fn close<'a>(
+        &'a mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<(), TransportError>> + Send + 'a>> {
+        Box::pin(<T as Transport>::close(self))
+    }
+}
+
+/// Type-erased [`Transport`].
+///
+/// Wraps any concrete [`Transport`] implementation in a `Box<dyn ..>`
+/// while still satisfying [`Transport`] itself, so the result can be
+/// passed to [`crate::Client::connect`]. Use this when a registry,
+/// factory, or container needs to hold transports of different concrete
+/// types behind a single handle (for example, the multi-host runtime
+/// in [`crate::hosts`]).
+///
+/// ```
+/// # async fn run() -> Result<(), ahp::TransportError> {
+/// use ahp::transport::{BoxedTransport, TransportMessage};
+/// use ahp::{Transport, TransportError};
+/// use tokio::sync::mpsc;
+///
+/// struct NoopTransport;
+/// impl Transport for NoopTransport {
+///     async fn send(&mut self, _: TransportMessage) -> Result<(), TransportError> { Ok(()) }
+///     async fn recv(&mut self) -> Result<Option<TransportMessage>, TransportError> { Ok(None) }
+/// }
+///
+/// let boxed: BoxedTransport = BoxedTransport::new(NoopTransport);
+/// // `boxed` itself implements `Transport` and can be handed to `Client::connect`.
+/// # let _ = boxed;
+/// # Ok(()) }
+/// ```
+pub struct BoxedTransport {
+    inner: Box<dyn DynTransport>,
+}
+
+impl BoxedTransport {
+    /// Wrap any [`Transport`] in a heap-allocated, object-safe handle.
+    pub fn new<T: Transport>(transport: T) -> Self {
+        Self {
+            inner: Box::new(transport),
+        }
+    }
+
+    /// Wrap an already-boxed object-safe transport.
+    ///
+    /// Useful when a factory produces `Box<dyn DynTransport>` directly
+    /// (e.g. from a runtime-selected backend).
+    pub fn from_dyn(inner: Box<dyn DynTransport>) -> Self {
+        Self { inner }
+    }
+}
+
+impl std::fmt::Debug for BoxedTransport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BoxedTransport").finish_non_exhaustive()
+    }
+}
+
+impl Transport for BoxedTransport {
+    fn send(
+        &mut self,
+        msg: TransportMessage,
+    ) -> impl Future<Output = Result<(), TransportError>> + Send {
+        self.inner.send(msg)
+    }
+
+    fn recv(
+        &mut self,
+    ) -> impl Future<Output = Result<Option<TransportMessage>, TransportError>> + Send {
+        self.inner.recv()
+    }
+
+    fn close(&mut self) -> impl Future<Output = Result<(), TransportError>> + Send {
+        self.inner.close()
     }
 }

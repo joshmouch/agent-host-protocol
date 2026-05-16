@@ -2524,17 +2524,30 @@ public struct UsageInfo: Codable, Sendable {
     public var model: String?
     /// Tokens read from cache
     public var cacheReadTokens: Int?
+    /// Additional provider-specific metadata for this usage report.
+    /// Clients MAY look for well-known optional keys here to provide enhanced UI.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case inputTokens
+        case outputTokens
+        case model
+        case cacheReadTokens
+        case meta = "_meta"
+    }
 
     public init(
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
         model: String? = nil,
-        cacheReadTokens: Int? = nil
+        cacheReadTokens: Int? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
         self.model = model
         self.cacheReadTokens = cacheReadTokens
+        self.meta = meta
     }
 }
 
