@@ -242,9 +242,12 @@ public actor MultiHostClient {
     /// are dropped:
     ///
     /// ```swift
-    /// let stream = await multi.events(host: hostId, uri: uri)
+    /// guard let stream = await multi.events(host: hostId, uri: uri) else {
+    ///     // host isn't registered — handle as appropriate for your app
+    ///     return
+    /// }
     /// let snapshot = try await multi.subscribe(host: hostId, uri: uri)
-    /// for await event in stream! { ... }
+    /// for await event in stream { ... }
     /// ```
     @discardableResult
     public func subscribe(host: HostId, uri: String) async throws -> SubscribeResult {
@@ -334,7 +337,10 @@ public actor MultiHostClient {
     /// to avoid missing the initial post-subscribe events:
     ///
     /// ```swift
-    /// let stream = await multi.events(host: hostId, uri: uri)
+    /// guard let stream = await multi.events(host: hostId, uri: uri) else {
+    ///     // host isn't registered — handle as appropriate for your app
+    ///     return
+    /// }
     /// _ = try await multi.subscribe(host: hostId, uri: uri)
     /// for await event in stream { ... }
     /// ```
@@ -382,17 +388,29 @@ public actor MultiHostClient {
     /// session summary updates, subscription set changes, and so on.
     ///
     /// Convenient for `@Observable` UI binding without the
-    /// "refresh-on-every-event" boilerplate. Yields will include duplicate
-    /// values if a sequence of changes produces the same snapshot;
-    /// consumers should compare against the previous value if duplicates
-    /// matter (e.g., via `Equatable`-friendly diffing).
+    /// "refresh-on-every-event" boilerplate. The stream uses
+    /// `.bufferingNewest(1)` since only the latest snapshot is useful
+    /// to a UI consumer; slow consumers will drop intermediate
+    /// snapshots and resume with the most recent. Yields may repeat
+    /// when a sequence of changes produces the same snapshot;
+    /// consumers should compare against the previous value if
+    /// duplicates matter (e.g., via `Equatable`-friendly diffing).
+    ///
+    /// "Immediately" here means the initial value is dispatched onto
+    /// the stream as the first element. Because `AsyncStream`'s build
+    /// closure is synchronous, the dispatch goes through a short-lived
+    /// `Task` — so the very first `await iter.next()` resolves to the
+    /// snapshot captured at subscription time, but it isn't strictly
+    /// synchronous with the caller.
     ///
     /// Returns `nil` if no host with `host` is registered.
     public func hostSnapshots(host: HostId) async -> AsyncStream<HostHandle>? {
         guard let runtime = hosts[host] else { return nil }
-        return AsyncStream<HostHandle>(bufferingPolicy: .unbounded) { cont in
-            // Yield the current value synchronously so consumers always
-            // have a starting snapshot to render against.
+        return AsyncStream<HostHandle>(bufferingPolicy: .bufferingNewest(1)) { cont in
+            // Dispatch the initial snapshot as the first stream element.
+            // We can't `await runtime.snapshot()` inline because this
+            // build closure is synchronous; the short-lived `Task` hop
+            // is what "immediately" in the docstring above refers to.
             Task { [runtime] in
                 cont.yield(await runtime.snapshot())
             }
@@ -419,7 +437,10 @@ public actor MultiHostClient {
                                 }
                             case .removed(let id):
                                 if id == host {
-                                    cont.finish()
+                                    // Exit this child task; the outer
+                                    // `cont.finish()` below handles the
+                                    // terminal yield so we don't
+                                    // double-finish.
                                     return
                                 }
                             }
@@ -453,10 +474,18 @@ public actor MultiHostClient {
     /// `notify/sessionRemoved` / `notify/sessionSummaryChanged` from the
     /// server.
     ///
+    /// The stream uses `.bufferingNewest(1)` since only the latest
+    /// summary list is useful to a UI consumer; slow consumers will
+    /// drop intermediate lists and resume with the most recent.
+    /// "Immediately" here matches the semantics described on
+    /// `hostSnapshots(host:)` — the initial value is dispatched via a
+    /// short-lived `Task`, so the first `await iter.next()` resolves
+    /// to the cache captured at subscription time.
+    ///
     /// Returns `nil` if no host with `host` is registered.
     public func sessionSummaries(host: HostId) async -> AsyncStream<[SessionSummary]>? {
         guard let runtime = hosts[host] else { return nil }
-        return AsyncStream<[SessionSummary]>(bufferingPolicy: .unbounded) { cont in
+        return AsyncStream<[SessionSummary]>(bufferingPolicy: .bufferingNewest(1)) { cont in
             Task { [runtime] in
                 cont.yield(await runtime.snapshot().sessionSummaries)
             }
@@ -476,7 +505,9 @@ public actor MultiHostClient {
                                 }
                             case .removed(let id):
                                 if id == host {
-                                    cont.finish()
+                                    // See `hostSnapshots`: exit and let
+                                    // the outer `cont.finish()` run
+                                    // exactly once.
                                     return
                                 }
                             case .added, .stateChanged:

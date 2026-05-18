@@ -167,9 +167,12 @@ for hosted in await multi.aggregatedSessions() {
 `events()` is **lossy by design** (`.bufferingNewest(1024)`) and is for advisory consumption only. Reducer-critical action envelopes must be consumed via the unbounded per-resource stream — runtime-owned and surviving reconnects (replayed envelopes are fanned in too):
 
 ```swift
-let stream = await multi.events(host: "local", uri: "copilot:/s1")
+guard let stream = await multi.events(host: "local", uri: "copilot:/s1") else {
+    // host isn't registered — handle as appropriate for your app
+    return
+}
 let snapshot = try await multi.subscribe(host: "local", uri: "copilot:/s1")
-for await event in stream! {
+for await event in stream {
     if case .action(let envelope) = event {
         await mirror.apply(host: "local", envelope: envelope)
     }
@@ -180,14 +183,16 @@ for await event in stream! {
 
 ### Observable host streams
 
-For SwiftUI / `@Observable` consumers, `MultiHostClient` exposes derived streams that yield a current value immediately and re-yield on changes:
+For SwiftUI / `@Observable` consumers, `MultiHostClient` exposes derived streams that yield a current value immediately and re-yield on changes. Both use `.bufferingNewest(1)` since only the latest snapshot matters to a UI consumer:
 
 ```swift
-for await snap in await multi.hostSnapshots(host: "local")! {
+guard let snapshots = await multi.hostSnapshots(host: "local") else { return }
+for await snap in snapshots {
     // bind snap.state, snap.lastError, snap.serverSeq, ...
 }
 
-for await summaries in await multi.sessionSummaries(host: "local")! {
+guard let summaries = await multi.sessionSummaries(host: "local") else { return }
+for await list in summaries {
     // bind sidebar list
 }
 ```
