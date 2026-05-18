@@ -14,6 +14,7 @@ public actor AHPStateMirror {
     public private(set) var rootState: RootState = RootState(agents: [])
     public private(set) var sessions: [String: SessionState] = [:]
     public private(set) var terminals: [String: TerminalState] = [:]
+    public private(set) var changesets: [String: ChangesetState] = [:]
 
     public init() {}
 
@@ -50,6 +51,8 @@ public actor AHPStateMirror {
             sessions[snapshot.resource] = state
         case .terminal(let state):
             terminals[snapshot.resource] = state
+        case .changeset(let state):
+            changesets[snapshot.resource] = state
         }
     }
 
@@ -58,6 +61,7 @@ public actor AHPStateMirror {
         rootState = RootState(agents: [])
         sessions.removeAll()
         terminals.removeAll()
+        changesets.removeAll()
     }
 
     // MARK: - Helpers
