@@ -154,11 +154,16 @@ impl MultiInner {
     /// Called from [`PerResourceStream`]'s `Drop` so dropping a stream
     /// releases its registry slot promptly rather than waiting for
     /// the host to be removed.
+    ///
+    /// Recovers gracefully on a poisoned lock: a panic inside `Drop`
+    /// during unwinding would abort the process, and a leaked listener
+    /// slot is strictly less bad than that. The next event for the
+    /// host with no live listener has its dead sender pruned by
+    /// [`MultiInner::fan_event`] anyway.
     pub(super) fn remove_per_resource_listener(&self, host: &HostId, listener_id: u64) {
-        let mut listeners = self
-            .per_resource_listeners
-            .write()
-            .expect("poisoned listener lock");
+        let Ok(mut listeners) = self.per_resource_listeners.write() else {
+            return;
+        };
         if let Some(bucket) = listeners.get_mut(host) {
             bucket.remove(&listener_id);
             if bucket.is_empty() {

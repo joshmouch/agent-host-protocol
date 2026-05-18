@@ -345,3 +345,34 @@ async fn reset_clears_every_host() {
     assert!(mirror.sessions().await.is_empty());
     assert!(mirror.root_states().await.is_empty());
 }
+
+/// `MultiHostStateMirror` is `Clone` and all clones share the same
+/// underlying storage — proving the docstring's "Cheaply cloneable —
+/// inner storage is `Arc`-shared" claim. A consumer can hand a clone
+/// to a reducer task and to a UI store and have both observe the
+/// same writes.
+#[tokio::test]
+async fn clones_share_inner_storage() {
+    let mirror = MultiHostStateMirror::new();
+    let clone = mirror.clone();
+
+    clone
+        .apply_snapshot(
+            &HostId::new("alpha"),
+            &Snapshot {
+                resource: ahp_types::ROOT_RESOURCE_URI.into(),
+                state: SnapshotState::Root(Box::new(RootState {
+                    agents: vec![agent("from-clone")],
+                    active_sessions: None,
+                    terminals: None,
+                    config: None,
+                })),
+                from_seq: 0,
+            },
+        )
+        .await;
+
+    let observed = mirror.root(&HostId::new("alpha")).await.unwrap();
+    assert_eq!(observed.agents.len(), 1);
+    assert_eq!(observed.agents[0].provider, "from-clone");
+}

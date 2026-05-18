@@ -27,6 +27,7 @@
 //! mirror irreversibly.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use ahp_types::actions::{ActionEnvelope, StateAction};
 use ahp_types::state::{RootState, SessionState, Snapshot, SnapshotState, TerminalState};
@@ -74,9 +75,9 @@ impl HostedResourceKey {
 ///
 /// Cheaply cloneable — the inner storage is `Arc`-shared, so all
 /// clones observe the same mirror state.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MultiHostStateMirror {
-    inner: RwLock<MirrorInner>,
+    inner: Arc<RwLock<MirrorInner>>,
 }
 
 #[derive(Default)]
@@ -84,6 +85,30 @@ struct MirrorInner {
     root_states: HashMap<HostId, RootState>,
     sessions: HashMap<HostedResourceKey, SessionState>,
     terminals: HashMap<HostedResourceKey, TerminalState>,
+}
+
+/// Routing classification for an [`ActionEnvelope`] payload.
+///
+/// Computed via a single `serde_json::to_value` before the mirror
+/// acquires its write lock, so the lock's critical section stays
+/// short (only the reducer call holds the lock).
+enum ActionRoute {
+    Session(String),
+    Terminal(String),
+    Root,
+}
+
+fn route_action(action: &StateAction) -> ActionRoute {
+    let Ok(val) = serde_json::to_value(action) else {
+        return ActionRoute::Root;
+    };
+    if let Some(uri) = val.get("session").and_then(Value::as_str) {
+        return ActionRoute::Session(uri.to_owned());
+    }
+    if let Some(uri) = val.get("terminal").and_then(Value::as_str) {
+        return ActionRoute::Terminal(uri.to_owned());
+    }
+    ActionRoute::Root
 }
 
 impl MultiHostStateMirror {
@@ -116,31 +141,37 @@ impl MultiHostStateMirror {
     /// on demand (empty agents list) because the protocol guarantees
     /// every host eventually publishes a root state.
     pub async fn apply_envelope(&self, host: &HostId, envelope: &ActionEnvelope) {
+        // Classify outside the lock so the single `serde_json::to_value`
+        // call doesn't block readers/writers — and so we never serialise
+        // the same action twice on the no-session/terminal fallthrough.
+        let route = route_action(&envelope.action);
         let mut state = self.inner.write().await;
-        if let Some(session_uri) = action_session_uri(&envelope.action) {
-            let key = HostedResourceKey::new(host.clone(), session_uri);
-            if let Some(session) = state.sessions.get_mut(&key) {
-                apply_action_to_session(session, &envelope.action);
+        match route {
+            ActionRoute::Session(uri) => {
+                let key = HostedResourceKey::new(host.clone(), uri);
+                if let Some(session) = state.sessions.get_mut(&key) {
+                    apply_action_to_session(session, &envelope.action);
+                }
             }
-            return;
-        }
-        if let Some(terminal_uri) = action_terminal_uri(&envelope.action) {
-            let key = HostedResourceKey::new(host.clone(), terminal_uri);
-            if let Some(terminal) = state.terminals.get_mut(&key) {
-                apply_action_to_terminal(terminal, &envelope.action);
+            ActionRoute::Terminal(uri) => {
+                let key = HostedResourceKey::new(host.clone(), uri);
+                if let Some(terminal) = state.terminals.get_mut(&key) {
+                    apply_action_to_terminal(terminal, &envelope.action);
+                }
             }
-            return;
+            ActionRoute::Root => {
+                let root = state
+                    .root_states
+                    .entry(host.clone())
+                    .or_insert_with(|| RootState {
+                        agents: vec![],
+                        active_sessions: None,
+                        terminals: None,
+                        config: None,
+                    });
+                apply_action_to_root(root, &envelope.action);
+            }
         }
-        let root = state
-            .root_states
-            .entry(host.clone())
-            .or_insert_with(|| RootState {
-                agents: vec![],
-                active_sessions: None,
-                terminals: None,
-                config: None,
-            });
-        apply_action_to_root(root, &envelope.action);
     }
 
     /// Seed the mirror from a [`Snapshot`] scoped to `host` — root,
@@ -221,24 +252,4 @@ impl std::fmt::Debug for MultiHostStateMirror {
         f.debug_struct("MultiHostStateMirror")
             .finish_non_exhaustive()
     }
-}
-
-/// Extract the action's `session` URI, if it carries one.
-///
-/// Uses serde rather than enumerating every variant so new actions
-/// route correctly without an SDK update. Mirrors the helper inside
-/// the hosts runtime.
-fn action_session_uri(action: &StateAction) -> Option<String> {
-    let val = serde_json::to_value(action).ok()?;
-    val.get("session")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
-}
-
-/// Extract the action's `terminal` URI, if it carries one.
-fn action_terminal_uri(action: &StateAction) -> Option<String> {
-    let val = serde_json::to_value(action).ok()?;
-    val.get("terminal")
-        .and_then(Value::as_str)
-        .map(str::to_owned)
 }
