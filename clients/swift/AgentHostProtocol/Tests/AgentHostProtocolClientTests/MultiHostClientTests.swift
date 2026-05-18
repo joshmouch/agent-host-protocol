@@ -493,7 +493,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - reconnect_replay_actions_are_fanned_out_with_advanced_seq
 
-    /// Phase 1: when the server responds to `reconnect` with a `replay`
+    /// When the server responds to `reconnect` with a `replay`
     /// arm, the runtime must fan the missed action envelopes through the
     /// per-host event tap (so downstream consumer state mirrors stay in
     /// sync) and advance `serverSeq` past the highest replayed envelope.
@@ -524,9 +524,8 @@ final class MultiHostClientTests: XCTestCase {
         _ = try await multi.add(config)
 
         // Wait for the second connect to land — at that point the replay
-        // has already been applied (Phase 1 ordering guarantees that the
-        // reconnect result is processed BEFORE the `.connected` transition
-        // fires).
+        // has already been applied (the runtime processes the reconnect
+        // result BEFORE the `.connected` transition fires).
         await waitUntil(timeout: .seconds(2)) {
             guard let snap = await multi.host("h") else { return false }
             return snap.state.isConnected && snap.serverSeq >= 42
@@ -569,7 +568,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - reconnect_replay_missing_prunes_subscriptions
 
-    /// Phase 1: the `missing` list on a replay result indicates URIs the
+    /// The `missing` list on a replay result indicates URIs the
     /// server cannot resume (e.g. disposed sessions). The runtime must
     /// drop them from its tracked subscription set so subsequent
     /// reconnects don't re-request them.
@@ -611,7 +610,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - reconnect_snapshot_applies_to_root_mirror_and_advances_seq
 
-    /// Phase 1: when the server responds to `reconnect` with a `snapshot`
+    /// When the server responds to `reconnect` with a `snapshot`
     /// arm, the runtime must apply the root snapshot to the per-host
     /// mirror, advance `serverSeq` to the max `fromSeq`, and drop prior
     /// subscriptions the server didn't return a snapshot for.
@@ -663,7 +662,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - events_host_uri_delivers_live_envelopes
 
-    /// Phase 2: `events(host:uri:)` should deliver live action envelopes
+    /// `events(host:uri:)` should deliver live action envelopes
     /// for the specified URI without dropping. Smoke test: server pushes
     /// a notification after `initialize`; listener attached immediately
     /// after `add` (before connect completes) sees it.
@@ -711,7 +710,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - events_host_uri_survives_reconnect_and_replays
 
-    /// Phase 2: per-URI streams from `events(host:uri:)` are
+    /// Per-URI streams from `events(host:uri:)` are
     /// runtime-owned (not per-`AHPClient`), so they must survive
     /// reconnect. After a reconnect that returns replay actions, the
     /// listener attached before the reconnect should observe the
@@ -814,7 +813,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - host_snapshots_yields_initial_then_on_connect
 
-    /// Phase 3: `hostSnapshots(host:)` yields the current snapshot
+    /// `hostSnapshots(host:)` yields the current snapshot
     /// immediately on subscription, then yields a fresh snapshot on
     /// state changes (e.g., when the host transitions to `.connected`).
     func testHostSnapshotsYieldsInitialThenOnConnect() async throws {
@@ -891,7 +890,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - session_summaries_yields_initial_then_on_notification
 
-    /// Phase 3: `sessionSummaries(host:)` yields the current cached
+    /// `sessionSummaries(host:)` yields the current cached
     /// summaries immediately on subscription, then yields a fresh
     /// sorted list on `sessionAdded` / `sessionRemoved` /
     /// `sessionSummaryChanged` notifications.
@@ -949,7 +948,7 @@ final class MultiHostClientTests: XCTestCase {
 
     // MARK: - reconnect_all_unavailable_skips_connected_and_wakes_others
 
-    /// Phase 4: `reconnectAllUnavailable()` should walk every host and
+    /// `reconnectAllUnavailable()` should walk every host and
     /// trigger a manual reconnect on those NOT in `.connected` or
     /// `.connecting`. Connected hosts are not perturbed.
     func testReconnectAllUnavailableSkipsConnectedAndWakesOthers() async throws {

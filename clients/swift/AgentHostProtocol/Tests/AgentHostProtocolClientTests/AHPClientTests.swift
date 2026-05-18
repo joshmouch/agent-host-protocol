@@ -363,7 +363,7 @@ final class AHPClientTests: XCTestCase {
 
     // MARK: - request_throws_cancellation_when_task_is_cancelled
 
-    /// Phase 5: when the surrounding `Task` is cancelled while a
+    /// When the surrounding `Task` is cancelled while a
     /// `request` is in flight (server hasn't responded yet), the call
     /// throws `CancellationError()` and the pending entry is removed.
     func testRequestThrowsCancellationWhenTaskIsCancelled() async throws {
@@ -417,7 +417,7 @@ final class AHPClientTests: XCTestCase {
 
     // MARK: - request_fast_fails_when_task_already_cancelled
 
-    /// Phase 5: if the surrounding `Task` is already cancelled before
+    /// If the surrounding `Task` is already cancelled before
     /// `request` is awaited, the method fast-fails with
     /// `CancellationError()` without minting a request id or pushing
     /// wire bytes.
@@ -472,8 +472,8 @@ final class AHPClientTests: XCTestCase {
 
     // MARK: - request_completes_normally_when_not_cancelled
 
-    /// Phase 5 regression: adding cancellation must not break the
-    /// happy-path where the server responds before cancellation.
+    /// Regression: cancellation support must not break the happy-path
+    /// where the server responds before any cancellation.
     func testRequestCompletesNormallyWhenNotCancelled() async throws {
         let (clientSide, serverSide) = InMemoryTransport.pair()
         let client = AHPClient(transport: clientSide)
@@ -503,7 +503,7 @@ final class AHPClientTests: XCTestCase {
 
     // MARK: - request_raw_round_trips_json
 
-    /// Phase 8: `requestRaw` accepts and returns raw JSON `Data`, useful
+    /// `requestRaw` accepts and returns raw JSON `Data`, useful
     /// as an escape hatch for extension RPCs whose params types can't
     /// satisfy `Sendable` (e.g. Swift 6 default-isolation interaction).
     func testRequestRawRoundTripsJSON() async throws {
