@@ -712,9 +712,9 @@ async fn shutdown_is_not_blocked_by_a_hung_transport_factory() {
     );
 }
 
-// ─── New phase tests (Phase 2 / 4 / 5 / 6 / 7 parity with Swift PR #129) ────
+// ─── Multi-host registry tests: client_id store, reconnect-all, per-URI streams ─
 
-/// Phase 5: stored `clientId` is reused across `add_host` cycles.
+/// Stored `clientId` is reused across `add_host` cycles.
 ///
 /// The default in-memory store keeps the resolved id keyed by HostId,
 /// so removing and re-adding a host (without an explicit
@@ -756,7 +756,7 @@ async fn client_id_persists_across_add_remove_add_when_unset() {
     );
 }
 
-/// Phase 5: explicit `with_client_id` always wins over the store.
+/// Explicit `with_client_id` always wins over the store.
 #[tokio::test]
 async fn explicit_client_id_overrides_store_and_is_persisted() {
     let multi = MultiHostClient::new();
@@ -811,7 +811,7 @@ async fn explicit_client_id_overrides_store_and_is_persisted() {
     );
 }
 
-/// Phase 6: `reconnect_all_unavailable` skips connected hosts and
+/// `reconnect_all_unavailable` skips connected hosts and
 /// kicks any host not in `Connected`/`Connecting`.
 #[tokio::test]
 async fn reconnect_all_unavailable_skips_connected_and_wakes_failed() {
@@ -894,7 +894,7 @@ async fn reconnect_all_unavailable_skips_connected_and_wakes_failed() {
     );
 }
 
-/// Phase 6: empty map when every host is Connected.
+/// `reconnect_all_unavailable` returns an empty map when every host is `Connected`.
 #[tokio::test]
 async fn reconnect_all_unavailable_returns_empty_when_all_connected() {
     let multi = MultiHostClient::new();
@@ -911,9 +911,8 @@ async fn reconnect_all_unavailable_returns_empty_when_all_connected() {
     assert!(errors.is_empty());
 }
 
-/// Phase 2: per-`(host, uri)` stream delivers a live action envelope
-/// scoped to the requested resource and ignores envelopes for other
-/// resources.
+/// `events_for` delivers a live action envelope scoped to the
+/// requested resource and ignores envelopes for other resources.
 #[tokio::test]
 async fn events_for_delivers_live_action_envelopes_scoped_to_uri() {
     use ahp_types::actions::{SessionTitleChangedAction, StateAction};
@@ -1030,7 +1029,7 @@ async fn events_for_delivers_live_action_envelopes_scoped_to_uri() {
     );
 }
 
-/// Phase 2: `events_for` returns `None` for an unregistered host.
+/// `events_for` returns `None` for an unregistered host.
 #[tokio::test]
 async fn events_for_returns_none_for_unknown_host() {
     let multi = MultiHostClient::new();
@@ -1040,7 +1039,7 @@ async fn events_for_returns_none_for_unknown_host() {
     assert!(stream.is_none());
 }
 
-/// Phase 2: removing a host closes the per-`(host, uri)` stream so
+/// Removing a host closes the per-`(host, uri)` stream so
 /// the consumer's `recv()` loop exits cleanly.
 #[tokio::test]
 async fn events_for_closes_when_host_is_removed() {
@@ -1072,12 +1071,13 @@ async fn events_for_closes_when_host_is_removed() {
     );
 }
 
-/// Phase 2 (correctness): the per-`(host, uri)` stream must receive
-/// **replayed** action envelopes too — not just live ones. This is
-/// the headline bug the Swift PR #129 / Phase 2 fix addresses for
-/// consumers that use the per-URI stream as their reducer feed: the
-/// runtime fans replay actions through the same path as live
-/// envelopes, and `events_for` was wired to capture both.
+/// The per-`(host, uri)` stream must receive **replayed** action
+/// envelopes too, not just live ones. The runtime fans replay
+/// actions through the same sink as live envelopes, and
+/// `events_for` is wired to capture both; a regression that
+/// detached the per-URI listeners from the replay path would
+/// silently break consumers that use the per-URI stream as their
+/// reducer feed.
 #[tokio::test]
 async fn events_for_receives_replayed_envelopes_across_reconnect() {
     use ahp_types::actions::{RootActiveSessionsChangedAction, StateAction};
@@ -1119,8 +1119,9 @@ async fn events_for_receives_replayed_envelopes_across_reconnect() {
         .expect("reconnect");
 
     // Pull from the per-URI stream until we see the replayed
-    // RootActiveSessionsChanged. Without Phase 2 wiring the runtime's
-    // fan-out to per-URI listeners, this would time out.
+    // RootActiveSessionsChanged. If the runtime stopped fanning
+    // replay envelopes through the per-URI registry, this would
+    // time out.
     let deadline = tokio::time::Instant::now() + Duration::from_millis(2500);
     let mut saw_it = false;
     while tokio::time::Instant::now() < deadline {
@@ -1140,16 +1141,12 @@ async fn events_for_receives_replayed_envelopes_across_reconnect() {
             _ => break,
         }
     }
-    assert!(
-        saw_it,
-        "events_for must deliver replayed action envelopes — Phase 2 correctness fix"
-    );
+    assert!(saw_it, "events_for must deliver replayed action envelopes");
 }
 
-/// Phase 2 (drop semantics): dropping a `PerResourceStream`
-/// unregisters its listener slot from the registry immediately, so
-/// long-running consumers that create + drop streams in a loop
-/// don't leak per-listener state.
+/// Dropping a `PerResourceStream` unregisters its listener slot
+/// from the registry immediately, so long-running consumers that
+/// create + drop streams in a loop don't leak per-listener state.
 #[tokio::test]
 async fn dropping_events_for_stream_releases_listener_slot() {
     let multi = MultiHostClient::new();
@@ -1198,8 +1195,8 @@ async fn dropping_events_for_stream_releases_listener_slot() {
     // If we got here without OOMing or panicking, the cleanup works.
 }
 
-/// Phase 6 / lifecycle: `MultiHostClient::shutdown()` tears down
-/// every host's supervisor and closes any open per-URI streams.
+/// `MultiHostClient::shutdown()` tears down every host's
+/// supervisor and closes any open per-URI streams.
 #[tokio::test]
 async fn shutdown_tears_down_all_hosts_and_closes_listeners() {
     let multi = MultiHostClient::new();
@@ -1247,8 +1244,8 @@ async fn shutdown_tears_down_all_hosts_and_closes_listeners() {
     multi.shutdown().await;
 }
 
-/// Phase 6 / cancellation safety: a cancelled `add_host` future
-/// must not leak the `pending_host_ids` reservation. Without the
+/// A cancelled `add_host` future must not leak the
+/// `pending_host_ids` reservation. Without the
 /// RAII guard, a subsequent `add_host` for the same id would
 /// permanently return `DuplicateHost`.
 ///

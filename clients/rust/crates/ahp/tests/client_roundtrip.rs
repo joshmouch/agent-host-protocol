@@ -158,7 +158,7 @@ async fn request_response_and_action_fanout() {
 
 /// Cancelling a request future via `select!` against another branch
 /// must drop the pending entry immediately rather than leaking it
-/// until (or beyond) the server response. The Phase 7 RAII guard on
+/// until (or beyond) the server response. The RAII `PendingGuard` on
 /// `Client::request` is what enforces that — without it, the pending
 /// map would grow on every cancelled typeahead / debounce request.
 #[tokio::test]
