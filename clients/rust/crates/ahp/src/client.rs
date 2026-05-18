@@ -173,7 +173,14 @@ pub struct DispatchHandle {
 type PendingMap = HashMap<u64, oneshot::Sender<Result<Value, JsonRpcError>>>;
 
 struct Shared {
-    pending: Mutex<PendingMap>,
+    /// Pending requests keyed by id. Backed by a sync `std::sync::Mutex`
+    /// (rather than `tokio::sync::Mutex`) so the [`PendingGuard`] drop
+    /// glue can clean up the entry without `await`. The critical
+    /// section never holds the lock across an `await`, so a sync mutex
+    /// is strictly better — and lets us guarantee no orphaned entries
+    /// even when a caller drops the request future before the response
+    /// arrives.
+    pending: std::sync::Mutex<PendingMap>,
     subscriptions: Mutex<HashMap<String, broadcast::Sender<SubscriptionEvent>>>,
     /// Top-level all-events broadcast.
     ///
@@ -187,6 +194,48 @@ struct Shared {
     next_id: AtomicU64,
     next_client_seq: AtomicU64,
     config: ClientConfig,
+}
+
+/// RAII guard that removes its pending entry from
+/// [`Shared::pending`] on drop unless [`PendingGuard::disarm`] is
+/// called first.
+///
+/// Without this, dropping a request future before the response
+/// arrives (e.g. a caller `select!`-ing the request against
+/// cancellation) leaks the pending entry until the server eventually
+/// responds — or forever if no response is ever sent. The guard
+/// makes the cleanup deterministic.
+struct PendingGuard {
+    id: u64,
+    shared: Arc<Shared>,
+    armed: bool,
+}
+
+impl PendingGuard {
+    fn new(id: u64, shared: Arc<Shared>) -> Self {
+        Self {
+            id,
+            shared,
+            armed: true,
+        }
+    }
+
+    /// Mark the guard inactive so it doesn't remove the entry on drop.
+    /// Called when the response (or timeout) has already taken the
+    /// entry, so the drop cleanup is a no-op.
+    fn disarm(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for PendingGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            if let Ok(mut pending) = self.shared.pending.lock() {
+                pending.remove(&self.id);
+            }
+        }
+    }
 }
 
 enum Outbound {
@@ -228,7 +277,7 @@ impl Client {
         let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(64);
         let (all_events_tx, _) = broadcast::channel::<ClientEvent>(config.subscription_buffer);
         let shared = Arc::new(Shared {
-            pending: Mutex::new(HashMap::new()),
+            pending: std::sync::Mutex::new(HashMap::new()),
             subscriptions: Mutex::new(HashMap::new()),
             all_events: std::sync::Mutex::new(Some(all_events_tx)),
             outbound: outbound_tx,
@@ -251,8 +300,15 @@ impl Client {
     pub async fn shutdown(&self) {
         let _ = self.shared.outbound.send(Outbound::Shutdown).await;
         // Fail any pending in-flight requests.
-        let mut pending = self.shared.pending.lock().await;
-        for (_, tx) in pending.drain() {
+        let drained: Vec<_> = {
+            let mut pending = self
+                .shared
+                .pending
+                .lock()
+                .expect("client pending map poisoned");
+            pending.drain().collect()
+        };
+        for (_, tx) in drained {
             let _ = tx.send(Err(JsonRpcError {
                 code: -32000,
                 message: "client shut down".into(),
@@ -262,6 +318,15 @@ impl Client {
     }
 
     /// Send a JSON-RPC request and await its result.
+    ///
+    /// # Cancellation
+    ///
+    /// Cancel-safe via the standard Rust mechanism — drop the future
+    /// to cancel the local wait. An RAII guard removes the pending
+    /// entry from the request map immediately on drop, so abandoned
+    /// requests can't accumulate even if the server never responds.
+    /// **Cancellation only cancels the local wait** — it does not
+    /// abort the server's execution of the request.
     pub async fn request<P, R>(&self, method: &str, params: P) -> Result<R, ClientError>
     where
         P: Serialize,
@@ -283,9 +348,16 @@ impl Client {
 
         let (tx, rx) = oneshot::channel();
         {
-            let mut pending = self.shared.pending.lock().await;
+            let mut pending = self
+                .shared
+                .pending
+                .lock()
+                .expect("client pending map poisoned");
             pending.insert(id, tx);
         }
+        // Arm the cleanup guard before any await point so a dropped
+        // future removes the pending entry deterministically.
+        let guard = PendingGuard::new(id, self.shared.clone());
 
         if self
             .shared
@@ -294,7 +366,7 @@ impl Client {
             .await
             .is_err()
         {
-            self.shared.pending.lock().await.remove(&id);
+            // Guard's Drop will remove the entry; just return.
             return Err(ClientError::Shutdown);
         }
 
@@ -302,12 +374,16 @@ impl Client {
             Some(dur) => match tokio::time::timeout(dur, rx).await {
                 Ok(r) => r,
                 Err(_) => {
-                    self.shared.pending.lock().await.remove(&id);
+                    // Guard's Drop removes the entry; surface timeout.
                     return Err(ClientError::Cancelled);
                 }
             },
             None => rx.await,
         };
+
+        // Response (or shutdown) took the entry out of the map already
+        // — disarm the guard so its Drop is a no-op.
+        guard.disarm();
 
         match result {
             Ok(Ok(value)) => Ok(serde_json::from_value(value)?),
@@ -457,6 +533,20 @@ impl Client {
         .await?;
         Ok(DispatchHandle { client_seq })
     }
+
+    /// Number of in-flight requests currently awaiting a response.
+    ///
+    /// Exposed for diagnostics and tests — production code should not
+    /// depend on the absolute value (the count is racy across
+    /// in-flight cancellations) but tests can assert "0 leaked entries
+    /// after dropping the future".
+    pub fn pending_request_count(&self) -> usize {
+        self.shared
+            .pending
+            .lock()
+            .map(|p| p.len())
+            .unwrap_or_default()
+    }
 }
 
 async fn drive_transport<T: Transport>(
@@ -501,8 +591,11 @@ async fn drive_transport<T: Transport>(
     }
 
     // Teardown: close everything so waiters see Shutdown.
-    let mut pending = shared.pending.lock().await;
-    for (_, tx) in pending.drain() {
+    let drained: Vec<_> = {
+        let mut pending = shared.pending.lock().expect("client pending map poisoned");
+        pending.drain().collect()
+    };
+    for (_, tx) in drained {
         let _ = tx.send(Err(JsonRpcError {
             code: -32000,
             message: "transport closed".into(),
@@ -523,12 +616,20 @@ async fn drive_transport<T: Transport>(
 async fn dispatch_inbound(shared: &Shared, msg: JsonRpcMessage) {
     match msg {
         JsonRpcMessage::SuccessResponse(r) => {
-            if let Some(tx) = shared.pending.lock().await.remove(&r.id) {
+            let tx = {
+                let mut pending = shared.pending.lock().expect("client pending map poisoned");
+                pending.remove(&r.id)
+            };
+            if let Some(tx) = tx {
                 let _ = tx.send(Ok(r.result));
             }
         }
         JsonRpcMessage::ErrorResponse(r) => {
-            if let Some(tx) = shared.pending.lock().await.remove(&r.id) {
+            let tx = {
+                let mut pending = shared.pending.lock().expect("client pending map poisoned");
+                pending.remove(&r.id)
+            };
+            if let Some(tx) = tx {
                 let _ = tx.send(Err(r.error));
             }
         }

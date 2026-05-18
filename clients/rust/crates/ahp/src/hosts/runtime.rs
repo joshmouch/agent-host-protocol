@@ -70,16 +70,29 @@ impl HostHandleTx {
     }
 }
 
+/// Type alias for the callback the multi-host facade passes to
+/// each runtime so the runtime can fan out subscription events
+/// without knowing about the facade's internals.
+///
+/// Implementations must be cheap and synchronous (the runtime calls
+/// this on the hot per-event path). The facade's standard
+/// implementation fans events into both the lossy broadcast that
+/// backs [`MultiHostClient::events`](super::MultiHostClient::events)
+/// and the per-`(host, uri)` listener registry that backs
+/// [`MultiHostClient::events_for`](super::MultiHostClient::events_for).
+pub(super) type EventSink = Arc<dyn Fn(HostSubscriptionEvent) + Send + Sync>;
+
 /// Spawn a runtime for `config` and return its inbox.
 pub(super) fn spawn(
     config: HostConfig,
-    fan_out: broadcast::Sender<HostSubscriptionEvent>,
+    client_id: String,
+    event_sink: EventSink,
     host_events: broadcast::Sender<HostEvent>,
 ) -> HostHandleTx {
     let initial = HostInternal {
         id: config.id.clone(),
         label: config.label.clone(),
-        client_id: config.client_id.clone(),
+        client_id: client_id.clone(),
         state: HostState::Disconnected,
         last_error: None,
         last_connected_at: None,
@@ -103,11 +116,11 @@ pub(super) fn spawn(
 
     let (cmd_tx, cmd_rx) = mpsc::channel(32);
     let runtime = HostRuntime {
-        client_id: config.client_id.clone(),
+        client_id,
         config,
         cmd_rx,
         shared: shared.clone(),
-        fan_out,
+        event_sink,
         host_events,
         shutdown_signal: shutdown_signal.clone(),
     };
@@ -126,7 +139,7 @@ struct HostRuntime {
     client_id: String,
     cmd_rx: mpsc::Receiver<HostCommand>,
     shared: Arc<HostShared>,
-    fan_out: broadcast::Sender<HostSubscriptionEvent>,
+    event_sink: EventSink,
     host_events: broadcast::Sender<HostEvent>,
     shutdown_signal: Arc<Notify>,
 }
@@ -397,7 +410,7 @@ impl HostRuntime {
                         resource: Some(resource),
                         event: SubscriptionEvent::Action(envelope),
                     };
-                    let _ = self.fan_out.send(host_event);
+                    (self.event_sink)(host_event);
                 }
                 if !replay.missing.is_empty() {
                     let mut state = self.shared.lock().await;
@@ -556,7 +569,7 @@ impl HostRuntime {
             resource: event.resource,
             event: event.event,
         };
-        let _ = self.fan_out.send(host_event);
+        (self.event_sink)(host_event);
     }
 
     async fn apply_action(&self, envelope: &ActionEnvelope) {

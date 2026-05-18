@@ -29,6 +29,7 @@ tokio = { workspace = true, features = ["full"] }
 serde_json = { workspace = true }
 ahp-ws = { path = "../ahp-ws" }
 tracing-subscriber = "0.3"
+tempfile = "3"
 
 [[example]]
 name = "connect_ws"

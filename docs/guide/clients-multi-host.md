@@ -129,7 +129,76 @@ handle.check_alive().await?;
 # Ok(()) }
 ```
 
-Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`. For persistent identity across launches, persist the `clientId` you pass to [`HostConfig::with_client_id`](https://docs.rs/ahp/latest/ahp/hosts/struct.HostConfig.html#method.with_client_id) yourself (e.g. in your app's keychain or settings store) and supply it on subsequent launches.
+Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`.
+
+### Per-`(host, uri)` event streams (reliable feed)
+
+`MultiHostClient::events()` is a cross-host fan-in backed by a lossy broadcast — slow consumers see `Lagged` and skip events. **That's unsafe for reducer-critical action envelopes**, which can't be dropped without desyncing downstream state mirrors. For reliable per-URI streams, use `events_for(&host_id, uri)` instead:
+
+```rust
+# use ahp::hosts::{HostId, MultiHostClient};
+# async fn run(multi: MultiHostClient) -> Result<(), Box<dyn std::error::Error>> {
+let host_id = HostId::new("local");
+// Attach the listener BEFORE subscribing on the server so initial
+// post-subscribe envelopes aren't dropped.
+let mut stream = multi
+    .events_for(&host_id, "copilot:/s1".into())
+    .await
+    .expect("host registered");
+multi.subscribe(&host_id, "copilot:/s1".into()).await?;
+while let Some(event) = stream.recv().await {
+    // Includes envelopes replayed across reconnects.
+    println!("{event:?}");
+}
+# Ok(()) }
+```
+
+The per-URI stream is owned by `MultiHostClient` (not by any single underlying `Client` generation), so envelopes replayed by the reconnect path reach it too. Cross-resource protocol notifications (auth required, session added/removed/changed) also fan to every active per-URI listener for the host.
+
+### Persistent `clientId` across launches
+
+The SDK ships a `ClientIdStore` trait with two implementations:
+
+- `InMemoryClientIdStore` — session-stable, lost on restart (the default).
+- `FileClientIdStore` — one file per host under a configurable directory, atomic writes, owner-only perms on POSIX.
+
+Wire a persistent store via `MultiHostClient::with_client_id_store` (or `single_with_client_id_store` for single-host consumers) and let `HostConfig::client_id` default to `None`; the SDK will reuse the stored value on subsequent launches:
+
+```rust
+# use ahp::hosts::{FileClientIdStore, HostConfig, MultiHostClient};
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let dir = dirs::data_dir().unwrap().join("my-app").join("client-ids");
+let multi = MultiHostClient::with_client_id_store(FileClientIdStore::new(dir));
+multi
+    .add_host(HostConfig::new("local", "Local", open_local))
+    .await?;
+# async fn open_local(_: ahp::hosts::HostId) -> Result<ahp::transport::BoxedTransport, ahp::TransportError> { unimplemented!() }
+# Ok(()) }
+```
+
+For the strongest-security profile (Keychain on Apple, libsecret on Linux, DPAPI on Windows), implement `ClientIdStore` yourself in your app — the trait is dyn-compatible.
+
+### Waking idle hosts in bulk
+
+After a network change or scene-phase resume, call `reconnect_all_unavailable()` to fire concurrent reconnects on every host not currently `Connected` or `Connecting`. The call returns a `HashMap<HostId, HostError>` of per-host failures; an empty map means every selected host acknowledged its reconnect request. This bypasses the policy's exhausted-attempts state, so `Failed` hosts get a fresh chance too.
+
+### Host-aware state mirror
+
+`MultiHostStateMirror` is the host-aware counterpart to the pure reducers — keyed by `HostedResourceKey { host_id, uri }` so two hosts that legitimately advertise the same session URI don't clobber each other. Feed it from `events_for` (the lossless per-URI stream) for reducer correctness:
+
+```rust
+# use ahp::hosts::{HostId, MultiHostClient};
+# use ahp::MultiHostStateMirror;
+# async fn run(multi: MultiHostClient, host: HostId) -> Result<(), Box<dyn std::error::Error>> {
+let mirror = MultiHostStateMirror::new();
+let mut stream = multi.events_for(&host, "copilot:/s1".into()).await.unwrap();
+while let Some(event) = stream.recv().await {
+    if let ahp::SubscriptionEvent::Action(env) = event {
+        mirror.apply_envelope(&host, &env).await;
+    }
+}
+# Ok(()) }
+```
 
 See the `ahp::hosts` rustdoc and `crates/ahp/tests/hosts.rs` for the full surface.
 

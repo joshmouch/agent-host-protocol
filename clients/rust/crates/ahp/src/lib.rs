@@ -148,6 +148,7 @@ pub mod client;
 pub mod error;
 pub mod hosts;
 pub mod reducers;
+pub mod state_mirror;
 pub mod transport;
 
 pub use ahp_types;
@@ -160,4 +161,5 @@ pub use error::{ClientError, TransportError};
 pub use reducers::{
     apply_action_to_root, apply_action_to_session, apply_action_to_terminal, ReduceOutcome,
 };
+pub use state_mirror::{HostedResourceKey, MultiHostStateMirror};
 pub use transport::{BoxedTransport, DynTransport, Transport, TransportMessage};

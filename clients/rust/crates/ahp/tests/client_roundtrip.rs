@@ -155,3 +155,62 @@ async fn request_response_and_action_fanout() {
     client.shutdown().await;
     server.await.unwrap();
 }
+
+/// Cancelling a request future via `select!` against another branch
+/// must drop the pending entry immediately rather than leaking it
+/// until (or beyond) the server response. The Phase 7 RAII guard on
+/// `Client::request` is what enforces that — without it, the pending
+/// map would grow on every cancelled typeahead / debounce request.
+#[tokio::test]
+async fn cancelled_request_future_clears_pending_entry() {
+    let (client_side, mut server_side) = pair();
+    let client = Client::connect(client_side, ClientConfig::default())
+        .await
+        .expect("connect");
+
+    // Server drains messages but never replies — so the only way
+    // for the request future to resolve is the caller cancelling it.
+    let drain = tokio::spawn(async move {
+        loop {
+            match server_side.recv().await {
+                Ok(Some(_)) => continue,
+                Ok(None) | Err(_) => return,
+            }
+        }
+    });
+
+    // Spawn the request on a task we can abort.
+    let client_clone = client.clone();
+    let request_task = tokio::spawn(async move {
+        let _: Result<serde_json::Value, _> = client_clone
+            .request("never-replied", serde_json::Value::Null)
+            .await;
+    });
+
+    // Give the client time to push the outbound message + insert the
+    // pending entry, then verify the entry is there.
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(
+        client.pending_request_count(),
+        1,
+        "request should have inserted a pending entry"
+    );
+
+    // Cancel the request by aborting the task. The guard's Drop should
+    // remove the pending entry deterministically; without the guard
+    // the entry would linger until the server eventually replied (it
+    // never will) or until `Client::shutdown`.
+    request_task.abort();
+    let _ = request_task.await;
+
+    // Allow the abort + drop glue to run.
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    assert_eq!(
+        client.pending_request_count(),
+        0,
+        "cancelled request must clean up its pending entry"
+    );
+
+    client.shutdown().await;
+    let _ = drain.await;
+}

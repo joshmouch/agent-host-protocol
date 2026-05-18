@@ -103,17 +103,32 @@ impl PartialEq for HostState {
 /// # `client_id`
 ///
 /// Each host needs a stable `clientId` so the AHP `reconnect` flow
-/// works across launches. By default [`HostConfig::new`] generates a
-/// session-stable UUID; pass [`HostConfig::with_client_id`] (typically
-/// loaded from your app's keychain or settings store) for a value that
-/// survives restarts.
+/// works across launches. The resolution order on
+/// [`super::MultiHostClient::add_host`] is:
+///
+/// 1. Explicit value set via [`HostConfig::with_client_id`] (always wins).
+/// 2. The host id's prior entry in the configured
+///    [`super::ClientIdStore`].
+/// 3. A freshly generated UUID-shaped string (and written back to the
+///    store so subsequent launches see it).
+///
+/// To keep `clientId`s stable across process restarts, wire a
+/// persistent store via
+/// [`super::MultiHostClient::with_client_id_store`] (e.g.
+/// [`super::FileClientIdStore`]). The default
+/// [`super::InMemoryClientIdStore`] only survives within a single
+/// process.
 pub struct HostConfig {
     /// Stable host identifier.
     pub id: HostId,
     /// Human-readable label. Surfaced through [`HostHandle::label`].
     pub label: String,
-    /// `clientId` sent to this host on `initialize` / `reconnect`.
-    pub client_id: String,
+    /// Explicit `clientId` to send on `initialize` / `reconnect`.
+    ///
+    /// `None` means defer to the configured [`super::ClientIdStore`]
+    /// at [`super::MultiHostClient::add_host`] time. `Some(_)` is an
+    /// explicit override that always wins over the store.
+    pub client_id: Option<String>,
     /// URIs to include in the `initialize` handshake. Defaults to
     /// `["agenthost:/root"]` so root state is always tracked.
     pub initial_subscriptions: Vec<String>,
@@ -128,10 +143,10 @@ pub struct HostConfig {
 impl HostConfig {
     /// Build a [`HostConfig`] with sensible defaults.
     ///
-    /// Generates a fresh, session-stable `clientId`. If you want
-    /// reconnect identity to survive process restarts, persist the id
-    /// you supply here yourself and pass it via
-    /// [`HostConfig::with_client_id`] on subsequent launches.
+    /// `client_id` is left unset; the multi-host client will look it
+    /// up in the configured [`super::ClientIdStore`] (or generate one
+    /// and persist it) when the host is added. To force an explicit
+    /// id, chain [`HostConfig::with_client_id`].
     pub fn new(
         id: impl Into<HostId>,
         label: impl Into<String>,
@@ -140,7 +155,7 @@ impl HostConfig {
         Self {
             id: id.into(),
             label: label.into(),
-            client_id: generate_client_id(),
+            client_id: None,
             initial_subscriptions: vec![ahp_types::ROOT_RESOURCE_URI.to_string()],
             client_config: ClientConfig::default(),
             transport_factory: Arc::new(transport_factory),
@@ -148,9 +163,10 @@ impl HostConfig {
         }
     }
 
-    /// Override the `clientId` for this host.
+    /// Set an explicit `clientId` for this host. Bypasses the
+    /// [`super::ClientIdStore`] lookup entirely.
     pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
-        self.client_id = client_id.into();
+        self.client_id = Some(client_id.into());
         self
     }
 
@@ -278,6 +294,12 @@ pub enum HostError {
     /// A request bubbled up an error from the underlying [`Client`].
     #[error(transparent)]
     Client(#[from] ClientError),
+
+    /// The configured [`super::ClientIdStore`] failed during
+    /// [`super::MultiHostClient::add_host`]. The host is not
+    /// registered; resolve the underlying I/O issue and retry.
+    #[error(transparent)]
+    ClientIdStore(#[from] super::client_id_store::ClientIdStoreError),
 }
 
 /// Generation-checked handle to the underlying single-host [`Client`].
@@ -375,12 +397,26 @@ pub struct HostSubscriptionEvent {
 /// Stream of [`HostSubscriptionEvent`]s.
 ///
 /// Returned by [`super::MultiHostClient::events`]. Each call returns a
-/// fresh receiver — multiple consumers can listen independently. Slow
-/// consumers that lag past the buffer skip the gap and keep going,
-/// matching [`crate::SessionSubscription`] semantics.
+/// fresh receiver — multiple consumers can listen independently.
+///
+/// # Lossiness
+///
+/// This stream is backed by a Tokio broadcast channel and is **lossy
+/// by design** — slow consumers that lag past the buffer skip the
+/// gap (`broadcast::error::RecvError::Lagged`) and keep going,
+/// matching [`crate::SessionSubscription`] semantics. **Do not use
+/// this stream for reducer-critical [`ActionEnvelope`]s** because
+/// dropped envelopes desync downstream state mirrors irreversibly.
+/// For guaranteed-delivery per-URI action streams use
+/// [`super::MultiHostClient::events_for`] instead — that surface uses
+/// unbounded buffering per URI and survives reconnects.
+///
+/// # Ordering
 ///
 /// Ordering is **only** guaranteed within a single host. There is no
 /// cross-host total order — different hosts run independently.
+///
+/// [`ActionEnvelope`]: ahp_types::actions::ActionEnvelope
 pub struct HostSubscriptionStream {
     pub(super) rx: broadcast::Receiver<HostSubscriptionEvent>,
 }
@@ -450,6 +486,77 @@ impl HostEventStream {
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
             }
         }
+    }
+}
+
+/// Per-`(hostId, uri)` event stream — the reliable channel for
+/// reducer-critical action envelopes.
+///
+/// Returned by [`super::MultiHostClient::events_for`]. Delivers every
+/// [`SubscriptionEvent`] scoped to `uri` on `host` — both live
+/// envelopes and envelopes replayed during reconnect — through an
+/// unbounded mpsc channel, so a slow consumer holds an unbounded
+/// backlog rather than dropping events (which would desync downstream
+/// state mirrors).
+///
+/// Unlike [`crate::SessionSubscription`] (which is bound to one
+/// underlying [`crate::Client`] generation), the per-URI stream is
+/// owned by [`super::MultiHostClient`] and **survives reconnects** —
+/// the per-host supervisor fans replayed envelopes from
+/// `apply_reconnect_result` through this stream too. Protocol-level
+/// notifications (auth required, session added/removed/changed) also
+/// fan to every active per-URI listener for that host because they're
+/// cross-resource by design.
+///
+/// Subscribing here is independent from sending a `subscribe` request
+/// to the server. Attach the stream **before** calling
+/// [`super::MultiHostClient::subscribe`] so envelopes the server
+/// pushes between the subscribe response and your first `recv()`
+/// aren't sitting in a closed channel:
+///
+/// ```ignore
+/// let mut stream = multi.events_for(&host_id, "copilot:/s1".into()).await
+///     .expect("host registered");
+/// multi.subscribe(&host_id, "copilot:/s1".into()).await?;
+/// while let Some(event) = stream.recv().await {
+///     // ...
+/// }
+/// ```
+pub struct PerResourceStream {
+    pub(super) rx: tokio::sync::mpsc::UnboundedReceiver<SubscriptionEvent>,
+    /// Weak back-reference to the multi-host registry so dropping
+    /// this stream releases its listener slot immediately rather
+    /// than waiting for the host to be removed. `Weak` (not `Arc`)
+    /// so a stream lying around doesn't keep the multi-host client
+    /// alive past its last clone.
+    pub(super) registry: std::sync::Weak<super::multi::MultiInner>,
+    pub(super) host: HostId,
+    pub(super) listener_id: u64,
+}
+
+impl PerResourceStream {
+    /// Await the next event. Returns `None` when the listener has
+    /// been dropped from the registry (host removed, multi-host
+    /// client shut down, or this stream was dropped — `recv` on a
+    /// dropped receiver returns `None` immediately).
+    pub async fn recv(&mut self) -> Option<SubscriptionEvent> {
+        self.rx.recv().await
+    }
+}
+
+impl Drop for PerResourceStream {
+    fn drop(&mut self) {
+        if let Some(inner) = self.registry.upgrade() {
+            inner.remove_per_resource_listener(&self.host, self.listener_id);
+        }
+    }
+}
+
+impl std::fmt::Debug for PerResourceStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PerResourceStream")
+            .field("host", &self.host)
+            .finish_non_exhaustive()
     }
 }
 
@@ -555,10 +662,15 @@ pub(super) fn server_seq_from_envelope(env: &ActionEnvelope) -> i64 {
     env.server_seq as i64
 }
 
-/// Generate a session-stable UUIDv4-shaped string for use as a default
-/// `clientId`. Consumers that want cross-launch stability should
-/// persist the id themselves and pass it via [`HostConfig::with_client_id`].
-pub(super) fn generate_client_id() -> String {
+/// Generate a UUIDv4-shaped string suitable for use as a default
+/// `clientId`.
+///
+/// The multi-host SDK calls this internally when [`HostConfig::client_id`]
+/// is `None` and the configured [`super::ClientIdStore`] has no entry
+/// for the host. Public so consumers building their own
+/// [`super::ClientIdStore`] implementations can mint fresh ids in the
+/// same shape the SDK uses.
+pub fn generate_client_id() -> String {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
     use std::sync::atomic::{AtomicU64, Ordering};

@@ -31,10 +31,27 @@
 //! # `clientId`
 //!
 //! Each host needs a stable `clientId` so the AHP `reconnect` flow
-//! works. [`HostConfig::new`] generates a session-stable UUID by
-//! default; for cross-launch identity persist the value yourself (e.g.
-//! in your app's keychain) and pass it via
-//! [`HostConfig::with_client_id`] on subsequent launches.
+//! works. [`MultiHostClient`] consults a pluggable [`ClientIdStore`]
+//! on every [`MultiHostClient::add_host`]: an explicit
+//! [`HostConfig::with_client_id`] always wins; otherwise the store is
+//! looked up; on miss, a fresh UUID is generated and persisted. The
+//! default store is [`InMemoryClientIdStore`] (session-stable, lost
+//! on process restart). For cross-launch reconnect identity, wire
+//! [`FileClientIdStore`] (or your own keychain-backed implementation
+//! of [`ClientIdStore`]) via
+//! [`MultiHostClient::with_client_id_store`].
+//!
+//! # Per-`(host, uri)` event streams
+//!
+//! [`MultiHostClient::events`] is a cross-host fan-in backed by a
+//! lossy broadcast — slow consumers see `Lagged` and skip events.
+//! For reducer-critical action envelopes (which can't be dropped
+//! without desyncing downstream state mirrors) use
+//! [`MultiHostClient::events_for`] instead: it returns a
+//! [`PerResourceStream`] backed by an unbounded mpsc channel that
+//! is owned by [`MultiHostClient`] (not by any single
+//! [`crate::Client`] generation), so replayed envelopes from a
+//! reconnect reach the stream too.
 //!
 //! # Quickstart (single-host)
 //!
@@ -90,16 +107,21 @@
 
 #![allow(clippy::module_inception)]
 
+mod client_id_store;
 mod factory;
 mod multi;
 mod policy;
 mod runtime;
 mod types;
 
+pub use client_id_store::{
+    ClientIdStore, ClientIdStoreError, FileClientIdStore, InMemoryClientIdStore,
+};
 pub use factory::HostTransportFactory;
 pub use multi::MultiHostClient;
 pub use policy::{Backoff, ReconnectPolicy};
 pub use types::{
-    HostClientHandle, HostConfig, HostError, HostEvent, HostEventStream, HostHandle, HostId,
-    HostState, HostSubscriptionEvent, HostSubscriptionStream, HostedAgent, HostedSessionSummary,
+    generate_client_id, HostClientHandle, HostConfig, HostError, HostEvent, HostEventStream,
+    HostHandle, HostId, HostState, HostSubscriptionEvent, HostSubscriptionStream, HostedAgent,
+    HostedSessionSummary, PerResourceStream,
 };
