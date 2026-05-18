@@ -23,12 +23,10 @@
   "actions": [
     {
       "type": "changeset/fileRemoved",
-      "changeset": "copilot:/abc/changeset/session",
       "fileId": "file:///src/a.ts"
     },
     {
       "type": "changeset/fileRemoved",
-      "changeset": "copilot:/abc/changeset/session",
       "fileId": "file:///src/missing.ts"
     }
   ],

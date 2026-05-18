@@ -9,7 +9,6 @@
   "actions": [
     {
       "type": "changeset/statusChanged",
-      "changeset": "copilot:/abc/changeset/session",
       "status": "ready"
     }
   ],

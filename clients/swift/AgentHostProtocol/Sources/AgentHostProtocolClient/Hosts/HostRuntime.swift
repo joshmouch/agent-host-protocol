@@ -142,12 +142,12 @@ internal final class HostRuntime: Sendable {
         }
     }
 
-    /// Dispatch an action through the current connection. Throws
-    /// `HostError.hostShutDown` if the host is disconnected.
+    /// Dispatch an action through the current connection on `channel`.
+    /// Throws `HostError.hostShutDown` if the host is disconnected.
     @discardableResult
-    func dispatch(_ action: StateAction) async throws -> DispatchHandle {
+    func dispatch(_ action: StateAction, channel: String) async throws -> DispatchHandle {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
-            cmdContinuation.yield(.dispatch(action: action, reply: continuation))
+            cmdContinuation.yield(.dispatch(action: action, channel: channel, reply: continuation))
         }
     }
 
@@ -320,7 +320,7 @@ internal final class HostRuntime: Sendable {
                 // related gaps follow from this and are tracked together
                 // for both SDKs as a follow-up:
                 //   1. Replay actions returned synchronously by the server
-                //      are not fanned out (live `notify/action` frames after
+                //      are not fanned out (live `action` frames after
                 //      reconnect still reach consumers normally).
                 //   2. `replay.missing` URIs (subscriptions the server
                 //      cannot resume) are not pruned from the replay set,
@@ -359,7 +359,7 @@ internal final class HostRuntime: Sendable {
         // non-fatal: the cache stays as-is.
         let summaries: ListSessionsResult? = try? await client.request(
             method: "listSessions",
-            params: ListSessionsParams()
+            params: ListSessionsParams(channel: RootResourceURI)
         )
 
         let newGeneration: UInt64 = await {
@@ -454,8 +454,8 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 let result = await handleUnsubscribe(uri)
                 resumeCommand(reply: reply, with: result)
-            case .dispatch(let action, let reply):
-                let result = await handleDispatch(action)
+            case .dispatch(let action, let channel, let reply):
+                let result = await handleDispatch(action, channel: channel)
                 resumeCommand(reply: reply, with: result)
             }
         }
@@ -482,7 +482,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, let reply):
+            case .dispatch(_, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -525,7 +525,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, let reply):
+            case .dispatch(_, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -540,8 +540,23 @@ internal final class HostRuntime: Sendable {
         switch event.event {
         case .action(let envelope):
             await applyAction(envelope)
-        case .notification(let notification):
-            await applyNotification(notification)
+        case .sessionAdded(let n):
+            await shared.update { state in
+                state.sessionSummaries[n.summary.resource] = n.summary
+            }
+        case .sessionRemoved(let n):
+            await shared.update { state in
+                state.sessionSummaries.removeValue(forKey: n.session)
+            }
+        case .sessionSummaryChanged(let n):
+            await shared.update { state in
+                if var existing = state.sessionSummaries[n.session] {
+                    applySummaryChanges(&existing, changes: n.changes)
+                    state.sessionSummaries[n.session] = existing
+                }
+            }
+        case .authRequired:
+            break
         }
         let hostEvent = HostSubscriptionEvent(
             hostId: config.id,
@@ -557,29 +572,10 @@ internal final class HostRuntime: Sendable {
                 state.serverSeq = envelope.serverSeq
             }
             // Best-effort root state mirror update via the existing pure
-            // reducer. Non-root actions slip through without effect — that's
+            // reducer. Non-root channels slip through without effect — that's
             // the same posture as the Rust SDK.
-            let resource = actionResource(for: envelope.action)
-            if resource == RootResourceURI {
+            if envelope.channel == RootResourceURI {
                 state.rootState = rootReducer(state: state.rootState, action: envelope.action)
-            }
-        }
-    }
-
-    private func applyNotification(_ notification: ProtocolNotification) async {
-        await shared.update { state in
-            switch notification {
-            case .sessionAdded(let n):
-                state.sessionSummaries[n.summary.resource] = n.summary
-            case .sessionRemoved(let n):
-                state.sessionSummaries.removeValue(forKey: n.session)
-            case .sessionSummaryChanged(let n):
-                if var existing = state.sessionSummaries[n.session] {
-                    applySummaryChanges(&existing, changes: n.changes)
-                    state.sessionSummaries[n.session] = existing
-                }
-            case .authRequired:
-                break
             }
         }
     }
@@ -616,12 +612,12 @@ internal final class HostRuntime: Sendable {
         return .success(())
     }
 
-    private func handleDispatch(_ action: StateAction) async -> Result<DispatchHandle, HostError> {
+    private func handleDispatch(_ action: StateAction, channel: String) async -> Result<DispatchHandle, HostError> {
         guard let client = await shared.currentClient() else {
             return .failure(.hostShutDown(config.id))
         }
         do {
-            let handle = try await client.dispatch(action)
+            let handle = try await client.dispatch(action, channel: channel)
             return .success(handle)
         } catch let error as AHPClientError {
             return .failure(.client(error))
@@ -677,7 +673,7 @@ internal enum HostCommand: Sendable {
     case manualReconnect(reply: CheckedContinuation<Void, Error>)
     case subscribe(uri: String, reply: CheckedContinuation<SubscribeResult, Error>)
     case unsubscribe(uri: String, reply: CheckedContinuation<Void, Error>)
-    case dispatch(action: StateAction, reply: CheckedContinuation<DispatchHandle, Error>)
+    case dispatch(action: StateAction, channel: String, reply: CheckedContinuation<DispatchHandle, Error>)
 }
 
 /// Outcome of one of the supervisor's drain loops.
@@ -762,19 +758,6 @@ internal final class SignalTokenSource: @unchecked Sendable {
 /// other targets. Foundation's `UUID()` is fine here.
 private func generateClientId() -> String {
     UUID().uuidString.lowercased()
-}
-
-/// Mirror the resource-routing logic in `AHPClient.actionResource(for:)`.
-private func actionResource(for action: StateAction) -> String? {
-    let encoder = JSONEncoder()
-    guard let data = try? encoder.encode(action),
-          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-        return RootResourceURI
-    }
-    if let session = object["session"] as? String { return session }
-    if let terminal = object["terminal"] as? String { return terminal }
-    return RootResourceURI
 }
 
 /// Apply a `PartialSessionSummary` patch in-place. Identity fields are

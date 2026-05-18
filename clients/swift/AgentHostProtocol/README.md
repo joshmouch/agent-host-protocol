@@ -31,7 +31,7 @@ Then depend on one or both products:
 
 ## Minimal Single-Host Client
 
-This example opens one WebSocket connection, subscribes to the root resource during `initialize`, applies the returned snapshots, and then applies subsequent action events.
+This example opens one WebSocket connection, subscribes to the root channel during `initialize`, applies the returned snapshots, and then applies subsequent action events.
 
 ```swift
 import AgentHostProtocol
@@ -51,10 +51,10 @@ Task {
         switch event.event {
         case .action(let envelope):
             await mirror.apply(envelope)
-        case .notification(let notification):
+        case .sessionAdded, .sessionRemoved, .sessionSummaryChanged, .authRequired:
             // Protocol notifications are ephemeral and are not replayed on
             // reconnect. Apps commonly refresh listSessions() after reconnect.
-            print("notification: \(notification)")
+            print("notification: \(event.event)")
         }
     }
 }
@@ -107,12 +107,12 @@ struct PendingOutboundAction {
 var nextClientSeq = 1
 var pendingOutboundActions: [PendingOutboundAction] = []
 
-func dispatchFromApp(_ action: StateAction, client: AHPClient) async throws {
+func dispatchFromApp(_ action: StateAction, channel: String, client: AHPClient) async throws {
     let seq = nextClientSeq
     nextClientSeq += 1
     pendingOutboundActions.append(PendingOutboundAction(clientSeq: seq, action: action))
 
-    try await client.dispatch(action, clientSeq: seq)
+    try await client.dispatch(action, channel: channel, clientSeq: seq)
 }
 
 func acknowledge(_ envelope: ActionEnvelope, clientId: String) {

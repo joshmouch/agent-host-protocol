@@ -95,7 +95,7 @@ function rustFieldName(tsName: string): { rustName: string; wireName: string; re
 
 /** PascalCase enum variant from a string literal (for explicit-rename variants). */
 function toEnumVariant(value: string): string {
-  // notify/sessionAdded → NotifySessionAdded
+  // root/sessionAdded → RootSessionAdded
   // session/toolCallStart → SessionToolCallStart
   // pending-confirmation → PendingConfirmation
   // single-select → SingleSelect
@@ -869,7 +869,6 @@ function generateMergedToolCallConfirmedStruct(): string {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolCallConfirmedAction {
-    pub session: Uri,
     pub turn_id: String,
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
@@ -918,9 +917,17 @@ function generateActionsFile(project: Project): string {
   lines.push('');
   // ActionEnvelope has a field `action: IStateAction` — we need to replace IStateAction with StateAction
   lines.push(`/// Every action is wrapped in an \`ActionEnvelope\`.
+///
+/// The envelope identifies the channel the action belongs to (e.g.
+/// \`ahp-root://\` for root actions, the session URI for session actions, the
+/// terminal URI for terminal actions). Individual action payloads carry only
+/// fields that are intrinsic to the action; the channel comes from the
+/// envelope so that any subscribable resource can route its actions uniformly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionEnvelope {
+    /// Channel URI this action belongs to.
+    pub channel: Uri,
     pub action: StateAction,
     pub server_seq: u64,
     pub origin: Option<ActionOrigin>,
@@ -1084,26 +1091,14 @@ pub struct ChangesetOperationTargetRange {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedNotification',
-  'SessionRemovedNotification',
-  'SessionSummaryChangedNotification',
-  'AuthRequiredNotification',
+  'SessionAddedParams',
+  'SessionRemovedParams',
+  'SessionSummaryChangedParams',
+  'AuthRequiredParams',
 ];
-
-const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
-  name: 'ProtocolNotification',
-  discriminantField: 'type',
-  doc: 'Discriminated union of all protocol notifications.',
-  variants: [
-    { variantName: 'SessionAdded', innerType: 'SessionAddedNotification', wireValue: 'notify/sessionAdded' },
-    { variantName: 'SessionRemoved', innerType: 'SessionRemovedNotification', wireValue: 'notify/sessionRemoved' },
-    { variantName: 'SessionSummaryChanged', innerType: 'SessionSummaryChangedNotification', wireValue: 'notify/sessionSummaryChanged' },
-    { variantName: 'AuthRequired', innerType: 'AuthRequiredNotification', wireValue: 'notify/authRequired' },
-  ],
-};
 
 function generateNotificationsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
@@ -1149,10 +1144,6 @@ function generateNotificationsFile(project: Project): string {
       }
     }
   }
-
-  lines.push('// ─── ProtocolNotification Union ───────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(PROTOCOL_NOTIFICATION_UNION));
-  lines.push('');
 
   return lines.join('\n');
 }
@@ -1249,7 +1240,6 @@ pub struct UnsupportedProtocolVersionErrorData {
 function generateMessagesFile(): string {
   return `${GENERATED_HEADER}
 use crate::actions::ActionEnvelope;
-use crate::notifications::ProtocolNotification;
 
 // ─── JSON-RPC Envelope ────────────────────────────────────────────────────
 
@@ -1319,12 +1309,6 @@ pub enum JsonRpcMessage {
     Notification(JsonRpcNotification),
 }
 
-/// Params for the server → client \`notification\` method.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NotificationMethodParams {
-    pub notification: ProtocolNotification,
-}
-
 /// Params for the server → client \`action\` method.
 pub type ActionNotificationParams = ActionEnvelope;
 `;
@@ -1355,16 +1339,16 @@ pub const PROTOCOL_VERSION: &str = ${JSON.stringify(protocolVersion)};
 // ─── Exhaustiveness ─────────────────────────────────────────────────────────
 
 function checkExhaustiveness(project: Project): void {
-  const v1 = project.getSourceFiles().find(f => f.getBaseName() === 'v1.ts');
-  if (!v1) return; // Optional — Swift generator throws but we just skip.
-
-  const protocolModules = new Set(['state', 'actions', 'commands', 'notifications', 'errors']);
+  const protocolModules = ['state.ts', 'actions.ts', 'commands.ts', 'notifications.ts', 'errors.ts'];
   const imported = new Set<string>();
-  for (const decl of v1.getImportDeclarations()) {
-    const mod = decl.getModuleSpecifierValue().replace(/^\.\.\//, '').replace(/\.js$/, '');
-    if (!protocolModules.has(mod)) continue;
-    for (const named of decl.getNamedImports()) {
-      imported.add(named.getName());
+  for (const baseName of protocolModules) {
+    const sf = project.getSourceFiles().find(f => f.getBaseName() === baseName);
+    if (!sf) continue;
+    for (const decl of sf.getInterfaces()) {
+      if (decl.isExported()) imported.add(decl.getName());
+    }
+    for (const decl of sf.getTypeAliases()) {
+      if (decl.isExported()) imported.add(decl.getName());
     }
   }
 
@@ -1381,14 +1365,19 @@ function checkExhaustiveness(project: Project): void {
   ]);
 
   const knownSpecial = new Set<string>([
+    'URI',
+    'BaseParams',
     'StringOrMarkdown',
     'ToolCallState',
     'StateAction',
     'ActionEnvelope',
     'ActionOrigin',
+    'ResponsePart',
+    'ToolResultContent',
     'SessionToolCallApprovedAction',
     'SessionToolCallDeniedAction',
-    'ProtocolNotification',
+    'SessionToolCallConfirmedAction',
+    'PingParams',
     'TerminalClaim',
     'TerminalContentPart',
     'SessionInputQuestion',
@@ -1402,14 +1391,17 @@ function checkExhaustiveness(project: Project): void {
     'UnsupportedProtocolVersionErrorData',
     'AhpError',
     'AhpErrorDetailsMap',
+    'AhpErrorCode',
+    'AhpErrorCodeWithData',
+    'JsonRpcErrorCode',
     'ChangesetOperationTarget',
   ]);
 
   const missing = [...imported].filter(n => !coveredByLists.has(n) && !knownSpecial.has(n));
   if (missing.length > 0) {
     console.warn(
-      `generate-rust.ts exhaustiveness: the following types are declared in v1.ts ` +
-      `but not covered by the Rust generator:\n` +
+      `generate-rust.ts exhaustiveness: the following types are exported from ` +
+      `the protocol source modules but not covered by the Rust generator:\n` +
       missing.map(n => `  - ${n}`).join('\n'),
     );
   }

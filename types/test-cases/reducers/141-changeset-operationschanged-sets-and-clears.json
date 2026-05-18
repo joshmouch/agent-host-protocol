@@ -11,14 +11,12 @@
   "actions": [
     {
       "type": "changeset/operationsChanged",
-      "changeset": "copilot:/abc/changeset/session",
       "operations": [
         { "id": "make-pr", "label": "Create Pull Request", "scopes": ["changeset"] }
       ]
     },
     {
       "type": "changeset/operationsChanged",
-      "changeset": "copilot:/abc/changeset/session",
       "operations": null
     }
   ],

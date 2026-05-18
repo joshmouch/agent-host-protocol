@@ -37,7 +37,7 @@
 //!
 //! // A session-scoped action is reported as out-of-scope at the root.
 //! let session_action = StateAction::SessionTitleChanged(
-//!     SessionTitleChangedAction { session: "copilot:/s1".into(), title: "Hi".into() },
+//!     SessionTitleChangedAction { title: "Hi".into() },
 //! );
 //! assert_eq!(
 //!     apply_action_to_root(&mut root, &session_action),
@@ -619,7 +619,10 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
         }
         StateAction::SessionCustomizationUpdated(a) => {
             let list = state.customizations.get_or_insert_with(Vec::new);
-            if let Some(idx) = list.iter().position(|c| c.customization.uri == a.customization.uri) {
+            if let Some(idx) = list
+                .iter()
+                .position(|c| c.customization.uri == a.customization.uri)
+            {
                 list[idx].customization = a.customization.clone();
                 if let Some(enabled) = a.enabled {
                     list[idx].enabled = enabled;
@@ -1159,7 +1162,6 @@ mod tests {
     fn turn_started_creates_active_turn_and_sets_in_progress() {
         let mut s = empty_session("copilot:/s1");
         let action = StateAction::SessionTurnStarted(SessionTurnStartedAction {
-            session: "copilot:/s1".into(),
             turn_id: "t1".into(),
             user_message: UserMessage {
                 text: "hi".into(),
@@ -1191,7 +1193,6 @@ mod tests {
             usage: None,
         });
         let a = StateAction::SessionDelta(ahp_types::actions::SessionDeltaAction {
-            session: "copilot:/s1".into(),
             turn_id: "t1".into(),
             part_id: "p1".into(),
             content: ", world".into(),
@@ -1217,7 +1218,6 @@ mod tests {
         });
         s.summary.status = SessionStatus::InProgress as u32;
         let a = StateAction::SessionTurnComplete(ahp_types::actions::SessionTurnCompleteAction {
-            session: "copilot:/s1".into(),
             turn_id: "t1".into(),
         });
         assert_eq!(apply_action_to_session(&mut s, &a), ReduceOutcome::Applied);
@@ -1261,12 +1261,10 @@ mod tests {
             supports_command_detection: None,
         };
         let a = StateAction::TerminalData(ahp_types::actions::TerminalDataAction {
-            terminal: "terminal:/1".into(),
             data: "hello".into(),
         });
         apply_action_to_terminal(&mut t, &a);
         let a2 = StateAction::TerminalData(ahp_types::actions::TerminalDataAction {
-            terminal: "terminal:/1".into(),
             data: " world".into(),
         });
         apply_action_to_terminal(&mut t, &a2);
@@ -1426,7 +1424,7 @@ mod tests {
                     initial,
                     expected,
                     &parsed_actions,
-                    |s, a| apply_action_to_root(s, a),
+                    apply_action_to_root,
                     &file_name,
                     description,
                 ),
@@ -1434,7 +1432,7 @@ mod tests {
                     initial,
                     expected,
                     &parsed_actions,
-                    |s, a| apply_action_to_session(s, a),
+                    apply_action_to_session,
                     &file_name,
                     description,
                 ),
@@ -1442,7 +1440,7 @@ mod tests {
                     initial,
                     expected,
                     &parsed_actions,
-                    |s, a| apply_action_to_terminal(s, a),
+                    apply_action_to_terminal,
                     &file_name,
                     description,
                 ),
@@ -1461,7 +1459,10 @@ mod tests {
 
         clear_mock_time();
 
-        eprintln!("Fixture results: {passed} passed, {skipped} skipped, {} total", entries.len());
+        eprintln!(
+            "Fixture results: {passed} passed, {skipped} skipped, {} total",
+            entries.len()
+        );
         assert_eq!(
             passed + skipped,
             entries.len(),

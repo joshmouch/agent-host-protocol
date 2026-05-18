@@ -66,8 +66,8 @@ final class MultiHostClientTests: XCTestCase {
     // MARK: - aggregated_sessions_track_listsessions_then_notification
 
     func testAggregatedSessionsTrackListSessionsThenNotification() async throws {
-        let initial = makeSummary("copilot:/s1", "Initial title", modifiedAt: 1_000)
-        let added = makeSummary("copilot:/s2", "Added later", modifiedAt: 2_000)
+        let initial = makeSummary("ahp-session:/s1", "Initial title", modifiedAt: 1_000)
+        let added = makeSummary("ahp-session:/s2", "Added later", modifiedAt: 2_000)
 
         let factory = makeFakeHostFactory(
             state: FakeHostState(sessions: [initial]),
@@ -167,10 +167,10 @@ final class MultiHostClientTests: XCTestCase {
     // MARK: - fan_in_events_carry_host_id_and_resource
 
     func testFanInEventsCarryHostIdAndResource() async throws {
-        let initialA = makeSummary("copilot:/a-1", "first-a", modifiedAt: 100)
-        let injectA = makeSummary("copilot:/added-a", "a-side", modifiedAt: 200)
-        let initialB = makeSummary("copilot:/b-1", "first-b", modifiedAt: 100)
-        let injectB = makeSummary("copilot:/added-b", "b-side", modifiedAt: 300)
+        let initialA = makeSummary("ahp-session:/a-1", "first-a", modifiedAt: 100)
+        let injectA = makeSummary("ahp-session:/added-a", "a-side", modifiedAt: 200)
+        let initialB = makeSummary("ahp-session:/b-1", "first-b", modifiedAt: 100)
+        let injectB = makeSummary("ahp-session:/added-b", "b-side", modifiedAt: 300)
 
         let multi = MultiHostClient()
         let events = await multi.events()
@@ -199,8 +199,9 @@ final class MultiHostClientTests: XCTestCase {
             guard let event = try await Self.nextWithTimeout(&iter, timeout: .milliseconds(500))
             else { break }
             hostsSeen.insert(event.hostId)
-            // Notifications carry no resource URI by design.
-            XCTAssertNil(event.resource)
+            // Notifications carry the channel they were delivered on. For
+            // `root/sessionAdded`, that's the root channel.
+            XCTAssertEqual(event.resource, RootResourceURI)
         }
         XCTAssertTrue(hostsSeen.contains("a"), "missing event from host A; saw \(hostsSeen)")
         XCTAssertTrue(hostsSeen.contains("b"), "missing event from host B; saw \(hostsSeen)")
@@ -297,7 +298,7 @@ final class MultiHostClientTests: XCTestCase {
         // Subscribe while disconnected. The runtime returns `hostShutDown`
         // but appends the URI to the replay set.
         do {
-            _ = try await multi.subscribe(host: "tt", uri: "copilot:/queued")
+            _ = try await multi.subscribe(host: "tt", uri: "ahp-session:/queued")
             XCTFail("expected subscribe to reject while failed")
         } catch let error as HostError {
             if case .hostShutDown = error {} else {
@@ -307,10 +308,10 @@ final class MultiHostClientTests: XCTestCase {
 
         // Unsubscribe an unrelated URI while disconnected — should succeed
         // and not throw, even though no live client exists.
-        try await multi.unsubscribe(host: "tt", uri: "copilot:/never-subscribed")
+        try await multi.unsubscribe(host: "tt", uri: "ahp-session:/never-subscribed")
 
         var snap = await multi.host("tt")
-        XCTAssertEqual(snap?.subscriptions.contains("copilot:/queued"), true,
+        XCTAssertEqual(snap?.subscriptions.contains("ahp-session:/queued"), true,
                        "queued subscribe URI should be recorded for replay")
 
         // Manually reconnect — second attempt succeeds.
@@ -318,7 +319,7 @@ final class MultiHostClientTests: XCTestCase {
         await waitForHostState(multi, id: "tt") { $0.isConnected }
 
         snap = await multi.host("tt")
-        XCTAssertEqual(snap?.subscriptions.contains("copilot:/queued"), true,
+        XCTAssertEqual(snap?.subscriptions.contains("ahp-session:/queued"), true,
                        "subscription should survive into the new connection")
 
         await multi.shutdown()

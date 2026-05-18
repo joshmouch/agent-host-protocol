@@ -3,6 +3,21 @@ import CryptoKit
 import Foundation
 import Network
 
+// MARK: - AHPNotification
+
+/// Protocol notification delivered to the store via `onNotification`.
+///
+/// The pre-channels `ProtocolNotification` union is gone; each notification
+/// is now its own top-level JSON-RPC method whose params carry a
+/// `channel: URI` field. This enum re-unions the four notification kinds
+/// so callers can branch on them without juggling four separate callbacks.
+enum AHPNotification: Sendable {
+    case sessionAdded(SessionAddedParams)
+    case sessionRemoved(SessionRemovedParams)
+    case sessionSummaryChanged(SessionSummaryChangedParams)
+    case authRequired(AuthRequiredParams)
+}
+
 // MARK: - AHPConnection
 
 protocol AHPWebSocketTransport: Actor {
@@ -79,7 +94,7 @@ actor AHPConnection {
     /// Callback invoked on the MainActor when a server action envelope arrives.
     var onAction: (@MainActor (ActionEnvelope) -> Void)?
     /// Callback invoked on the MainActor when a protocol notification arrives.
-    var onNotification: (@MainActor (ProtocolNotification) -> Void)?
+    var onNotification: (@MainActor (AHPNotification) -> Void)?
     /// Callback invoked on the MainActor when the connection state changes.
     var onStateChange: (@MainActor (ConnectionState) -> Void)?
     /// Callback invoked on the MainActor when the transport drops unexpectedly (not from a
@@ -114,6 +129,7 @@ actor AHPConnection {
 
     private struct PendingOutboundAction: Sendable {
         let clientSeq: Int
+        let channel: String
         let action: StateAction
     }
 
@@ -139,7 +155,7 @@ actor AHPConnection {
         onAction = callback
     }
 
-    func setOnNotification(_ callback: @escaping @MainActor (ProtocolNotification) -> Void) {
+    func setOnNotification(_ callback: @escaping @MainActor (AHPNotification) -> Void) {
         onNotification = callback
     }
 
@@ -165,13 +181,14 @@ actor AHPConnection {
             await installWebSocket(ws)
 
             let params = InitializeParams(
+                channel: "ahp-root://",
                 protocolVersions: ["0.2.0"],
                 clientId: clientId,
-                initialSubscriptions: ["agenthost:/root"]
+                initialSubscriptions: ["ahp-root://"]
             )
             let result: InitializeResult = try await sendRequest(method: "initialize", params: params)
             serverSeq = result.serverSeq
-            subscriptions = ["agenthost:/root"]
+            subscriptions = ["ahp-root://"]
 
             await setState(.connected)
             try await replayPendingOutboundActions()
@@ -223,6 +240,7 @@ actor AHPConnection {
             await installWebSocket(ws)
 
             let params = ReconnectParams(
+                channel: "ahp-root://",
                 clientId: clientId,
                 lastSeenServerSeq: serverSeq,
                 subscriptions: subscriptions
@@ -251,11 +269,16 @@ actor AHPConnection {
 
     // MARK: - Commands
 
-    /// Subscribe to a resource URI and return the snapshot.
-    func subscribe(resource: String) async throws -> Snapshot {
+    /// Subscribe to a channel URI and return the snapshot (if any).
+    ///
+    /// For stateful channels (root/session/terminal/changeset), the server
+    /// returns a snapshot describing current state. For stateless channels
+    /// the snapshot is omitted. Callers that pre-suppose a stateful channel
+    /// SHOULD treat a `nil` snapshot as an error.
+    func subscribe(resource: String) async throws -> Snapshot? {
         let result: SubscribeResult = try await sendRequest(
             method: "subscribe",
-            params: SubscribeParams(resource: resource)
+            params: SubscribeParams(channel: resource)
         )
         if !subscriptions.contains(resource) {
             subscriptions.append(resource)
@@ -263,11 +286,11 @@ actor AHPConnection {
         return result.snapshot
     }
 
-    /// Unsubscribe from a resource URI (fire-and-forget notification).
+    /// Unsubscribe from a channel URI (fire-and-forget notification).
     func unsubscribe(resource: String) async throws {
         subscriptions.removeAll { $0 == resource }
         let notification = AHPClientNotifications.unsubscribe(
-            params: UnsubscribeParams(resource: resource)
+            params: UnsubscribeParams(channel: resource)
         )
         try await sendNotification(notification)
     }
@@ -281,7 +304,7 @@ actor AHPConnection {
     func disposeSession(session: String) async throws {
         let _: AnyCodable? = try await sendRequest(
             method: "disposeSession",
-            params: DisposeSessionParams(session: session)
+            params: DisposeSessionParams(channel: session)
         )
     }
 
@@ -294,7 +317,7 @@ actor AHPConnection {
     func disposeTerminal(terminal: String) async throws {
         let _: AnyCodable? = try await sendRequest(
             method: "disposeTerminal",
-            params: DisposeTerminalParams(terminal: terminal)
+            params: DisposeTerminalParams(channel: terminal)
         )
     }
 
@@ -302,7 +325,7 @@ actor AHPConnection {
     func listSessions() async throws -> [SessionSummary] {
         let result: ListSessionsResult = try await sendRequest(
             method: "listSessions",
-            params: ListSessionsParams()
+            params: ListSessionsParams(channel: "ahp-root://")
         )
         return result.items
     }
@@ -311,7 +334,7 @@ actor AHPConnection {
     func fetchTurns(session: String, before: String? = nil, limit: Int? = nil) async throws -> FetchTurnsResult {
         try await sendRequest(
             method: "fetchTurns",
-            params: FetchTurnsParams(session: session, before: before, limit: limit)
+            params: FetchTurnsParams(channel: session, before: before, limit: limit)
         )
     }
 
@@ -319,15 +342,15 @@ actor AHPConnection {
     func fetchContent(uri: String, encoding: ContentEncoding? = nil) async throws -> ResourceReadResult {
         try await sendRequest(
             method: "resourceRead",
-            params: ResourceReadParams(uri: uri, encoding: encoding)
+            params: ResourceReadParams(channel: "ahp-root://", uri: uri, encoding: encoding)
         )
     }
 
-    /// Dispatch a state action to the server.
-    func dispatchAction(_ action: StateAction) async throws {
+    /// Dispatch a state action to the server on `channel`.
+    func dispatchAction(_ action: StateAction, channel: String) async throws {
         let seq = nextSeq()
-        pendingOutboundActions.append(PendingOutboundAction(clientSeq: seq, action: action))
-        try await sendDispatchAction(clientSeq: seq, action: action)
+        pendingOutboundActions.append(PendingOutboundAction(clientSeq: seq, channel: channel, action: action))
+        try await sendDispatchAction(clientSeq: seq, channel: channel, action: action)
     }
 
     // MARK: - Private: JSON-RPC
@@ -386,9 +409,9 @@ actor AHPConnection {
         }
     }
 
-    private func sendDispatchAction(clientSeq: Int, action: StateAction) async throws {
+    private func sendDispatchAction(clientSeq: Int, channel: String, action: StateAction) async throws {
         let notification = AHPClientNotifications.dispatchAction(
-            params: DispatchActionParams(clientSeq: clientSeq, action: action)
+            params: DispatchActionParams(channel: channel, clientSeq: clientSeq, action: action)
         )
         try await sendNotification(notification)
     }
@@ -479,23 +502,57 @@ actor AHPConnection {
                     print("[AHP] ERROR: Failed to decode action envelope: \(error)")
                     print("[AHP]   Raw data: \(String(data: data.prefix(1000), encoding: .utf8) ?? "<binary>")")
                 }
-            case "notification":
-                do {
-                    let note = try decoder.decode(
-                        JsonRpcNotification<NotificationMethodParams>.self,
-                        from: data
-                    )
-                    if let callback = onNotification {
-                        let notification = note.params.notification
-                        Task { @MainActor in callback(notification) }
-                    }
-                } catch {
-                    print("[AHP] ERROR: Failed to decode notification: \(error)")
-                    print("[AHP]   Raw data: \(String(data: data.prefix(1000), encoding: .utf8) ?? "<binary>")")
-                }
+            case "root/sessionAdded":
+                decodeAndDispatchNotification(
+                    data: data,
+                    type: SessionAddedParams.self,
+                    wrap: AHPNotification.sessionAdded
+                )
+            case "root/sessionRemoved":
+                decodeAndDispatchNotification(
+                    data: data,
+                    type: SessionRemovedParams.self,
+                    wrap: AHPNotification.sessionRemoved
+                )
+            case "root/sessionSummaryChanged":
+                decodeAndDispatchNotification(
+                    data: data,
+                    type: SessionSummaryChangedParams.self,
+                    wrap: AHPNotification.sessionSummaryChanged
+                )
+            case "auth/required":
+                decodeAndDispatchNotification(
+                    data: data,
+                    type: AuthRequiredParams.self,
+                    wrap: AHPNotification.authRequired
+                )
             default:
                 print("[AHP] Unknown method: \(method)")
             }
+        }
+    }
+
+    /// Decode `JsonRpcNotification<P>` from a raw frame and hand the wrapped
+    /// `AHPNotification` to the `onNotification` callback. Errors are logged
+    /// but not propagated — failing to decode one notification frame should
+    /// not tear down the receive loop.
+    private func decodeAndDispatchNotification<P: Codable & Sendable>(
+        data: Data,
+        type: P.Type,
+        wrap: @Sendable @escaping (P) -> AHPNotification
+    ) {
+        do {
+            let note = try decoder.decode(
+                JsonRpcNotification<P>.self,
+                from: data
+            )
+            if let callback = onNotification {
+                let event = wrap(note.params)
+                Task { @MainActor in callback(event) }
+            }
+        } catch {
+            print("[AHP] ERROR: Failed to decode notification: \(error)")
+            print("[AHP]   Raw data: \(String(data: data.prefix(1000), encoding: .utf8) ?? "<binary>")")
         }
     }
 
@@ -534,7 +591,7 @@ actor AHPConnection {
 
     private func replayPendingOutboundActions() async throws {
         for pending in pendingOutboundActions {
-            try await sendDispatchAction(clientSeq: pending.clientSeq, action: pending.action)
+            try await sendDispatchAction(clientSeq: pending.clientSeq, channel: pending.channel, action: pending.action)
         }
     }
 

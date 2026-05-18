@@ -8,7 +8,6 @@
   "actions": [
     {
       "type": "changeset/statusChanged",
-      "changeset": "copilot:/abc/changeset/session",
       "status": "error",
       "error": { "errorType": "git", "message": "fatal: not a git repository" }
     }

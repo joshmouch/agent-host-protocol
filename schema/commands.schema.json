@@ -5,10 +5,29 @@
   "title": "AHP Command Types",
   "description": "All command parameter and result types in the Agent Host Protocol.",
   "$defs": {
+    "BaseParams": {
+      "type": "object",
+      "description": "Base shape every command's params extends.\n\n`channel` identifies the channel the command targets, mirroring the\n`channel` field on every protocol notification. For commands that operate\non a specific channel (a session, terminal, or changeset), `channel` is\nthat channel's URI. For commands that are connection-level rather than\nchannel-scoped (e.g. {@link InitializeParams | `initialize`},\n{@link PingParams | `ping`}, {@link ListSessionsParams | `listSessions`},\nthe `resource*` filesystem commands, and {@link AuthenticateParams |\n`authenticate`}), the params type narrows `channel` to the literal\nroot URI `'ahp-root://'`.\n\nThis invariant lets implementations route every incoming message —\nrequest, response, or notification — by inspecting `params.channel`\nwithout needing to know the per-method param shape.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this command targets."
+        }
+      },
+      "required": [
+        "channel"
+      ]
+    },
     "InitializeParams": {
       "type": "object",
       "description": "Establishes a new connection and negotiates the protocol version.\nThis MUST be the first message sent by the client.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "protocolVersions": {
           "type": "array",
           "items": {
@@ -33,6 +52,7 @@
         }
       },
       "required": [
+        "channel",
         "protocolVersions",
         "clientId"
       ]
@@ -77,12 +97,28 @@
     "PingParams": {
       "type": "object",
       "description": "Verifies that the AHP connection is still alive and keeps it from being\nclosed by idle-timeout intermediaries (proxies, load balancers, etc.).\n\nThe server MUST respond regardless of whether the client has completed\n`initialize` or holds any subscriptions. Ping carries no payload in either\ndirection; the response itself is the signal.",
-      "properties": {}
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ReconnectParams": {
       "type": "object",
       "description": "Re-establishes a dropped connection. The server replays missed actions or\nprovides fresh snapshots.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "clientId": {
           "type": "string",
           "description": "Client identifier from the original connection"
@@ -100,6 +136,7 @@
         }
       },
       "required": [
+        "channel",
         "clientId",
         "lastSeenServerSeq",
         "subscriptions"
@@ -157,33 +194,30 @@
     },
     "SubscribeParams": {
       "type": "object",
-      "description": "Subscribe to a URI-identified state resource.",
+      "description": "Subscribe to a URI-identified channel.\n\nA channel MAY have state associated with it (e.g. root, sessions,\nterminals) or be stateless (pure pub/sub for streaming data). For\nstate-bearing channels the result includes a snapshot; for stateless\nchannels `snapshot` is omitted.",
       "properties": {
-        "resource": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "URI to subscribe to"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "resource"
+        "channel"
       ]
     },
     "SubscribeResult": {
       "type": "object",
-      "description": "Result of the `subscribe` command.",
+      "description": "Result of the `subscribe` command.\n\n`snapshot` is present when the subscribed channel has associated state, and\nabsent for stateless channels.",
       "properties": {
         "snapshot": {
           "$ref": "#/$defs/Snapshot",
-          "description": "Snapshot of the subscribed resource"
+          "description": "Snapshot of the subscribed channel's state (omitted for stateless channels)"
         }
-      },
-      "required": [
-        "snapshot"
-      ]
+      }
     },
     "SessionForkSource": {
       "type": "object",
-      "description": "Creates a new session with the specified agent provider.\n\nIf the session URI already exists, the server MUST return an error with code\n`-32003` (`SessionAlreadyExists`).\n\nAfter creation, the client should subscribe to the session URI to receive state\nupdates. The server also broadcasts a `notify/sessionAdded` notification to all\nclients.",
+      "description": "Creates a new session with the specified agent provider.\n\nIf the session URI already exists, the server MUST return an error with code\n`-32003` (`SessionAlreadyExists`).\n\nAfter creation, the client should subscribe to the session URI to receive state\nupdates. The server also broadcasts a `root/sessionAdded` notification to all\nclients.",
       "properties": {
         "session": {
           "$ref": "#/$defs/URI",
@@ -202,9 +236,9 @@
     "CreateSessionParams": {
       "type": "object",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Session URI (client-chosen, e.g. `copilot:/<uuid>`)"
+          "description": "Session URI (client-chosen, e.g. `ahp-session:/<uuid>`)"
         },
         "provider": {
           "type": "string",
@@ -233,29 +267,29 @@
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "DisposeSessionParams": {
       "type": "object",
-      "description": "Disposes a session and cleans up server-side resources.\n\nThe server broadcasts a `notify/sessionRemoved` notification to all clients.",
+      "description": "Disposes a session and cleans up server-side resources.\n\nThe server broadcasts a `root/sessionRemoved` notification to all clients.",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Session URI to dispose"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "CreateTerminalParams": {
       "type": "object",
       "description": "Creates a new terminal on the server.\n\nAfter creation, the client should subscribe to the terminal URI to receive\nstate updates. The server dispatches `root/terminalsChanged` to update the\nroot terminal list.",
       "properties": {
-        "terminal": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Terminal URI (client-chosen)"
+          "description": "Terminal URI (client-chosen)."
         },
         "claim": {
           "$ref": "#/$defs/TerminalClaim",
@@ -279,7 +313,7 @@
         }
       },
       "required": [
-        "terminal",
+        "channel",
         "claim"
       ]
     },
@@ -287,24 +321,33 @@
       "type": "object",
       "description": "Disposes a terminal and kills its process if still running.\n\nThe server dispatches `root/terminalsChanged` to remove the terminal from\nthe root terminal list.",
       "properties": {
-        "terminal": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Terminal URI to dispose"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "terminal"
+        "channel"
       ]
     },
     "ListSessionsParams": {
       "type": "object",
-      "description": "Returns a list of session summaries. Used to populate session lists and sidebars.\n\nThe session list is **not** part of the state tree because it can be arbitrarily\nlarge. Clients fetch it imperatively and maintain a local cache updated by\n`notify/sessionAdded` and `notify/sessionRemoved` notifications.",
+      "description": "Returns a list of session summaries. Used to populate session lists and sidebars.\n\nThe session list is **not** part of the state tree because it can be arbitrarily\nlarge. Clients fetch it imperatively and maintain a local cache updated by\n`root/sessionAdded` and `root/sessionRemoved` notifications.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "filter": {
           "type": "object",
           "description": "Optional filter criteria"
         }
-      }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ListSessionsResult": {
       "type": "object",
@@ -326,6 +369,12 @@
       "type": "object",
       "description": "Reads the content of a resource by URI.\n\nContent references keep the state tree small by storing large data (images,\nlong tool outputs) by reference rather than inline.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "type": "string",
           "description": "Content URI from a `ContentRef`"
@@ -336,6 +385,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -365,6 +415,12 @@
       "type": "object",
       "description": "Writes content to a file on the server's filesystem.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.\n\nIf the file does not exist, it is created. If the file already exists, it is\noverwritten unless `createOnly` is set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Target file URI on the server filesystem"
@@ -387,6 +443,7 @@
         }
       },
       "required": [
+        "channel",
         "uri",
         "data",
         "encoding"
@@ -401,12 +458,19 @@
       "type": "object",
       "description": "Lists directory entries at a file URI on the server's filesystem.\n\nThis is intended for remote folder pickers and similar UI that needs to let\nusers navigate the server's local filesystem.\n\nThe server MUST return success only if the target exists and is a directory.\nIf the target does not exist, is not a directory, or cannot be accessed, the\nserver MUST return a JSON-RPC error.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Directory URI on the server filesystem"
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -452,7 +516,7 @@
       "type": "object",
       "description": "Fetches historical turns for a session. Used for lazy loading of conversation\nhistory.",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
           "description": "Session URI"
         },
@@ -466,7 +530,7 @@
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "FetchTurnsResult": {
@@ -492,21 +556,25 @@
     },
     "UnsubscribeParams": {
       "type": "object",
-      "description": "Stop receiving updates for a URI.",
+      "description": "Stop receiving updates for a channel.",
       "properties": {
-        "resource": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "URI to unsubscribe from"
+          "description": "Channel URI to unsubscribe from"
         }
       },
       "required": [
-        "resource"
+        "channel"
       ]
     },
     "DispatchActionParams": {
       "type": "object",
-      "description": "Fire-and-forget action dispatch (write-ahead). The client applies actions\noptimistically to local state.",
+      "description": "Fire-and-forget action dispatch (write-ahead). The client applies actions\noptimistically to local state and the server echoes them back as an\n{@link ActionEnvelope} once accepted.\n\nThe client → server method is named `dispatchAction`; the server's reply\narrives on the server → client `action` notification (params:\n{@link ActionEnvelope}).",
       "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this action targets"
+        },
         "clientSeq": {
           "type": "number",
           "description": "Client sequence number"
@@ -517,6 +585,7 @@
         }
       },
       "required": [
+        "channel",
         "clientSeq",
         "action"
       ]
@@ -525,6 +594,12 @@
       "type": "object",
       "description": "Copies a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "source": {
           "$ref": "#/$defs/URI",
           "description": "Source URI to copy from"
@@ -539,6 +614,7 @@
         }
       },
       "required": [
+        "channel",
         "source",
         "destination"
       ]
@@ -552,6 +628,12 @@
       "type": "object",
       "description": "Deletes a resource at a URI on the server's filesystem.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "URI of the resource to delete"
@@ -562,6 +644,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -574,6 +657,12 @@
       "type": "object",
       "description": "Requests permission to access a resource on the receiver's filesystem.\n\n`resourceRequest` is symmetrical and MAY be sent in either direction: a\nclient asks the server to grant access to a server-side resource, or a\nserver asks the client to grant access to a client-side resource. The\nreceiver decides whether to allow, deny, or prompt the user for the\nrequested access.\n\nIf the receiver denies access, it MUST respond with `PermissionDenied`\n(-32009). The error data MAY include a `ResourceRequestParams` value\ndescribing the access the caller would need to be granted for the\noperation to succeed; see `PermissionDeniedErrorData` in\n`types/errors.ts`.\n\nAfter a successful `resourceRequest`, the caller MAY use the corresponding\n`resource*` commands (e.g. `resourceRead`, `resourceWrite`) to perform the\noperation. Receivers MAY rescind access at any time by returning\n`PermissionDenied` on subsequent operations.\n\nEither `read`, `write`, or both SHOULD be set to `true`. A request with\nneither flag set is treated as `read: true` by receivers.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Resource URI being requested. Typically a `file:` URI on the receiver's\nfilesystem, but any URI scheme that the receiver mediates access to is\nallowed."
@@ -588,6 +677,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -600,6 +690,12 @@
       "type": "object",
       "description": "Moves (renames) a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "source": {
           "$ref": "#/$defs/URI",
           "description": "Source URI to move from"
@@ -614,6 +710,7 @@
         }
       },
       "required": [
+        "channel",
         "source",
         "destination"
       ]
@@ -627,6 +724,12 @@
       "type": "object",
       "description": "Pushes a Bearer token for a protected resource. The `resource` field MUST\nmatch a `ProtectedResourceMetadata.resource` value declared by an agent\nin `AgentInfo.protectedResources`.\n\nTokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)\n(Bearer Token Usage) semantics. The client obtains the token from the\nauthorization server(s) listed in the resource's metadata and pushes it\nto the server via this command.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "resource": {
           "type": "string",
           "description": "The protected resource identifier. MUST match a `resource` value from\n`ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`."
@@ -637,6 +740,7 @@
         }
       },
       "required": [
+        "channel",
         "resource",
         "token"
       ]
@@ -650,6 +754,12 @@
       "type": "object",
       "description": "Iteratively resolves the session configuration schema. The client sends the\ncurrent partial session config and any user-filled metadata values. The server\nreturns a property schema describing what additional metadata is needed,\ncontextual to the current selections.\n\nThe client calls this command whenever the user changes a significant input\n(e.g. picks a working directory, toggles a property). Each response returns\nthe full current property set (not a delta). The returned `values` contain\nserver-resolved defaults to pass to `createSession`.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "provider": {
           "type": "string",
           "description": "Agent provider ID"
@@ -663,7 +773,10 @@
           "additionalProperties": {},
           "description": "Current user-filled configuration values"
         }
-      }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ResolveSessionConfigResult": {
       "type": "object",
@@ -710,6 +823,12 @@
       "type": "object",
       "description": "Queries the server for allowed values of a dynamic session config property.\n\nUsed when a property in the schema returned by `resolveSessionConfig` has\n`enumDynamic: true`. The client sends a search query and receives matching\nvalues with display metadata.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "provider": {
           "type": "string",
           "description": "Agent provider ID"
@@ -733,6 +852,7 @@
         }
       },
       "required": [
+        "channel",
         "property"
       ]
     },
@@ -756,13 +876,13 @@
       "type": "object",
       "description": "Requests completion items for a partially-typed input (e.g. a user message\nthe user is currently composing). Used to power `@`-mention pickers,\nfile/symbol references, and similar inline-completion experiences.\n\nServers SHOULD treat this command as best-effort and return promptly. The\nclient SHOULD debounce calls to avoid flooding the server with requests on\nevery keystroke.",
       "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "The session URI the completion is being requested for."
+        },
         "kind": {
           "$ref": "#/$defs/CompletionItemKind",
           "description": "What kind of completion is being requested."
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "The session URI the completion is being requested for."
         },
         "text": {
           "type": "string",
@@ -774,8 +894,8 @@
         }
       },
       "required": [
+        "channel",
         "kind",
-        "session",
         "text",
         "offset"
       ]
@@ -842,7 +962,7 @@
       "type": "object",
       "description": "Invokes a server-defined {@link ChangesetOperation} against a changeset,\na single file, or a line range.\n\nThe server validates that `operationId` exists in the changeset's\ncurrent `operations` list and that the requested `target.kind` is\ncontained in the operation's `scopes`. Invalid combinations result in a\nJSON-RPC error.\n\nState changes resulting from invocation flow back through the normal\n`changeset/*` action stream on the relevant changeset URIs. Clients\nSHOULD NOT synthesise local optimistic changes for invocations unless\nthe server explicitly opts in via a future capability.",
       "properties": {
-        "changeset": {
+        "channel": {
           "$ref": "#/$defs/URI",
           "description": "The expanded changeset URI."
         },
@@ -856,7 +976,7 @@
         }
       },
       "required": [
-        "changeset",
+        "channel",
         "operationId"
       ]
     },
@@ -987,7 +1107,7 @@
     },
     "RootState": {
       "type": "object",
-      "description": "Global state shared with every client subscribed to `agenthost:/root`.",
+      "description": "Global state shared with every client subscribed to `ahp-root://`.",
       "properties": {
         "agents": {
           "type": "array",
@@ -3737,7 +3857,7 @@
       "properties": {
         "resource": {
           "$ref": "#/$defs/URI",
-          "description": "The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)"
+          "description": "The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)"
         },
         "state": {
           "oneOf": [
@@ -3785,8 +3905,12 @@
     },
     "ActionEnvelope": {
       "type": "object",
-      "description": "Every action is wrapped in an `ActionEnvelope`.",
+      "description": "Every action is wrapped in an `ActionEnvelope`.\n\nThe envelope identifies the channel the action belongs to (e.g.\n`ahp-root://` for root actions, the session URI for session actions, the\nterminal URI for terminal actions). Individual action payloads carry only\nfields that are intrinsic to the action; the channel comes from the\nenvelope so that any subscribable resource can route its actions uniformly.",
       "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this action belongs to."
+        },
         "action": {
           "$ref": "#/$defs/StateAction"
         },
@@ -3801,6 +3925,7 @@
         }
       },
       "required": [
+        "channel",
         "action",
         "serverSeq",
         "origin"
@@ -3808,12 +3933,8 @@
     },
     "ToolCallActionBase": {
       "type": "object",
-      "description": "Base interface for all tool-call-scoped actions, carrying the common\nsession, turn, and tool call identifiers.",
+      "description": "Base interface for all tool-call-scoped actions, carrying the common turn\nand tool call identifiers. The owning session URI is identified by the\nenclosing {@link ActionEnvelope}'s `channel` field.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -3829,7 +3950,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId"
       ]
@@ -3919,15 +4039,10 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionReady"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         }
       },
       "required": [
-        "type",
-        "session"
+        "type"
       ]
     },
     "SessionCreationFailedAction": {
@@ -3937,10 +4052,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionCreationFailed"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "error": {
           "$ref": "#/$defs/ErrorInfo",
           "description": "Error details"
@@ -3948,7 +4059,6 @@
       },
       "required": [
         "type",
-        "session",
         "error"
       ]
     },
@@ -3958,10 +4068,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionTurnStarted"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "turnId": {
           "type": "string",
@@ -3978,7 +4084,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "userMessage"
       ]
@@ -3989,10 +4094,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionDelta"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "turnId": {
           "type": "string",
@@ -4009,7 +4110,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "partId",
         "content"
@@ -4022,10 +4122,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionResponsePart"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4037,7 +4133,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "part"
       ]
@@ -4046,10 +4141,6 @@
       "type": "object",
       "description": "A tool call begins — parameters are streaming from the LM.\n\nFor client-provided tools, the server sets `toolClientId` to identify the\nowning client. That client is responsible for executing the tool once it\nreaches the `running` state and dispatching `session/toolCallComplete`.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4080,7 +4171,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4092,10 +4182,6 @@
       "type": "object",
       "description": "Streaming partial parameters for a tool call.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4122,7 +4208,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4133,10 +4218,6 @@
       "type": "object",
       "description": "Tool call parameters are complete, or a running tool requires re-confirmation.\n\nWhen dispatched for a `streaming` tool call, transitions to `pending-confirmation`\nor directly to `running` if `confirmed` is set.\n\nWhen dispatched for a `running` tool call (e.g. mid-execution permission needed),\ntransitions back to `pending-confirmation`. The `invocationMessage` and `_meta`\nSHOULD be updated to describe the specific confirmation needed. Clients use the\nstandard `session/toolCallConfirmed` flow to approve or deny.\n\nFor client-provided tools, the server typically sets `confirmed` to\n`'not-needed'` so the tool transitions directly to `running`, where the\nowning client can begin execution immediately.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4194,7 +4275,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4205,10 +4285,6 @@
       "type": "object",
       "description": "Client approves a pending tool call. The tool transitions to `running`.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4242,7 +4318,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4254,10 +4329,6 @@
       "type": "object",
       "description": "Client denies a pending tool call. The tool transitions to `cancelled`.\n\nFor client-provided tools, the owning client MUST dispatch this if it does\nnot recognize the tool or cannot execute it.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4302,7 +4373,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4314,10 +4384,6 @@
       "type": "object",
       "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action with the execution result. The server\nSHOULD reject this action if the dispatching client does not match `toolClientId`.\n\nServers waiting on a client tool call MAY time out after a reasonable duration\nif the implementing client disconnects or becomes unresponsive, and dispatch\nthis action with `result.success = false` and an appropriate error.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4344,7 +4410,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4355,10 +4420,6 @@
       "type": "object",
       "description": "Client approves or denies a tool's result.\n\nIf `approved` is `false`, the tool transitions to `cancelled` with reason `result-denied`.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4381,7 +4442,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4392,10 +4452,6 @@
       "type": "object",
       "description": "Partial content produced while a tool is still executing.\n\nReplaces the `content` array on the running tool call state. Clients can\nuse this to display live feedback (e.g. a terminal reference) before the\ntool completes.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action to stream intermediate content while\nexecuting. The server SHOULD reject this action if the dispatching client does\nnot match `toolClientId`.",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4421,7 +4477,6 @@
         }
       },
       "required": [
-        "session",
         "turnId",
         "toolCallId",
         "type",
@@ -4435,10 +4490,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionTurnComplete"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4446,7 +4497,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId"
       ]
     },
@@ -4457,10 +4507,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionTurnCancelled"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
@@ -4468,7 +4514,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId"
       ]
     },
@@ -4478,10 +4523,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionError"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "turnId": {
           "type": "string",
@@ -4494,7 +4535,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "error"
       ]
@@ -4506,10 +4546,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionTitleChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "title": {
           "type": "string",
           "description": "New title"
@@ -4517,7 +4553,6 @@
       },
       "required": [
         "type",
-        "session",
         "title"
       ]
     },
@@ -4527,10 +4562,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionUsage"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "turnId": {
           "type": "string",
@@ -4543,7 +4574,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "usage"
       ]
@@ -4554,10 +4584,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionReasoning"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "turnId": {
           "type": "string",
@@ -4574,7 +4600,6 @@
       },
       "required": [
         "type",
-        "session",
         "turnId",
         "partId",
         "content"
@@ -4587,10 +4612,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionModelChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "model": {
           "$ref": "#/$defs/ModelSelection",
           "description": "New model selection"
@@ -4598,7 +4619,6 @@
       },
       "required": [
         "type",
-        "session",
         "model"
       ]
     },
@@ -4609,10 +4629,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionIsReadChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "isRead": {
           "type": "boolean",
           "description": "Whether the session has been read"
@@ -4620,7 +4636,6 @@
       },
       "required": [
         "type",
-        "session",
         "isRead"
       ]
     },
@@ -4631,10 +4646,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionIsArchivedChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "isArchived": {
           "type": "boolean",
           "description": "Whether the session is archived"
@@ -4642,7 +4653,6 @@
       },
       "required": [
         "type",
-        "session",
         "isArchived"
       ]
     },
@@ -4653,10 +4663,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionActivityChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "activity": {
           "type": "string",
           "description": "Human-readable description of current activity, or `undefined` to clear"
@@ -4664,7 +4670,6 @@
       },
       "required": [
         "type",
-        "session",
         "activity"
       ]
     },
@@ -4674,10 +4679,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "changesets": {
           "type": "array",
@@ -4689,7 +4690,6 @@
       },
       "required": [
         "type",
-        "session",
         "changesets"
       ]
     },
@@ -4699,10 +4699,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionServerToolsChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "tools": {
           "type": "array",
@@ -4714,7 +4710,6 @@
       },
       "required": [
         "type",
-        "session",
         "tools"
       ]
     },
@@ -4724,10 +4719,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionActiveClientChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "activeClient": {
           "oneOf": [
@@ -4741,7 +4732,6 @@
       },
       "required": [
         "type",
-        "session",
         "activeClient"
       ]
     },
@@ -4751,10 +4741,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionActiveClientToolsChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "tools": {
           "type": "array",
@@ -4766,7 +4752,6 @@
       },
       "required": [
         "type",
-        "session",
         "tools"
       ]
     },
@@ -4776,10 +4761,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionCustomizationsChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "customizations": {
           "type": "array",
@@ -4791,7 +4772,6 @@
       },
       "required": [
         "type",
-        "session",
         "customizations"
       ]
     },
@@ -4801,10 +4781,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionCustomizationToggled"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "uri": {
           "$ref": "#/$defs/URI",
@@ -4817,7 +4793,6 @@
       },
       "required": [
         "type",
-        "session",
         "uri",
         "enabled"
       ]
@@ -4828,10 +4803,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionCustomizationUpdated"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "customization": {
           "$ref": "#/$defs/CustomizationRef",
@@ -4852,7 +4823,6 @@
       },
       "required": [
         "type",
-        "session",
         "customization"
       ]
     },
@@ -4862,10 +4832,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionConfigChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "config": {
           "type": "object",
@@ -4879,7 +4845,6 @@
       },
       "required": [
         "type",
-        "session",
         "config"
       ]
     },
@@ -4890,10 +4855,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionMetaChanged"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
@@ -4902,7 +4863,6 @@
       },
       "required": [
         "type",
-        "session",
         "_meta"
       ]
     },
@@ -4913,18 +4873,13 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionTruncated"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "turnId": {
           "type": "string",
           "description": "Keep turns up to and including this turn. Omit to clear all turns."
         }
       },
       "required": [
-        "type",
-        "session"
+        "type"
       ]
     },
     "SessionPendingMessageSetAction": {
@@ -4933,10 +4888,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionPendingMessageSet"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "kind": {
           "$ref": "#/$defs/PendingMessageKind",
@@ -4953,7 +4904,6 @@
       },
       "required": [
         "type",
-        "session",
         "kind",
         "id",
         "userMessage"
@@ -4966,10 +4916,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionPendingMessageRemoved"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "kind": {
           "$ref": "#/$defs/PendingMessageKind",
           "description": "Whether this is a steering or queued message"
@@ -4981,7 +4927,6 @@
       },
       "required": [
         "type",
-        "session",
         "kind",
         "id"
       ]
@@ -4993,10 +4938,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionQueuedMessagesReordered"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "order": {
           "type": "array",
           "items": {
@@ -5007,7 +4948,6 @@
       },
       "required": [
         "type",
-        "session",
         "order"
       ]
     },
@@ -5018,10 +4958,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.SessionInputRequested"
         },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
-        },
         "request": {
           "$ref": "#/$defs/SessionInputRequest",
           "description": "Input request to create or replace"
@@ -5029,7 +4965,6 @@
       },
       "required": [
         "type",
-        "session",
         "request"
       ]
     },
@@ -5039,10 +4974,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionInputAnswerChanged"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "requestId": {
           "type": "string",
@@ -5059,7 +4990,6 @@
       },
       "required": [
         "type",
-        "session",
         "requestId",
         "questionId"
       ]
@@ -5070,10 +5000,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionInputCompleted"
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "Session URI"
         },
         "requestId": {
           "type": "string",
@@ -5093,7 +5019,6 @@
       },
       "required": [
         "type",
-        "session",
         "requestId",
         "response"
       ]
@@ -5105,10 +5030,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalData"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "data": {
           "type": "string",
           "description": "Output data (may contain ANSI escape sequences)"
@@ -5116,7 +5037,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "data"
       ]
     },
@@ -5127,10 +5047,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalInput"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "data": {
           "type": "string",
           "description": "Input data to send to the pty"
@@ -5138,7 +5054,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "data"
       ]
     },
@@ -5148,10 +5063,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.TerminalResized"
-        },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
         },
         "cols": {
           "type": "number",
@@ -5164,7 +5075,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "cols",
         "rows"
       ]
@@ -5176,10 +5086,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalClaimed"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "claim": {
           "$ref": "#/$defs/TerminalClaim",
           "description": "The new claim"
@@ -5187,7 +5093,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "claim"
       ]
     },
@@ -5198,10 +5103,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalTitleChanged"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "title": {
           "type": "string",
           "description": "New terminal title"
@@ -5209,7 +5110,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "title"
       ]
     },
@@ -5220,10 +5120,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalCwdChanged"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "cwd": {
           "$ref": "#/$defs/URI",
           "description": "New working directory"
@@ -5231,7 +5127,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "cwd"
       ]
     },
@@ -5242,18 +5137,13 @@
         "type": {
           "$ref": "#/$defs/ActionType.TerminalExited"
         },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
-        },
         "exitCode": {
           "type": "number",
           "description": "Process exit code. `undefined` if the process was killed without an exit code."
         }
       },
       "required": [
-        "type",
-        "terminal"
+        "type"
       ]
     },
     "TerminalClearedAction": {
@@ -5262,15 +5152,10 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.TerminalCleared"
-        },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
         }
       },
       "required": [
-        "type",
-        "terminal"
+        "type"
       ]
     },
     "TerminalCommandDetectionAvailableAction": {
@@ -5279,15 +5164,10 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.TerminalCommandDetectionAvailable"
-        },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
         }
       },
       "required": [
-        "type",
-        "terminal"
+        "type"
       ]
     },
     "TerminalCommandExecutedAction": {
@@ -5296,10 +5176,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.TerminalCommandExecuted"
-        },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
         },
         "commandId": {
           "type": "string",
@@ -5316,7 +5192,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "commandId",
         "commandLine",
         "timestamp"
@@ -5328,10 +5203,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.TerminalCommandFinished"
-        },
-        "terminal": {
-          "$ref": "#/$defs/URI",
-          "description": "Terminal URI"
         },
         "commandId": {
           "type": "string",
@@ -5348,7 +5219,6 @@
       },
       "required": [
         "type",
-        "terminal",
         "commandId"
       ]
     },
@@ -5358,10 +5228,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.ChangesetStatusChanged"
-        },
-        "changeset": {
-          "$ref": "#/$defs/URI",
-          "description": "Expanded changeset URI (matches the URI the client subscribed to)."
         },
         "status": {
           "$ref": "#/$defs/ChangesetStatus",
@@ -5374,7 +5240,6 @@
       },
       "required": [
         "type",
-        "changeset",
         "status"
       ]
     },
@@ -5385,10 +5250,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.ChangesetFileSet"
         },
-        "changeset": {
-          "$ref": "#/$defs/URI",
-          "description": "Expanded changeset URI."
-        },
         "file": {
           "$ref": "#/$defs/ChangesetFile",
           "description": "The new or replacement file entry."
@@ -5396,7 +5257,6 @@
       },
       "required": [
         "type",
-        "changeset",
         "file"
       ]
     },
@@ -5407,10 +5267,6 @@
         "type": {
           "$ref": "#/$defs/ActionType.ChangesetFileRemoved"
         },
-        "changeset": {
-          "$ref": "#/$defs/URI",
-          "description": "Expanded changeset URI."
-        },
         "fileId": {
           "type": "string",
           "description": "The {@link ChangesetFile.id} of the file to remove."
@@ -5418,7 +5274,6 @@
       },
       "required": [
         "type",
-        "changeset",
         "fileId"
       ]
     },
@@ -5428,10 +5283,6 @@
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.ChangesetOperationsChanged"
-        },
-        "changeset": {
-          "$ref": "#/$defs/URI",
-          "description": "Expanded changeset URI."
         },
         "operations": {
           "type": "array",
@@ -5443,25 +5294,19 @@
       },
       "required": [
         "type",
-        "changeset",
         "operations"
       ]
     },
     "ChangesetClearedAction": {
       "type": "object",
-      "description": "Drop every file from the changeset.\n\nTwo cases use this:\n1. The underlying source moved (branch switched, fork point invalidated,\n   …) and the server is recomputing from scratch — subsequent\n   {@link ChangesetFileSetAction} entries will repopulate it.\n2. The owning session has ended and the URI is becoming\n   un-subscribable — the server will unsubscribe all clients shortly\n   after dispatching this action.\n\nClients SHOULD release any references on receipt and SHOULD NOT\ndistinguish the two cases from the action alone — instead, react to\nthe corresponding session-level lifecycle signal (e.g.\n`notify/sessionRemoved`) for the \"going away\" case.",
+      "description": "Drop every file from the changeset.\n\nTwo cases use this:\n1. The underlying source moved (branch switched, fork point invalidated,\n   …) and the server is recomputing from scratch — subsequent\n   {@link ChangesetFileSetAction} entries will repopulate it.\n2. The owning session has ended and the URI is becoming\n   un-subscribable — the server will unsubscribe all clients shortly\n   after dispatching this action.\n\nClients SHOULD release any references on receipt and SHOULD NOT\ndistinguish the two cases from the action alone — instead, react to\nthe corresponding session-level lifecycle signal (e.g.\n`root/sessionRemoved`) for the \"going away\" case.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.ChangesetCleared"
-        },
-        "changeset": {
-          "$ref": "#/$defs/URI",
-          "description": "Expanded changeset URI."
         }
       },
       "required": [
-        "type",
-        "changeset"
+        "type"
       ]
     }
   }

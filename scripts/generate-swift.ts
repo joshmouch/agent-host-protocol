@@ -855,8 +855,6 @@ function generateMergedToolCallConfirmedStruct(): string {
 public struct SessionToolCallConfirmedAction: Codable, Sendable {
     /// Action type discriminant
     public var type: String
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -879,13 +877,12 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
-        case type, session, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
+        case type, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
         case meta = "_meta"
     }
 
     public init(
         type: String = "session/toolCallConfirmed",
-        session: String,
         turnId: String,
         toolCallId: String,
         approved: Bool,
@@ -898,7 +895,6 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
         meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.approved = approved
@@ -1141,22 +1137,11 @@ public struct ChangesetOperationTargetRange: Codable, Sendable {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedNotification', 'SessionRemovedNotification', 'SessionSummaryChangedNotification', 'AuthRequiredNotification',
+  'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'AuthRequiredParams',
 ];
-
-const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
-  name: 'ProtocolNotification',
-  discriminantField: 'type',
-  variants: [
-    { caseName: 'sessionAdded', structName: 'SessionAddedNotification', discriminantValue: 'notify/sessionAdded' },
-    { caseName: 'sessionRemoved', structName: 'SessionRemovedNotification', discriminantValue: 'notify/sessionRemoved' },
-    { caseName: 'sessionSummaryChanged', structName: 'SessionSummaryChangedNotification', discriminantValue: 'notify/sessionSummaryChanged' },
-    { caseName: 'authRequired', structName: 'AuthRequiredNotification', discriminantValue: 'notify/authRequired' },
-  ],
-};
 
 function generateNotificationsFile(project: Project): string {
   const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
@@ -1200,10 +1185,6 @@ function generateNotificationsFile(project: Project): string {
       }
     }
   }
-
-  lines.push('// MARK: - ProtocolNotification Union\n');
-  lines.push(generateDiscriminatedUnion(PROTOCOL_NOTIFICATION_UNION));
-  lines.push('');
 
   return lines.join('\n');
 }
@@ -1332,15 +1313,6 @@ public struct JsonRpcNotification<Params: Codable>: Codable, Sendable where Para
 
 /// Params for the server → client \`action\` notification.
 public typealias ActionNotificationParams = ActionEnvelope
-
-/// Params for the server → client \`notification\` method.
-public struct NotificationMethodParams: Codable, Sendable {
-    public let notification: ProtocolNotification
-
-    public init(notification: ProtocolNotification) {
-        self.notification = notification
-    }
-}
 
 // MARK: - AHP Command Helpers
 
@@ -1508,27 +1480,24 @@ public struct AnyCodable: Codable, Sendable, Equatable {
 // ─── Exhaustiveness Check ─────────────────────────────────────────────────────
 
 /**
- * Verifies that every type imported in types/version/v1.ts from the protocol
- * source modules (state, actions, commands, notifications) is covered by one
- * of the generator lists or a known special-cased code path.
+ * Verifies that every type exported from the protocol source modules
+ * (state, actions, commands, notifications, errors) is covered by one of
+ * the generator lists or a known special-cased code path.
  *
  * This catches the class of bug where a new type is added to the TypeScript
- * protocol and to v1.ts but the Swift generator lists are not updated.
+ * protocol but the Swift generator lists are not updated.
  */
 function checkExhaustiveness(project: Project): void {
-  const v1 = project.getSourceFiles().find(f => f.getBaseName() === 'v1.ts');
-  if (!v1) throw new Error('Could not find types/version/v1.ts in the project');
-
-  // Collect all interface/type names imported from protocol source modules.
-  // We skip messages.ts because its types (CommandMap etc.) are generated
-  // as literal Swift strings in generateMessagesFile(), not as struct lists.
-  const protocolModules = new Set(['state', 'actions', 'commands', 'notifications', 'errors']);
+  const protocolModules = ['state.ts', 'actions.ts', 'commands.ts', 'notifications.ts', 'errors.ts'];
   const imported = new Set<string>();
-  for (const decl of v1.getImportDeclarations()) {
-    const mod = decl.getModuleSpecifierValue().replace(/^\.\.\//, '').replace(/\.js$/, '');
-    if (!protocolModules.has(mod)) continue;
-    for (const named of decl.getNamedImports()) {
-      imported.add(named.getName());
+  for (const baseName of protocolModules) {
+    const sf = project.getSourceFiles().find(f => f.getBaseName() === baseName);
+    if (!sf) throw new Error(`Could not find types/${baseName} in the project`);
+    for (const decl of sf.getInterfaces()) {
+      if (decl.isExported()) imported.add(decl.getName());
+    }
+    for (const decl of sf.getTypeAliases()) {
+      if (decl.isExported()) imported.add(decl.getName());
     }
   }
 
@@ -1547,14 +1516,19 @@ function checkExhaustiveness(project: Project): void {
 
   // Types that ARE generated but via explicit non-list code paths.
   const knownSpecial = new Set<string>([
+    'URI',                          // type alias for string
+    'BaseParams',                    // marker base interface; flattened into each command params struct
     'StringOrMarkdown',              // generateStringOrMarkdown()
     'ToolCallState',                // TOOL_CALL_STATE_UNION discriminated union
     'StateAction',                  // StateAction enum in generateActionsFile()
     'ActionEnvelope',               // generateStructFromInterface() call in generateActionsFile()
     'ActionOrigin',                 // generateStructFromInterface() call in generateActionsFile()
+    'ResponsePart',                 // RESPONSE_PART_UNION discriminated union
+    'ToolResultContent',            // TOOL_RESULT_CONTENT_UNION discriminated union
     'SessionToolCallApprovedAction', // merged into SessionToolCallConfirmedAction
     'SessionToolCallDeniedAction',   // merged into SessionToolCallConfirmedAction
-    'ProtocolNotification',         // PROTOCOL_NOTIFICATION_UNION discriminated union
+    'SessionToolCallConfirmedAction', // emitted as merged variant
+    'PingParams',                    // empty interface; no Swift type emitted
     'TerminalClaim',                // TERMINAL_CLAIM_UNION discriminated union
     'TerminalContentPart',           // TERMINAL_CONTENT_PART_UNION discriminated union
     'SessionInputQuestion',         // SESSION_INPUT_QUESTION_UNION discriminated union
@@ -1567,6 +1541,9 @@ function checkExhaustiveness(project: Project): void {
     'UnsupportedProtocolVersionErrorData', // emitted by generateErrorsFile()
     'AhpError',                     // typed via JsonRpcError; not a Swift struct
     'AhpErrorDetailsMap',           // type-level mapping; not a Swift struct
+    'AhpErrorCode',                 // type-level alias over AhpErrorCodes const enum
+    'AhpErrorCodeWithData',         // type-level alias; not a Swift type
+    'JsonRpcErrorCode',             // type-level alias over JsonRpcErrorCodes const enum
     'ReconnectResult',              // RECONNECT_RESULT_UNION discriminated union
     'ChangesetOperationTarget',     // TS discriminated union; consumers should add a Swift case-iterable enum
   ]);
@@ -1575,7 +1552,7 @@ function checkExhaustiveness(project: Project): void {
   if (missing.length > 0) {
     throw new Error(
       `generate-swift.ts exhaustiveness check failed.\n` +
-      `The following types are declared in types/version/v1.ts but are not covered by the Swift generator:\n` +
+      `The following types are exported from the protocol source modules but are not covered by the Swift generator:\n` +
       missing.map(n => `  - ${n}`).join('\n') + '\n\n' +
       `Add them to the appropriate list in scripts/generate-swift.ts:\n` +
       `  STATE_STRUCTS / STATE_ENUMS, COMMAND_STRUCTS / COMMAND_ENUMS,\n` +

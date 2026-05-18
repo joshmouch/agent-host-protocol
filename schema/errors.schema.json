@@ -207,7 +207,7 @@
     },
     "RootState": {
       "type": "object",
-      "description": "Global state shared with every client subscribed to `agenthost:/root`.",
+      "description": "Global state shared with every client subscribed to `ahp-root://`.",
       "properties": {
         "agents": {
           "type": "array",
@@ -2957,7 +2957,7 @@
       "properties": {
         "resource": {
           "$ref": "#/$defs/URI",
-          "description": "The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)"
+          "description": "The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)"
         },
         "state": {
           "oneOf": [
@@ -2987,10 +2987,29 @@
         "fromSeq"
       ]
     },
+    "BaseParams": {
+      "type": "object",
+      "description": "Base shape every command's params extends.\n\n`channel` identifies the channel the command targets, mirroring the\n`channel` field on every protocol notification. For commands that operate\non a specific channel (a session, terminal, or changeset), `channel` is\nthat channel's URI. For commands that are connection-level rather than\nchannel-scoped (e.g. {@link InitializeParams | `initialize`},\n{@link PingParams | `ping`}, {@link ListSessionsParams | `listSessions`},\nthe `resource*` filesystem commands, and {@link AuthenticateParams |\n`authenticate`}), the params type narrows `channel` to the literal\nroot URI `'ahp-root://'`.\n\nThis invariant lets implementations route every incoming message —\nrequest, response, or notification — by inspecting `params.channel`\nwithout needing to know the per-method param shape.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this command targets."
+        }
+      },
+      "required": [
+        "channel"
+      ]
+    },
     "InitializeParams": {
       "type": "object",
       "description": "Establishes a new connection and negotiates the protocol version.\nThis MUST be the first message sent by the client.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "protocolVersions": {
           "type": "array",
           "items": {
@@ -3015,6 +3034,7 @@
         }
       },
       "required": [
+        "channel",
         "protocolVersions",
         "clientId"
       ]
@@ -3059,12 +3079,28 @@
     "PingParams": {
       "type": "object",
       "description": "Verifies that the AHP connection is still alive and keeps it from being\nclosed by idle-timeout intermediaries (proxies, load balancers, etc.).\n\nThe server MUST respond regardless of whether the client has completed\n`initialize` or holds any subscriptions. Ping carries no payload in either\ndirection; the response itself is the signal.",
-      "properties": {}
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ReconnectParams": {
       "type": "object",
       "description": "Re-establishes a dropped connection. The server replays missed actions or\nprovides fresh snapshots.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "clientId": {
           "type": "string",
           "description": "Client identifier from the original connection"
@@ -3082,6 +3118,7 @@
         }
       },
       "required": [
+        "channel",
         "clientId",
         "lastSeenServerSeq",
         "subscriptions"
@@ -3139,33 +3176,30 @@
     },
     "SubscribeParams": {
       "type": "object",
-      "description": "Subscribe to a URI-identified state resource.",
+      "description": "Subscribe to a URI-identified channel.\n\nA channel MAY have state associated with it (e.g. root, sessions,\nterminals) or be stateless (pure pub/sub for streaming data). For\nstate-bearing channels the result includes a snapshot; for stateless\nchannels `snapshot` is omitted.",
       "properties": {
-        "resource": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "URI to subscribe to"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "resource"
+        "channel"
       ]
     },
     "SubscribeResult": {
       "type": "object",
-      "description": "Result of the `subscribe` command.",
+      "description": "Result of the `subscribe` command.\n\n`snapshot` is present when the subscribed channel has associated state, and\nabsent for stateless channels.",
       "properties": {
         "snapshot": {
           "$ref": "#/$defs/Snapshot",
-          "description": "Snapshot of the subscribed resource"
+          "description": "Snapshot of the subscribed channel's state (omitted for stateless channels)"
         }
-      },
-      "required": [
-        "snapshot"
-      ]
+      }
     },
     "SessionForkSource": {
       "type": "object",
-      "description": "Creates a new session with the specified agent provider.\n\nIf the session URI already exists, the server MUST return an error with code\n`-32003` (`SessionAlreadyExists`).\n\nAfter creation, the client should subscribe to the session URI to receive state\nupdates. The server also broadcasts a `notify/sessionAdded` notification to all\nclients.",
+      "description": "Creates a new session with the specified agent provider.\n\nIf the session URI already exists, the server MUST return an error with code\n`-32003` (`SessionAlreadyExists`).\n\nAfter creation, the client should subscribe to the session URI to receive state\nupdates. The server also broadcasts a `root/sessionAdded` notification to all\nclients.",
       "properties": {
         "session": {
           "$ref": "#/$defs/URI",
@@ -3184,9 +3218,9 @@
     "CreateSessionParams": {
       "type": "object",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Session URI (client-chosen, e.g. `copilot:/<uuid>`)"
+          "description": "Session URI (client-chosen, e.g. `ahp-session:/<uuid>`)"
         },
         "provider": {
           "type": "string",
@@ -3215,29 +3249,29 @@
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "DisposeSessionParams": {
       "type": "object",
-      "description": "Disposes a session and cleans up server-side resources.\n\nThe server broadcasts a `notify/sessionRemoved` notification to all clients.",
+      "description": "Disposes a session and cleans up server-side resources.\n\nThe server broadcasts a `root/sessionRemoved` notification to all clients.",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Session URI to dispose"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "CreateTerminalParams": {
       "type": "object",
       "description": "Creates a new terminal on the server.\n\nAfter creation, the client should subscribe to the terminal URI to receive\nstate updates. The server dispatches `root/terminalsChanged` to update the\nroot terminal list.",
       "properties": {
-        "terminal": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Terminal URI (client-chosen)"
+          "description": "Terminal URI (client-chosen)."
         },
         "claim": {
           "$ref": "#/$defs/TerminalClaim",
@@ -3261,7 +3295,7 @@
         }
       },
       "required": [
-        "terminal",
+        "channel",
         "claim"
       ]
     },
@@ -3269,24 +3303,33 @@
       "type": "object",
       "description": "Disposes a terminal and kills its process if still running.\n\nThe server dispatches `root/terminalsChanged` to remove the terminal from\nthe root terminal list.",
       "properties": {
-        "terminal": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Terminal URI to dispose"
+          "description": "Channel URI this command targets."
         }
       },
       "required": [
-        "terminal"
+        "channel"
       ]
     },
     "ListSessionsParams": {
       "type": "object",
-      "description": "Returns a list of session summaries. Used to populate session lists and sidebars.\n\nThe session list is **not** part of the state tree because it can be arbitrarily\nlarge. Clients fetch it imperatively and maintain a local cache updated by\n`notify/sessionAdded` and `notify/sessionRemoved` notifications.",
+      "description": "Returns a list of session summaries. Used to populate session lists and sidebars.\n\nThe session list is **not** part of the state tree because it can be arbitrarily\nlarge. Clients fetch it imperatively and maintain a local cache updated by\n`root/sessionAdded` and `root/sessionRemoved` notifications.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "filter": {
           "type": "object",
           "description": "Optional filter criteria"
         }
-      }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ListSessionsResult": {
       "type": "object",
@@ -3308,6 +3351,12 @@
       "type": "object",
       "description": "Reads the content of a resource by URI.\n\nContent references keep the state tree small by storing large data (images,\nlong tool outputs) by reference rather than inline.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "type": "string",
           "description": "Content URI from a `ContentRef`"
@@ -3318,6 +3367,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -3347,6 +3397,12 @@
       "type": "object",
       "description": "Writes content to a file on the server's filesystem.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.\n\nIf the file does not exist, it is created. If the file already exists, it is\noverwritten unless `createOnly` is set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Target file URI on the server filesystem"
@@ -3369,6 +3425,7 @@
         }
       },
       "required": [
+        "channel",
         "uri",
         "data",
         "encoding"
@@ -3383,12 +3440,19 @@
       "type": "object",
       "description": "Lists directory entries at a file URI on the server's filesystem.\n\nThis is intended for remote folder pickers and similar UI that needs to let\nusers navigate the server's local filesystem.\n\nThe server MUST return success only if the target exists and is a directory.\nIf the target does not exist, is not a directory, or cannot be accessed, the\nserver MUST return a JSON-RPC error.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Directory URI on the server filesystem"
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -3434,7 +3498,7 @@
       "type": "object",
       "description": "Fetches historical turns for a session. Used for lazy loading of conversation\nhistory.",
       "properties": {
-        "session": {
+        "channel": {
           "$ref": "#/$defs/URI",
           "description": "Session URI"
         },
@@ -3448,7 +3512,7 @@
         }
       },
       "required": [
-        "session"
+        "channel"
       ]
     },
     "FetchTurnsResult": {
@@ -3474,21 +3538,25 @@
     },
     "UnsubscribeParams": {
       "type": "object",
-      "description": "Stop receiving updates for a URI.",
+      "description": "Stop receiving updates for a channel.",
       "properties": {
-        "resource": {
+        "channel": {
           "$ref": "#/$defs/URI",
-          "description": "URI to unsubscribe from"
+          "description": "Channel URI to unsubscribe from"
         }
       },
       "required": [
-        "resource"
+        "channel"
       ]
     },
     "DispatchActionParams": {
       "type": "object",
-      "description": "Fire-and-forget action dispatch (write-ahead). The client applies actions\noptimistically to local state.",
+      "description": "Fire-and-forget action dispatch (write-ahead). The client applies actions\noptimistically to local state and the server echoes them back as an\n{@link ActionEnvelope} once accepted.\n\nThe client → server method is named `dispatchAction`; the server's reply\narrives on the server → client `action` notification (params:\n{@link ActionEnvelope}).",
       "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this action targets"
+        },
         "clientSeq": {
           "type": "number",
           "description": "Client sequence number"
@@ -3499,6 +3567,7 @@
         }
       },
       "required": [
+        "channel",
         "clientSeq",
         "action"
       ]
@@ -3507,6 +3576,12 @@
       "type": "object",
       "description": "Copies a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "source": {
           "$ref": "#/$defs/URI",
           "description": "Source URI to copy from"
@@ -3521,6 +3596,7 @@
         }
       },
       "required": [
+        "channel",
         "source",
         "destination"
       ]
@@ -3534,6 +3610,12 @@
       "type": "object",
       "description": "Deletes a resource at a URI on the server's filesystem.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "URI of the resource to delete"
@@ -3544,6 +3626,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -3556,6 +3639,12 @@
       "type": "object",
       "description": "Requests permission to access a resource on the receiver's filesystem.\n\n`resourceRequest` is symmetrical and MAY be sent in either direction: a\nclient asks the server to grant access to a server-side resource, or a\nserver asks the client to grant access to a client-side resource. The\nreceiver decides whether to allow, deny, or prompt the user for the\nrequested access.\n\nIf the receiver denies access, it MUST respond with `PermissionDenied`\n(-32009). The error data MAY include a `ResourceRequestParams` value\ndescribing the access the caller would need to be granted for the\noperation to succeed; see `PermissionDeniedErrorData` in\n`types/errors.ts`.\n\nAfter a successful `resourceRequest`, the caller MAY use the corresponding\n`resource*` commands (e.g. `resourceRead`, `resourceWrite`) to perform the\noperation. Receivers MAY rescind access at any time by returning\n`PermissionDenied` on subsequent operations.\n\nEither `read`, `write`, or both SHOULD be set to `true`. A request with\nneither flag set is treated as `read: true` by receivers.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Resource URI being requested. Typically a `file:` URI on the receiver's\nfilesystem, but any URI scheme that the receiver mediates access to is\nallowed."
@@ -3570,6 +3659,7 @@
         }
       },
       "required": [
+        "channel",
         "uri"
       ]
     },
@@ -3582,6 +3672,12 @@
       "type": "object",
       "description": "Moves (renames) a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "source": {
           "$ref": "#/$defs/URI",
           "description": "Source URI to move from"
@@ -3596,6 +3692,7 @@
         }
       },
       "required": [
+        "channel",
         "source",
         "destination"
       ]
@@ -3609,6 +3706,12 @@
       "type": "object",
       "description": "Pushes a Bearer token for a protected resource. The `resource` field MUST\nmatch a `ProtectedResourceMetadata.resource` value declared by an agent\nin `AgentInfo.protectedResources`.\n\nTokens are delivered using [RFC 6750](https://datatracker.ietf.org/doc/html/rfc6750)\n(Bearer Token Usage) semantics. The client obtains the token from the\nauthorization server(s) listed in the resource's metadata and pushes it\nto the server via this command.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "resource": {
           "type": "string",
           "description": "The protected resource identifier. MUST match a `resource` value from\n`ProtectedResourceMetadata` declared in `AgentInfo.protectedResources`."
@@ -3619,6 +3722,7 @@
         }
       },
       "required": [
+        "channel",
         "resource",
         "token"
       ]
@@ -3632,6 +3736,12 @@
       "type": "object",
       "description": "Iteratively resolves the session configuration schema. The client sends the\ncurrent partial session config and any user-filled metadata values. The server\nreturns a property schema describing what additional metadata is needed,\ncontextual to the current selections.\n\nThe client calls this command whenever the user changes a significant input\n(e.g. picks a working directory, toggles a property). Each response returns\nthe full current property set (not a delta). The returned `values` contain\nserver-resolved defaults to pass to `createSession`.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "provider": {
           "type": "string",
           "description": "Agent provider ID"
@@ -3645,7 +3755,10 @@
           "additionalProperties": {},
           "description": "Current user-filled configuration values"
         }
-      }
+      },
+      "required": [
+        "channel"
+      ]
     },
     "ResolveSessionConfigResult": {
       "type": "object",
@@ -3692,6 +3805,12 @@
       "type": "object",
       "description": "Queries the server for allowed values of a dynamic session config property.\n\nUsed when a property in the schema returned by `resolveSessionConfig` has\n`enumDynamic: true`. The client sends a search query and receives matching\nvalues with display metadata.",
       "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
         "provider": {
           "type": "string",
           "description": "Agent provider ID"
@@ -3715,6 +3834,7 @@
         }
       },
       "required": [
+        "channel",
         "property"
       ]
     },
@@ -3738,13 +3858,13 @@
       "type": "object",
       "description": "Requests completion items for a partially-typed input (e.g. a user message\nthe user is currently composing). Used to power `@`-mention pickers,\nfile/symbol references, and similar inline-completion experiences.\n\nServers SHOULD treat this command as best-effort and return promptly. The\nclient SHOULD debounce calls to avoid flooding the server with requests on\nevery keystroke.",
       "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "The session URI the completion is being requested for."
+        },
         "kind": {
           "$ref": "#/$defs/CompletionItemKind",
           "description": "What kind of completion is being requested."
-        },
-        "session": {
-          "$ref": "#/$defs/URI",
-          "description": "The session URI the completion is being requested for."
         },
         "text": {
           "type": "string",
@@ -3756,8 +3876,8 @@
         }
       },
       "required": [
+        "channel",
         "kind",
-        "session",
         "text",
         "offset"
       ]
@@ -3824,7 +3944,7 @@
       "type": "object",
       "description": "Invokes a server-defined {@link ChangesetOperation} against a changeset,\na single file, or a line range.\n\nThe server validates that `operationId` exists in the changeset's\ncurrent `operations` list and that the requested `target.kind` is\ncontained in the operation's `scopes`. Invalid combinations result in a\nJSON-RPC error.\n\nState changes resulting from invocation flow back through the normal\n`changeset/*` action stream on the relevant changeset URIs. Clients\nSHOULD NOT synthesise local optimistic changes for invocations unless\nthe server explicitly opts in via a future capability.",
       "properties": {
-        "changeset": {
+        "channel": {
           "$ref": "#/$defs/URI",
           "description": "The expanded changeset URI."
         },
@@ -3838,7 +3958,7 @@
         }
       },
       "required": [
-        "changeset",
+        "channel",
         "operationId"
       ]
     },

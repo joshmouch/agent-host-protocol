@@ -16,7 +16,6 @@
   "actions": [
     {
       "type": "changeset/fileSet",
-      "changeset": "copilot:/abc/changeset/session",
       "file": {
         "id": "file:///src/b.ts",
         "edit": {

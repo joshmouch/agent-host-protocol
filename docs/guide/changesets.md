@@ -132,7 +132,7 @@ a JSON-RPC error.
 ## Lifecycle
 
 1. The server publishes the catalogue on `SessionSummary.changesets`.
-   Updates ride on `notify/sessionSummaryChanged`.
+   Updates ride on `root/sessionSummaryChanged`.
 2. The client picks summary entries whose template variables it can
    satisfy and subscribes to the resulting URIs.
 3. The server returns a `ChangesetState` snapshot (`status: 'computing'`

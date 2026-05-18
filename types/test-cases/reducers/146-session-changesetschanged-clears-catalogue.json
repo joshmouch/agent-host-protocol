@@ -22,7 +22,6 @@
   "actions": [
     {
       "type": "session/changesetsChanged",
-      "session": "copilot:/test-session",
       "changesets": null
     }
   ],

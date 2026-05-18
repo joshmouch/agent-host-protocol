@@ -37,8 +37,8 @@ actions optimistically and reconcile with the server's echoed actions.
 
 Key concepts:
 
-- **Root state** (`agenthost:/root`) – lists available agents/models.
-- **Session state** (`<provider>:/<uuid>`) – per-conversation state with turns,
+- **Root state** (`ahp-root://`) – lists available agents/models.
+- **Session state** (`ahp-session:/<uuid>`) – per-conversation state with turns,
   deltas, tool calls, and permissions.
 - **Actions** – the sole mutation mechanism, wrapped in `ActionEnvelope`s with a
   `serverSeq`.
@@ -60,7 +60,7 @@ Send an `initialize` **notification** (no `id` field):
   "params": {
     "protocolVersions": ["0.2.0"],
     "clientId": "<unique-client-id>",
-    "initialSubscriptions": ["agenthost:/root"]
+    "initialSubscriptions": ["ahp-root://"]
   }
 }
 ```
@@ -75,7 +75,7 @@ which includes snapshots for any initial subscriptions.
   "jsonrpc": "2.0",
   "id": 1,
   "method": "subscribe",
-  "params": { "resource": "agenthost:/root" }
+  "params": { "channel": "ahp-root://" }
 }
 ```
 
@@ -108,10 +108,10 @@ Dispatch a `session/turnStarted` action as a **notification** (fire-and-forget):
   "jsonrpc": "2.0",
   "method": "dispatchAction",
   "params": {
+    "channel": "<provider>:/<uuid>",
     "clientSeq": 1,
     "action": {
       "type": "session/turnStarted",
-      "session": "<provider>:/<uuid>",
       "turnId": "<unique-turn-id>",
       "userMessage": { "text": "Hello, world!" }
     }
@@ -136,10 +136,10 @@ Resolve permissions with:
   "jsonrpc": "2.0",
   "method": "dispatchAction",
   "params": {
+    "channel": "<provider>:/<uuid>",
     "clientSeq": 2,
     "action": {
       "type": "session/permissionResolved",
-      "session": "<provider>:/<uuid>",
       "turnId": "<turn-id>",
       "requestId": "<perm-request-id>",
       "approved": true
@@ -174,7 +174,7 @@ instead of `initialize`:
   "params": {
     "clientId": "<same-client-id>",
     "lastSeenServerSeq": 42,
-    "subscriptions": ["agenthost:/root", "<provider>:/<uuid>"]
+    "subscriptions": ["ahp-root://", "<provider>:/<uuid>"]
   }
 }
 ```

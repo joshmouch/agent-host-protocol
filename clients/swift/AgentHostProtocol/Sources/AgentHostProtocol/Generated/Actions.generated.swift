@@ -82,17 +82,21 @@ public struct ActionOrigin: Codable, Sendable {
 }
 
 public struct ActionEnvelope: Codable, Sendable {
+    /// Channel URI this action belongs to.
+    public var channel: String
     public var action: StateAction
     public var serverSeq: Int
     public var origin: ActionOrigin?
     public var rejectionReason: String?
 
     public init(
+        channel: String,
         action: StateAction,
         serverSeq: Int,
         origin: ActionOrigin? = nil,
         rejectionReason: String? = nil
     ) {
+        self.channel = channel
         self.action = action
         self.serverSeq = serverSeq
         self.origin = origin
@@ -132,40 +136,30 @@ public struct RootActiveSessionsChangedAction: Codable, Sendable {
 
 public struct SessionReadyAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
 
     public init(
-        type: ActionType,
-        session: String
+        type: ActionType
     ) {
         self.type = type
-        self.session = session
     }
 }
 
 public struct SessionCreationFailedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Error details
     public var error: ErrorInfo
 
     public init(
         type: ActionType,
-        session: String,
         error: ErrorInfo
     ) {
         self.type = type
-        self.session = session
         self.error = error
     }
 }
 
 public struct SessionTurnStartedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// User's message
@@ -175,13 +169,11 @@ public struct SessionTurnStartedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         userMessage: UserMessage,
         queuedMessageId: String? = nil
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.userMessage = userMessage
         self.queuedMessageId = queuedMessageId
@@ -190,8 +182,6 @@ public struct SessionTurnStartedAction: Codable, Sendable {
 
 public struct SessionDeltaAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Identifier of the response part to append to
@@ -201,13 +191,11 @@ public struct SessionDeltaAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         partId: String,
         content: String
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.partId = partId
         self.content = content
@@ -216,8 +204,6 @@ public struct SessionDeltaAction: Codable, Sendable {
 
 public struct SessionResponsePartAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Response part (markdown or content ref)
@@ -225,20 +211,16 @@ public struct SessionResponsePartAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         part: ResponsePart
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.part = part
     }
 }
 
 public struct SessionToolCallStartAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -260,7 +242,6 @@ public struct SessionToolCallStartAction: Codable, Sendable {
     public var toolClientId: String?
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -271,7 +252,6 @@ public struct SessionToolCallStartAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
@@ -280,7 +260,6 @@ public struct SessionToolCallStartAction: Codable, Sendable {
         displayName: String,
         toolClientId: String? = nil
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -292,8 +271,6 @@ public struct SessionToolCallStartAction: Codable, Sendable {
 }
 
 public struct SessionToolCallDeltaAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -312,7 +289,6 @@ public struct SessionToolCallDeltaAction: Codable, Sendable {
     public var invocationMessage: StringOrMarkdown?
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -322,7 +298,6 @@ public struct SessionToolCallDeltaAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
@@ -330,7 +305,6 @@ public struct SessionToolCallDeltaAction: Codable, Sendable {
         content: String,
         invocationMessage: StringOrMarkdown? = nil
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -341,8 +315,6 @@ public struct SessionToolCallDeltaAction: Codable, Sendable {
 }
 
 public struct SessionToolCallReadyAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -374,7 +346,6 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
     public var options: [ConfirmationOption]?
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -389,7 +360,6 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
@@ -402,7 +372,6 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
         confirmed: ToolCallConfirmationReason? = nil,
         options: [ConfirmationOption]? = nil
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -421,8 +390,6 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
 public struct SessionToolCallConfirmedAction: Codable, Sendable {
     /// Action type discriminant
     public var type: String
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -445,13 +412,12 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
-        case type, session, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
+        case type, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
         case meta = "_meta"
     }
 
     public init(
         type: String = "session/toolCallConfirmed",
-        session: String,
         turnId: String,
         toolCallId: String,
         approved: Bool,
@@ -464,7 +430,6 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
         meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.approved = approved
@@ -479,8 +444,6 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
 }
 
 public struct SessionToolCallCompleteAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -499,7 +462,6 @@ public struct SessionToolCallCompleteAction: Codable, Sendable {
     public var requiresResultConfirmation: Bool?
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -509,7 +471,6 @@ public struct SessionToolCallCompleteAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
@@ -517,7 +478,6 @@ public struct SessionToolCallCompleteAction: Codable, Sendable {
         result: ToolCallResult,
         requiresResultConfirmation: Bool? = nil
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -528,8 +488,6 @@ public struct SessionToolCallCompleteAction: Codable, Sendable {
 }
 
 public struct SessionToolCallResultConfirmedAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -546,7 +504,6 @@ public struct SessionToolCallResultConfirmedAction: Codable, Sendable {
     public var approved: Bool
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -555,14 +512,12 @@ public struct SessionToolCallResultConfirmedAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
         type: ActionType,
         approved: Bool
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -573,44 +528,34 @@ public struct SessionToolCallResultConfirmedAction: Codable, Sendable {
 
 public struct SessionTurnCompleteAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
     }
 }
 
 public struct SessionTurnCancelledAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
     }
 }
 
 public struct SessionErrorAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Error details
@@ -618,12 +563,10 @@ public struct SessionErrorAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         error: ErrorInfo
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.error = error
     }
@@ -631,26 +574,20 @@ public struct SessionErrorAction: Codable, Sendable {
 
 public struct SessionTitleChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// New title
     public var title: String
 
     public init(
         type: ActionType,
-        session: String,
         title: String
     ) {
         self.type = type
-        self.session = session
         self.title = title
     }
 }
 
 public struct SessionUsageAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Token usage data
@@ -658,12 +595,10 @@ public struct SessionUsageAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         usage: UsageInfo
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.usage = usage
     }
@@ -671,8 +606,6 @@ public struct SessionUsageAction: Codable, Sendable {
 
 public struct SessionReasoningAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Identifier of the reasoning response part to append to
@@ -682,13 +615,11 @@ public struct SessionReasoningAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String,
         partId: String,
         content: String
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.partId = partId
         self.content = content
@@ -697,152 +628,118 @@ public struct SessionReasoningAction: Codable, Sendable {
 
 public struct SessionModelChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// New model selection
     public var model: ModelSelection
 
     public init(
         type: ActionType,
-        session: String,
         model: ModelSelection
     ) {
         self.type = type
-        self.session = session
         self.model = model
     }
 }
 
 public struct SessionIsReadChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Whether the session has been read
     public var isRead: Bool
 
     public init(
         type: ActionType,
-        session: String,
         isRead: Bool
     ) {
         self.type = type
-        self.session = session
         self.isRead = isRead
     }
 }
 
 public struct SessionIsArchivedChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Whether the session is archived
     public var isArchived: Bool
 
     public init(
         type: ActionType,
-        session: String,
         isArchived: Bool
     ) {
         self.type = type
-        self.session = session
         self.isArchived = isArchived
     }
 }
 
 public struct SessionActivityChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Human-readable description of current activity, or `undefined` to clear
     public var activity: String?
 
     public init(
         type: ActionType,
-        session: String,
         activity: String? = nil
     ) {
         self.type = type
-        self.session = session
         self.activity = activity
     }
 }
 
 public struct SessionChangesetsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// New catalogue, or `undefined` to clear it
     public var changesets: [ChangesetSummary]?
 
     public init(
         type: ActionType,
-        session: String,
         changesets: [ChangesetSummary]? = nil
     ) {
         self.type = type
-        self.session = session
         self.changesets = changesets
     }
 }
 
 public struct SessionServerToolsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Updated server tools list (full replacement)
     public var tools: [ToolDefinition]
 
     public init(
         type: ActionType,
-        session: String,
         tools: [ToolDefinition]
     ) {
         self.type = type
-        self.session = session
         self.tools = tools
     }
 }
 
 public struct SessionActiveClientChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// The new active client, or `null` to unset
     public var activeClient: SessionActiveClient?
 
     public init(
         type: ActionType,
-        session: String,
         activeClient: SessionActiveClient? = nil
     ) {
         self.type = type
-        self.session = session
         self.activeClient = activeClient
     }
 }
 
 public struct SessionActiveClientToolsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Updated client tools list (full replacement)
     public var tools: [ToolDefinition]
 
     public init(
         type: ActionType,
-        session: String,
         tools: [ToolDefinition]
     ) {
         self.type = type
-        self.session = session
         self.tools = tools
     }
 }
 
 public struct SessionPendingMessageSetAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Whether this is a steering or queued message
     public var kind: PendingMessageKind
     /// Unique identifier for this pending message
@@ -852,13 +749,11 @@ public struct SessionPendingMessageSetAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         kind: PendingMessageKind,
         id: String,
         userMessage: UserMessage
     ) {
         self.type = type
-        self.session = session
         self.kind = kind
         self.id = id
         self.userMessage = userMessage
@@ -867,8 +762,6 @@ public struct SessionPendingMessageSetAction: Codable, Sendable {
 
 public struct SessionPendingMessageRemovedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Whether this is a steering or queued message
     public var kind: PendingMessageKind
     /// Identifier of the pending message to remove
@@ -876,12 +769,10 @@ public struct SessionPendingMessageRemovedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         kind: PendingMessageKind,
         id: String
     ) {
         self.type = type
-        self.session = session
         self.kind = kind
         self.id = id
     }
@@ -889,44 +780,34 @@ public struct SessionPendingMessageRemovedAction: Codable, Sendable {
 
 public struct SessionQueuedMessagesReorderedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Queued message IDs in the desired order
     public var order: [String]
 
     public init(
         type: ActionType,
-        session: String,
         order: [String]
     ) {
         self.type = type
-        self.session = session
         self.order = order
     }
 }
 
 public struct SessionInputRequestedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Input request to create or replace
     public var request: SessionInputRequest
 
     public init(
         type: ActionType,
-        session: String,
         request: SessionInputRequest
     ) {
         self.type = type
-        self.session = session
         self.request = request
     }
 }
 
 public struct SessionInputAnswerChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Input request identifier
     public var requestId: String
     /// Question identifier within the input request
@@ -936,13 +817,11 @@ public struct SessionInputAnswerChangedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         requestId: String,
         questionId: String,
         answer: SessionInputAnswer? = nil
     ) {
         self.type = type
-        self.session = session
         self.requestId = requestId
         self.questionId = questionId
         self.answer = answer
@@ -951,8 +830,6 @@ public struct SessionInputAnswerChangedAction: Codable, Sendable {
 
 public struct SessionInputCompletedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Input request identifier
     public var requestId: String
     /// Completion outcome
@@ -962,13 +839,11 @@ public struct SessionInputCompletedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         requestId: String,
         response: SessionInputResponseKind,
         answers: [String: SessionInputAnswer]? = nil
     ) {
         self.type = type
-        self.session = session
         self.requestId = requestId
         self.response = response
         self.answers = answers
@@ -977,26 +852,20 @@ public struct SessionInputCompletedAction: Codable, Sendable {
 
 public struct SessionCustomizationsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Updated customization list (full replacement)
     public var customizations: [SessionCustomization]
 
     public init(
         type: ActionType,
-        session: String,
         customizations: [SessionCustomization]
     ) {
         self.type = type
-        self.session = session
         self.customizations = customizations
     }
 }
 
 public struct SessionCustomizationToggledAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// The URI of the customization to toggle
     public var uri: String
     /// Whether to enable or disable the customization
@@ -1004,12 +873,10 @@ public struct SessionCustomizationToggledAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         uri: String,
         enabled: Bool
     ) {
         self.type = type
-        self.session = session
         self.uri = uri
         self.enabled = enabled
     }
@@ -1017,8 +884,6 @@ public struct SessionCustomizationToggledAction: Codable, Sendable {
 
 public struct SessionCustomizationUpdatedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// The customization to update or insert (matched by `customization.uri`)
     public var customization: CustomizationRef
     /// New enabled state (defaults to `false` on insert)
@@ -1030,14 +895,12 @@ public struct SessionCustomizationUpdatedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         customization: CustomizationRef,
         enabled: Bool? = nil,
         status: CustomizationStatus? = nil,
         statusMessage: String? = nil
     ) {
         self.type = type
-        self.session = session
         self.customization = customization
         self.enabled = enabled
         self.status = status
@@ -1047,26 +910,20 @@ public struct SessionCustomizationUpdatedAction: Codable, Sendable {
 
 public struct SessionTruncatedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Keep turns up to and including this turn. Omit to clear all turns.
     public var turnId: String?
 
     public init(
         type: ActionType,
-        session: String,
         turnId: String? = nil
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
     }
 }
 
 public struct SessionConfigChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// Updated config values
     public var config: [String: AnyCodable]
     /// When `true`, replaces all config values instead of merging
@@ -1074,12 +931,10 @@ public struct SessionConfigChangedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        session: String,
         config: [String: AnyCodable],
         replace: Bool? = nil
     ) {
         self.type = type
-        self.session = session
         self.config = config
         self.replace = replace
     }
@@ -1087,31 +942,24 @@ public struct SessionConfigChangedAction: Codable, Sendable {
 
 public struct SessionMetaChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Session URI
-    public var session: String
     /// New `_meta` payload, or `undefined` to clear it
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
         case type
-        case session
         case meta = "_meta"
     }
 
     public init(
         type: ActionType,
-        session: String,
         meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
-        self.session = session
         self.meta = meta
     }
 }
 
 public struct SessionToolCallContentChangedAction: Codable, Sendable {
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -1128,7 +976,6 @@ public struct SessionToolCallContentChangedAction: Codable, Sendable {
     public var content: [ToolResultContent]
 
     enum CodingKeys: String, CodingKey {
-        case session
         case turnId
         case toolCallId
         case meta = "_meta"
@@ -1137,14 +984,12 @@ public struct SessionToolCallContentChangedAction: Codable, Sendable {
     }
 
     public init(
-        session: String,
         turnId: String,
         toolCallId: String,
         meta: [String: AnyCodable]? = nil,
         type: ActionType,
         content: [ToolResultContent]
     ) {
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.meta = meta
@@ -1155,8 +1000,6 @@ public struct SessionToolCallContentChangedAction: Codable, Sendable {
 
 public struct ChangesetStatusChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Expanded changeset URI (matches the URI the client subscribed to).
-    public var changeset: String
     /// New computation lifecycle status.
     public var status: ChangesetStatus
     /// Cause when `status === ChangesetStatus.Error`; otherwise omitted.
@@ -1164,12 +1007,10 @@ public struct ChangesetStatusChangedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        changeset: String,
         status: ChangesetStatus,
         error: ErrorInfo? = nil
     ) {
         self.type = type
-        self.changeset = changeset
         self.status = status
         self.error = error
     }
@@ -1177,69 +1018,53 @@ public struct ChangesetStatusChangedAction: Codable, Sendable {
 
 public struct ChangesetFileSetAction: Codable, Sendable {
     public var type: ActionType
-    /// Expanded changeset URI.
-    public var changeset: String
     /// The new or replacement file entry.
     public var file: ChangesetFile
 
     public init(
         type: ActionType,
-        changeset: String,
         file: ChangesetFile
     ) {
         self.type = type
-        self.changeset = changeset
         self.file = file
     }
 }
 
 public struct ChangesetFileRemovedAction: Codable, Sendable {
     public var type: ActionType
-    /// Expanded changeset URI.
-    public var changeset: String
     /// The {@link ChangesetFile.id} of the file to remove.
     public var fileId: String
 
     public init(
         type: ActionType,
-        changeset: String,
         fileId: String
     ) {
         self.type = type
-        self.changeset = changeset
         self.fileId = fileId
     }
 }
 
 public struct ChangesetOperationsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Expanded changeset URI.
-    public var changeset: String
     /// Updated operation list. Pass `undefined` to clear all operations.
     public var operations: [ChangesetOperation]?
 
     public init(
         type: ActionType,
-        changeset: String,
         operations: [ChangesetOperation]? = nil
     ) {
         self.type = type
-        self.changeset = changeset
         self.operations = operations
     }
 }
 
 public struct ChangesetClearedAction: Codable, Sendable {
     public var type: ActionType
-    /// Expanded changeset URI.
-    public var changeset: String
 
     public init(
-        type: ActionType,
-        changeset: String
+        type: ActionType
     ) {
         self.type = type
-        self.changeset = changeset
     }
 }
 
@@ -1277,44 +1102,34 @@ public struct RootConfigChangedAction: Codable, Sendable {
 
 public struct TerminalDataAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Output data (may contain ANSI escape sequences)
     public var data: String
 
     public init(
         type: ActionType,
-        terminal: String,
         data: String
     ) {
         self.type = type
-        self.terminal = terminal
         self.data = data
     }
 }
 
 public struct TerminalInputAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Input data to send to the pty
     public var data: String
 
     public init(
         type: ActionType,
-        terminal: String,
         data: String
     ) {
         self.type = type
-        self.terminal = terminal
         self.data = data
     }
 }
 
 public struct TerminalResizedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Terminal width in columns
     public var cols: Int
     /// Terminal height in rows
@@ -1322,12 +1137,10 @@ public struct TerminalResizedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        terminal: String,
         cols: Int,
         rows: Int
     ) {
         self.type = type
-        self.terminal = terminal
         self.cols = cols
         self.rows = rows
     }
@@ -1335,108 +1148,82 @@ public struct TerminalResizedAction: Codable, Sendable {
 
 public struct TerminalClaimedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// The new claim
     public var claim: TerminalClaim
 
     public init(
         type: ActionType,
-        terminal: String,
         claim: TerminalClaim
     ) {
         self.type = type
-        self.terminal = terminal
         self.claim = claim
     }
 }
 
 public struct TerminalTitleChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// New terminal title
     public var title: String
 
     public init(
         type: ActionType,
-        terminal: String,
         title: String
     ) {
         self.type = type
-        self.terminal = terminal
         self.title = title
     }
 }
 
 public struct TerminalCwdChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// New working directory
     public var cwd: String
 
     public init(
         type: ActionType,
-        terminal: String,
         cwd: String
     ) {
         self.type = type
-        self.terminal = terminal
         self.cwd = cwd
     }
 }
 
 public struct TerminalExitedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Process exit code. `undefined` if the process was killed without an exit code.
     public var exitCode: Int?
 
     public init(
         type: ActionType,
-        terminal: String,
         exitCode: Int? = nil
     ) {
         self.type = type
-        self.terminal = terminal
         self.exitCode = exitCode
     }
 }
 
 public struct TerminalClearedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
 
     public init(
-        type: ActionType,
-        terminal: String
+        type: ActionType
     ) {
         self.type = type
-        self.terminal = terminal
     }
 }
 
 public struct TerminalCommandDetectionAvailableAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
 
     public init(
-        type: ActionType,
-        terminal: String
+        type: ActionType
     ) {
         self.type = type
-        self.terminal = terminal
     }
 }
 
 public struct TerminalCommandExecutedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Stable identifier for this command, scoped to the terminal URI.
     /// Allows correlating `commandExecuted` → `commandFinished` pairs.
     public var commandId: String
@@ -1448,13 +1235,11 @@ public struct TerminalCommandExecutedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        terminal: String,
         commandId: String,
         commandLine: String,
         timestamp: Int
     ) {
         self.type = type
-        self.terminal = terminal
         self.commandId = commandId
         self.commandLine = commandLine
         self.timestamp = timestamp
@@ -1463,8 +1248,6 @@ public struct TerminalCommandExecutedAction: Codable, Sendable {
 
 public struct TerminalCommandFinishedAction: Codable, Sendable {
     public var type: ActionType
-    /// Terminal URI
-    public var terminal: String
     /// Matches the `commandId` from the corresponding `commandExecuted`
     public var commandId: String
     /// Shell exit code. `undefined` if the shell did not report one.
@@ -1475,13 +1258,11 @@ public struct TerminalCommandFinishedAction: Codable, Sendable {
 
     public init(
         type: ActionType,
-        terminal: String,
         commandId: String,
         exitCode: Int? = nil,
         durationMs: Int? = nil
     ) {
         self.type = type
-        self.terminal = terminal
         self.commandId = commandId
         self.exitCode = exitCode
         self.durationMs = durationMs

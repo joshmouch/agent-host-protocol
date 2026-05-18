@@ -15,12 +15,10 @@
   },
   "actions": [
     {
-      "type": "changeset/cleared",
-      "changeset": "copilot:/abc/changeset/session"
+      "type": "changeset/cleared"
     },
     {
-      "type": "changeset/cleared",
-      "changeset": "copilot:/abc/changeset/session"
+      "type": "changeset/cleared"
     }
   ],
   "expected": {

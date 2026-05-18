@@ -2596,7 +2596,7 @@ public struct ErrorInfo: Codable, Sendable {
 }
 
 public struct Snapshot: Codable, Sendable {
-    /// The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)
+    /// The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)
     public var resource: String
     /// The current state of the resource
     public var state: SnapshotState

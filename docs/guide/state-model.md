@@ -1,14 +1,17 @@
 # State Model
 
-All state in AHP is identified by URIs. Clients subscribe to a URI to receive its current state snapshot and subsequent action updates. This is the single universal mechanism for state synchronization.
+All state in AHP is organised into **channels**, each addressed by a URI. Clients subscribe to a channel URI to receive its current state snapshot and subsequent action updates. See [Channels & Subscriptions](/specification/subscriptions) for the channel model.
 
 ## Root State
 
-Subscribable at `agenthost:/root`. Contains global, lightweight data that all clients need. **Does not contain the session list** — that is fetched imperatively via RPC (see [Commands](/reference/commands)).
+Subscribable on the [Root Channel](/specification/root-channel) at `ahp-root://`. Contains global, lightweight data that all clients need. **Does not contain the session list** — that is fetched imperatively via RPC (see [Commands](/reference/commands)) and kept in sync via `root/sessionAdded` / `root/sessionRemoved` / `root/sessionSummaryChanged` notifications.
 
 ```typescript
 RootState {
   agents: AgentInfo[]
+  activeSessions?: number     // count of non-disposed sessions
+  terminals?: TerminalInfo[]  // lightweight terminal catalogue
+  config?: RootConfigState    // host-level configuration
 }
 ```
 
@@ -60,7 +63,7 @@ Root state is mutated only by server-originated actions (e.g. `root/agentsChange
 
 ## Session State
 
-Subscribable at the session's URI (e.g. `copilot:/<uuid>`). Contains the full state for a single session.
+Subscribable on a [Session Channel](/specification/session-channel) at `ahp-session:/<uuid>`. Contains the full state for a single session.
 
 ```typescript
 SessionState {
@@ -371,8 +374,8 @@ The session list can be arbitrarily large and is **not** part of the state tree.
 
 - Clients fetch the list imperatively via `listSessions()` RPC.
 - The server sends lightweight **notifications** to keep connected clients' caches in sync without re-fetching:
-  - `notify/sessionAdded` and `notify/sessionRemoved` signal lifecycle (creation and disposal).
-  - `notify/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `changesets`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
+  - `root/sessionAdded` and `root/sessionRemoved` signal lifecycle (creation and disposal).
+  - `root/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `changesets`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
 
 Notifications are ephemeral — not processed by reducers, not stored in state, not replayed on reconnect. On reconnect, clients re-fetch the list.
 
@@ -448,12 +451,12 @@ sequenceDiagram
 
     Note over Client: User edits message from turn t-2
 
-    Client->>Server: dispatchAction (session/truncated, turnId: t-1)
+    Client->>Server: action (session/truncated, turnId: t-1)
     Note over Server: Drops turns after t-1, drops active turn
 
     Server->>Client: action (session/truncated)
 
-    Client->>Server: dispatchAction (session/turnStarted, edited message)
+    Client->>Server: action (session/turnStarted, edited message)
     Server->>Client: action (session/turnStarted)
     Note over Server: New turn begins with edited message
 ```
@@ -466,16 +469,16 @@ A new session can be created as a **fork** of an existing session by providing t
 
 ```typescript
 createSession({
-  session: 'copilot:/<new-uuid>',
+  session: 'ahp-session:/<new-uuid>',
   provider: 'copilot',
   fork: {
-    session: 'copilot:/<source-uuid>',
-    turnId: 't-3', // copy turns through t-3
+    session: 'ahp-session:/<source-uuid>',
+    turnId: 't-3',     // copy turns through t-3
   },
 });
 ```
 
-The forked session is an independent copy — subsequent changes to either session do not affect the other. The server broadcasts `notify/sessionAdded` for the new session as usual.
+The forked session is an independent copy — subsequent changes to either session do not affect the other. The server broadcasts `root/sessionAdded` for the new session as usual.
 
 ## Next Steps
 
