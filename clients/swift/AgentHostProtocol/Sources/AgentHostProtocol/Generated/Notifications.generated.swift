@@ -108,8 +108,12 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var model: ModelSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Files changed during this session with diff statistics
-    public var diffs: [FileEdit]?
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    public var changesets: [ChangesetSummary]?
 
     public init(
         resource: String? = nil,
@@ -122,7 +126,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
         workingDirectory: String? = nil,
-        diffs: [FileEdit]? = nil
+        changesets: [ChangesetSummary]? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -134,6 +138,6 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.project = project
         self.model = model
         self.workingDirectory = workingDirectory
-        self.diffs = diffs
+        self.changesets = changesets
     }
 }

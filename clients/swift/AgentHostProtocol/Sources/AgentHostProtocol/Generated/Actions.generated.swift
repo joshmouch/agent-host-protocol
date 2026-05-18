@@ -38,13 +38,19 @@ public enum ActionType: String, Codable, Sendable {
     case sessionInputCompleted = "session/inputCompleted"
     case sessionCustomizationsChanged = "session/customizationsChanged"
     case sessionCustomizationToggled = "session/customizationToggled"
+    case sessionCustomizationUpdated = "session/customizationUpdated"
     case sessionTruncated = "session/truncated"
     case sessionIsReadChanged = "session/isReadChanged"
     case sessionIsArchivedChanged = "session/isArchivedChanged"
     case sessionActivityChanged = "session/activityChanged"
-    case sessionDiffsChanged = "session/diffsChanged"
+    case sessionChangesetsChanged = "session/changesetsChanged"
     case sessionConfigChanged = "session/configChanged"
     case sessionMetaChanged = "session/metaChanged"
+    case changesetStatusChanged = "changeset/statusChanged"
+    case changesetFileSet = "changeset/fileSet"
+    case changesetFileRemoved = "changeset/fileRemoved"
+    case changesetOperationsChanged = "changeset/operationsChanged"
+    case changesetCleared = "changeset/cleared"
     case rootTerminalsChanged = "root/terminalsChanged"
     case rootConfigChanged = "root/configChanged"
     case terminalData = "terminal/data"
@@ -384,8 +390,6 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
 public struct SessionToolCallConfirmedAction: Codable, Sendable {
     /// Action type discriminant
     public var type: String
-    /// Session URI
-    public var session: String
     /// Turn identifier
     public var turnId: String
     /// Tool call identifier
@@ -408,13 +412,12 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
-        case type, session, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
+        case type, turnId, toolCallId, approved, confirmed, editedToolInput, reason, userSuggestion, reasonMessage, selectedOptionId
         case meta = "_meta"
     }
 
     public init(
         type: String = "session/toolCallConfirmed",
-        session: String,
         turnId: String,
         toolCallId: String,
         approved: Bool,
@@ -427,7 +430,6 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
         meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
-        self.session = session
         self.turnId = turnId
         self.toolCallId = toolCallId
         self.approved = approved
@@ -680,6 +682,20 @@ public struct SessionActivityChangedAction: Codable, Sendable {
     }
 }
 
+public struct SessionChangesetsChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// New catalogue, or `undefined` to clear it
+    public var changesets: [ChangesetSummary]?
+
+    public init(
+        type: ActionType,
+        changesets: [ChangesetSummary]? = nil
+    ) {
+        self.type = type
+        self.changesets = changesets
+    }
+}
+
 public struct SessionServerToolsChangedAction: Codable, Sendable {
     public var type: ActionType
     /// Updated server tools list (full replacement)
@@ -866,6 +882,32 @@ public struct SessionCustomizationToggledAction: Codable, Sendable {
     }
 }
 
+public struct SessionCustomizationUpdatedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The customization to update or insert (matched by `customization.uri`)
+    public var customization: CustomizationRef
+    /// New enabled state (defaults to `false` on insert)
+    public var enabled: Bool?
+    /// New loading status
+    public var status: CustomizationStatus?
+    /// New human-readable status detail
+    public var statusMessage: String?
+
+    public init(
+        type: ActionType,
+        customization: CustomizationRef,
+        enabled: Bool? = nil,
+        status: CustomizationStatus? = nil,
+        statusMessage: String? = nil
+    ) {
+        self.type = type
+        self.customization = customization
+        self.enabled = enabled
+        self.status = status
+        self.statusMessage = statusMessage
+    }
+}
+
 public struct SessionTruncatedAction: Codable, Sendable {
     public var type: ActionType
     /// Keep turns up to and including this turn. Omit to clear all turns.
@@ -877,20 +919,6 @@ public struct SessionTruncatedAction: Codable, Sendable {
     ) {
         self.type = type
         self.turnId = turnId
-    }
-}
-
-public struct SessionDiffsChangedAction: Codable, Sendable {
-    public var type: ActionType
-    /// Updated file diffs for the session
-    public var diffs: [FileEdit]
-
-    public init(
-        type: ActionType,
-        diffs: [FileEdit]
-    ) {
-        self.type = type
-        self.diffs = diffs
     }
 }
 
@@ -967,6 +995,76 @@ public struct SessionToolCallContentChangedAction: Codable, Sendable {
         self.meta = meta
         self.type = type
         self.content = content
+    }
+}
+
+public struct ChangesetStatusChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// New computation lifecycle status.
+    public var status: ChangesetStatus
+    /// Cause when `status === ChangesetStatus.Error`; otherwise omitted.
+    public var error: ErrorInfo?
+
+    public init(
+        type: ActionType,
+        status: ChangesetStatus,
+        error: ErrorInfo? = nil
+    ) {
+        self.type = type
+        self.status = status
+        self.error = error
+    }
+}
+
+public struct ChangesetFileSetAction: Codable, Sendable {
+    public var type: ActionType
+    /// The new or replacement file entry.
+    public var file: ChangesetFile
+
+    public init(
+        type: ActionType,
+        file: ChangesetFile
+    ) {
+        self.type = type
+        self.file = file
+    }
+}
+
+public struct ChangesetFileRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link ChangesetFile.id} of the file to remove.
+    public var fileId: String
+
+    public init(
+        type: ActionType,
+        fileId: String
+    ) {
+        self.type = type
+        self.fileId = fileId
+    }
+}
+
+public struct ChangesetOperationsChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// Updated operation list. Pass `undefined` to clear all operations.
+    public var operations: [ChangesetOperation]?
+
+    public init(
+        type: ActionType,
+        operations: [ChangesetOperation]? = nil
+    ) {
+        self.type = type
+        self.operations = operations
+    }
+}
+
+public struct ChangesetClearedAction: Codable, Sendable {
+    public var type: ActionType
+
+    public init(
+        type: ActionType
+    ) {
+        self.type = type
     }
 }
 
@@ -1198,6 +1296,7 @@ public enum StateAction: Codable, Sendable {
     case sessionIsReadChanged(SessionIsReadChangedAction)
     case sessionIsArchivedChanged(SessionIsArchivedChangedAction)
     case sessionActivityChanged(SessionActivityChangedAction)
+    case sessionChangesetsChanged(SessionChangesetsChangedAction)
     case sessionServerToolsChanged(SessionServerToolsChangedAction)
     case sessionActiveClientChanged(SessionActiveClientChangedAction)
     case sessionActiveClientToolsChanged(SessionActiveClientToolsChangedAction)
@@ -1209,11 +1308,16 @@ public enum StateAction: Codable, Sendable {
     case sessionInputCompleted(SessionInputCompletedAction)
     case sessionCustomizationsChanged(SessionCustomizationsChangedAction)
     case sessionCustomizationToggled(SessionCustomizationToggledAction)
+    case sessionCustomizationUpdated(SessionCustomizationUpdatedAction)
     case sessionTruncated(SessionTruncatedAction)
-    case sessionDiffsChanged(SessionDiffsChangedAction)
     case sessionConfigChanged(SessionConfigChangedAction)
     case sessionMetaChanged(SessionMetaChangedAction)
     case sessionToolCallContentChanged(SessionToolCallContentChangedAction)
+    case changesetStatusChanged(ChangesetStatusChangedAction)
+    case changesetFileSet(ChangesetFileSetAction)
+    case changesetFileRemoved(ChangesetFileRemovedAction)
+    case changesetOperationsChanged(ChangesetOperationsChangedAction)
+    case changesetCleared(ChangesetClearedAction)
     case rootTerminalsChanged(RootTerminalsChangedAction)
     case rootConfigChanged(RootConfigChangedAction)
     case terminalData(TerminalDataAction)
@@ -1282,6 +1386,8 @@ public enum StateAction: Codable, Sendable {
             self = .sessionIsArchivedChanged(try SessionIsArchivedChangedAction(from: decoder))
         case "session/activityChanged":
             self = .sessionActivityChanged(try SessionActivityChangedAction(from: decoder))
+        case "session/changesetsChanged":
+            self = .sessionChangesetsChanged(try SessionChangesetsChangedAction(from: decoder))
         case "session/serverToolsChanged":
             self = .sessionServerToolsChanged(try SessionServerToolsChangedAction(from: decoder))
         case "session/activeClientChanged":
@@ -1304,16 +1410,26 @@ public enum StateAction: Codable, Sendable {
             self = .sessionCustomizationsChanged(try SessionCustomizationsChangedAction(from: decoder))
         case "session/customizationToggled":
             self = .sessionCustomizationToggled(try SessionCustomizationToggledAction(from: decoder))
+        case "session/customizationUpdated":
+            self = .sessionCustomizationUpdated(try SessionCustomizationUpdatedAction(from: decoder))
         case "session/truncated":
             self = .sessionTruncated(try SessionTruncatedAction(from: decoder))
-        case "session/diffsChanged":
-            self = .sessionDiffsChanged(try SessionDiffsChangedAction(from: decoder))
         case "session/configChanged":
             self = .sessionConfigChanged(try SessionConfigChangedAction(from: decoder))
         case "session/metaChanged":
             self = .sessionMetaChanged(try SessionMetaChangedAction(from: decoder))
         case "session/toolCallContentChanged":
             self = .sessionToolCallContentChanged(try SessionToolCallContentChangedAction(from: decoder))
+        case "changeset/statusChanged":
+            self = .changesetStatusChanged(try ChangesetStatusChangedAction(from: decoder))
+        case "changeset/fileSet":
+            self = .changesetFileSet(try ChangesetFileSetAction(from: decoder))
+        case "changeset/fileRemoved":
+            self = .changesetFileRemoved(try ChangesetFileRemovedAction(from: decoder))
+        case "changeset/operationsChanged":
+            self = .changesetOperationsChanged(try ChangesetOperationsChangedAction(from: decoder))
+        case "changeset/cleared":
+            self = .changesetCleared(try ChangesetClearedAction(from: decoder))
         case "root/terminalsChanged":
             self = .rootTerminalsChanged(try RootTerminalsChangedAction(from: decoder))
         case "root/configChanged":
@@ -1370,6 +1486,7 @@ public enum StateAction: Codable, Sendable {
         case .sessionIsReadChanged(let v): try v.encode(to: encoder)
         case .sessionIsArchivedChanged(let v): try v.encode(to: encoder)
         case .sessionActivityChanged(let v): try v.encode(to: encoder)
+        case .sessionChangesetsChanged(let v): try v.encode(to: encoder)
         case .sessionServerToolsChanged(let v): try v.encode(to: encoder)
         case .sessionActiveClientChanged(let v): try v.encode(to: encoder)
         case .sessionActiveClientToolsChanged(let v): try v.encode(to: encoder)
@@ -1381,11 +1498,16 @@ public enum StateAction: Codable, Sendable {
         case .sessionInputCompleted(let v): try v.encode(to: encoder)
         case .sessionCustomizationsChanged(let v): try v.encode(to: encoder)
         case .sessionCustomizationToggled(let v): try v.encode(to: encoder)
+        case .sessionCustomizationUpdated(let v): try v.encode(to: encoder)
         case .sessionTruncated(let v): try v.encode(to: encoder)
-        case .sessionDiffsChanged(let v): try v.encode(to: encoder)
         case .sessionConfigChanged(let v): try v.encode(to: encoder)
         case .sessionMetaChanged(let v): try v.encode(to: encoder)
         case .sessionToolCallContentChanged(let v): try v.encode(to: encoder)
+        case .changesetStatusChanged(let v): try v.encode(to: encoder)
+        case .changesetFileSet(let v): try v.encode(to: encoder)
+        case .changesetFileRemoved(let v): try v.encode(to: encoder)
+        case .changesetOperationsChanged(let v): try v.encode(to: encoder)
+        case .changesetCleared(let v): try v.encode(to: encoder)
         case .rootTerminalsChanged(let v): try v.encode(to: encoder)
         case .rootConfigChanged(let v): try v.encode(to: encoder)
         case .terminalData(let v): try v.encode(to: encoder)

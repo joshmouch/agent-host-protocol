@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
-use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};
+use crate::state::{
+    ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary,
+};
 
 // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -77,7 +79,7 @@ pub struct SessionRemovedParams {
 ///   server has surfaced via `listSessions()` or `root/sessionAdded`.
 ///   Servers MAY coalesce or debounce updates for noisy fields (for example,
 ///   `modifiedAt` bumps while a turn is streaming, or rapidly changing
-///   `diffs`) at their discretion.
+///   `changesets`) at their discretion.
 /// - Clients that have no cached entry for `session` MAY ignore the
 ///   notification; it is not a substitute for `root/sessionAdded`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -152,7 +154,11 @@ pub struct PartialSessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Files changed during this session with diff statistics
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diffs: Option<Vec<FileEdit>>,
+    pub changesets: Option<Vec<ChangesetSummary>>,
 }

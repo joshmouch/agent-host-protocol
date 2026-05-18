@@ -436,6 +436,31 @@ public struct AHPSessionReducer: Reducer {
             guard let idx = state.customizations?.firstIndex(where: { $0.customization.uri == a.uri }) else { return }
             state.customizations?[idx].enabled = a.enabled
 
+        case .sessionCustomizationUpdated(let a):
+            if state.customizations == nil {
+                state.customizations = []
+            }
+            if let idx = state.customizations?.firstIndex(where: { $0.customization.uri == a.customization.uri }) {
+                state.customizations?[idx].customization = a.customization
+                if let enabled = a.enabled {
+                    state.customizations?[idx].enabled = enabled
+                }
+                if let status = a.status {
+                    state.customizations?[idx].status = status
+                }
+                if let message = a.statusMessage {
+                    state.customizations?[idx].statusMessage = message
+                }
+            } else {
+                state.customizations?.append(SessionCustomization(
+                    customization: a.customization,
+                    enabled: a.enabled ?? false,
+                    clientId: nil,
+                    status: a.status,
+                    statusMessage: a.statusMessage
+                ))
+            }
+
         // ── Truncation ────────────────────────────────────────────────────────
 
         case .sessionTruncated(let a):
@@ -462,10 +487,6 @@ public struct AHPSessionReducer: Reducer {
         case .sessionIsArchivedChanged(let a):
             state.summary.status = Self.withStatusFlag(state.summary.status, .isArchived, a.isArchived)
 
-        // ── Diffs ─────────────────────────────────────────────────────────────
-
-        case .sessionDiffsChanged(let a):
-            state.summary.diffs = a.diffs
 
         // ── Tool Call Content ────────────────────────────────────────────────
 

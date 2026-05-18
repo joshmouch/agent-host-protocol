@@ -15,8 +15,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use crate::actions::{ActionEnvelope, StateAction};
 #[allow(unused_imports)]
 use crate::state::{
-    MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary,
-    Snapshot, SnapshotState, TerminalClaim, Turn,
+    ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema,
+    SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -710,6 +710,65 @@ pub struct CompletionsResult {
     pub items: Vec<CompletionItem>,
 }
 
+/// Invokes a server-defined {@link ChangesetOperation} against a changeset,
+/// a single file, or a line range.
+///
+/// The server validates that `operationId` exists in the changeset's
+/// current `operations` list and that the requested `target.kind` is
+/// contained in the operation's `scopes`. Invalid combinations result in a
+/// JSON-RPC error.
+///
+/// State changes resulting from invocation flow back through the normal
+/// `changeset/*` action stream on the relevant changeset URIs. Clients
+/// SHOULD NOT synthesise local optimistic changes for invocations unless
+/// the server explicitly opts in via a future capability.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InvokeChangesetOperationParams {
+    /// The expanded changeset URI.
+    pub changeset: Uri,
+    /// Matches {@link ChangesetOperation.id} from the changeset's `operations` list.
+    pub operation_id: String,
+    /// Target of the operation. Required iff the chosen scope is
+    /// `'resource'` or `'range'`. Omit for changeset-scoped operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<ChangesetOperationTarget>,
+}
+
+/// Result of the {@link InvokeChangesetOperationParams | `invokeChangesetOperation`}
+/// command.
+///
+/// Success is implicit: the server returns this result when it accepted
+/// the operation. Failure is signalled by rejecting the JSON-RPC request
+/// with an appropriate error code, not by any field on this result. The
+/// operation MAY still produce subsequent failure feedback through the
+/// {@link ChangesetStatusChangedAction | `changeset/statusChanged`} stream.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct InvokeChangesetOperationResult {
+    /// Optional human-readable message describing the result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<StringOrMarkdown>,
+    /// Optional follow-up: a URI to open (e.g. a PR), a content ref, etc.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<ChangesetOperationFollowUp>,
+}
+
+/// Optional follow-up surfaced by the server after an operation completes —
+/// a {@link ContentRef} the client can fetch and display.
+///
+/// Set `external` to `true` to open the content in the user's preferred
+/// external handler (e.g. browser); otherwise the client is expected to
+/// surface it inline.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetOperationFollowUp {
+    pub content: ContentRef,
+    /// When `true`, open in an external handler rather than inline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub external: Option<bool>,
+}
+
 // ─── ReconnectResult Union ────────────────────────────────────────────
 
 /// Result of the `reconnect` command.
@@ -720,4 +779,31 @@ pub enum ReconnectResult {
     Replay(ReconnectReplayResult),
     #[serde(rename = "snapshot")]
     Snapshot(ReconnectSnapshotResult),
+}
+
+// ─── Changeset Operation Unions ───────────────────────────────────────
+
+/// Identifies the file or range a `ChangesetOperation` should act on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum ChangesetOperationTarget {
+    #[serde(rename = "resource")]
+    Resource {
+        resource: Uri,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        side: Option<String>,
+    },
+    #[serde(rename = "range")]
+    Range {
+        resource: Uri,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        side: Option<String>,
+        range: ChangesetOperationTargetRange,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChangesetOperationTargetRange {
+    pub start: i64,
+    pub end: i64,
 }

@@ -39,7 +39,7 @@
 //! let client = Client::connect(transport, ClientConfig::default()).await?;
 //!
 //! client.initialize("my-client".into(), vec!["0.1.0".into()], vec![]).await?;
-//! let (_snap, mut sub) = client.subscribe("copilot:/s1".into()).await?;
+//! let (_snap, mut sub) = client.subscribe("ahp-session:/s1".into()).await?;
 //!
 //! while let Some(SubscriptionEvent::Action(env)) = sub.recv().await {
 //!     println!("seq={} action={:?}", env.server_seq, env.action);
@@ -58,13 +58,13 @@
 //! use ahp::{Client, ClientConfig, SubscriptionEvent};
 //!
 //! let client = Client::connect(transport, ClientConfig::default()).await?;
-//! client.initialize("my-client".into(), vec!["0.1.0".into()], vec!["agenthost:/root".into()]).await?;
+//! client.initialize("my-client".into(), vec!["0.1.0".into()], vec!["ahp-root://".into()]).await?;
 //!
-//! let mut sub = client.attach_subscription("agenthost:/root").await;
+//! let mut sub = client.attach_subscription("ahp-root://").await;
 //! while let Some(ev) = sub.recv().await {
 //!     match ev {
 //!         SubscriptionEvent::Action(a) => println!("seq={}", a.server_seq),
-//!         SubscriptionEvent::Notification(_) => {}
+//!         _ => {}
 //!     }
 //! }
 //!
@@ -76,8 +76,8 @@
 //!
 //! Subscribe to a URI to receive its [`SubscriptionEvent`] stream:
 //!
-//! - `agenthost:/root` — global agent host state (agents, session index)
-//! - `copilot:/<id>` (or any provider scheme) — a single chat session
+//! - `ahp-root://` — global agent host state (agents, session index)
+//! - `ahp-session:/<id>` — a single chat session
 //! - `terminal:/<id>` — a terminal
 //!
 //! [`Client::subscribe`] sends a `subscribe` request and returns the
@@ -146,14 +146,18 @@
 
 pub mod client;
 pub mod error;
+pub mod hosts;
 pub mod reducers;
 pub mod transport;
 
 pub use ahp_types;
 
-pub use client::{Client, ClientConfig, DispatchHandle, SessionSubscription, SubscriptionEvent};
+pub use client::{
+    Client, ClientConfig, ClientEvent, ClientEventStream, DispatchHandle, SessionSubscription,
+    SubscriptionEvent,
+};
 pub use error::{ClientError, TransportError};
 pub use reducers::{
     apply_action_to_root, apply_action_to_session, apply_action_to_terminal, ReduceOutcome,
 };
-pub use transport::{Transport, TransportMessage};
+pub use transport::{BoxedTransport, DynTransport, Transport, TransportMessage};

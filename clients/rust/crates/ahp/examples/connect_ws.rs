@@ -27,11 +27,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::connect(transport, ClientConfig::default()).await?;
 
     let init = client
-        .initialize("rust-example".into(), vec![ahp_types::PROTOCOL_VERSION.to_string()], vec!["root:/".into()])
+        .initialize(
+            "rust-example".into(),
+            vec![ahp_types::PROTOCOL_VERSION.to_string()],
+            vec![ahp_types::ROOT_RESOURCE_URI.to_string()],
+        )
         .await?;
     println!("connected (protocolVersion={})", init.protocol_version);
 
-    let mut sub = client.attach_subscription("root:/").await;
+    let mut sub = client
+        .attach_subscription(ahp_types::ROOT_RESOURCE_URI)
+        .await;
     println!("subscribed; streaming events (Ctrl+C to quit)...");
 
     loop {
@@ -40,8 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(SubscriptionEvent::Action(a)) => {
                     println!("action seq={} {}", a.server_seq, serde_json::to_string(&a.action)?);
                 }
-                Some(SubscriptionEvent::Notification(n)) => {
-                    println!("notification {}", serde_json::to_string(&n)?);
+                Some(other) => {
+                    println!("notification {}", serde_json::to_string(&serde_notif(&other))?);
                 }
                 None => break,
             },
@@ -54,4 +60,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     client.shutdown().await;
     Ok(())
+}
+
+fn serde_notif(ev: &SubscriptionEvent) -> serde_json::Value {
+    match ev {
+        SubscriptionEvent::Action(_) => serde_json::Value::Null,
+        SubscriptionEvent::SessionAdded(n) => serde_json::to_value(n).unwrap_or_default(),
+        SubscriptionEvent::SessionRemoved(n) => serde_json::to_value(n).unwrap_or_default(),
+        SubscriptionEvent::SessionSummaryChanged(n) => serde_json::to_value(n).unwrap_or_default(),
+        SubscriptionEvent::AuthRequired(n) => serde_json::to_value(n).unwrap_or_default(),
+    }
 }

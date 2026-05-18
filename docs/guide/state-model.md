@@ -116,14 +116,14 @@ The `status` bitset encodes both the session's activity state and metadata flags
 
 `summary.status` is a numeric bitset. Clients SHOULD use bitwise checks instead of string or equality checks for activity states:
 
-| Name | Value | Bits | Meaning |
-|---|---:|---|---|
-| `SessionStatus.Idle` | `1` | `1 << 0` | No active turn and no pending input request. |
-| `SessionStatus.Error` | `2` | `1 << 1` | The most recent turn ended with an error. |
-| `SessionStatus.InProgress` | `8` | `1 << 3` | A turn is active. |
-| `SessionStatus.InputNeeded` | `24` | `(1 << 3) \| (1 << 4)` | A turn is active and either at least one user input request is open, or at least one tool call is awaiting user confirmation (pre- or post-execution). Includes the `InProgress` bit. |
-| `SessionStatus.IsRead` | `32` | `1 << 5` | The client has viewed this session since its last modification. Cleared automatically when a new turn starts or an input request arrives. Toggled via `session/isReadChanged`. |
-| `SessionStatus.IsArchived` | `64` | `1 << 6` | The session has been archived by the client. Toggled via `session/isArchivedChanged`. |
+| Name                        | Value | Bits                   | Meaning                                                                                                                                                                               |
+| --------------------------- | ----: | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SessionStatus.Idle`        |   `1` | `1 << 0`               | No active turn and no pending input request.                                                                                                                                          |
+| `SessionStatus.Error`       |   `2` | `1 << 1`               | The most recent turn ended with an error.                                                                                                                                             |
+| `SessionStatus.InProgress`  |   `8` | `1 << 3`               | A turn is active.                                                                                                                                                                     |
+| `SessionStatus.InputNeeded` |  `24` | `(1 << 3) \| (1 << 4)` | A turn is active and either at least one user input request is open, or at least one tool call is awaiting user confirmation (pre- or post-execution). Includes the `InProgress` bit. |
+| `SessionStatus.IsRead`      |  `32` | `1 << 5`               | The client has viewed this session since its last modification. Cleared automatically when a new turn starts or an input request arrives. Toggled via `session/isReadChanged`.        |
+| `SessionStatus.IsArchived`  |  `64` | `1 << 6`               | The session has been archived by the client. Toggled via `session/isArchivedChanged`.                                                                                                 |
 
 Bits 0–4 encode mutually-exclusive **activity** status (exactly one is set at a time). Bits 5+ encode orthogonal **metadata** flags that may be combined with any activity status via bitwise OR.
 
@@ -299,14 +299,14 @@ stateDiagram-v2
 
 ### States
 
-| Status | Key Fields | Description |
-|---|---|---|
-| `streaming` | `partialInput?` | LM is streaming tool call parameters. `partialInput` accumulates via `toolCallDelta`. |
-| `pending-confirmation` | `invocationMessage`, `toolInput?`, `edits?`, `editable?`, `options?` | Parameters complete or mid-execution confirmation needed. `edits` previews file changes. `editable` indicates the client may edit parameters before confirming. `options` provides server-defined choices beyond simple approve/deny (see below). Uses `_meta` for additional context. |
-| `running` | `confirmed`, `selectedOption?` | Tool is executing. `confirmed` records how it was approved. `selectedOption` holds the chosen confirmation option, if any. |
-| `pending-result-confirmation` | `success`, `pastTenseMessage`, `content?`, `selectedOption?` | Execution finished, waiting for client to approve the result. |
-| `completed` | `success`, `pastTenseMessage`, `content?`, `selectedOption?` | Terminal state. Tool finished. |
-| `cancelled` | `reason`, `reasonMessage?`, `userSuggestion?`, `selectedOption?` | Terminal state. `reason` is `'denied'`, `'skipped'`, or `'result-denied'`. |
+| Status                        | Key Fields                                                           | Description                                                                                                                                                                                                                                                                            |
+| ----------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `streaming`                   | `partialInput?`                                                      | LM is streaming tool call parameters. `partialInput` accumulates via `toolCallDelta`.                                                                                                                                                                                                  |
+| `pending-confirmation`        | `invocationMessage`, `toolInput?`, `edits?`, `editable?`, `options?` | Parameters complete or mid-execution confirmation needed. `edits` previews file changes. `editable` indicates the client may edit parameters before confirming. `options` provides server-defined choices beyond simple approve/deny (see below). Uses `_meta` for additional context. |
+| `running`                     | `confirmed`, `selectedOption?`                                       | Tool is executing. `confirmed` records how it was approved. `selectedOption` holds the chosen confirmation option, if any.                                                                                                                                                             |
+| `pending-result-confirmation` | `success`, `pastTenseMessage`, `content?`, `selectedOption?`         | Execution finished, waiting for client to approve the result.                                                                                                                                                                                                                          |
+| `completed`                   | `success`, `pastTenseMessage`, `content?`, `selectedOption?`         | Terminal state. Tool finished.                                                                                                                                                                                                                                                         |
+| `cancelled`                   | `reason`, `reasonMessage?`, `userSuggestion?`, `selectedOption?`     | Terminal state. `reason` is `'denied'`, `'skipped'`, or `'result-denied'`.                                                                                                                                                                                                             |
 
 ### Mid-execution Re-confirmation
 
@@ -322,12 +322,12 @@ When a turn completes, non-terminal tool calls in `responseParts` are force-canc
 
 By default, clients render a binary approve/deny UI for `pending-confirmation` tool calls. The server can provide richer choices via `options` — an array of `ConfirmationOption` objects, each with:
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `string` | Unique identifier, returned in the `session/toolCallConfirmed` action as `selectedOptionId`. |
-| `label` | `string` | Human-readable text for the button or menu item. The server SHOULD localise this using the client's `locale` (sent in `initialize`). |
-| `kind` | `'approve' \| 'deny'` | Classifies the option so the server and client know whether it represents approval or denial. |
-| `group` | `number?` | Logical group number. Clients SHOULD display options in the order they are defined and MAY use differing group numbers to insert dividers between logical clusters. |
+| Field   | Type                  | Description                                                                                                                                                         |
+| ------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`    | `string`              | Unique identifier, returned in the `session/toolCallConfirmed` action as `selectedOptionId`.                                                                        |
+| `label` | `string`              | Human-readable text for the button or menu item. The server SHOULD localise this using the client's `locale` (sent in `initialize`).                                |
+| `kind`  | `'approve' \| 'deny'` | Classifies the option so the server and client know whether it represents approval or denial.                                                                       |
+| `group` | `number?`             | Logical group number. Clients SHOULD display options in the order they are defined and MAY use differing group numbers to insert dividers between logical clusters. |
 
 For example, a server might offer `"Approve"`, `"Approve in this Session"`, `"Deny"`, and `"Deny with reason"`. When the user picks an option, the client dispatches `session/toolCallConfirmed` with `selectedOptionId` set to the chosen option's `id`. The reducer resolves the full `ConfirmationOption` object and stores it as `selectedOption` on the resulting `running` or `cancelled` state, and it carries through to `completed`.
 
@@ -375,7 +375,7 @@ The session list can be arbitrarily large and is **not** part of the state tree.
 - Clients fetch the list imperatively via `listSessions()` RPC.
 - The server sends lightweight **notifications** to keep connected clients' caches in sync without re-fetching:
   - `root/sessionAdded` and `root/sessionRemoved` signal lifecycle (creation and disposal).
-  - `root/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `diffs`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
+  - `root/sessionSummaryChanged` streams partial updates to an existing session's summary (title, status, `modifiedAt`, project, model, working directory, `changesets`) so clients that are displaying a session list can stay in sync without subscribing to every session URI individually. Only fields present in `changes` carry new values; omitted fields are unchanged. The server SHOULD emit this notification whenever any mutable summary field changes, and MAY coalesce or debounce noisy updates (for example, rapid `modifiedAt` bumps while a turn is streaming) at its discretion.
 
 Notifications are ephemeral — not processed by reducers, not stored in state, not replayed on reconnect. On reconnect, clients re-fetch the list.
 
@@ -475,7 +475,7 @@ createSession({
     session: 'ahp-session:/<source-uuid>',
     turnId: 't-3',     // copy turns through t-3
   },
-})
+});
 ```
 
 The forked session is an independent copy — subsequent changes to either session do not affect the other. The server broadcasts `root/sessionAdded` for the new session as usual.

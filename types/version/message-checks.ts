@@ -57,7 +57,8 @@ type _ExpectedCommands =
   | 'authenticate'
   | 'resolveSessionConfig'
   | 'sessionConfigCompletions'
-  | 'completions';
+  | 'completions'
+  | 'invokeChangesetOperation';
 
 /** All methods annotated `@messageType Notification` (client → server). */
 type _ExpectedClientNotifications =

@@ -861,6 +861,55 @@ public struct CompletionsResult: Codable, Sendable {
     }
 }
 
+public struct InvokeChangesetOperationParams: Codable, Sendable {
+    /// The expanded changeset URI.
+    public var changeset: String
+    /// Matches {@link ChangesetOperation.id} from the changeset's `operations` list.
+    public var operationId: String
+    /// Target of the operation. Required iff the chosen scope is
+    /// `'resource'` or `'range'`. Omit for changeset-scoped operations.
+    public var target: ChangesetOperationTarget?
+
+    public init(
+        changeset: String,
+        operationId: String,
+        target: ChangesetOperationTarget? = nil
+    ) {
+        self.changeset = changeset
+        self.operationId = operationId
+        self.target = target
+    }
+}
+
+public struct InvokeChangesetOperationResult: Codable, Sendable {
+    /// Optional human-readable message describing the result.
+    public var message: StringOrMarkdown?
+    /// Optional follow-up: a URI to open (e.g. a PR), a content ref, etc.
+    public var followUp: ChangesetOperationFollowUp?
+
+    public init(
+        message: StringOrMarkdown? = nil,
+        followUp: ChangesetOperationFollowUp? = nil
+    ) {
+        self.message = message
+        self.followUp = followUp
+    }
+}
+
+public struct ChangesetOperationFollowUp: Codable, Sendable {
+    public var content: ContentRef
+    /// When `true`, open in an external handler rather than inline.
+    public var external: Bool?
+
+    public init(
+        content: ContentRef,
+        external: Bool? = nil
+    ) {
+        self.content = content
+        self.external = external
+    }
+}
+
 // MARK: - ReconnectResult Union
 
 public enum ReconnectResult: Codable, Sendable {
@@ -889,5 +938,75 @@ public enum ReconnectResult: Codable, Sendable {
         case .replay(let value): try value.encode(to: encoder)
         case .snapshot(let value): try value.encode(to: encoder)
         }
+    }
+}
+
+// MARK: - Changeset Operation Unions
+
+/// Identifies the file or range a `ChangesetOperation` should act on.
+public enum ChangesetOperationTarget: Codable, Sendable {
+    case resource(ChangesetOperationResourceTarget)
+    case range(ChangesetOperationRangeTarget)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "resource":
+            self = .resource(try ChangesetOperationResourceTarget(from: decoder))
+        case "range":
+            self = .range(try ChangesetOperationRangeTarget(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ChangesetOperationTarget discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .resource(let value): try value.encode(to: encoder)
+        case .range(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct ChangesetOperationResourceTarget: Codable, Sendable {
+    public var kind: String { "resource" }
+    public var resource: String
+    public var side: String?
+
+    public init(resource: String, side: String? = nil) {
+        self.resource = resource
+        self.side = side
+    }
+
+    private enum CodingKeys: String, CodingKey { case resource, side }
+}
+
+public struct ChangesetOperationRangeTarget: Codable, Sendable {
+    public var kind: String { "range" }
+    public var resource: String
+    public var side: String?
+    public var range: ChangesetOperationTargetRange
+
+    public init(resource: String, side: String? = nil, range: ChangesetOperationTargetRange) {
+        self.resource = resource
+        self.side = side
+        self.range = range
+    }
+
+    private enum CodingKeys: String, CodingKey { case resource, side, range }
+}
+
+public struct ChangesetOperationTargetRange: Codable, Sendable {
+    public var start: Int
+    public var end: Int
+
+    public init(start: Int, end: Int) {
+        self.start = start
+        self.end = end
     }
 }

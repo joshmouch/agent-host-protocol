@@ -21,7 +21,7 @@ The client initiates the connection with an `initialize` **request**. The client
   "id": 1,
   "method": "initialize",
   "params": {
-    "protocolVersions": ["0.1.0"],
+    "protocolVersions": ["0.2.0"],
     "clientId": "client-abc",
     "initialSubscriptions": ["ahp-root://"],
     "locale": "en-US"
@@ -42,7 +42,7 @@ The client initiates the connection with an `initialize` **request**. The client
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "protocolVersion": "0.1.0",
+    "protocolVersion": "0.2.0",
     "serverSeq": 42,
     "defaultDirectory": "file:///home/testuser",
     "snapshots": [

@@ -367,6 +367,11 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.activity = a.activity
         return next
 
+    case .sessionChangesetsChanged(let a):
+        var next = state
+        next.summary.changesets = a.changesets
+        return next
+
     case .sessionConfigChanged(let a):
         guard var config = state.config else { return state }
         config.values = a.replace == true ? a.config : config.values.merging(a.config) { _, new in new }
@@ -414,6 +419,32 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.customizations = list
         return next
 
+    case .sessionCustomizationUpdated(let a):
+        var list = state.customizations ?? []
+        if let idx = list.firstIndex(where: { $0.customization.uri == a.customization.uri }) {
+            list[idx].customization = a.customization
+            if let enabled = a.enabled {
+                list[idx].enabled = enabled
+            }
+            if let status = a.status {
+                list[idx].status = status
+            }
+            if let message = a.statusMessage {
+                list[idx].statusMessage = message
+            }
+        } else {
+            list.append(SessionCustomization(
+                customization: a.customization,
+                enabled: a.enabled ?? false,
+                clientId: nil,
+                status: a.status,
+                statusMessage: a.statusMessage
+            ))
+        }
+        var next = state
+        next.customizations = list
+        return next
+
     // ── Truncation ────────────────────────────────────────────────────────
 
     case .sessionTruncated(let a):
@@ -446,12 +477,6 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.status = withStatusFlag(next.summary.status, .isArchived, a.isArchived)
         return next
 
-    // ── Diffs ─────────────────────────────────────────────────────────────
-
-    case .sessionDiffsChanged(let a):
-        var next = state
-        next.summary.diffs = a.diffs
-        return next
 
     // ── Tool Call Content ────────────────────────────────────────────────
 

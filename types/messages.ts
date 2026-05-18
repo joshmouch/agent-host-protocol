@@ -47,6 +47,8 @@ import type {
   SessionConfigCompletionsResult,
   CompletionsParams,
   CompletionsResult,
+  InvokeChangesetOperationParams,
+  InvokeChangesetOperationResult,
 } from './commands.js';
 
 import type { ActionEnvelope } from './actions.js';
@@ -140,6 +142,7 @@ export interface CommandMap {
   'resolveSessionConfig': { params: ResolveSessionConfigParams; result: ResolveSessionConfigResult };
   'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
   'completions': { params: CompletionsParams; result: CompletionsResult };
+  'invokeChangesetOperation': { params: InvokeChangesetOperationParams; result: InvokeChangesetOperationResult };
 }
 
 /**

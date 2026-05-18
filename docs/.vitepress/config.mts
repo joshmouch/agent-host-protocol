@@ -47,6 +47,12 @@ export default withMermaid(defineConfig({
             { text: 'AHP and ACP', link: '/guide/ahp-and-acp' },
           ],
         },
+        {
+          text: 'Clients',
+          items: [
+            { text: 'Multiple Hosts', link: '/guide/clients-multi-host' },
+          ],
+        },
       ],
       '/specification/': [
         {
