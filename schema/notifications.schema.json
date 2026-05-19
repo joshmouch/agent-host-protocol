@@ -27,6 +27,34 @@
         "resource"
       ]
     },
+    "MessageSegmentParams": {
+      "type": "object",
+      "description": "Carries one segment of a JSON-RPC message that the sender has split to\nstay below a transport frame ceiling. Reassembled by the receiver's\nframing layer before normal JSON-RPC dispatch.\n\n`ahp/messageSegment` is a **control** notification: it belongs to the\nframing layer, not to any subscribable resource, and is the only AHP\nnotification that does **not** carry a top-level `channel: URI`. It is\nregistered in {@link ControlNotificationMap} rather than the client- or\nserver-direction notification maps; it MAY be sent in either direction.\n\nChunking is opt-in per direction: a sender MUST NOT emit\n`ahp/messageSegment` unless the receiver has advertised\n{@link ChunkingCapability} during `initialize` (or `reconnect`). See\n[Chunking](/specification/chunking) for the full lifecycle, sender and\nreceiver behaviour, validation rules, and DoS limits.",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "description": "Opaque sender-chosen identifier that scopes one in-flight reassembly.\n\nMUST be a non-empty string of at most 128 UTF-8 bytes. Receivers MUST\nNOT interpret the value. A `groupId` MUST be unique among the sender's\ncurrently in-flight reassemblies on a single connection; it MAY be\nreused once the receiver has either fully reassembled or discarded\nthat group. `groupId` and JSON-RPC `id` are independent namespaces."
+        },
+        "index": {
+          "type": "number",
+          "description": "0-based position of this segment within the group. MUST be a\nnon-negative integer strictly less than `total`. Receivers MUST reject\nduplicate or out-of-order indices as a protocol error."
+        },
+        "total": {
+          "type": "number",
+          "description": "Total number of segments in this group. MUST be at least 1 and less\nthan 65 536. MUST be identical across every segment of the group; a\nsubsequent segment with a different `total` is a protocol error."
+        },
+        "data": {
+          "type": "string",
+          "description": "Base64-encoded slice of the UTF-8 bytes of the original JSON-RPC\nmessage being reassembled. Uses the standard base64 alphabet\n([RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648#section-4)) with\npadding. Concatenating the decoded bytes of segments `0..total-1` in\norder MUST produce a UTF-8 byte sequence that parses as exactly one\nJSON-RPC request, response, or notification — which MUST NOT itself\nbe an `ahp/messageSegment` (no recursion)."
+        }
+      },
+      "required": [
+        "groupId",
+        "index",
+        "total",
+        "data"
+      ]
+    },
     "SessionAddedParams": {
       "type": "object",
       "description": "Broadcast to all clients subscribed to the root channel when a new session\nis created.",
@@ -140,6 +168,9 @@
       "oneOf": [
         {
           "$ref": "#/$defs/AuthRequiredParams"
+        },
+        {
+          "$ref": "#/$defs/MessageSegmentParams"
         },
         {
           "$ref": "#/$defs/SessionAddedParams"

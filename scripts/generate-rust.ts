@@ -978,6 +978,9 @@ pub struct ActionEnvelope {
 const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind'];
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
+  { name: 'ChunkingCapability' },
+  { name: 'ClientCapabilities' },
+  { name: 'ServerCapabilities' },
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
   { name: 'ReconnectParams' },
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
@@ -1096,6 +1099,7 @@ const NOTIFICATION_STRUCTS = [
   'SessionRemovedParams',
   'SessionSummaryChangedParams',
   'AuthRequiredParams',
+  'MessageSegmentParams',
 ];
 
 function generateNotificationsFile(project: Project): string {

@@ -27,13 +27,84 @@ import type { ActionEnvelope, StateAction } from './actions.js';
  *
  * This invariant lets implementations route every incoming message —
  * request, response, or notification — by inspecting `params.channel`
- * without needing to know the per-method param shape.
+ * without needing to know the per-method param shape. The only AHP
+ * messages exempt from the invariant are control notifications registered
+ * in `ControlNotificationMap` (e.g. `ahp/messageSegment`), which belong to
+ * the framing layer rather than any subscribable resource.
  *
  * @category Commands
  */
 export interface BaseParams {
   /** Channel URI this command targets. */
   channel: URI;
+}
+
+// ─── Capabilities ────────────────────────────────────────────────────────────
+
+/**
+ * Receiver-side limits for the message-chunking primitive. A side that
+ * advertises `chunking` permits the peer to send oversized JSON-RPC
+ * messages as a sequence of `ahp/messageSegment` notifications.
+ *
+ * See [Chunking](/specification/chunking) for the full sender and receiver
+ * behaviour, validation rules, and reconnection interaction.
+ *
+ * @category Capabilities
+ * @version 0.3.0
+ */
+export interface ChunkingCapability {
+  /**
+   * Maximum size, in UTF-8 bytes, of any single transport frame this side
+   * is willing to receive — for both unchunked JSON-RPC messages and
+   * individual `ahp/messageSegment` notifications. Includes the JSON-RPC
+   * envelope overhead. Senders MUST NOT emit a frame larger than this.
+   */
+  maxIncomingFrameBytes: number;
+  /**
+   * Maximum size, in UTF-8 bytes, of a fully reassembled JSON-RPC message
+   * this side is willing to receive. MUST be greater than or equal to
+   * `maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message
+   * whose reassembled payload would exceed this value.
+   */
+  maxIncomingMessageBytes: number;
+  /**
+   * Maximum number of concurrently in-flight reassembly groups this side
+   * will hold open. MUST be at least 1. If omitted, the sender SHOULD use
+   * an implementation-defined default.
+   */
+  maxIncomingGroups?: number;
+  /**
+   * Maximum time, in milliseconds, this side will hold an incomplete
+   * reassembly group before discarding it as abandoned. If omitted, the
+   * sender SHOULD use an implementation-defined default.
+   */
+  groupTimeoutMs?: number;
+}
+
+/**
+ * Capabilities advertised by the client during `initialize` (or
+ * `reconnect`). Each field is independently optional; omitting a field
+ * means the client does not support that feature.
+ *
+ * @category Capabilities
+ * @version 0.3.0
+ */
+export interface ClientCapabilities {
+  /** Chunking limits the server may apply when sending to this client. */
+  chunking?: ChunkingCapability;
+}
+
+/**
+ * Capabilities advertised by the server in the `initialize` result. Each
+ * field is independently optional; omitting a field means the server does
+ * not support that feature.
+ *
+ * @category Capabilities
+ * @version 0.3.0
+ */
+export interface ServerCapabilities {
+  /** Chunking limits the client may apply when sending to this server. */
+  chunking?: ChunkingCapability;
 }
 
 // ─── initialize ──────────────────────────────────────────────────────────────
@@ -71,6 +142,15 @@ export interface InitializeParams extends BaseParams {
    * user-facing strings such as confirmation option labels.
    */
   locale?: string;
+  /**
+   * Client-side feature capabilities and the per-direction limits that
+   * govern them. The client advertises what it is willing to *receive*; the
+   * server's outbound behaviour respects these limits. Omitting a field
+   * (or the entire object) means the client does not support that feature.
+   *
+   * @version 0.3.0
+   */
+  capabilities?: ClientCapabilities;
 }
 
 /**
@@ -102,6 +182,16 @@ export interface InitializeResult {
    * `'@'` or `'/'`.
    */
   completionTriggerCharacters?: string[];
+  /**
+   * Server-side feature capabilities and the per-direction limits that
+   * govern them. The server advertises what it is willing to *receive*;
+   * the client's outbound behaviour respects these limits. Omitting a
+   * field (or the entire object) means the server does not support that
+   * feature.
+   *
+   * @version 0.3.0
+   */
+  capabilities?: ServerCapabilities;
 }
 
 // ─── ping ────────────────────────────────────────────────────────────────────
@@ -155,6 +245,16 @@ export interface ReconnectParams extends BaseParams {
   lastSeenServerSeq: number;
   /** URIs the client was subscribed to */
   subscriptions: URI[];
+  /**
+   * Client-side feature capabilities for the new transport connection.
+   * `reconnect` runs over a fresh transport whose limits the server has no
+   * other way to learn, so the client SHOULD re-advertise its capabilities
+   * here whenever its limits have changed. If omitted, the server SHOULD
+   * assume the previously-negotiated capabilities still apply.
+   *
+   * @version 0.3.0
+   */
+  capabilities?: ClientCapabilities;
 }
 
 /**

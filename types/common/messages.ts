@@ -65,7 +65,7 @@ import type {
   SessionRemovedParams,
   SessionSummaryChangedParams,
 } from '../channels-root/notifications.js';
-import type { AuthRequiredParams } from './notifications.js';
+import type { AuthRequiredParams, MessageSegmentParams } from './notifications.js';
 import type { AhpError } from './errors.js';
 
 // ─── JSON-RPC Base Types ─────────────────────────────────────────────────────
@@ -200,6 +200,29 @@ export interface ServerNotificationMap {
   'auth/required': { params: AuthRequiredParams };
 }
 
+/**
+ * Registry mapping each **control** notification method to its params type.
+ *
+ * Control notifications belong to the framing layer, not to any
+ * subscribable resource: they MAY be sent in either direction and are
+ * consumed by the receiver before normal JSON-RPC dispatch. Unlike entries
+ * in {@link ClientNotificationMap} and {@link ServerNotificationMap},
+ * entries here are **exempt** from the universal channel-URI invariant
+ * (their params MUST NOT carry a top-level `channel: URI`).
+ *
+ * Currently registered:
+ *
+ * - `ahp/messageSegment` — one segment of a JSON-RPC message that the
+ *   sender has split to stay below a transport frame ceiling. See
+ *   [Chunking](/specification/chunking).
+ *
+ * @category Notifications
+ * @version 0.3.0
+ */
+export interface ControlNotificationMap {
+  'ahp/messageSegment': { params: MessageSegmentParams };
+}
+
 // ─── Typed Requests ──────────────────────────────────────────────────────────
 
 /**
@@ -298,13 +321,27 @@ export type AhpServerNotification<M extends keyof ServerNotificationMap = keyof 
   } : never;
 
 /**
- * A fully typed JSON-RPC notification — either direction.
+ * A control notification — a framing-layer message that MAY be sent in
+ * either direction. Receivers consume control notifications before normal
+ * JSON-RPC dispatch. The only such notification today is
+ * `ahp/messageSegment`; see {@link ControlNotificationMap}.
+ */
+export type AhpControlNotification<M extends keyof ControlNotificationMap = keyof ControlNotificationMap> =
+  M extends unknown ? {
+    readonly jsonrpc: '2.0';
+    readonly method: M;
+    readonly params: ControlNotificationMap[M]['params'];
+  } : never;
+
+/**
+ * A fully typed JSON-RPC notification — either direction, including
+ * control notifications.
  *
  * The client → server `dispatchAction` method and the server → client
  * `action` method are distinct entries in the registries; their params have
  * unrelated shapes ({@link DispatchActionParams} vs {@link ActionEnvelope}).
  */
-export type AhpNotification = AhpClientNotification | AhpServerNotification;
+export type AhpNotification = AhpClientNotification | AhpServerNotification | AhpControlNotification;
 
 // ─── Protocol Message Union ──────────────────────────────────────────────────
 

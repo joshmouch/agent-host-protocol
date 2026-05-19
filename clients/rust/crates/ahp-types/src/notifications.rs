@@ -118,6 +118,50 @@ pub struct AuthRequiredParams {
     pub reason: Option<AuthRequiredReason>,
 }
 
+/// Carries one segment of a JSON-RPC message that the sender has split to
+/// stay below a transport frame ceiling. Reassembled by the receiver's
+/// framing layer before normal JSON-RPC dispatch.
+///
+/// `ahp/messageSegment` is a **control** notification: it belongs to the
+/// framing layer, not to any subscribable resource, and is the only AHP
+/// notification that does **not** carry a top-level `channel: URI`. It is
+/// registered in {@link ControlNotificationMap} rather than the client- or
+/// server-direction notification maps; it MAY be sent in either direction.
+///
+/// Chunking is opt-in per direction: a sender MUST NOT emit
+/// `ahp/messageSegment` unless the receiver has advertised
+/// {@link ChunkingCapability} during `initialize` (or `reconnect`). See
+/// [Chunking](/specification/chunking) for the full lifecycle, sender and
+/// receiver behaviour, validation rules, and DoS limits.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageSegmentParams {
+    /// Opaque sender-chosen identifier that scopes one in-flight reassembly.
+    ///
+    /// MUST be a non-empty string of at most 128 UTF-8 bytes. Receivers MUST
+    /// NOT interpret the value. A `groupId` MUST be unique among the sender's
+    /// currently in-flight reassemblies on a single connection; it MAY be
+    /// reused once the receiver has either fully reassembled or discarded
+    /// that group. `groupId` and JSON-RPC `id` are independent namespaces.
+    pub group_id: String,
+    /// 0-based position of this segment within the group. MUST be a
+    /// non-negative integer strictly less than `total`. Receivers MUST reject
+    /// duplicate or out-of-order indices as a protocol error.
+    pub index: i64,
+    /// Total number of segments in this group. MUST be at least 1 and less
+    /// than 65 536. MUST be identical across every segment of the group; a
+    /// subsequent segment with a different `total` is a protocol error.
+    pub total: i64,
+    /// Base64-encoded slice of the UTF-8 bytes of the original JSON-RPC
+    /// message being reassembled. Uses the standard base64 alphabet
+    /// ([RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648#section-4)) with
+    /// padding. Concatenating the decoded bytes of segments `0..total-1` in
+    /// order MUST produce a UTF-8 byte sequence that parses as exactly one
+    /// JSON-RPC request, response, or notification — which MUST NOT itself
+    /// be an `ahp/messageSegment` (no recursion).
+    pub data: String,
+}
+
 // ─── Partial Summaries ────────────────────────────────────────────────
 
 /// Partial equivalent of SessionSummary — every field is optional for delta updates.

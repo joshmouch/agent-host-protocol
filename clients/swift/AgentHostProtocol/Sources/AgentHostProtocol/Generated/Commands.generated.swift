@@ -26,6 +26,61 @@ public enum CompletionItemKind: String, Codable, Sendable {
 
 // MARK: - Command Types
 
+public struct ChunkingCapability: Codable, Sendable {
+    /// Maximum size, in UTF-8 bytes, of any single transport frame this side
+    /// is willing to receive — for both unchunked JSON-RPC messages and
+    /// individual `ahp/messageSegment` notifications. Includes the JSON-RPC
+    /// envelope overhead. Senders MUST NOT emit a frame larger than this.
+    public var maxIncomingFrameBytes: Int
+    /// Maximum size, in UTF-8 bytes, of a fully reassembled JSON-RPC message
+    /// this side is willing to receive. MUST be greater than or equal to
+    /// `maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message
+    /// whose reassembled payload would exceed this value.
+    public var maxIncomingMessageBytes: Int
+    /// Maximum number of concurrently in-flight reassembly groups this side
+    /// will hold open. MUST be at least 1. If omitted, the sender SHOULD use
+    /// an implementation-defined default.
+    public var maxIncomingGroups: Int?
+    /// Maximum time, in milliseconds, this side will hold an incomplete
+    /// reassembly group before discarding it as abandoned. If omitted, the
+    /// sender SHOULD use an implementation-defined default.
+    public var groupTimeoutMs: Int?
+
+    public init(
+        maxIncomingFrameBytes: Int,
+        maxIncomingMessageBytes: Int,
+        maxIncomingGroups: Int? = nil,
+        groupTimeoutMs: Int? = nil
+    ) {
+        self.maxIncomingFrameBytes = maxIncomingFrameBytes
+        self.maxIncomingMessageBytes = maxIncomingMessageBytes
+        self.maxIncomingGroups = maxIncomingGroups
+        self.groupTimeoutMs = groupTimeoutMs
+    }
+}
+
+public struct ClientCapabilities: Codable, Sendable {
+    /// Chunking limits the server may apply when sending to this client.
+    public var chunking: ChunkingCapability?
+
+    public init(
+        chunking: ChunkingCapability? = nil
+    ) {
+        self.chunking = chunking
+    }
+}
+
+public struct ServerCapabilities: Codable, Sendable {
+    /// Chunking limits the client may apply when sending to this server.
+    public var chunking: ChunkingCapability?
+
+    public init(
+        chunking: ChunkingCapability? = nil
+    ) {
+        self.chunking = chunking
+    }
+}
+
 public struct InitializeParams: Codable, Sendable {
     /// Channel URI this command targets.
     public var channel: String
@@ -45,19 +100,26 @@ public struct InitializeParams: Codable, Sendable {
     /// (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
     /// user-facing strings such as confirmation option labels.
     public var locale: String?
+    /// Client-side feature capabilities and the per-direction limits that
+    /// govern them. The client advertises what it is willing to *receive*; the
+    /// server's outbound behaviour respects these limits. Omitting a field
+    /// (or the entire object) means the client does not support that feature.
+    public var capabilities: ClientCapabilities?
 
     public init(
         channel: String,
         protocolVersions: [String],
         clientId: String,
         initialSubscriptions: [String]? = nil,
-        locale: String? = nil
+        locale: String? = nil,
+        capabilities: ClientCapabilities? = nil
     ) {
         self.channel = channel
         self.protocolVersions = protocolVersions
         self.clientId = clientId
         self.initialSubscriptions = initialSubscriptions
         self.locale = locale
+        self.capabilities = capabilities
     }
 }
 
@@ -77,19 +139,27 @@ public struct InitializeResult: Codable, Sendable {
     /// {@link CompletionItemKind.UserMessage}. Typically includes characters like
     /// `'@'` or `'/'`.
     public var completionTriggerCharacters: [String]?
+    /// Server-side feature capabilities and the per-direction limits that
+    /// govern them. The server advertises what it is willing to *receive*;
+    /// the client's outbound behaviour respects these limits. Omitting a
+    /// field (or the entire object) means the server does not support that
+    /// feature.
+    public var capabilities: ServerCapabilities?
 
     public init(
         protocolVersion: String,
         serverSeq: Int,
         snapshots: [Snapshot],
         defaultDirectory: String? = nil,
-        completionTriggerCharacters: [String]? = nil
+        completionTriggerCharacters: [String]? = nil,
+        capabilities: ServerCapabilities? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
         self.snapshots = snapshots
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters
+        self.capabilities = capabilities
     }
 }
 
@@ -102,17 +172,25 @@ public struct ReconnectParams: Codable, Sendable {
     public var lastSeenServerSeq: Int
     /// URIs the client was subscribed to
     public var subscriptions: [String]
+    /// Client-side feature capabilities for the new transport connection.
+    /// `reconnect` runs over a fresh transport whose limits the server has no
+    /// other way to learn, so the client SHOULD re-advertise its capabilities
+    /// here whenever its limits have changed. If omitted, the server SHOULD
+    /// assume the previously-negotiated capabilities still apply.
+    public var capabilities: ClientCapabilities?
 
     public init(
         channel: String,
         clientId: String,
         lastSeenServerSeq: Int,
-        subscriptions: [String]
+        subscriptions: [String],
+        capabilities: ClientCapabilities? = nil
     ) {
         self.channel = channel
         self.clientId = clientId
         self.lastSeenServerSeq = lastSeenServerSeq
         self.subscriptions = subscriptions
+        self.capabilities = capabilities
     }
 }
 

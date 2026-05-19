@@ -23,7 +23,11 @@ When WebSocket is used:
 
 - The server acts as the WebSocket server.
 - Messages are sent as WebSocket **text** frames.
-- Each text frame contains exactly one complete JSON-RPC message.
+- Each text frame contains exactly one complete JSON-RPC message — with the single exception of the [chunking](/specification/chunking) primitive, which lets a logical message span multiple frames when the transport enforces a per-frame size ceiling. Reassembly is invisible to application code above the framing layer.
+
+## Frame size and chunking
+
+Some transports place a hard upper bound on the size of a single message — for example, [Azure Web PubSub](https://learn.microsoft.com/en-us/azure/azure-web-pubsub/) rejects any WebSocket frame larger than 1 MB. AHP provides an optional, capability-negotiated [chunking primitive](/specification/chunking) so a single logical JSON-RPC message can be split across multiple frames and reassembled before normal dispatch. Implementations operating behind a hard frame ceiling SHOULD advertise [`ChunkingCapability`](/reference/common#chunkingcapability) on both sides of the connection.
 
 ## Keep-Alive
 

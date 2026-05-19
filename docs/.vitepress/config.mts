@@ -55,6 +55,7 @@ export default withMermaid(defineConfig({
             { text: 'Lifecycle', link: '/specification/lifecycle' },
             { text: 'Channels & Subscriptions', link: '/specification/subscriptions' },
             { text: 'Authentication', link: '/specification/authentication' },
+            { text: 'Chunking', link: '/specification/chunking' },
             { text: 'Versioning', link: '/specification/versioning' },
           ],
         },

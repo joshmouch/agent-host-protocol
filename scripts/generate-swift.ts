@@ -999,6 +999,7 @@ function generateActionsFile(project: Project): string {
 const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind'];
 
 const COMMAND_STRUCTS = [
+  'ChunkingCapability', 'ClientCapabilities', 'ServerCapabilities',
   'InitializeParams', 'InitializeResult',
   'ReconnectParams', 'ReconnectReplayResult', 'ReconnectSnapshotResult',
   'SubscribeParams', 'SubscribeResult',
@@ -1147,6 +1148,7 @@ const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
   'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'AuthRequiredParams',
+  'MessageSegmentParams',
 ];
 
 function generateNotificationsFile(project: Project): string {

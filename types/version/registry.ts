@@ -6,7 +6,7 @@
 
 import type { StateAction } from '../actions.js';
 import { ActionType } from '../actions.js';
-import type { ServerNotificationMap } from '../messages.js';
+import type { ControlNotificationMap, ServerNotificationMap } from '../messages.js';
 
 // ─── Protocol Version Constants ──────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.2.0';
+export const PROTOCOL_VERSION = '0.3.0';
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
 
@@ -152,4 +152,30 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
  */
 export function isNotificationKnownToVersion(method: ProtocolNotificationMethod, clientVersion: string): boolean {
   return compareProtocolVersions(NOTIFICATION_INTRODUCED_IN[method], clientVersion) <= 0;
+}
+
+// ─── Exhaustive Control Notification Method → Version Map ──────────────────
+
+/**
+ * Maps every control notification method to the protocol version that
+ * introduced it. Adding a new control notification method to
+ * {@link ControlNotificationMap} without adding it here is a compile error.
+ *
+ * Control notifications belong to the framing layer (e.g. message
+ * chunking) rather than to any subscribable resource. They MAY be sent in
+ * either direction; receivers consume them before normal JSON-RPC
+ * dispatch.
+ *
+ * Versions are SemVer `MAJOR.MINOR.PATCH` strings (see `PROTOCOL_VERSION`).
+ */
+export const CONTROL_NOTIFICATION_INTRODUCED_IN: { readonly [K in keyof ControlNotificationMap]: string } = {
+  'ahp/messageSegment': '0.3.0',
+};
+
+/**
+ * Returns whether the given control notification method is known to the
+ * specified protocol version.
+ */
+export function isControlNotificationKnownToVersion(method: keyof ControlNotificationMap, clientVersion: string): boolean {
+  return compareProtocolVersions(CONTROL_NOTIFICATION_INTRODUCED_IN[method], clientVersion) <= 0;
 }

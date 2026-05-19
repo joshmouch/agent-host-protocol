@@ -85,6 +85,45 @@ public struct AuthRequiredParams: Codable, Sendable {
     }
 }
 
+public struct MessageSegmentParams: Codable, Sendable {
+    /// Opaque sender-chosen identifier that scopes one in-flight reassembly.
+    /// 
+    /// MUST be a non-empty string of at most 128 UTF-8 bytes. Receivers MUST
+    /// NOT interpret the value. A `groupId` MUST be unique among the sender's
+    /// currently in-flight reassemblies on a single connection; it MAY be
+    /// reused once the receiver has either fully reassembled or discarded
+    /// that group. `groupId` and JSON-RPC `id` are independent namespaces.
+    public var groupId: String
+    /// 0-based position of this segment within the group. MUST be a
+    /// non-negative integer strictly less than `total`. Receivers MUST reject
+    /// duplicate or out-of-order indices as a protocol error.
+    public var index: Int
+    /// Total number of segments in this group. MUST be at least 1 and less
+    /// than 65 536. MUST be identical across every segment of the group; a
+    /// subsequent segment with a different `total` is a protocol error.
+    public var total: Int
+    /// Base64-encoded slice of the UTF-8 bytes of the original JSON-RPC
+    /// message being reassembled. Uses the standard base64 alphabet
+    /// ([RFC 4648 §4](https://www.rfc-editor.org/rfc/rfc4648#section-4)) with
+    /// padding. Concatenating the decoded bytes of segments `0..total-1` in
+    /// order MUST produce a UTF-8 byte sequence that parses as exactly one
+    /// JSON-RPC request, response, or notification — which MUST NOT itself
+    /// be an `ahp/messageSegment` (no recursion).
+    public var data: String
+
+    public init(
+        groupId: String,
+        index: Int,
+        total: Int,
+        data: String
+    ) {
+        self.groupId = groupId
+        self.index = index
+        self.total = total
+        self.data = data
+    }
+}
+
 // MARK: - Partial Summary Types
 
 public struct PartialSessionSummary: Codable, Sendable {

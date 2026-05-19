@@ -32,9 +32,10 @@ AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message fr
 Every push-style interaction in AHP is scoped to a **channel** — a URI-identified subscribable resource (the root catalogue, a session, a terminal, a changeset, …). The wire protocol surfaces this consistently:
 
 - **Every command's `params` carries a top-level `channel: URI`**, declared on the `BaseParams` interface that every command params type extends. Channel-scoped commands (`createSession`, `disposeSession`, `fetchTurns`, `completions`, …) pass the target URI; connection-level commands (`initialize`, `ping`, `listSessions`, the `resource*` commands, `authenticate`) narrow `channel` to the literal `'ahp-root://'`.
-- **Every notification's `params` carries a top-level `channel: URI`**, including the `action` envelope, `dispatchAction`, `unsubscribe`, and every protocol notification (`root/sessionAdded`, `auth/required`, …).
+- **Every application notification's `params` carries a top-level `channel: URI`**, including the `action` envelope, `dispatchAction`, `unsubscribe`, and every protocol notification (`root/sessionAdded`, `auth/required`, …).
+- **Control notifications** are exempt. The single registry that holds them — `ControlNotificationMap` — exists specifically for framing-layer messages such as [`ahp/messageSegment`](/specification/chunking) that belong to the wire layer rather than to any subscribable resource. These notifications MAY travel in either direction and are consumed by the receiver before normal channel routing.
 
-Implementations can therefore dispatch any incoming message by inspecting `(method, params.channel)` without per-method deserialisation. This invariant is verified at compile time in `types/version/message-checks.ts`. See [Channels & Subscriptions](/specification/subscriptions) for the URI scheme, the subscription mechanism, and the per-method table.
+Implementations can therefore dispatch any incoming application message by inspecting `(method, params.channel)` without per-method deserialisation; control notifications are dispatched by method alone. This invariant is verified at compile time in `types/version/message-checks.ts`. See [Channels & Subscriptions](/specification/subscriptions) for the URI scheme, the subscription mechanism, and the per-method table.
 
 ### Message Categories
 
@@ -44,6 +45,7 @@ Implementations can therefore dispatch any incoming message by inspecting `(meth
 | Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `resourceRead`, `resourceWrite`, `resourceList`, `resourceCopy`, `resourceDelete`, `resourceMove` |
 | Server → Client (notification) | Pushed | `action`, `root/sessionAdded`, `root/sessionRemoved`, `root/sessionSummaryChanged`, `auth/required` |
 | Server → Client (response) | Correlated by `id` | Success result or JSON-RPC error |
+| Either direction (control) | Framing-layer; consumed before normal dispatch | `ahp/messageSegment` ([chunking](/specification/chunking)) |
 
 ### Requests
 
@@ -83,6 +85,7 @@ The specification is organised around the **channels** that AHP exposes — each
 - **[Lifecycle](/specification/lifecycle)** — Connection handshake, reconnection, and disconnection.
 - **[Channels & Subscriptions](/specification/subscriptions)** — The channel model, the universal `channel: URI` routing key, and the subscription mechanism shared by every channel type.
 - **[Authentication](/specification/authentication)** — RFC 9728 / RFC 6750 authentication flow.
+- **[Chunking](/specification/chunking)** — Capability-negotiated message segmenting for transports with frame-size ceilings.
 - **[Root Channel](/specification/root-channel)** — `ahp-root://` — agents, terminals catalogue, host config, session catalogue events.
 - **[Session Channel](/specification/session-channel)** — `ahp-session:/<uuid>` — per-session state, turns, tool calls, pending messages.
 - **[Terminal Channel](/specification/terminal-channel)** — per-terminal pty state, data flow, claims, command detection.

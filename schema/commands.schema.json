@@ -7,7 +7,7 @@
   "$defs": {
     "BaseParams": {
       "type": "object",
-      "description": "Base shape every command's params extends.\n\n`channel` identifies the channel the command targets, mirroring the\n`channel` field on every protocol notification. For commands that operate\non a specific channel (a session, terminal, or changeset), `channel` is\nthat channel's URI. For commands that are connection-level rather than\nchannel-scoped (e.g. {@link InitializeParams | `initialize`},\n{@link PingParams | `ping`}, {@link ListSessionsParams | `listSessions`},\nthe `resource*` filesystem commands, and {@link AuthenticateParams |\n`authenticate`}), the params type narrows `channel` to the literal\nroot URI `'ahp-root://'`.\n\nThis invariant lets implementations route every incoming message —\nrequest, response, or notification — by inspecting `params.channel`\nwithout needing to know the per-method param shape.",
+      "description": "Base shape every command's params extends.\n\n`channel` identifies the channel the command targets, mirroring the\n`channel` field on every protocol notification. For commands that operate\non a specific channel (a session, terminal, or changeset), `channel` is\nthat channel's URI. For commands that are connection-level rather than\nchannel-scoped (e.g. {@link InitializeParams | `initialize`},\n{@link PingParams | `ping`}, {@link ListSessionsParams | `listSessions`},\nthe `resource*` filesystem commands, and {@link AuthenticateParams |\n`authenticate`}), the params type narrows `channel` to the literal\nroot URI `'ahp-root://'`.\n\nThis invariant lets implementations route every incoming message —\nrequest, response, or notification — by inspecting `params.channel`\nwithout needing to know the per-method param shape. The only AHP\nmessages exempt from the invariant are control notifications registered\nin `ControlNotificationMap` (e.g. `ahp/messageSegment`), which belong to\nthe framing layer rather than any subscribable resource.",
       "properties": {
         "channel": {
           "$ref": "#/$defs/URI",
@@ -17,6 +17,52 @@
       "required": [
         "channel"
       ]
+    },
+    "ChunkingCapability": {
+      "type": "object",
+      "description": "Receiver-side limits for the message-chunking primitive. A side that\nadvertises `chunking` permits the peer to send oversized JSON-RPC\nmessages as a sequence of `ahp/messageSegment` notifications.\n\nSee [Chunking](/specification/chunking) for the full sender and receiver\nbehaviour, validation rules, and reconnection interaction.",
+      "properties": {
+        "maxIncomingFrameBytes": {
+          "type": "number",
+          "description": "Maximum size, in UTF-8 bytes, of any single transport frame this side\nis willing to receive — for both unchunked JSON-RPC messages and\nindividual `ahp/messageSegment` notifications. Includes the JSON-RPC\nenvelope overhead. Senders MUST NOT emit a frame larger than this."
+        },
+        "maxIncomingMessageBytes": {
+          "type": "number",
+          "description": "Maximum size, in UTF-8 bytes, of a fully reassembled JSON-RPC message\nthis side is willing to receive. MUST be greater than or equal to\n`maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message\nwhose reassembled payload would exceed this value."
+        },
+        "maxIncomingGroups": {
+          "type": "number",
+          "description": "Maximum number of concurrently in-flight reassembly groups this side\nwill hold open. MUST be at least 1. If omitted, the sender SHOULD use\nan implementation-defined default."
+        },
+        "groupTimeoutMs": {
+          "type": "number",
+          "description": "Maximum time, in milliseconds, this side will hold an incomplete\nreassembly group before discarding it as abandoned. If omitted, the\nsender SHOULD use an implementation-defined default."
+        }
+      },
+      "required": [
+        "maxIncomingFrameBytes",
+        "maxIncomingMessageBytes"
+      ]
+    },
+    "ClientCapabilities": {
+      "type": "object",
+      "description": "Capabilities advertised by the client during `initialize` (or\n`reconnect`). Each field is independently optional; omitting a field\nmeans the client does not support that feature.",
+      "properties": {
+        "chunking": {
+          "$ref": "#/$defs/ChunkingCapability",
+          "description": "Chunking limits the server may apply when sending to this client."
+        }
+      }
+    },
+    "ServerCapabilities": {
+      "type": "object",
+      "description": "Capabilities advertised by the server in the `initialize` result. Each\nfield is independently optional; omitting a field means the server does\nnot support that feature.",
+      "properties": {
+        "chunking": {
+          "$ref": "#/$defs/ChunkingCapability",
+          "description": "Chunking limits the client may apply when sending to this server."
+        }
+      }
     },
     "InitializeParams": {
       "type": "object",
@@ -49,6 +95,10 @@
         "locale": {
           "type": "string",
           "description": "IETF BCP 47 language tag indicating the client's preferred locale\n(e.g. `\"en-US\"`, `\"ja\"`). The server SHOULD use this to localise\nuser-facing strings such as confirmation option labels."
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ClientCapabilities",
+          "description": "Client-side feature capabilities and the per-direction limits that\ngovern them. The client advertises what it is willing to *receive*; the\nserver's outbound behaviour respects these limits. Omitting a field\n(or the entire object) means the client does not support that feature."
         }
       },
       "required": [
@@ -86,6 +136,10 @@
             "type": "string"
           },
           "description": "Characters that, when typed in a {@link UserMessage} input, SHOULD cause\nthe client to issue a `completions` request with\n{@link CompletionItemKind.UserMessage}. Typically includes characters like\n`'@'` or `'/'`."
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ServerCapabilities",
+          "description": "Server-side feature capabilities and the per-direction limits that\ngovern them. The server advertises what it is willing to *receive*;\nthe client's outbound behaviour respects these limits. Omitting a\nfield (or the entire object) means the server does not support that\nfeature."
         }
       },
       "required": [
@@ -133,6 +187,10 @@
             "$ref": "#/$defs/URI"
           },
           "description": "URIs the client was subscribed to"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/ClientCapabilities",
+          "description": "Client-side feature capabilities for the new transport connection.\n`reconnect` runs over a fresh transport whose limits the server has no\nother way to learn, so the client SHOULD re-advertise its capabilities\nhere whenever its limits have changed. If omitted, the server SHOULD\nassume the previously-negotiated capabilities still apply."
         }
       },
       "required": [

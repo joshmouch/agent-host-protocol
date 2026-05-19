@@ -84,6 +84,18 @@ export const AhpErrorCodes = {
    * overwriting (e.g. `resourceWrite` with `createOnly: true`).
    */
   AlreadyExists: -32010,
+  /**
+   * The sender cannot deliver a message because it would exceed the
+   * receiver's advertised frame ceiling and the receiver has not
+   * advertised chunking support (see
+   * {@link ChunkingCapability}). For requests, the sender returns this
+   * error to its local caller; for responses, the responder returns this
+   * error to the requester in place of the oversized result.
+   *
+   * @see {@link /specification/chunking | Chunking}
+   * @version 0.3.0
+   */
+  MessageTooLarge: -32011,
 } as const;
 
 /** Union type of all AHP application error codes. */

@@ -17,6 +17,7 @@ import type {
   ClientNotificationMap,
   ServerNotificationMap,
   ServerCommandMap,
+  ControlNotificationMap,
 } from '../messages.js';
 import type { BaseParams } from '../commands.js';
 import type { URI } from '../state.js';
@@ -44,6 +45,17 @@ type _AllParamsHaveChannel<M> = {
  */
 type _AllNotificationParamsHaveChannel<M> = {
   [K in keyof M]: M[K] extends { params: { channel: URI } } ? true : never;
+}[keyof M];
+
+/**
+ * Resolves to `true` if every entry in `M` has params that do **not**
+ * carry a top-level `channel: URI`. Used to enforce that control
+ * notifications (framing-layer messages such as `ahp/messageSegment`)
+ * stay out of the channel-routing namespace — they are dispatched by
+ * method alone, before normal channel routing kicks in.
+ */
+type _NoControlParamsHaveChannel<M> = {
+  [K in keyof M]: M[K] extends { params: { channel: unknown } } ? never : true;
 }[keyof M];
 
 // ─── Expected Method Names ───────────────────────────────────────────────────
@@ -90,6 +102,10 @@ type _ExpectedServerNotifications =
 type _ExpectedServerCommands =
   | 'resourceRequest';
 
+/** All control notification methods (framing layer, either direction). */
+type _ExpectedControlNotifications =
+  | 'ahp/messageSegment';
+
 // ─── Assertions ──────────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -100,6 +116,8 @@ type _CheckClientNotificationMapKeys = _Exact<keyof ClientNotificationMap, _Expe
 type _CheckServerNotificationMapKeys = _Exact<keyof ServerNotificationMap, _ExpectedServerNotifications>;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckServerCommandMapKeys = _Exact<keyof ServerCommandMap, _ExpectedServerCommands>;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckControlNotificationMapKeys = _Exact<keyof ControlNotificationMap, _ExpectedControlNotifications>;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckClientNotificationsHaveChannel = _AllNotificationParamsHaveChannel<ClientNotificationMap> extends true ? true : never;
@@ -109,3 +127,9 @@ type _CheckServerNotificationsHaveChannel = _AllNotificationParamsHaveChannel<Se
 type _CheckCommandsHaveChannel = _AllParamsHaveChannel<CommandMap> extends true ? true : never;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type _CheckServerCommandsHaveChannel = _AllParamsHaveChannel<ServerCommandMap> extends true ? true : never;
+// Control notifications are *exempt* from the channel-URI invariant by
+// design — they belong to the framing layer rather than any subscribable
+// resource. This check enforces the inverse: no control notification's
+// params object carries a top-level `channel`.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _CheckControlNotificationsHaveNoChannel = _NoControlParamsHaveChannel<ControlNotificationMap> extends true ? true : never;

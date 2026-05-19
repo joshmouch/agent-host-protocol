@@ -51,6 +51,59 @@ pub enum CompletionItemKind {
 
 // ─── Command Payloads ─────────────────────────────────────────────────
 
+/// Receiver-side limits for the message-chunking primitive. A side that
+/// advertises `chunking` permits the peer to send oversized JSON-RPC
+/// messages as a sequence of `ahp/messageSegment` notifications.
+///
+/// See [Chunking](/specification/chunking) for the full sender and receiver
+/// behaviour, validation rules, and reconnection interaction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChunkingCapability {
+    /// Maximum size, in UTF-8 bytes, of any single transport frame this side
+    /// is willing to receive — for both unchunked JSON-RPC messages and
+    /// individual `ahp/messageSegment` notifications. Includes the JSON-RPC
+    /// envelope overhead. Senders MUST NOT emit a frame larger than this.
+    pub max_incoming_frame_bytes: i64,
+    /// Maximum size, in UTF-8 bytes, of a fully reassembled JSON-RPC message
+    /// this side is willing to receive. MUST be greater than or equal to
+    /// `maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message
+    /// whose reassembled payload would exceed this value.
+    pub max_incoming_message_bytes: i64,
+    /// Maximum number of concurrently in-flight reassembly groups this side
+    /// will hold open. MUST be at least 1. If omitted, the sender SHOULD use
+    /// an implementation-defined default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_incoming_groups: Option<i64>,
+    /// Maximum time, in milliseconds, this side will hold an incomplete
+    /// reassembly group before discarding it as abandoned. If omitted, the
+    /// sender SHOULD use an implementation-defined default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_timeout_ms: Option<i64>,
+}
+
+/// Capabilities advertised by the client during `initialize` (or
+/// `reconnect`). Each field is independently optional; omitting a field
+/// means the client does not support that feature.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientCapabilities {
+    /// Chunking limits the server may apply when sending to this client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunking: Option<ChunkingCapability>,
+}
+
+/// Capabilities advertised by the server in the `initialize` result. Each
+/// field is independently optional; omitting a field means the server does
+/// not support that feature.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCapabilities {
+    /// Chunking limits the client may apply when sending to this server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunking: Option<ChunkingCapability>,
+}
+
 /// Establishes a new connection and negotiates the protocol version.
 /// This MUST be the first message sent by the client.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -76,6 +129,12 @@ pub struct InitializeParams {
     /// user-facing strings such as confirmation option labels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
+    /// Client-side feature capabilities and the per-direction limits that
+    /// govern them. The client advertises what it is willing to *receive*; the
+    /// server's outbound behaviour respects these limits. Omitting a field
+    /// (or the entire object) means the client does not support that feature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ClientCapabilities>,
 }
 
 /// Result of the `initialize` command.
@@ -105,6 +164,13 @@ pub struct InitializeResult {
     /// `'@'` or `'/'`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion_trigger_characters: Option<Vec<String>>,
+    /// Server-side feature capabilities and the per-direction limits that
+    /// govern them. The server advertises what it is willing to *receive*;
+    /// the client's outbound behaviour respects these limits. Omitting a
+    /// field (or the entire object) means the server does not support that
+    /// feature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ServerCapabilities>,
 }
 
 /// Re-establishes a dropped connection. The server replays missed actions or
@@ -120,6 +186,13 @@ pub struct ReconnectParams {
     pub last_seen_server_seq: i64,
     /// URIs the client was subscribed to
     pub subscriptions: Vec<Uri>,
+    /// Client-side feature capabilities for the new transport connection.
+    /// `reconnect` runs over a fresh transport whose limits the server has no
+    /// other way to learn, so the client SHOULD re-advertise its capabilities
+    /// here whenever its limits have changed. If omitted, the server SHOULD
+    /// assume the previously-negotiated capabilities still apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ClientCapabilities>,
 }
 
 /// Reconnect result when the server can replay from the requested sequence.

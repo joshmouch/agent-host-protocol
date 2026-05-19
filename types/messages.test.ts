@@ -181,6 +181,15 @@ describe('_ExpectedServerNotifications matches ServerNotificationMap', () => {
   });
 });
 
+describe('_ExpectedControlNotifications matches ControlNotificationMap', () => {
+  const expected = parseExpectedUnion(messageChecksSrc, '_ExpectedControlNotifications');
+  const mapKeys = parseMapKeys(messagesSrc, 'ControlNotificationMap');
+
+  it('_ExpectedControlNotifications lists exactly the ControlNotificationMap keys', () => {
+    assert.deepStrictEqual(expected.sort(), mapKeys.sort());
+  });
+});
+
 describe('command params/result naming conventions', () => {
   for (const method of requests) {
     const pascal = method[0].toUpperCase() + method.slice(1);

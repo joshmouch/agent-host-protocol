@@ -745,6 +745,30 @@ function emitNotificationsSection(project: Project, sourceFiles: SourceFile[]): 
   return lines.join('\n');
 }
 
+/**
+ * Emit a "Control Notifications" section: every exported `*Params` interface
+ * in the given source files whose method name appears in
+ * `ControlNotificationMap`. Control notifications belong to the framing
+ * layer and do not carry a `channel: URI`.
+ */
+function emitControlNotificationsSection(project: Project, sourceFiles: SourceFile[]): string {
+  const controlNotifMap = parseRegistryInterface(project, 'ControlNotificationMap', false);
+  const methodByParams = new Map<string, RegistryEntry>();
+  for (const entry of controlNotifMap) methodByParams.set(entry.paramsType, entry);
+
+  const lines: string[] = [];
+  for (const sf of sourceFiles) {
+    for (const stmt of sf.getStatements()) {
+      if (!Node.isInterfaceDeclaration(stmt) || !stmt.isExported()) continue;
+      const name = stmt.getName();
+      const entry = methodByParams.get(name);
+      if (!entry) continue;
+      lines.push(emitNotificationBlock(entry, stmt));
+    }
+  }
+  return lines.join('\n');
+}
+
 function emitNotificationBlock(entry: RegistryEntry, paramsIface: InterfaceDeclaration): string {
   const lines: string[] = [];
   const desc = getJsDocDescription(paramsIface);
@@ -850,17 +874,28 @@ function generateCommonPage(project: Project): string {
     lines.push(emitNotificationsSection(project, [notificationsSf]));
   }
 
+  // ─── Control Notifications ──────────────────────────────────────────────
+  if (notificationsSf) {
+    const controlNotifMap = parseRegistryInterface(project, 'ControlNotificationMap', false);
+    if (controlNotifMap.length > 0) {
+      lines.push('## Control Notifications\n');
+      lines.push('Control notifications belong to the framing layer rather than to any subscribable resource. They MAY be sent in either direction and are consumed by the receiver before normal JSON-RPC dispatch. Unlike application notifications, control notifications do **not** carry a top-level `channel: URI`.\n');
+      lines.push(schemaLink('notifications.schema.json'));
+      lines.push(emitControlNotificationsSection(project, [notificationsSf]));
+    }
+  }
+
   // ─── JSON-RPC Wire Types ────────────────────────────────────────────────
   if (messagesSf) {
     lines.push('## JSON-RPC Wire Types\n');
-    lines.push('Base JSON-RPC message shapes and the typed registries that drive the discriminated-union wrappers (`AhpRequest`, `AhpResponse`, `AhpClientNotification`, `AhpServerNotification`, `AhpNotification`, `ProtocolMessage`).\n');
+    lines.push('Base JSON-RPC message shapes and the typed registries that drive the discriminated-union wrappers (`AhpRequest`, `AhpResponse`, `AhpClientNotification`, `AhpServerNotification`, `AhpControlNotification`, `AhpNotification`, `ProtocolMessage`).\n');
     for (const name of ['JsonRpcRequest', 'JsonRpcSuccessResponse', 'JsonRpcErrorResponse', 'JsonRpcNotification', 'AhpErrorResponse']) {
       const iface = messagesSf.getInterface(name);
       if (iface) lines.push(renderInterfaceBlock(iface));
     }
     lines.push('### Registries\n');
     lines.push('The discriminated-union wrappers are parameterised over these registry interfaces. Each property is a JSON-RPC method name; each value is a `{ params; result? }` type literal.\n');
-    for (const name of ['CommandMap', 'ServerCommandMap', 'ClientNotificationMap', 'ServerNotificationMap']) {
+    for (const name of ['CommandMap', 'ServerCommandMap', 'ClientNotificationMap', 'ServerNotificationMap', 'ControlNotificationMap']) {
       const iface = messagesSf.getInterface(name);
       if (iface) lines.push(renderInterfaceCodeBlock(iface));
     }
@@ -869,7 +904,7 @@ function generateCommonPage(project: Project): string {
       'AhpRequest', 'AhpServerRequest',
       'AhpSuccessResponse', 'AhpResponse',
       'AhpServerSuccessResponse', 'AhpServerResponse',
-      'AhpClientNotification', 'AhpServerNotification', 'AhpNotification',
+      'AhpClientNotification', 'AhpServerNotification', 'AhpControlNotification', 'AhpNotification',
       'ProtocolMessage',
     ]) {
       const ta = messagesSf.getTypeAlias(name);
@@ -1124,6 +1159,7 @@ function generateMessagesPage(project: Project): string {
   const serverCommandMap = parseRegistryInterface(project, 'ServerCommandMap', true);
   const clientNotifMap = parseRegistryInterface(project, 'ClientNotificationMap', false);
   const serverNotifMap = parseRegistryInterface(project, 'ServerNotificationMap', false);
+  const controlNotifMap = parseRegistryInterface(project, 'ControlNotificationMap', false);
 
   const refLink = (entry: RegistryEntry): string => {
     const page = pageForMethod(project, entry.paramsType);
@@ -1197,6 +1233,17 @@ function generateMessagesPage(project: Project): string {
     lines.push(`| \`${entry.method}\` | ${escapeMarkdown(briefDescription(entry))} | ${ref} |`);
   }
   lines.push('');
+
+  if (controlNotifMap.length > 0) {
+    lines.push('## Control Notifications\n');
+    lines.push('Framing-layer notifications that MAY be sent in either direction. Consumed by the receiver before normal JSON-RPC dispatch. Control notifications do **not** carry a top-level `channel: URI`.\n');
+    lines.push('| Method | Description | Reference |');
+    lines.push('|---|---|---|');
+    for (const entry of controlNotifMap) {
+      lines.push(`| \`${entry.method}\` | ${escapeMarkdown(briefDescription(entry))} | ${refLink(entry)} |`);
+    }
+    lines.push('');
+  }
 
   lines.push('## Version Introduction\n');
   lines.push('All messages listed above were introduced in protocol version **1**.\n');
