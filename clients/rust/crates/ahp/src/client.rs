@@ -364,6 +364,7 @@ impl Client {
                 Some(initial_subscriptions)
             },
             locale: None,
+            capabilities: None,
         };
         self.request("initialize", params).await
     }
@@ -380,6 +381,7 @@ impl Client {
             client_id,
             last_seen_server_seq,
             subscriptions,
+            capabilities: None,
         };
         self.request("reconnect", params).await
     }
