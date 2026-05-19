@@ -27,6 +27,7 @@ public enum ActionType: String, Codable, Sendable {
     case sessionUsage = "session/usage"
     case sessionReasoning = "session/reasoning"
     case sessionModelChanged = "session/modelChanged"
+    case sessionAgentChanged = "session/agentChanged"
     case sessionServerToolsChanged = "session/serverToolsChanged"
     case sessionActiveClientChanged = "session/activeClientChanged"
     case sessionActiveClientToolsChanged = "session/activeClientToolsChanged"
@@ -637,6 +638,21 @@ public struct SessionModelChangedAction: Codable, Sendable {
     ) {
         self.type = type
         self.model = model
+    }
+}
+
+public struct SessionAgentChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// New agent selection, or `undefined` to clear the selection and reset the
+    /// session to no selected custom agent.
+    public var agent: AgentSelection?
+
+    public init(
+        type: ActionType,
+        agent: AgentSelection? = nil
+    ) {
+        self.type = type
+        self.agent = agent
     }
 }
 
@@ -1293,6 +1309,7 @@ public enum StateAction: Codable, Sendable {
     case sessionUsage(SessionUsageAction)
     case sessionReasoning(SessionReasoningAction)
     case sessionModelChanged(SessionModelChangedAction)
+    case sessionAgentChanged(SessionAgentChangedAction)
     case sessionIsReadChanged(SessionIsReadChangedAction)
     case sessionIsArchivedChanged(SessionIsArchivedChangedAction)
     case sessionActivityChanged(SessionActivityChangedAction)
@@ -1380,6 +1397,8 @@ public enum StateAction: Codable, Sendable {
             self = .sessionReasoning(try SessionReasoningAction(from: decoder))
         case "session/modelChanged":
             self = .sessionModelChanged(try SessionModelChangedAction(from: decoder))
+        case "session/agentChanged":
+            self = .sessionAgentChanged(try SessionAgentChangedAction(from: decoder))
         case "session/isReadChanged":
             self = .sessionIsReadChanged(try SessionIsReadChangedAction(from: decoder))
         case "session/isArchivedChanged":
@@ -1483,6 +1502,7 @@ public enum StateAction: Codable, Sendable {
         case .sessionUsage(let v): try v.encode(to: encoder)
         case .sessionReasoning(let v): try v.encode(to: encoder)
         case .sessionModelChanged(let v): try v.encode(to: encoder)
+        case .sessionAgentChanged(let v): try v.encode(to: encoder)
         case .sessionIsReadChanged(let v): try v.encode(to: encoder)
         case .sessionIsArchivedChanged(let v): try v.encode(to: encoder)
         case .sessionActivityChanged(let v): try v.encode(to: encoder)

@@ -92,7 +92,7 @@ SessionSummary {
   title: string
   status: number  // SessionStatus bitset
   activity?: string
-  createdAt: number
+  createdAt: numberR
   modifiedAt: number
   project?: ProjectInfo
   model?: ModelSelection

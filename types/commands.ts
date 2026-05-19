@@ -6,7 +6,7 @@
  * They return a result or a JSON-RPC error.
  */
 
-import type { URI, Snapshot, SessionConfigSchema, SessionSummary, ModelSelection, Turn, TerminalClaim, SessionActiveClient, MessageAttachment, ContentRef, StringOrMarkdown, TextRange } from './state.js';
+import type { URI, Snapshot, SessionConfigSchema, SessionSummary, ModelSelection, AgentSelection, Turn, TerminalClaim, SessionActiveClient, MessageAttachment, ContentRef, StringOrMarkdown, TextRange } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 
 export type { ConfigPropertySchema, ConfigSchema, SessionConfigPropertySchema, SessionConfigSchema } from './state.js';
@@ -274,6 +274,12 @@ export interface CreateSessionParams extends BaseParams {
   provider?: string;
   /** Model selection (ID and optional model-specific configuration) */
   model?: ModelSelection;
+  /**
+   * Initial custom agent selection for the new session.
+   *
+   * Omit to start the session with no custom agent selected (provider default).
+   */
+  agent?: AgentSelection;
   /** Working directory for the session */
   workingDirectory?: URI;
   /**

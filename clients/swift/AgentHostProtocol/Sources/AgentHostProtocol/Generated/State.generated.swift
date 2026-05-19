@@ -499,6 +499,21 @@ public struct ModelSelection: Codable, Sendable {
     }
 }
 
+public struct AgentSelection: Codable, Sendable {
+    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    public var uri: String
+    /// Agent name (matches the corresponding {@link CustomizationAgentRef.name})
+    public var name: String
+
+    public init(
+        uri: String,
+        name: String
+    ) {
+        self.uri = uri
+        self.name = name
+    }
+}
+
 public final class ConfigPropertySchema: Codable, @unchecked Sendable {
     /// JSON Schema: property type
     public var type: String
@@ -722,6 +737,11 @@ public struct SessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent.
+    /// 
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
     /// Catalogue of changesets the server can produce for this session. Each
@@ -741,6 +761,7 @@ public struct SessionSummary: Codable, Sendable {
         modifiedAt: Int,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
         changesets: [ChangesetSummary]? = nil
     ) {
@@ -753,6 +774,7 @@ public struct SessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
         self.changesets = changesets
     }
@@ -2313,19 +2335,46 @@ public struct CustomizationRef: Codable, Sendable {
     /// Consumers can compare nonces to detect whether a customization has
     /// changed since it was last seen, avoiding redundant reloads or copies.
     public var nonce: String?
+    /// Custom agents contributed by this customization, if any.
+    /// 
+    /// Producers SHOULD populate this when the customization format can
+    /// enumerate contributed agents. Consumers MUST treat an absent field as
+    /// "unknown" rather than "no agents".
+    public var agents: [CustomizationAgentRef]?
 
     public init(
         uri: String,
         displayName: String,
         description: String? = nil,
         icons: [Icon]? = nil,
-        nonce: String? = nil
+        nonce: String? = nil,
+        agents: [CustomizationAgentRef]? = nil
     ) {
         self.uri = uri
         self.displayName = displayName
         self.description = description
         self.icons = icons
         self.nonce = nonce
+        self.agents = agents
+    }
+}
+
+public struct CustomizationAgentRef: Codable, Sendable {
+    /// Stable agent URI
+    public var uri: String
+    /// Agent name (from frontmatter `name`, or file-derived)
+    public var name: String
+    /// Optional short description for UI preview (from frontmatter `description`)
+    public var description: String?
+
+    public init(
+        uri: String,
+        name: String,
+        description: String? = nil
+    ) {
+        self.uri = uri
+        self.name = name
+        self.description = description
     }
 }
 

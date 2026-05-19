@@ -12,6 +12,7 @@ import type {
   AgentInfo,
   ErrorInfo,
   ModelSelection,
+  AgentSelection,
   UserMessage,
   ResponsePart,
   ToolCallResult,
@@ -65,6 +66,7 @@ export const enum ActionType {
   SessionUsage = 'session/usage',
   SessionReasoning = 'session/reasoning',
   SessionModelChanged = 'session/modelChanged',
+  SessionAgentChanged = 'session/agentChanged',
   SessionServerToolsChanged = 'session/serverToolsChanged',
   SessionActiveClientChanged = 'session/activeClientChanged',
   SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
@@ -578,6 +580,29 @@ export interface SessionModelChangedAction {
   type: ActionType.SessionModelChanged;
   /** New model selection */
   model: ModelSelection;
+}
+
+/**
+ * Custom agent selection changed for this session.
+ *
+ * Omitting `agent` (or setting it to `undefined`) clears the selection and
+ * resets the session to no selected custom agent (provider default behavior).
+ *
+ * When a turn is currently active, the server MUST defer the change until
+ * the active turn completes, then apply it for the next turn (same rule as
+ * {@link SessionModelChangedAction | `session/modelChanged`}).
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionAgentChangedAction {
+  type: ActionType.SessionAgentChanged;
+  /**
+   * New agent selection, or `undefined` to clear the selection and reset the
+   * session to no selected custom agent.
+   */
+  agent?: AgentSelection;
 }
 
 /**
@@ -1240,6 +1265,7 @@ export type StateAction =
   | SessionUsageAction
   | SessionReasoningAction
   | SessionModelChangedAction
+  | SessionAgentChangedAction
   | SessionServerToolsChangedAction
   | SessionActiveClientChangedAction
   | SessionActiveClientToolsChangedAction

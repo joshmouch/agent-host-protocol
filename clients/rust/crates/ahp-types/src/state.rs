@@ -519,6 +519,22 @@ pub struct ModelSelection {
     pub config: Option<std::collections::HashMap<String, String>>,
 }
 
+/// A selected custom agent for a session.
+///
+/// The `uri` identifies a specific custom agent (matching a
+/// {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
+/// via the session's effective customizations).
+///
+/// A session with no `agent` selected uses the provider's default behavior.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSelection {
+    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    pub uri: Uri,
+    /// Agent name (matches the corresponding {@link CustomizationAgentRef.name})
+    pub name: String,
+}
+
 /// A JSON Schema-compatible property descriptor with display extensions.
 ///
 /// Standard JSON Schema fields (`type`, `title`, `description`, `default`,
@@ -686,6 +702,12 @@ pub struct SessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent.
+    ///
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
@@ -1774,6 +1796,30 @@ pub struct CustomizationRef {
     /// changed since it was last seen, avoiding redundant reloads or copies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
+    /// Custom agents contributed by this customization, if any.
+    ///
+    /// Producers SHOULD populate this when the customization format can
+    /// enumerate contributed agents. Consumers MUST treat an absent field as
+    /// "unknown" rather than "no agents".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Vec<CustomizationAgentRef>>,
+}
+
+/// A lightweight reference to a custom agent contributed by a customization.
+///
+/// Custom agents have a single `name` (sourced from the agent file's YAML
+/// frontmatter, or derived from the file name); they do not have a separate
+/// display name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomizationAgentRef {
+    /// Stable agent URI
+    pub uri: Uri,
+    /// Agent name (from frontmatter `name`, or file-derived)
+    pub name: String,
+    /// Optional short description for UI preview (from frontmatter `description`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// A customization active in a session.

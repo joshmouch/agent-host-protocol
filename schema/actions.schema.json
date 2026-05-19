@@ -740,6 +740,22 @@
         "model"
       ]
     },
+    "SessionAgentChangedAction": {
+      "type": "object",
+      "description": "Custom agent selection changed for this session.\n\nOmitting `agent` (or setting it to `undefined`) clears the selection and\nresets the session to no selected custom agent (provider default behavior).\n\nWhen a turn is currently active, the server MUST defer the change until\nthe active turn completes, then apply it for the next turn (same rule as\n{@link SessionModelChangedAction | `session/modelChanged`}).",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.SessionAgentChanged"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "New agent selection, or `undefined` to clear the selection and reset the\nsession to no selected custom agent."
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
     "SessionIsReadChangedAction": {
       "type": "object",
       "description": "The read state of the session changed.\n\nDispatched by a client to mark a session as read (e.g. after viewing it)\nor unread (e.g. after new activity since the client last looked at it).",
@@ -1688,6 +1704,24 @@
         "id"
       ]
     },
+    "AgentSelection": {
+      "type": "object",
+      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations).\n\nA session with no `agent` selected uses the provider's default behavior.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI (matches a {@link CustomizationAgentRef.uri})"
+        },
+        "name": {
+          "type": "string",
+          "description": "Agent name (matches the corresponding {@link CustomizationAgentRef.name})"
+        }
+      },
+      "required": [
+        "uri",
+        "name"
+      ]
+    },
     "PendingMessage": {
       "type": "object",
       "description": "A message queued for future delivery to the agent.\n\nSteering messages are injected into the current turn mid-flight.\nQueued messages are automatically started as new turns after the\ncurrent turn naturally finishes.",
@@ -1873,6 +1907,10 @@
         "model": {
           "$ref": "#/$defs/ModelSelection",
           "description": "Currently selected model"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Currently selected custom agent.\n\nAbsent (`undefined`) means no custom agent is selected for this session\n— the session uses the provider's default behavior."
         },
         "workingDirectory": {
           "$ref": "#/$defs/URI",
@@ -4001,6 +4039,28 @@
         "title"
       ]
     },
+    "CustomizationAgentRef": {
+      "type": "object",
+      "description": "A lightweight reference to a custom agent contributed by a customization.\n\nCustom agents have a single `name` (sourced from the agent file's YAML\nfrontmatter, or derived from the file name); they do not have a separate\ndisplay name.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI"
+        },
+        "name": {
+          "type": "string",
+          "description": "Agent name (from frontmatter `name`, or file-derived)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional short description for UI preview (from frontmatter `description`)"
+        }
+      },
+      "required": [
+        "uri",
+        "name"
+      ]
+    },
     "CustomizationRef": {
       "type": "object",
       "description": "A reference to an [Open Plugins](https://open-plugins.com/) plugin.\n\nThis is intentionally thin — AHP specifies plugin identity and metadata\nbut not implementation details, which are defined by the Open Plugins spec.",
@@ -4027,6 +4087,13 @@
         "nonce": {
           "type": "string",
           "description": "Opaque version token for this customization.\n\nClients SHOULD include a nonce with every customization they provide.\nConsumers can compare nonces to detect whether a customization has\nchanged since it was last seen, avoiding redundant reloads or copies."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomizationAgentRef"
+          },
+          "description": "Custom agents contributed by this customization, if any.\n\nProducers SHOULD populate this when the customization format can\nenumerate contributed agents. Consumers MUST treat an absent field as\n\"unknown\" rather than \"no agents\"."
         }
       },
       "required": [
@@ -4581,6 +4648,9 @@
         },
         {
           "$ref": "#/$defs/SessionModelChangedAction"
+        },
+        {
+          "$ref": "#/$defs/SessionAgentChangedAction"
         },
         {
           "$ref": "#/$defs/SessionServerToolsChangedAction"

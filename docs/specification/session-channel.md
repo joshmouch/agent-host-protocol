@@ -53,7 +53,7 @@ All actions dispatched on this channel travel on `ActionEnvelope`s whose `channe
   "jsonrpc": "2.0",
   "id": 5,
   "method": "disposeSession",
-  "params": { "channel": "ahp-session:/<uuid>" }
+  "params": { "channel": "ahp-session:/<uuid>" },
 }
 ```
 
@@ -63,17 +63,18 @@ The server tears down the session backend, drops associated subscriptions, and b
 
 When the server receives a client-dispatched action on this channel, it MUST validate it before applying. Invalid actions MUST be echoed back with a `rejectionReason` on the `ActionEnvelope`. The following validation rules apply:
 
-| Action | Condition | Server Behavior |
-|---|---|---|
-| Any action referencing a non-existent session | Channel URI not found | Server MUST silently ignore the action (no echo) |
-| `session/toolCallConfirmed` | Tool call not in `pending-confirmation` state | Server MUST reject the action |
-| `session/turnCancelled` | No active turn | Server MUST reject the action |
-| `session/modelChanged` | A turn is currently active | Server MUST defer the model change until the active turn completes, then apply it for the next turn |
-| `session/inputAnswerChanged` | No input request with matching `requestId` | Server SHOULD reject the action |
-| `session/inputAnswerChanged` | `answer.state` requires a value but `answer.value` is absent, or `answer.value.kind` is missing the matching payload field | Server SHOULD reject the action |
-| `session/inputCompleted` | No input request with matching `requestId` | Server SHOULD reject the action |
-| `session/inputCompleted` | `response` is `'accept'` but required questions do not have submitted answers | Server SHOULD reject the action |
-| `session/pendingMessageRemoved` | No pending message with matching `id` and `kind` | Server SHOULD reject the action |
+| Action                                        | Condition                                                                                                                  | Server Behavior                                                                                     |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Any action referencing a non-existent session | Channel URI not found                                                                                                      | Server MUST silently ignore the action (no echo)                                                    |
+| `session/toolCallConfirmed`                   | Tool call not in `pending-confirmation` state                                                                              | Server MUST reject the action                                                                       |
+| `session/turnCancelled`                       | No active turn                                                                                                             | Server MUST reject the action                                                                       |
+| `session/modelChanged`                        | A turn is currently active                                                                                                 | Server MUST defer the model change until the active turn completes, then apply it for the next turn |
+| `session/agentChanged`                        | A turn is currently active                                                                                                 | Server MUST defer the agent change until the active turn completes, then apply it for the next turn |
+| `session/inputAnswerChanged`                  | No input request with matching `requestId`                                                                                 | Server SHOULD reject the action                                                                     |
+| `session/inputAnswerChanged`                  | `answer.state` requires a value but `answer.value` is absent, or `answer.value.kind` is missing the matching payload field | Server SHOULD reject the action                                                                     |
+| `session/inputCompleted`                      | No input request with matching `requestId`                                                                                 | Server SHOULD reject the action                                                                     |
+| `session/inputCompleted`                      | `response` is `'accept'` but required questions do not have submitted answers                                              | Server SHOULD reject the action                                                                     |
+| `session/pendingMessageRemoved`               | No pending message with matching `id` and `kind`                                                                           | Server SHOULD reject the action                                                                     |
 
 ## Pending Message Consumption
 

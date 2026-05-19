@@ -67,6 +67,8 @@ pub enum ActionType {
     SessionReasoning,
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged,
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
     #[serde(rename = "session/activeClientChanged")]
@@ -512,6 +514,23 @@ pub struct SessionReasoningAction {
 pub struct SessionModelChangedAction {
     /// New model selection
     pub model: ModelSelection,
+}
+
+/// Custom agent selection changed for this session.
+///
+/// Omitting `agent` (or setting it to `undefined`) clears the selection and
+/// resets the session to no selected custom agent (provider default behavior).
+///
+/// When a turn is currently active, the server MUST defer the change until
+/// the active turn completes, then apply it for the next turn (same rule as
+/// {@link SessionModelChangedAction | `session/modelChanged`}).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAgentChangedAction {
+    /// New agent selection, or `undefined` to clear the selection and reset the
+    /// session to no selected custom agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
 }
 
 /// The read state of the session changed.
@@ -1069,6 +1088,8 @@ pub enum StateAction {
     SessionReasoning(SessionReasoningAction),
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged(SessionModelChangedAction),
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged(SessionAgentChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]

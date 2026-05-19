@@ -106,6 +106,11 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent.
+    /// 
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
     /// Catalogue of changesets the server can produce for this session. Each
@@ -125,6 +130,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         modifiedAt: Int? = nil,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
         changesets: [ChangesetSummary]? = nil
     ) {
@@ -137,6 +143,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
         self.changesets = changesets
     }
