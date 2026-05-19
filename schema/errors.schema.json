@@ -7,7 +7,7 @@
   "$defs": {
     "JsonRpcErrorCode": {
       "description": "Standard JSON-RPC 2.0 error codes.",
-      "type": "number",
+      "type": "integer",
       "enum": [
         -32700,
         -32600,
@@ -18,7 +18,7 @@
     },
     "AhpErrorCode": {
       "description": "AHP application-specific error codes.",
-      "type": "number",
+      "type": "integer",
       "enum": [
         -32001,
         -32002,
@@ -29,7 +29,8 @@
         -32007,
         -32008,
         -32009,
-        -32010
+        -32010,
+        -32011
       ]
     },
     "AuthRequiredErrorData": {
@@ -316,11 +317,11 @@
       "description": "A zero-based position within a textual document.",
       "properties": {
         "line": {
-          "type": "number",
+          "type": "integer",
           "description": "Zero-based line number."
         },
         "character": {
-          "type": "number",
+          "type": "integer",
           "description": "Zero-based character offset within the line."
         }
       },
@@ -369,7 +370,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -435,11 +436,11 @@
       "type": "object",
       "properties": {
         "inputTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Input tokens consumed"
         },
         "outputTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Output tokens generated"
         },
         "model": {
@@ -447,7 +448,7 @@
           "description": "Model used"
         },
         "cacheReadTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Tokens read from cache"
         },
         "_meta": {
@@ -504,7 +505,7 @@
           "description": "The current state of the resource"
         },
         "fromSeq": {
-          "type": "number",
+          "type": "integer",
           "description": "The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`."
         }
       },
@@ -526,7 +527,7 @@
           "description": "Available agent backends and their models"
         },
         "activeSessions": {
-          "type": "number",
+          "type": "integer",
           "description": "Number of active (non-disposed) sessions on the server"
         },
         "terminals": {
@@ -605,7 +606,7 @@
           "description": "Human-readable model name"
         },
         "maxContextWindow": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum context window size"
         },
         "supportsVision": {
@@ -842,11 +843,11 @@
           "description": "Human-readable description of what the session is currently doing"
         },
         "createdAt": {
-          "type": "number",
+          "type": "integer",
           "description": "Creation timestamp"
         },
         "modifiedAt": {
-          "type": "number",
+          "type": "integer",
           "description": "Last modification timestamp"
         },
         "project": {
@@ -1090,11 +1091,11 @@
           "description": "Format hint for text questions, such as `email`, `uri`, `date`, or `date-time`"
         },
         "min": {
-          "type": "number",
+          "type": "integer",
           "description": "Minimum string length"
         },
         "max": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum string length"
         },
         "defaultValue": {
@@ -1268,11 +1269,11 @@
           "description": "Whether the user may enter text in addition to selecting options"
         },
         "min": {
-          "type": "number",
+          "type": "integer",
           "description": "Minimum selected item count"
         },
         "max": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum selected item count"
         }
       },
@@ -1677,7 +1678,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -1730,7 +1731,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -1823,7 +1824,7 @@
           "description": "Whether this option represents an approval or denial"
         },
         "group": {
-          "type": "number",
+          "type": "integer",
           "description": "Logical group number for visual categorisation.\n\nClients SHOULD display options in the order they are defined and MAY\nuse differing group numbers to insert dividers between logical clusters\nof options."
         }
       },
@@ -2488,7 +2489,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -2692,7 +2693,7 @@
           "description": "Who currently holds this terminal"
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Process exit code, if the terminal process has exited"
         }
       },
@@ -2759,11 +2760,11 @@
           "description": "Current working directory of the terminal process"
         },
         "cols": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal width in columns"
         },
         "rows": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal height in rows"
         },
         "content": {
@@ -2774,7 +2775,7 @@
           "description": "Typed content parts, replacing the flat `content: string`.\n\nNaive consumers that only need the raw VT stream can reconstruct it with:\n  `content.map(p => p.type === 'command' ? p.output : p.value).join('')`\n\nConsumers that need command boundaries can filter by part type."
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Process exit code, set when the terminal process exits"
         },
         "claim": {
@@ -2835,7 +2836,7 @@
           "description": "Accumulated VT output. Appended to by `terminal/data` while `isComplete`\nis false. Shell integration escape sequences are stripped by the server."
         },
         "timestamp": {
-          "type": "number",
+          "type": "integer",
           "description": "Unix timestamp (ms) when execution started, as reported by the server."
         },
         "isComplete": {
@@ -2843,11 +2844,11 @@
           "description": "Whether the command has finished."
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Shell exit code. Set at completion. `undefined` if unknown."
         },
         "durationMs": {
-          "type": "number",
+          "type": "integer",
           "description": "Wall-clock duration in milliseconds. Set at completion."
         }
       },
@@ -2877,15 +2878,15 @@
           "description": "Optional longer description."
         },
         "additions": {
-          "type": "number",
+          "type": "integer",
           "description": "Aggregate line additions across the changeset, when known."
         },
         "deletions": {
-          "type": "number",
+          "type": "integer",
           "description": "Aggregate line deletions across the changeset, when known."
         },
         "files": {
-          "type": "number",
+          "type": "integer",
           "description": "Number of files in the changeset, when known."
         }
       },
@@ -3005,19 +3006,23 @@
       "description": "Receiver-side limits for the message-chunking primitive. A side that\nadvertises `chunking` permits the peer to send oversized JSON-RPC\nmessages as a sequence of `ahp/messageSegment` notifications.\n\nSee [Chunking](/specification/chunking) for the full sender and receiver\nbehaviour, validation rules, and reconnection interaction.",
       "properties": {
         "maxIncomingFrameBytes": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
           "description": "Maximum size, in UTF-8 bytes, of any single transport frame this side\nis willing to receive — for both unchunked JSON-RPC messages and\nindividual `ahp/messageSegment` notifications. Includes the JSON-RPC\nenvelope overhead. Senders MUST NOT emit a frame larger than this."
         },
         "maxIncomingMessageBytes": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
           "description": "Maximum size, in UTF-8 bytes, of a fully reassembled JSON-RPC message\nthis side is willing to receive. MUST be greater than or equal to\n`maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message\nwhose reassembled payload would exceed this value."
         },
         "maxIncomingGroups": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
           "description": "Maximum number of concurrently in-flight reassembly groups this side\nwill hold open. MUST be at least 1. If omitted, the sender SHOULD use\nan implementation-defined default."
         },
         "groupTimeoutMs": {
-          "type": "number",
+          "type": "integer",
+          "minimum": 1,
           "description": "Maximum time, in milliseconds, this side will hold an incomplete\nreassembly group before discarding it as abandoned. If omitted, the\nsender SHOULD use an implementation-defined default."
         }
       },
@@ -3098,7 +3103,7 @@
           "description": "Protocol version selected by the server. MUST be one of the entries in\n`InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)\n`MAJOR.MINOR.PATCH` string (e.g. `\"0.1.0\"`)."
         },
         "serverSeq": {
-          "type": "number",
+          "type": "integer",
           "description": "Current server sequence number"
         },
         "snapshots": {
@@ -3160,7 +3165,7 @@
           "description": "Client identifier from the original connection"
         },
         "lastSeenServerSeq": {
-          "type": "number",
+          "type": "integer",
           "description": "Last `serverSeq` the client received"
         },
         "subscriptions": {
@@ -3277,7 +3282,7 @@
           "description": "Channel URI this action targets"
         },
         "clientSeq": {
-          "type": "number",
+          "type": "integer",
           "description": "Client sequence number"
         },
         "action": {
@@ -3836,7 +3841,7 @@
           "description": "Turn ID to fetch before (exclusive). Omit to fetch from the most recent turn."
         },
         "limit": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum number of turns to return. Server MAY impose its own upper bound."
         }
       },
@@ -3882,7 +3887,7 @@
           "description": "The complete text of the input being completed (e.g. the full user\nmessage text typed so far)."
         },
         "offset": {
-          "type": "number",
+          "type": "integer",
           "description": "The character offset within `text` at which the completion is requested,\nmeasured in UTF-16 code units. MUST satisfy `0 <= offset <= text.length`."
         }
       },
@@ -3902,11 +3907,11 @@
           "description": "The text inserted into the input when this item is accepted."
         },
         "rangeStart": {
-          "type": "number",
+          "type": "integer",
           "description": "If defined, the start of the range in the input's `text` that is replaced\nby `insertText`. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen omitted, the client SHOULD insert `insertText` at the cursor.\n\nNote: this range refers to positions in the *current* input. The\nattachment's own `rangeStart`/`rangeEnd` (when present) refer to\npositions in the final {@link UserMessage.text} after the item is\naccepted."
         },
         "rangeEnd": {
-          "type": "number",
+          "type": "integer",
           "description": "The end of the range in the input's `text` that is replaced by\n`insertText`. See {@link rangeStart}."
         },
         "attachment": {
@@ -3956,11 +3961,11 @@
           "description": "Initial working directory URI"
         },
         "cols": {
-          "type": "number",
+          "type": "integer",
           "description": "Initial terminal width in columns"
         },
         "rows": {
-          "type": "number",
+          "type": "integer",
           "description": "Initial terminal height in rows"
         }
       },

@@ -116,12 +116,17 @@ export interface MessageSegmentParams {
    * 0-based position of this segment within the group. MUST be a
    * non-negative integer strictly less than `total`. Receivers MUST reject
    * duplicate or out-of-order indices as a protocol error.
+   *
+   * @minimum 0
    */
   index: number;
   /**
    * Total number of segments in this group. MUST be at least 1 and less
    * than 65 536. MUST be identical across every segment of the group; a
    * subsequent segment with a different `total` is a protocol error.
+   *
+   * @minimum 1
+   * @maximum 65535
    */
   total: number;
   /**

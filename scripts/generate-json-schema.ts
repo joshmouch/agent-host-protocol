@@ -9,6 +9,7 @@ import {
   TypeAliasDeclaration,
   PropertySignature,
   Node,
+  SyntaxKind,
   Type,
   SourceFile,
 } from 'ts-morph';
@@ -35,6 +36,8 @@ interface JsonSchema {
   anyOf?: JsonSchema[];
   $ref?: string;
   $defs?: Record<string, JsonSchema>;
+  minimum?: number;
+  maximum?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -55,6 +58,56 @@ function getPropertyType(prop: PropertySignature): string {
   const typeNode = prop.getTypeNode();
   if (typeNode) return typeNode.getText();
   return prop.getType().getText(prop);
+}
+
+/** Returns true if the property has a `@format float` JSDoc tag. */
+function hasFormatFloat(prop: PropertySignature): boolean {
+  for (const doc of prop.getJsDocs()) {
+    for (const tag of doc.getTags()) {
+      if (tag.getTagName() === 'format' && tag.getCommentText()?.trim() === 'float') {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Reads a numeric JSDoc tag like `@minimum 0` or `@maximum 65535`. Returns
+ * `undefined` if the tag is missing or its body is not a valid number.
+ */
+function getNumericTag(prop: PropertySignature, tagName: string): number | undefined {
+  for (const doc of prop.getJsDocs()) {
+    for (const tag of doc.getTags()) {
+      if (tag.getTagName() === tagName) {
+        const text = tag.getCommentText()?.trim();
+        if (text === undefined) return undefined;
+        const n = Number(text);
+        if (!Number.isFinite(n)) return undefined;
+        return n;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Applies JSDoc-driven constraints to a property's schema in place:
+ *
+ * - `number` becomes `integer` unless the property carries `@format float`.
+ *   This matches the project-wide convention documented in
+ *   `.github/instructions/general-instructions.instructions.md` and the
+ *   behaviour of the Swift / Rust generators.
+ * - `@minimum N` sets `minimum: N`; `@maximum N` sets `maximum: N`.
+ */
+function applyJsDocConstraints(schema: JsonSchema, prop: PropertySignature): void {
+  if (schema.type === 'number' && !hasFormatFloat(prop)) {
+    schema.type = 'integer';
+  }
+  const min = getNumericTag(prop, 'minimum');
+  if (min !== undefined) schema.minimum = min;
+  const max = getNumericTag(prop, 'maximum');
+  if (max !== undefined) schema.maximum = max;
 }
 
 function findInterface(project: Project, name: string): InterfaceDeclaration | undefined {
@@ -230,6 +283,7 @@ function interfaceToSchema(iface: InterfaceDeclaration, project: Project): JsonS
     const typeText = getPropertyType(prop);
     const desc = getPropertyDescription(prop);
     const propSchema = typeTextToSchema(typeText, project);
+    applyJsDocConstraints(propSchema, prop);
     if (desc) propSchema.description = desc;
     schema.properties![name] = propSchema;
     if (!prop.hasQuestionToken()) {
@@ -456,7 +510,48 @@ function generateNotificationsSchema(project: Project): JsonSchema {
   return schema;
 }
 
+/**
+ * Reads the numeric values from a `const`-asserted object literal like
+ * `AhpErrorCodes`. Used to keep the JSON Schema enum in sync with the
+ * source `as const` declaration so additions don't get silently dropped.
+ */
+function readNumericConstObject(project: Project, varName: string): number[] {
+  for (const sf of project.getSourceFiles()) {
+    const decl = sf.getVariableDeclaration(varName);
+    if (!decl) continue;
+    const init = decl.getInitializer();
+    if (!init) continue;
+    // The const is typically declared as `{ ... } as const`; unwrap.
+    let obj: Node = init;
+    if (Node.isAsExpression(init)) {
+      obj = init.getExpression();
+    }
+    if (!Node.isObjectLiteralExpression(obj)) continue;
+    const values: number[] = [];
+    for (const prop of obj.getProperties()) {
+      if (!Node.isPropertyAssignment(prop)) continue;
+      const valueNode = prop.getInitializer();
+      if (!valueNode) continue;
+      if (Node.isNumericLiteral(valueNode)) {
+        values.push(Number(valueNode.getText()));
+      } else if (Node.isPrefixUnaryExpression(valueNode)) {
+        const operand = valueNode.getOperand();
+        if (Node.isNumericLiteral(operand) && valueNode.getOperatorToken() === SyntaxKind.MinusToken) {
+          values.push(-Number(operand.getText()));
+        }
+      }
+    }
+    return values;
+  }
+  return [];
+}
+
 function generateErrorsSchema(project: Project): JsonSchema {
+  const ahpErrorCodes = readNumericConstObject(project, 'AhpErrorCodes');
+  if (ahpErrorCodes.length === 0) {
+    throw new Error('generate-json-schema: could not read AhpErrorCodes from types/common/errors.ts');
+  }
+
   const schema: JsonSchema = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     $comment: 'Generated from types/errors.ts — do not edit',
@@ -466,13 +561,13 @@ function generateErrorsSchema(project: Project): JsonSchema {
     $defs: {
       JsonRpcErrorCode: {
         description: 'Standard JSON-RPC 2.0 error codes.',
-        type: 'number',
+        type: 'integer',
         enum: [-32700, -32600, -32601, -32602, -32603],
       },
       AhpErrorCode: {
         description: 'AHP application-specific error codes.',
-        type: 'number',
-        enum: [-32001, -32002, -32003, -32004, -32005, -32006, -32007, -32008, -32009, -32010],
+        type: 'integer',
+        enum: ahpErrorCodes,
       },
     },
   };

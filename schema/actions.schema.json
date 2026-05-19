@@ -13,7 +13,7 @@
           "type": "string"
         },
         "clientSeq": {
-          "type": "number"
+          "type": "integer"
         }
       },
       "required": [
@@ -33,7 +33,7 @@
           "$ref": "#/$defs/StateAction"
         },
         "serverSeq": {
-          "type": "number"
+          "type": "integer"
         },
         "origin": {
           "$ref": "#/$defs/ActionOrigin"
@@ -77,7 +77,7 @@
           "$ref": "#/$defs/ActionType.RootActiveSessionsChanged"
         },
         "activeSessions": {
-          "type": "number",
+          "type": "integer",
           "description": "Current count of active sessions"
         }
       },
@@ -1183,11 +1183,11 @@
           "$ref": "#/$defs/ActionType.TerminalResized"
         },
         "cols": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal width in columns"
         },
         "rows": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal height in rows"
         }
       },
@@ -1256,7 +1256,7 @@
           "$ref": "#/$defs/ActionType.TerminalExited"
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Process exit code. `undefined` if the process was killed without an exit code."
         }
       },
@@ -1304,7 +1304,7 @@
           "description": "The command line text that was submitted"
         },
         "timestamp": {
-          "type": "number",
+          "type": "integer",
           "description": "Unix timestamp (ms) of when the command started executing, as measured\non the server."
         }
       },
@@ -1327,11 +1327,11 @@
           "description": "Matches the `commandId` from the corresponding `commandExecuted`"
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Shell exit code. `undefined` if the shell did not report one."
         },
         "durationMs": {
-          "type": "number",
+          "type": "integer",
           "description": "Wall-clock duration of the command in milliseconds, as measured by the\nshell integration script on the server side."
         }
       },
@@ -1661,11 +1661,11 @@
       "description": "A zero-based position within a textual document.",
       "properties": {
         "line": {
-          "type": "number",
+          "type": "integer",
           "description": "Zero-based line number."
         },
         "character": {
-          "type": "number",
+          "type": "integer",
           "description": "Zero-based character offset within the line."
         }
       },
@@ -1714,7 +1714,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -1780,11 +1780,11 @@
       "type": "object",
       "properties": {
         "inputTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Input tokens consumed"
         },
         "outputTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Output tokens generated"
         },
         "model": {
@@ -1792,7 +1792,7 @@
           "description": "Model used"
         },
         "cacheReadTokens": {
-          "type": "number",
+          "type": "integer",
           "description": "Tokens read from cache"
         },
         "_meta": {
@@ -1849,7 +1849,7 @@
           "description": "The current state of the resource"
         },
         "fromSeq": {
-          "type": "number",
+          "type": "integer",
           "description": "The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`."
         }
       },
@@ -1871,7 +1871,7 @@
           "description": "Available agent backends and their models"
         },
         "activeSessions": {
-          "type": "number",
+          "type": "integer",
           "description": "Number of active (non-disposed) sessions on the server"
         },
         "terminals": {
@@ -1950,7 +1950,7 @@
           "description": "Human-readable model name"
         },
         "maxContextWindow": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum context window size"
         },
         "supportsVision": {
@@ -2187,11 +2187,11 @@
           "description": "Human-readable description of what the session is currently doing"
         },
         "createdAt": {
-          "type": "number",
+          "type": "integer",
           "description": "Creation timestamp"
         },
         "modifiedAt": {
-          "type": "number",
+          "type": "integer",
           "description": "Last modification timestamp"
         },
         "project": {
@@ -2435,11 +2435,11 @@
           "description": "Format hint for text questions, such as `email`, `uri`, `date`, or `date-time`"
         },
         "min": {
-          "type": "number",
+          "type": "integer",
           "description": "Minimum string length"
         },
         "max": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum string length"
         },
         "defaultValue": {
@@ -2613,11 +2613,11 @@
           "description": "Whether the user may enter text in addition to selecting options"
         },
         "min": {
-          "type": "number",
+          "type": "integer",
           "description": "Minimum selected item count"
         },
         "max": {
-          "type": "number",
+          "type": "integer",
           "description": "Maximum selected item count"
         }
       },
@@ -3022,7 +3022,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -3075,7 +3075,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -3168,7 +3168,7 @@
           "description": "Whether this option represents an approval or denial"
         },
         "group": {
-          "type": "number",
+          "type": "integer",
           "description": "Logical group number for visual categorisation.\n\nClients SHOULD display options in the order they are defined and MAY\nuse differing group numbers to insert dividers between logical clusters\nof options."
         }
       },
@@ -3833,7 +3833,7 @@
           "description": "Content URI"
         },
         "sizeHint": {
-          "type": "number",
+          "type": "integer",
           "description": "Approximate size in bytes"
         },
         "contentType": {
@@ -4037,7 +4037,7 @@
           "description": "Who currently holds this terminal"
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Process exit code, if the terminal process has exited"
         }
       },
@@ -4104,11 +4104,11 @@
           "description": "Current working directory of the terminal process"
         },
         "cols": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal width in columns"
         },
         "rows": {
-          "type": "number",
+          "type": "integer",
           "description": "Terminal height in rows"
         },
         "content": {
@@ -4119,7 +4119,7 @@
           "description": "Typed content parts, replacing the flat `content: string`.\n\nNaive consumers that only need the raw VT stream can reconstruct it with:\n  `content.map(p => p.type === 'command' ? p.output : p.value).join('')`\n\nConsumers that need command boundaries can filter by part type."
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Process exit code, set when the terminal process exits"
         },
         "claim": {
@@ -4180,7 +4180,7 @@
           "description": "Accumulated VT output. Appended to by `terminal/data` while `isComplete`\nis false. Shell integration escape sequences are stripped by the server."
         },
         "timestamp": {
-          "type": "number",
+          "type": "integer",
           "description": "Unix timestamp (ms) when execution started, as reported by the server."
         },
         "isComplete": {
@@ -4188,11 +4188,11 @@
           "description": "Whether the command has finished."
         },
         "exitCode": {
-          "type": "number",
+          "type": "integer",
           "description": "Shell exit code. Set at completion. `undefined` if unknown."
         },
         "durationMs": {
-          "type": "number",
+          "type": "integer",
           "description": "Wall-clock duration in milliseconds. Set at completion."
         }
       },
@@ -4222,15 +4222,15 @@
           "description": "Optional longer description."
         },
         "additions": {
-          "type": "number",
+          "type": "integer",
           "description": "Aggregate line additions across the changeset, when known."
         },
         "deletions": {
-          "type": "number",
+          "type": "integer",
           "description": "Aggregate line deletions across the changeset, when known."
         },
         "files": {
-          "type": "number",
+          "type": "integer",
           "description": "Number of files in the changeset, when known."
         }
       },

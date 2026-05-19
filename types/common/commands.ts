@@ -58,6 +58,8 @@ export interface ChunkingCapability {
    * is willing to receive — for both unchunked JSON-RPC messages and
    * individual `ahp/messageSegment` notifications. Includes the JSON-RPC
    * envelope overhead. Senders MUST NOT emit a frame larger than this.
+   *
+   * @minimum 1
    */
   maxIncomingFrameBytes: number;
   /**
@@ -65,18 +67,24 @@ export interface ChunkingCapability {
    * this side is willing to receive. MUST be greater than or equal to
    * `maxIncomingFrameBytes`. Senders MUST NOT initiate a chunked message
    * whose reassembled payload would exceed this value.
+   *
+   * @minimum 1
    */
   maxIncomingMessageBytes: number;
   /**
    * Maximum number of concurrently in-flight reassembly groups this side
    * will hold open. MUST be at least 1. If omitted, the sender SHOULD use
    * an implementation-defined default.
+   *
+   * @minimum 1
    */
   maxIncomingGroups?: number;
   /**
    * Maximum time, in milliseconds, this side will hold an incomplete
    * reassembly group before discarding it as abandoned. If omitted, the
    * sender SHOULD use an implementation-defined default.
+   *
+   * @minimum 1
    */
   groupTimeoutMs?: number;
 }

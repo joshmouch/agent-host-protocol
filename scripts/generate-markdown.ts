@@ -1130,9 +1130,6 @@ function generateErrorCodesPage(project: Project): string {
     if (ta) lines.push(renderTypeAliasBlock(ta));
   }
 
-  // Version Introduction
-  lines.push('## Version Introduction\n');
-  lines.push('All error codes listed above were introduced in protocol version **1**.\n');
   return lines.join('\n');
 }
 
@@ -1245,8 +1242,6 @@ function generateMessagesPage(project: Project): string {
     lines.push('');
   }
 
-  lines.push('## Version Introduction\n');
-  lines.push('All messages listed above were introduced in protocol version **1**.\n');
   return lines.join('\n');
 }
 
