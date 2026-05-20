@@ -215,7 +215,9 @@ export interface SessionSummary {
  *
  * The `uri` identifies a specific custom agent (matching a
  * {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
- * via the session's effective customizations).
+ * via the session's effective customizations). Consumers resolve the
+ * agent's display name by looking up `uri` in
+ * {@link SessionCustomization.agents | `SessionCustomization.agents`}.
  *
  * A session with no `agent` selected uses the provider's default behavior.
  *
@@ -224,8 +226,6 @@ export interface SessionSummary {
 export interface AgentSelection {
   /** Stable agent URI (matches a {@link CustomizationAgentRef.uri}) */
   uri: URI;
-  /** Agent name (matches the corresponding {@link CustomizationAgentRef.name}) */
-  name: string;
 }
 
 // ─── Session Config Types ────────────────────────────────────────────────────
@@ -1307,14 +1307,6 @@ export interface CustomizationRef {
    * changed since it was last seen, avoiding redundant reloads or copies.
    */
   nonce?: string;
-  /**
-   * Custom agents contributed by this customization, if any.
-   *
-   * Producers SHOULD populate this when the customization format can
-   * enumerate contributed agents. Consumers MUST treat an absent field as
-   * "unknown" rather than "no agents".
-   */
-  agents?: CustomizationAgentRef[];
 }
 
 /**
@@ -1354,4 +1346,16 @@ export interface SessionCustomization {
    * Human-readable status detail (e.g. error message or degradation warning).
    */
   statusMessage?: string;
+  /**
+   * Custom agents contributed by this customization, as resolved by the
+   * agent host after parsing the customization.
+   *
+   * Consumers MUST treat an absent field as "unknown" (e.g. the host has
+   * not finished parsing the customization yet). An empty array means the
+   * host parsed the customization and it contributes no agents.
+   *
+   * Clients are not authoritative here: only the agent host populates
+   * this field.
+   */
+  agents?: CustomizationAgentRef[];
 }

@@ -10,8 +10,7 @@
       "createdAt": 1000,
       "modifiedAt": 1000,
       "agent": {
-        "uri": "file:///workspace/.github/agents/review.agent.md",
-        "name": "review"
+        "uri": "file:///workspace/.github/agents/review.agent.md"
       }
     },
     "lifecycle": "creating",

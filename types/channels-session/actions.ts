@@ -15,6 +15,7 @@ import type {
   SessionActiveClient,
   SessionCustomization,
   CustomizationRef,
+  CustomizationAgentRef,
   SessionInputAnswer,
   SessionInputRequest,
   SessionInputResponseKind,
@@ -623,6 +624,12 @@ export interface SessionCustomizationUpdatedAction {
   status?: CustomizationStatus;
   /** New human-readable status detail */
   statusMessage?: string;
+  /**
+   * Custom agents contributed by this customization, as resolved by the
+   * agent host. Populated only by the agent host. See
+   * {@link SessionCustomization.agents} for absent-vs-empty semantics.
+   */
+  agents?: CustomizationAgentRef[];
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

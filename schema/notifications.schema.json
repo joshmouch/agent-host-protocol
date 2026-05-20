@@ -946,20 +946,15 @@
     },
     "AgentSelection": {
       "type": "object",
-      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations).\n\nA session with no `agent` selected uses the provider's default behavior.",
+      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations). Consumers resolve the\nagent's display name by looking up `uri` in\n{@link SessionCustomization.agents | `SessionCustomization.agents`}.\n\nA session with no `agent` selected uses the provider's default behavior.",
       "properties": {
         "uri": {
           "$ref": "#/$defs/URI",
           "description": "Stable agent URI (matches a {@link CustomizationAgentRef.uri})"
-        },
-        "name": {
-          "type": "string",
-          "description": "Agent name (matches the corresponding {@link CustomizationAgentRef.name})"
         }
       },
       "required": [
-        "uri",
-        "name"
+        "uri"
       ]
     },
     "SessionConfigPropertySchema": {
@@ -2744,13 +2739,6 @@
         "nonce": {
           "type": "string",
           "description": "Opaque version token for this customization.\n\nClients SHOULD include a nonce with every customization they provide.\nConsumers can compare nonces to detect whether a customization has\nchanged since it was last seen, avoiding redundant reloads or copies."
-        },
-        "agents": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/CustomizationAgentRef"
-          },
-          "description": "Custom agents contributed by this customization, if any.\n\nProducers SHOULD populate this when the customization format can\nenumerate contributed agents. Consumers MUST treat an absent field as\n\"unknown\" rather than \"no agents\"."
         }
       },
       "required": [
@@ -2781,6 +2769,13 @@
         "statusMessage": {
           "type": "string",
           "description": "Human-readable status detail (e.g. error message or degradation warning)."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomizationAgentRef"
+          },
+          "description": "Custom agents contributed by this customization, as resolved by the\nagent host after parsing the customization.\n\nConsumers MUST treat an absent field as \"unknown\" (e.g. the host has\nnot finished parsing the customization yet). An empty array means the\nhost parsed the customization and it contributes no agents.\n\nClients are not authoritative here: only the agent host populates\nthis field."
         }
       },
       "required": [

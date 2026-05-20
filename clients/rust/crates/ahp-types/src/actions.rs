@@ -760,6 +760,11 @@ pub struct SessionCustomizationUpdatedAction {
     /// New human-readable status detail
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_message: Option<String>,
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host. Populated only by the agent host. See
+    /// {@link SessionCustomization.agents} for absent-vs-empty semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Vec<CustomizationAgentRef>>,
 }
 
 /// Truncates a session's history. If `turnId` is provided, all turns after that

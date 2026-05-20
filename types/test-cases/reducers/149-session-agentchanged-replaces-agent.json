@@ -10,8 +10,7 @@
       "createdAt": 1000,
       "modifiedAt": 1000,
       "agent": {
-        "uri": "file:///workspace/.github/agents/review.agent.md",
-        "name": "review"
+        "uri": "file:///workspace/.github/agents/review.agent.md"
       }
     },
     "lifecycle": "creating",
@@ -21,8 +20,7 @@
     {
       "type": "session/agentChanged",
       "agent": {
-        "uri": "file:///workspace/.github/agents/docs.agent.md",
-        "name": "docs"
+        "uri": "file:///workspace/.github/agents/docs.agent.md"
       }
     }
   ],
@@ -35,8 +33,7 @@
       "createdAt": 1000,
       "modifiedAt": 9999,
       "agent": {
-        "uri": "file:///workspace/.github/agents/docs.agent.md",
-        "name": "docs"
+        "uri": "file:///workspace/.github/agents/docs.agent.md"
       }
     },
     "lifecycle": "creating",

@@ -908,19 +908,25 @@ public struct SessionCustomizationUpdatedAction: Codable, Sendable {
     public var status: CustomizationStatus?
     /// New human-readable status detail
     public var statusMessage: String?
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host. Populated only by the agent host. See
+    /// {@link SessionCustomization.agents} for absent-vs-empty semantics.
+    public var agents: [CustomizationAgentRef]?
 
     public init(
         type: ActionType,
         customization: CustomizationRef,
         enabled: Bool? = nil,
         status: CustomizationStatus? = nil,
-        statusMessage: String? = nil
+        statusMessage: String? = nil,
+        agents: [CustomizationAgentRef]? = nil
     ) {
         self.type = type
         self.customization = customization
         self.enabled = enabled
         self.status = status
         self.statusMessage = statusMessage
+        self.agents = agents
     }
 }
 

@@ -502,15 +502,11 @@ public struct ModelSelection: Codable, Sendable {
 public struct AgentSelection: Codable, Sendable {
     /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
     public var uri: String
-    /// Agent name (matches the corresponding {@link CustomizationAgentRef.name})
-    public var name: String
 
     public init(
-        uri: String,
-        name: String
+        uri: String
     ) {
         self.uri = uri
-        self.name = name
     }
 }
 
@@ -2335,27 +2331,19 @@ public struct CustomizationRef: Codable, Sendable {
     /// Consumers can compare nonces to detect whether a customization has
     /// changed since it was last seen, avoiding redundant reloads or copies.
     public var nonce: String?
-    /// Custom agents contributed by this customization, if any.
-    /// 
-    /// Producers SHOULD populate this when the customization format can
-    /// enumerate contributed agents. Consumers MUST treat an absent field as
-    /// "unknown" rather than "no agents".
-    public var agents: [CustomizationAgentRef]?
 
     public init(
         uri: String,
         displayName: String,
         description: String? = nil,
         icons: [Icon]? = nil,
-        nonce: String? = nil,
-        agents: [CustomizationAgentRef]? = nil
+        nonce: String? = nil
     ) {
         self.uri = uri
         self.displayName = displayName
         self.description = description
         self.icons = icons
         self.nonce = nonce
-        self.agents = agents
     }
 }
 
@@ -2390,19 +2378,31 @@ public struct SessionCustomization: Codable, Sendable {
     public var status: CustomizationStatus?
     /// Human-readable status detail (e.g. error message or degradation warning).
     public var statusMessage: String?
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host after parsing the customization.
+    /// 
+    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
+    /// not finished parsing the customization yet). An empty array means the
+    /// host parsed the customization and it contributes no agents.
+    /// 
+    /// Clients are not authoritative here: only the agent host populates
+    /// this field.
+    public var agents: [CustomizationAgentRef]?
 
     public init(
         customization: CustomizationRef,
         enabled: Bool,
         clientId: String? = nil,
         status: CustomizationStatus? = nil,
-        statusMessage: String? = nil
+        statusMessage: String? = nil,
+        agents: [CustomizationAgentRef]? = nil
     ) {
         self.customization = customization
         self.enabled = enabled
         self.clientId = clientId
         self.status = status
         self.statusMessage = statusMessage
+        self.agents = agents
     }
 }
 

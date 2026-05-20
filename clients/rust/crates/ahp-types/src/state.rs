@@ -523,7 +523,9 @@ pub struct ModelSelection {
 ///
 /// The `uri` identifies a specific custom agent (matching a
 /// {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
-/// via the session's effective customizations).
+/// via the session's effective customizations). Consumers resolve the
+/// agent's display name by looking up `uri` in
+/// {@link SessionCustomization.agents | `SessionCustomization.agents`}.
 ///
 /// A session with no `agent` selected uses the provider's default behavior.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -531,8 +533,6 @@ pub struct ModelSelection {
 pub struct AgentSelection {
     /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
     pub uri: Uri,
-    /// Agent name (matches the corresponding {@link CustomizationAgentRef.name})
-    pub name: String,
 }
 
 /// A JSON Schema-compatible property descriptor with display extensions.
@@ -1796,13 +1796,6 @@ pub struct CustomizationRef {
     /// changed since it was last seen, avoiding redundant reloads or copies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
-    /// Custom agents contributed by this customization, if any.
-    ///
-    /// Producers SHOULD populate this when the customization format can
-    /// enumerate contributed agents. Consumers MUST treat an absent field as
-    /// "unknown" rather than "no agents".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agents: Option<Vec<CustomizationAgentRef>>,
 }
 
 /// A lightweight reference to a custom agent contributed by a customization.
@@ -1840,6 +1833,17 @@ pub struct SessionCustomization {
     /// Human-readable status detail (e.g. error message or degradation warning).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_message: Option<String>,
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host after parsing the customization.
+    ///
+    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
+    /// not finished parsing the customization yet). An empty array means the
+    /// host parsed the customization and it contributes no agents.
+    ///
+    /// Clients are not authoritative here: only the agent host populates
+    /// this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Vec<CustomizationAgentRef>>,
 }
 
 /// Describes a file modification with before/after state and diff metadata.
