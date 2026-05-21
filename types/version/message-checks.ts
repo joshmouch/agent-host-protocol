@@ -84,7 +84,10 @@ type _ExpectedServerNotifications =
   | 'root/sessionAdded'
   | 'root/sessionRemoved'
   | 'root/sessionSummaryChanged'
-  | 'auth/required';
+  | 'auth/required'
+  | 'otlp/exportLogs'
+  | 'otlp/exportTraces'
+  | 'otlp/exportMetrics';
 
 /** All server → client request methods. */
 type _ExpectedServerCommands =

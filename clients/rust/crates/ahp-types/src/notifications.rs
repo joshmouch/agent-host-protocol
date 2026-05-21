@@ -119,6 +119,63 @@ pub struct AuthRequiredParams {
     pub reason: Option<AuthRequiredReason>,
 }
 
+/// Delivers a batch of OTLP log records to a client subscribed to the host's
+/// logs channel (advertised on `TelemetryCapabilities.logs`).
+///
+/// The `payload` field is an OTLP/JSON `ExportLogsServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceLogs: ResourceLogs[] }` as
+/// defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/logs/v1/logs_service.proto).
+/// AHP does not redeclare the OTLP type system; clients SHOULD use an
+/// OpenTelemetry SDK or schema to parse it.
+///
+/// Like all stateless-channel notifications, this is ephemeral: it is not
+/// replayed on reconnect. Subscribers receive only batches emitted after
+/// their `subscribe` succeeds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportLogsParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.logs`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportLogsServiceRequest` value. The top-level field is
+    /// `resourceLogs: ResourceLogs[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
+}
+
+/// Delivers a batch of OTLP spans to a client subscribed to the host's
+/// traces channel (advertised on `TelemetryCapabilities.traces`).
+///
+/// The `payload` field is an OTLP/JSON `ExportTraceServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceSpans: ResourceSpans[] }`
+/// as defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportTracesParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.traces`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportTraceServiceRequest` value. The top-level field is
+    /// `resourceSpans: ResourceSpans[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
+}
+
+/// Delivers a batch of OTLP metric data points to a client subscribed to
+/// the host's metrics channel (advertised on `TelemetryCapabilities.metrics`).
+///
+/// The `payload` field is an OTLP/JSON `ExportMetricsServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceMetrics: ResourceMetrics[] }`
+/// as defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/metrics/v1/metrics_service.proto).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportMetricsParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.metrics`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportMetricsServiceRequest` value. The top-level field is
+    /// `resourceMetrics: ResourceMetrics[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
+}
+
 // ─── Partial Summaries ────────────────────────────────────────────────
 
 /// Partial equivalent of SessionSummary — every field is optional for delta updates.

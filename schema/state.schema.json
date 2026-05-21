@@ -2944,6 +2944,24 @@
         "scopes"
       ]
     },
+    "TelemetryCapabilities": {
+      "type": "object",
+      "description": "OTLP telemetry channels the agent host emits.\r\n\r\nEach field, when present, is either a literal channel URI or an\r\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\r\na client expands and then subscribes to. Absent fields indicate the host\r\ndoes not emit that signal.\r\n\r\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\r\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\r\ntype by URI alone; the host is free to choose any authority/path that\r\nmakes sense for its implementation. Clients MUST treat the URI as\r\nopaque (apart from expanding any well-known template variables defined\r\nbelow) and subscribe with the resulting concrete URI.\r\n\r\nPayloads delivered on these channels are OTLP/JSON values — see\r\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\r\nfor the wire shapes (`ExportLogsServiceRequest`,\r\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
+      "properties": {
+        "logs": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\r\n(`otlp/exportLogs` notifications).\r\n\r\nThe following template variables are defined by this protocol; any\r\nother variable name MUST be ignored by clients (there is no\r\nprotocol-defined way to obtain values for unknown variables):\r\n\r\n| Variables in template | Meaning                                                                                                 |\r\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\r\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\r\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\r\n\r\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\r\ndefensively in case a host ignores the parameter. Hosts that do not\r\nadvertise `{level}` deliver all severities.\r\n\r\nFuture protocol versions MAY add new well-known variables (e.g. scope\r\nor attribute filters)."
+        },
+        "traces": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\r\ntemplate variables are defined by this protocol version."
+        },
+        "metrics": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\r\nnotifications). No template variables are defined by this protocol\r\nversion."
+        }
+      }
+    },
     "StringOrMarkdown": {
       "oneOf": [
         {

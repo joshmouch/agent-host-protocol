@@ -2796,6 +2796,45 @@ public struct ChangesetOperation: Codable, Sendable {
     }
 }
 
+public struct TelemetryCapabilities: Codable, Sendable {
+    /// Channel URI (or RFC 6570 URI template) for OTLP log records
+    /// (`otlp/exportLogs` notifications).
+    /// 
+    /// The following template variables are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    /// 
+    /// | Variables in template | Meaning                                                                                                 |
+    /// | --------------------- | ------------------------------------------------------------------------------------------------------- |
+    /// | _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |
+    /// | `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |
+    /// 
+    /// Hosts SHOULD honour the expanded `{level}`; clients MUST still filter
+    /// defensively in case a host ignores the parameter. Hosts that do not
+    /// advertise `{level}` deliver all severities.
+    /// 
+    /// Future protocol versions MAY add new well-known variables (e.g. scope
+    /// or attribute filters).
+    public var logs: String?
+    /// Channel URI for OTLP spans (`otlp/exportTraces` notifications). No
+    /// template variables are defined by this protocol version.
+    public var traces: String?
+    /// Channel URI for OTLP metric data points (`otlp/exportMetrics`
+    /// notifications). No template variables are defined by this protocol
+    /// version.
+    public var metrics: String?
+
+    public init(
+        logs: String? = nil,
+        traces: String? = nil,
+        metrics: String? = nil
+    ) {
+        self.logs = logs
+        self.traces = traces
+        self.metrics = metrics
+    }
+}
+
 // MARK: - Discriminated Unions
 
 public enum ResponsePart: Codable, Sendable {

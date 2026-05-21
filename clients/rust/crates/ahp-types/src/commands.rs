@@ -16,7 +16,8 @@ use crate::actions::{ActionEnvelope, StateAction};
 #[allow(unused_imports)]
 use crate::state::{
     AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient,
-    SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn,
+    SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities,
+    TerminalClaim, Turn,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -105,6 +106,13 @@ pub struct InitializeResult {
     /// `'@'` or `'/'`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completion_trigger_characters: Option<Vec<String>>,
+    /// OTLP telemetry channels the host emits, if any. Each populated field is
+    /// either a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a
+    /// client expands before subscribing (currently only the `logs` channel
+    /// defines a template variable, `{level}`, for subscriber-side severity
+    /// filtering). Clients MAY ignore signals they cannot process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<TelemetryCapabilities>,
 }
 
 /// Re-establishes a dropped connection. The server replays missed actions or

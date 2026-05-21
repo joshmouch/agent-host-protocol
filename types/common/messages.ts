@@ -66,6 +66,11 @@ import type {
   SessionSummaryChangedParams,
 } from '../channels-root/notifications.js';
 import type { AuthRequiredParams } from './notifications.js';
+import type {
+  OtlpExportLogsParams,
+  OtlpExportTracesParams,
+  OtlpExportMetricsParams,
+} from '../channels-otlp/notifications.js';
 import type { AhpError } from './errors.js';
 
 // ─── JSON-RPC Base Types ─────────────────────────────────────────────────────
@@ -198,6 +203,9 @@ export interface ServerNotificationMap {
   'root/sessionRemoved': { params: SessionRemovedParams };
   'root/sessionSummaryChanged': { params: SessionSummaryChangedParams };
   'auth/required': { params: AuthRequiredParams };
+  'otlp/exportLogs': { params: OtlpExportLogsParams };
+  'otlp/exportTraces': { params: OtlpExportTracesParams };
+  'otlp/exportMetrics': { params: OtlpExportMetricsParams };
 }
 
 // ─── Typed Requests ──────────────────────────────────────────────────────────

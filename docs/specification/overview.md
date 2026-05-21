@@ -86,6 +86,7 @@ The specification is organised around the **channels** that AHP exposes — each
 - **[Root Channel](/specification/root-channel)** — `ahp-root://` — agents, terminals catalogue, host config, session catalogue events.
 - **[Session Channel](/specification/session-channel)** — `ahp-session:/<uuid>` — per-session state, turns, tool calls, pending messages.
 - **[Terminal Channel](/specification/terminal-channel)** — per-terminal pty state, data flow, claims, command detection.
+- **[Telemetry Channel](/specification/telemetry-channel)** — `ahp-otlp:` — OpenTelemetry logs, traces, and metrics emitted by the agent host.
 - **[Versioning](/specification/versioning)** — Protocol version negotiation and compatibility.
 - **[Common Types](/reference/common)** — Cross-cutting types, base command/notification shapes, and JSON-RPC wire types.
 - **[Root Channel Reference](/reference/root)** — `RootState`, root actions, root commands, and root notifications.

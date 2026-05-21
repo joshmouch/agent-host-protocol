@@ -528,6 +528,7 @@ const STATE_STRUCTS = [
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
   'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'TelemetryCapabilities',
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -1148,6 +1149,7 @@ const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
   'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'AuthRequiredParams',
+  'OtlpExportLogsParams', 'OtlpExportTracesParams', 'OtlpExportMetricsParams',
 ];
 
 function generateNotificationsFile(project: Project): string {

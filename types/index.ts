@@ -92,6 +92,7 @@ export type {
   ChangesetState,
   ChangesetFile,
   ChangesetOperation,
+  TelemetryCapabilities,
 } from './state.js';
 
 export {
@@ -271,6 +272,9 @@ export type {
   SessionRemovedParams,
   SessionSummaryChangedParams,
   AuthRequiredParams,
+  OtlpExportLogsParams,
+  OtlpExportTracesParams,
+  OtlpExportMetricsParams,
 } from './notifications.js';
 
 export { AuthRequiredReason } from './notifications.js';

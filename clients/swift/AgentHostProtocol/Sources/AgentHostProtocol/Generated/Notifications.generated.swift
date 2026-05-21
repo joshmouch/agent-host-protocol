@@ -85,6 +85,57 @@ public struct AuthRequiredParams: Codable, Sendable {
     }
 }
 
+public struct OtlpExportLogsParams: Codable, Sendable {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.logs`).
+    public var channel: String
+    /// OTLP/JSON `ExportLogsServiceRequest` value. The top-level field is
+    /// `resourceLogs: ResourceLogs[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    public var payload: [String: AnyCodable]
+
+    public init(
+        channel: String,
+        payload: [String: AnyCodable]
+    ) {
+        self.channel = channel
+        self.payload = payload
+    }
+}
+
+public struct OtlpExportTracesParams: Codable, Sendable {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.traces`).
+    public var channel: String
+    /// OTLP/JSON `ExportTraceServiceRequest` value. The top-level field is
+    /// `resourceSpans: ResourceSpans[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    public var payload: [String: AnyCodable]
+
+    public init(
+        channel: String,
+        payload: [String: AnyCodable]
+    ) {
+        self.channel = channel
+        self.payload = payload
+    }
+}
+
+public struct OtlpExportMetricsParams: Codable, Sendable {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.metrics`).
+    public var channel: String
+    /// OTLP/JSON `ExportMetricsServiceRequest` value. The top-level field is
+    /// `resourceMetrics: ResourceMetrics[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    public var payload: [String: AnyCodable]
+
+    public init(
+        channel: String,
+        payload: [String: AnyCodable]
+    ) {
+        self.channel = channel
+        self.payload = payload
+    }
+}
+
 // MARK: - Partial Summary Types
 
 public struct PartialSessionSummary: Codable, Sendable {

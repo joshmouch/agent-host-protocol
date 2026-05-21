@@ -53,6 +53,7 @@ const DIR_TO_PAGE: Record<string, string> = {
   'channels-session': 'session',
   'channels-terminal': 'terminal',
   'channels-changeset': 'changeset',
+  'channels-otlp': 'otlp',
 };
 
 /**
@@ -1002,6 +1003,29 @@ function generateChangesetChannelPage(project: Project): string {
   return lines.join('\n');
 }
 
+function generateOtlpChannelPage(project: Project): string {
+  currentPage = 'otlp';
+  const stateSf = findChannelSourceFile(project, 'channels-otlp', 'state.ts');
+  const notificationsSf = findChannelSourceFile(project, 'channels-otlp', 'notifications.ts');
+
+  const lines: string[] = [GENERATED_HEADER];
+  lines.push('# Telemetry Channel\n');
+  lines.push('Reference for the `ahp-otlp:` channels — stateless channels that pass OpenTelemetry logs, traces, and metrics from the agent host to subscribed clients as [OTLP/JSON](https://github.com/open-telemetry/opentelemetry-proto) payloads. See [Telemetry Channel specification](/specification/telemetry-channel) for the wire-level overview, including URI templates and severity filtering.\n');
+  lines.push(schemaLink('state.schema.json'));
+
+  if (stateSf) {
+    lines.push('## State Types\n');
+    lines.push('The `ahp-otlp:` channels are stateless; the only state type is the capability descriptor the host advertises on `InitializeResult.telemetry`.\n');
+    lines.push(emitStateTypesSection([stateSf]));
+  }
+  if (notificationsSf) {
+    lines.push('## Notifications\n');
+    lines.push(schemaLink('notifications.schema.json'));
+    lines.push(emitNotificationsSection(project, [notificationsSf]));
+  }
+  return lines.join('\n');
+}
+
 // ─── Error Codes Page ────────────────────────────────────────────────────────
 
 function generateErrorCodesPage(project: Project): string {
@@ -1133,6 +1157,7 @@ function generateMessagesPage(project: Project): string {
       : page === 'session' ? 'Session Channel'
       : page === 'terminal' ? 'Terminal Channel'
       : page === 'changeset' ? 'Changeset Channel'
+      : page === 'otlp' ? 'Telemetry Channel'
       : page;
     return `[${channelLabel}](/reference/${page}#${methodAnchor(entry.method)})`;
   };
@@ -1190,6 +1215,7 @@ function generateMessagesPage(project: Project): string {
       : refPage === 'session' ? 'Session Channel'
       : refPage === 'terminal' ? 'Terminal Channel'
       : refPage === 'changeset' ? 'Changeset Channel'
+      : refPage === 'otlp' ? 'Telemetry Channel'
       : refPage;
     const ref = entry.method === 'action'
       ? `[Common](/reference/common#actionenvelope)`
@@ -1217,6 +1243,7 @@ export function generateMarkdownDocs(project: Project, outDir: string): void {
     { filename: 'session.md', generator: generateSessionChannelPage },
     { filename: 'terminal.md', generator: generateTerminalChannelPage },
     { filename: 'changeset.md', generator: generateChangesetChannelPage },
+    { filename: 'otlp.md', generator: generateOtlpChannelPage },
     { filename: 'messages.md', generator: generateMessagesPage },
     { filename: 'error-codes.md', generator: generateErrorCodesPage },
   ];

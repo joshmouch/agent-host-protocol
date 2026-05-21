@@ -77,19 +77,27 @@ public struct InitializeResult: Codable, Sendable {
     /// {@link CompletionItemKind.UserMessage}. Typically includes characters like
     /// `'@'` or `'/'`.
     public var completionTriggerCharacters: [String]?
+    /// OTLP telemetry channels the host emits, if any. Each populated field is
+    /// either a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a
+    /// client expands before subscribing (currently only the `logs` channel
+    /// defines a template variable, `{level}`, for subscriber-side severity
+    /// filtering). Clients MAY ignore signals they cannot process.
+    public var telemetry: TelemetryCapabilities?
 
     public init(
         protocolVersion: String,
         serverSeq: Int,
         snapshots: [Snapshot],
         defaultDirectory: String? = nil,
-        completionTriggerCharacters: [String]? = nil
+        completionTriggerCharacters: [String]? = nil,
+        telemetry: TelemetryCapabilities? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
         self.snapshots = snapshots
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters
+        self.telemetry = telemetry
     }
 }
 
