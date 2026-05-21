@@ -13,7 +13,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
 use crate::state::{
-    ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary,
+    AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus,
+    SessionSummary,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -151,6 +152,12 @@ pub struct PartialSessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent.
+    ///
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,

@@ -499,6 +499,17 @@ public struct ModelSelection: Codable, Sendable {
     }
 }
 
+public struct AgentSelection: Codable, Sendable {
+    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    public var uri: String
+
+    public init(
+        uri: String
+    ) {
+        self.uri = uri
+    }
+}
+
 public final class ConfigPropertySchema: Codable, @unchecked Sendable {
     /// JSON Schema: property type
     public var type: String
@@ -722,6 +733,11 @@ public struct SessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent.
+    /// 
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
     /// Catalogue of changesets the server can produce for this session. Each
@@ -741,6 +757,7 @@ public struct SessionSummary: Codable, Sendable {
         modifiedAt: Int,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
         changesets: [ChangesetSummary]? = nil
     ) {
@@ -753,6 +770,7 @@ public struct SessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
         self.changesets = changesets
     }
@@ -2329,6 +2347,25 @@ public struct CustomizationRef: Codable, Sendable {
     }
 }
 
+public struct CustomizationAgentRef: Codable, Sendable {
+    /// Stable agent URI
+    public var uri: String
+    /// Agent name (from frontmatter `name`, or file-derived)
+    public var name: String
+    /// Optional short description for UI preview (from frontmatter `description`)
+    public var description: String?
+
+    public init(
+        uri: String,
+        name: String,
+        description: String? = nil
+    ) {
+        self.uri = uri
+        self.name = name
+        self.description = description
+    }
+}
+
 public struct SessionCustomization: Codable, Sendable {
     /// The plugin this customization refers to
     public var customization: CustomizationRef
@@ -2341,19 +2378,31 @@ public struct SessionCustomization: Codable, Sendable {
     public var status: CustomizationStatus?
     /// Human-readable status detail (e.g. error message or degradation warning).
     public var statusMessage: String?
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host after parsing the customization.
+    /// 
+    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
+    /// not finished parsing the customization yet). An empty array means the
+    /// host parsed the customization and it contributes no agents.
+    /// 
+    /// Clients are not authoritative here: only the agent host populates
+    /// this field.
+    public var agents: [CustomizationAgentRef]?
 
     public init(
         customization: CustomizationRef,
         enabled: Bool,
         clientId: String? = nil,
         status: CustomizationStatus? = nil,
-        statusMessage: String? = nil
+        statusMessage: String? = nil,
+        agents: [CustomizationAgentRef]? = nil
     ) {
         self.customization = customization
         self.enabled = enabled
         self.clientId = clientId
         self.status = status
         self.statusMessage = statusMessage
+        self.agents = agents
     }
 }
 

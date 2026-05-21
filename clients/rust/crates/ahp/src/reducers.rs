@@ -549,6 +549,11 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             touch_modified(state);
             ReduceOutcome::Applied
         }
+        StateAction::SessionAgentChanged(a) => {
+            state.summary.agent = a.agent.clone();
+            touch_modified(state);
+            ReduceOutcome::Applied
+        }
         StateAction::SessionIsReadChanged(a) => {
             state.summary.status =
                 with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
@@ -633,6 +638,9 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                 if let Some(message) = a.status_message.clone() {
                     list[idx].status_message = Some(message);
                 }
+                if let Some(agents) = a.agents.clone() {
+                    list[idx].agents = Some(agents);
+                }
             } else {
                 list.push(SessionCustomization {
                     customization: a.customization.clone(),
@@ -640,6 +648,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                     client_id: None,
                     status: a.status,
                     status_message: a.status_message.clone(),
+                    agents: a.agents.clone(),
                 });
             }
             ReduceOutcome::Applied
@@ -1140,6 +1149,7 @@ mod tests {
                 modified_at: 0,
                 project: None,
                 model: None,
+                agent: None,
                 working_directory: None,
                 changesets: None,
             },

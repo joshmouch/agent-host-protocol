@@ -362,6 +362,12 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         return next
 
+    case .sessionAgentChanged(let a):
+        var next = state
+        next.summary.agent = a.agent
+        next.summary.modifiedAt = currentTimestamp()
+        return next
+
     case .sessionActivityChanged(let a):
         var next = state
         next.summary.activity = a.activity

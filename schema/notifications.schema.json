@@ -114,6 +114,10 @@
               "$ref": "#/$defs/ModelSelection",
               "description": "Currently selected model"
             },
+            "agent": {
+              "$ref": "#/$defs/AgentSelection",
+              "description": "Currently selected custom agent.\n\nAbsent (`undefined`) means no custom agent is selected for this session\n— the session uses the provider's default behavior."
+            },
             "workingDirectory": {
               "$ref": "#/$defs/URI",
               "description": "The working directory URI for this session"
@@ -915,6 +919,10 @@
           "$ref": "#/$defs/ModelSelection",
           "description": "Currently selected model"
         },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Currently selected custom agent.\n\nAbsent (`undefined`) means no custom agent is selected for this session\n— the session uses the provider's default behavior."
+        },
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
@@ -934,6 +942,19 @@
         "status",
         "createdAt",
         "modifiedAt"
+      ]
+    },
+    "AgentSelection": {
+      "type": "object",
+      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations). Consumers resolve the\nagent's display name by looking up `uri` in\n{@link SessionCustomization.agents | `SessionCustomization.agents`}.\n\nA session with no `agent` selected uses the provider's default behavior.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI (matches a {@link CustomizationAgentRef.uri})"
+        }
+      },
+      "required": [
+        "uri"
       ]
     },
     "SessionConfigPropertySchema": {
@@ -2670,6 +2691,28 @@
         "title"
       ]
     },
+    "CustomizationAgentRef": {
+      "type": "object",
+      "description": "A lightweight reference to a custom agent contributed by a customization.\n\nCustom agents have a single `name` (sourced from the agent file's YAML\nfrontmatter, or derived from the file name); they do not have a separate\ndisplay name.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI"
+        },
+        "name": {
+          "type": "string",
+          "description": "Agent name (from frontmatter `name`, or file-derived)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional short description for UI preview (from frontmatter `description`)"
+        }
+      },
+      "required": [
+        "uri",
+        "name"
+      ]
+    },
     "CustomizationRef": {
       "type": "object",
       "description": "A reference to an [Open Plugins](https://open-plugins.com/) plugin.\n\nThis is intentionally thin — AHP specifies plugin identity and metadata\nbut not implementation details, which are defined by the Open Plugins spec.",
@@ -2726,6 +2769,13 @@
         "statusMessage": {
           "type": "string",
           "description": "Human-readable status detail (e.g. error message or degradation warning)."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomizationAgentRef"
+          },
+          "description": "Custom agents contributed by this customization, as resolved by the\nagent host after parsing the customization.\n\nConsumers MUST treat an absent field as \"unknown\" (e.g. the host has\nnot finished parsing the customization yet). An empty array means the\nhost parsed the customization and it contributes no agents.\n\nClients are not authoritative here: only the agent host populates\nthis field."
         }
       },
       "required": [

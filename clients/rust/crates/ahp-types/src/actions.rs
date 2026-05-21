@@ -12,12 +12,13 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, ChangesetFile, ChangesetOperation, ChangesetStatus, ChangesetSummary,
-    ConfirmationOption, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection,
-    PendingMessageKind, ResponsePart, SessionActiveClient, SessionCustomization,
-    SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
-    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
-    ToolResultContent, UsageInfo, UserMessage,
+    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
+    ChangesetSummary, ConfirmationOption, CustomizationAgentRef, CustomizationRef,
+    CustomizationStatus, ErrorInfo, ModelSelection, PendingMessageKind, ResponsePart,
+    SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest,
+    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
+    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
+    UserMessage,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -67,6 +68,8 @@ pub enum ActionType {
     SessionReasoning,
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged,
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
     #[serde(rename = "session/activeClientChanged")]
@@ -514,6 +517,23 @@ pub struct SessionModelChangedAction {
     pub model: ModelSelection,
 }
 
+/// Custom agent selection changed for this session.
+///
+/// Omitting `agent` (or setting it to `undefined`) clears the selection and
+/// resets the session to no selected custom agent (provider default behavior).
+///
+/// When a turn is currently active, the server MUST defer the change until
+/// the active turn completes, then apply it for the next turn (same rule as
+/// {@link SessionModelChangedAction | `session/modelChanged`}).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAgentChangedAction {
+    /// New agent selection, or `undefined` to clear the selection and reset the
+    /// session to no selected custom agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
+}
+
 /// The read state of the session changed.
 ///
 /// Dispatched by a client to mark a session as read (e.g. after viewing it)
@@ -741,6 +761,11 @@ pub struct SessionCustomizationUpdatedAction {
     /// New human-readable status detail
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_message: Option<String>,
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host. Populated only by the agent host. See
+    /// {@link SessionCustomization.agents} for absent-vs-empty semantics.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Vec<CustomizationAgentRef>>,
 }
 
 /// Truncates a session's history. If `turnId` is provided, all turns after that
@@ -1069,6 +1094,8 @@ pub enum StateAction {
     SessionReasoning(SessionReasoningAction),
     #[serde(rename = "session/modelChanged")]
     SessionModelChanged(SessionModelChangedAction),
+    #[serde(rename = "session/agentChanged")]
+    SessionAgentChanged(SessionAgentChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]

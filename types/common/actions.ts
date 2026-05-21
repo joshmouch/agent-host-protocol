@@ -35,6 +35,7 @@ import type {
   SessionUsageAction,
   SessionReasoningAction,
   SessionModelChangedAction,
+  SessionAgentChangedAction,
   SessionServerToolsChangedAction,
   SessionActiveClientChangedAction,
   SessionActiveClientToolsChangedAction,
@@ -107,6 +108,7 @@ export const enum ActionType {
   SessionUsage = 'session/usage',
   SessionReasoning = 'session/reasoning',
   SessionModelChanged = 'session/modelChanged',
+  SessionAgentChanged = 'session/agentChanged',
   SessionServerToolsChanged = 'session/serverToolsChanged',
   SessionActiveClientChanged = 'session/activeClientChanged',
   SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
@@ -203,6 +205,7 @@ export type StateAction =
   | SessionUsageAction
   | SessionReasoningAction
   | SessionModelChangedAction
+  | SessionAgentChangedAction
   | SessionServerToolsChangedAction
   | SessionActiveClientChangedAction
   | SessionActiveClientToolsChangedAction

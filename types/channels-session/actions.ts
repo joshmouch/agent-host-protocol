@@ -15,11 +15,13 @@ import type {
   SessionActiveClient,
   SessionCustomization,
   CustomizationRef,
+  CustomizationAgentRef,
   SessionInputAnswer,
   SessionInputRequest,
   SessionInputResponseKind,
   ConfirmationOption,
   CustomizationStatus,
+  AgentSelection,
 } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import {
@@ -421,6 +423,29 @@ export interface SessionModelChangedAction {
 }
 
 /**
+ * Custom agent selection changed for this session.
+ *
+ * Omitting `agent` (or setting it to `undefined`) clears the selection and
+ * resets the session to no selected custom agent (provider default behavior).
+ *
+ * When a turn is currently active, the server MUST defer the change until
+ * the active turn completes, then apply it for the next turn (same rule as
+ * {@link SessionModelChangedAction | `session/modelChanged`}).
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionAgentChangedAction {
+  type: ActionType.SessionAgentChanged;
+  /**
+   * New agent selection, or `undefined` to clear the selection and reset the
+   * session to no selected custom agent.
+   */
+  agent?: AgentSelection;
+}
+
+/**
  * The read state of the session changed.
  *
  * Dispatched by a client to mark a session as read (e.g. after viewing it)
@@ -599,6 +624,12 @@ export interface SessionCustomizationUpdatedAction {
   status?: CustomizationStatus;
   /** New human-readable status detail */
   statusMessage?: string;
+  /**
+   * Custom agents contributed by this customization, as resolved by the
+   * agent host. Populated only by the agent host. See
+   * {@link SessionCustomization.agents} for absent-vs-empty semantics.
+   */
+  agents?: CustomizationAgentRef[];
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

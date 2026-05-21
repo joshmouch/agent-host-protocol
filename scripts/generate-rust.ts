@@ -537,6 +537,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'AgentInfo' },
   { name: 'SessionModelInfo' },
   { name: 'ModelSelection' },
+  { name: 'AgentSelection' },
   { name: 'ConfigPropertySchema' },
   { name: 'ConfigSchema' },
   { name: 'PendingMessage' },
@@ -593,6 +594,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ToolResultTerminalContent', omitDiscriminants: true },
   { name: 'ToolResultSubagentContent', omitDiscriminants: true },
   { name: 'CustomizationRef' },
+  { name: 'CustomizationAgentRef' },
   { name: 'SessionCustomization' },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
@@ -825,6 +827,7 @@ const ACTION_VARIANTS: {
   { type: 'session/usage', variantName: 'SessionUsage', tsInterface: 'SessionUsageAction' },
   { type: 'session/reasoning', variantName: 'SessionReasoning', tsInterface: 'SessionReasoningAction' },
   { type: 'session/modelChanged', variantName: 'SessionModelChanged', tsInterface: 'SessionModelChangedAction' },
+  { type: 'session/agentChanged', variantName: 'SessionAgentChanged', tsInterface: 'SessionAgentChangedAction' },
   { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
@@ -899,7 +902,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, ConfirmationOption, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
   lines.push('');
 
   // ActionType enum
@@ -1021,7 +1024,7 @@ function generateCommandsFile(project: Project): string {
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};');
+  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1101,7 +1104,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');

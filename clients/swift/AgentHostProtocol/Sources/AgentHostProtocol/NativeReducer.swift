@@ -405,6 +405,10 @@ public struct AHPSessionReducer: Reducer {
             state.summary.model = a.model
             state.summary.modifiedAt = currentTimestamp()
 
+        case .sessionAgentChanged(let a):
+            state.summary.agent = a.agent
+            state.summary.modifiedAt = currentTimestamp()
+
         case .sessionActivityChanged(let a):
             state.summary.activity = a.activity
 

@@ -73,12 +73,12 @@ is root-scoped; see [Authentication](/specification/authentication).
 
 Root state is mutated by action envelopes broadcast on this channel. Refer to the [Root Channel Reference](/reference/root#actions) for the full list; the root-scoped actions are:
 
-| Action | Direction | Reducer effect |
-|---|---|---|
-| `root/agentsChanged` | Server | Replaces `agents` |
-| `root/activeSessionsChanged` | Server | Replaces `activeSessions` |
-| `root/terminalsChanged` | Server | Replaces `terminals` |
-| `root/configChanged` | Server / Client | Merges (or replaces) `config.values` |
+| Action                       | Direction       | Reducer effect                       |
+| ---------------------------- | --------------- | ------------------------------------ |
+| `root/agentsChanged`         | Server          | Replaces `agents`                    |
+| `root/activeSessionsChanged` | Server          | Replaces `activeSessions`            |
+| `root/terminalsChanged`      | Server          | Replaces `terminals`                 |
+| `root/configChanged`         | Server / Client | Merges (or replaces) `config.values` |
 
 All root-scoped action envelopes have `channel: "ahp-root://"`.
 
@@ -96,7 +96,13 @@ Emitted when a new session is created.
   "method": "root/sessionAdded",
   "params": {
     "channel": "ahp-root://",
-    "summary": { "resource": "ahp-session:/<uuid>", "title": "New Session", "status": 1, "createdAt": 1710000000000, "modifiedAt": 1710000000000 }
+    "summary": {
+      "resource": "ahp-session:/<uuid>",
+      "title": "New Session",
+      "status": 1,
+      "createdAt": 1710000000000,
+      "modifiedAt": 1710000000000
+    }
   }
 }
 ```
@@ -118,7 +124,7 @@ Emitted when a session is disposed.
 
 ### `root/sessionSummaryChanged`
 
-Emitted when any mutable field on an existing [`SessionSummary`](/reference/session#sessionsummary) changes (title, status, `modifiedAt`, model, working directory, read/done state, diff statistics, …). Only the changed fields are carried; identity fields (`resource`, `provider`, `createdAt`) never change and MUST be omitted.
+Emitted when any mutable field on an existing [`SessionSummary`](/reference/session#sessionsummary) changes (title, status, `modifiedAt`, model, agent, working directory, read/done state, diff statistics, …). Only the changed fields are carried; identity fields (`resource`, `provider`, `createdAt`) never change and MUST be omitted.
 
 ```json
 {
