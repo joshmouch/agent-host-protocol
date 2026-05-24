@@ -1,4 +1,5 @@
 import AgentHostProtocol
+import AgentHostProtocolClient
 import CryptoKit
 import Foundation
 import Network
@@ -30,11 +31,763 @@ protocol AHPWebSocketTransport: Actor {
 
 typealias AHPWebSocketFactory = @Sendable (URL, [String: String]) -> any AHPWebSocketTransport
 
+private typealias AHPTransportFactory = @Sendable (URL, [String: String]) async throws -> any AHPTransport
+
+/// Facade used by `AppStore` for the currently selected Agent Host.
+///
+/// The app keeps ownership of product state in `AppStore`; this actor adapts the reusable
+/// `AgentHostProtocolClient` multi-host runtime to the app's existing single-selected-host API.
+actor AHPConnection {
+
+    // MARK: - Types
+
+    enum ConnectionError: Error, LocalizedError {
+        case notConnected
+        case requestFailed(code: Int, message: String)
+        /// JSON-RPC `AuthRequired` (-32007) carrying decoded resources from `data`.
+        /// `resources` is empty when the server omitted the structured payload.
+        case authRequired(message: String, resources: [ProtectedResourceMetadata])
+        /// JSON-RPC `UnsupportedProtocolVersion` (-32005). `supportedVersions` is the
+        /// server-advertised list when present in the error `data`.
+        case unsupportedProtocolVersion(message: String, supportedVersions: [String])
+        /// Host runtime entered `.failed` for a reason that isn't a transport timeout —
+        /// usually a server-side rejection during initialize/reconnect.
+        case serverRejected(message: String)
+        case decodingFailed(String)
+        case timeout
+        case connectTimeout
+
+        var errorDescription: String? {
+            switch self {
+            case .notConnected:
+                return "Not connected to server"
+            case .requestFailed(let code, let msg):
+                return "Server error \(code): \(msg)"
+            case .authRequired(let msg, _):
+                return "Authentication required: \(msg)"
+            case .unsupportedProtocolVersion(_, let supported):
+                let supportedList = supported.isEmpty ? "unknown" : supported.joined(separator: ", ")
+                return "This app speaks AHP 0.2.0. The server only accepts \(supportedList). Update the AHP server."
+            case .serverRejected(let msg):
+                return "Server rejected connection: \(msg)"
+            case .decodingFailed(let detail):
+                return "Decoding failed: \(detail)"
+            case .timeout:
+                return "Request timed out"
+            case .connectTimeout:
+                return "Could not reach server"
+            }
+        }
+    }
+
+    enum ConnectionState: Sendable, Equatable {
+        case disconnected
+        case connecting
+        case connected
+        case reconnecting
+    }
+
+    // MARK: - Properties
+
+    nonisolated let clientId: String
+    private let transportFactory: AHPTransportFactory
+    private let requestTimeoutNanoseconds: UInt64
+    private let heartbeatIntervalNanoseconds: UInt64
+    private let heartbeatTimeoutNanoseconds: UInt64
+    private let hostId: HostId = "selected"
+
+    private var multiHostClient: MultiHostClient?
+    private var subscriptionEventTask: Task<Void, Never>?
+    private var hostEventTask: Task<Void, Never>?
+    private var nextClientSeq = 1
+    private var connectedWaiters: [ConnectedWaiter] = []
+    private var latestReconnectResult: ReconnectResult?
+    private var isDisconnecting = false
+    private var lastHostError: String?
+
+    /// Last `serverSeq` received from the server. Internal so tests can inspect it.
+    var serverSeq = 0
+    private var subscriptions: [String] = []
+    private var pendingOutboundActions: [PendingOutboundAction] = []
+    private(set) var state: ConnectionState = .disconnected
+
+    /// `true` when there is enough state to attempt a `reconnect` handshake rather than
+    /// a full `initialize`. Requires at least one prior successful connection.
+    var canReconnect: Bool { serverSeq > 0 && !subscriptions.isEmpty }
+
+    var onAction: (@MainActor (ActionEnvelope) -> Void)?
+    var onNotification: (@MainActor (AHPNotification) -> Void)?
+    var onStateChange: (@MainActor (ConnectionState) -> Void)?
+    var onUnexpectedDisconnect: (@MainActor () -> Void)?
+
+    private struct PendingOutboundAction: Sendable {
+        let clientSeq: Int
+        let channel: String
+        let action: StateAction
+    }
+
+    private struct ConnectedWaiter {
+        let minimumGeneration: UInt64?
+        let continuation: CheckedContinuation<HostHandle, Error>
+    }
+
+    // MARK: - Init
+
+    init(
+        clientId: String = "ahp-app-\(UUID().uuidString.prefix(8))",
+        requestTimeoutNanoseconds: UInt64 = 15_000_000_000,
+        heartbeatIntervalNanoseconds: UInt64 = 10_000_000_000,
+        heartbeatTimeoutNanoseconds: UInt64 = 5_000_000_000,
+        webSocketFactory: AHPWebSocketFactory? = nil
+    ) {
+        self.clientId = clientId
+        self.requestTimeoutNanoseconds = requestTimeoutNanoseconds
+        self.heartbeatIntervalNanoseconds = heartbeatIntervalNanoseconds
+        self.heartbeatTimeoutNanoseconds = heartbeatTimeoutNanoseconds
+
+        if let webSocketFactory {
+            self.transportFactory = { url, headers in
+                WebSocketTransportAdapter(webSocket: webSocketFactory(url, headers))
+            }
+        } else {
+            self.transportFactory = { url, headers in
+                NWConnectionWebSocketTransport(url: url, headers: headers)
+            }
+        }
+    }
+
+    func setOnAction(_ callback: @escaping @MainActor (ActionEnvelope) -> Void) {
+        onAction = callback
+    }
+
+    func setOnNotification(_ callback: @escaping @MainActor (AHPNotification) -> Void) {
+        onNotification = callback
+    }
+
+    func setOnStateChange(_ callback: @escaping @MainActor (ConnectionState) -> Void) {
+        onStateChange = callback
+    }
+
+    func setOnUnexpectedDisconnect(_ callback: @escaping @MainActor () -> Void) {
+        onUnexpectedDisconnect = callback
+    }
+
+    // MARK: - Connect
+
+    @discardableResult
+    func connect(to url: URL, headers: [String: String] = [:]) async throws -> InitializeResult {
+        await shutdownRuntime(clearProtocolState: false, clearOutbox: false)
+        isDisconnecting = false
+        latestReconnectResult = nil
+        lastHostError = nil
+        await setState(.connecting)
+
+        let client = MultiHostClient()
+        multiHostClient = client
+        await startEventTasks(for: client)
+
+        print("[AHP] connect → \(url.absoluteString) (auth header: \(headers["X-Tunnel-Authorization"] != nil))")
+        do {
+            let config = makeHostConfig(url: url, headers: headers)
+            try await client.add(config)
+            let handle = try await waitForConnectedHost()
+            updateProtocolState(from: handle)
+            try await replayPendingOutboundActions()
+            print("[AHP] connect OK serverSeq=\(serverSeq)")
+            return initializeResult(from: handle)
+        } catch {
+            let mapped = mapConnectionError(error)
+            print("[AHP] connect FAILED raw=\(error) mapped=\(mapped)")
+            await shutdownRuntime(clearProtocolState: false, clearOutbox: false)
+            await setState(.disconnected)
+            throw mapped
+        }
+    }
+
+    func disconnect() async {
+        isDisconnecting = true
+        await shutdownRuntime(clearProtocolState: true, clearOutbox: true)
+        await setState(.disconnected)
+        isDisconnecting = false
+    }
+
+    // MARK: - Reconnect
+
+    @discardableResult
+    func reconnect(to url: URL, headers: [String: String] = [:]) async throws -> ReconnectResult {
+        guard let client = multiHostClient else { throw ConnectionError.notConnected }
+
+        latestReconnectResult = nil
+        await setState(.reconnecting)
+        let priorGeneration = await client.host(hostId)?.generation ?? 0
+
+        do {
+            try await client.reconnect(hostId)
+            let handle = try await waitForConnectedHost(after: priorGeneration)
+            updateProtocolState(from: handle)
+            let result = latestReconnectResult ?? emptyReconnectResult()
+            acknowledgeOutboundActions(in: result)
+            try await replayPendingOutboundActions()
+            return result
+        } catch {
+            await setState(.disconnected)
+            throw mapConnectionError(error)
+        }
+    }
+
+    // MARK: - Commands
+
+    func subscribe(resource: String) async throws -> Snapshot? {
+        guard let client = multiHostClient else { throw ConnectionError.notConnected }
+        do {
+            let result = try await client.subscribe(host: hostId, uri: resource)
+            if !subscriptions.contains(resource) {
+                subscriptions.append(resource)
+            }
+            return result.snapshot
+        } catch {
+            throw mapConnectionError(error)
+        }
+    }
+
+    func unsubscribe(resource: String) async throws {
+        guard let client = multiHostClient else { throw ConnectionError.notConnected }
+        do {
+            try await client.unsubscribe(host: hostId, uri: resource)
+            subscriptions.removeAll { $0 == resource }
+        } catch {
+            throw mapConnectionError(error)
+        }
+    }
+
+    func createSession(params: CreateSessionParams) async throws {
+        let _: AnyCodable? = try await sendRequest(method: "createSession", params: params)
+    }
+
+    /// Push a bearer token for a protected resource so subsequent agent
+    /// requests can succeed. Wraps the `authenticate` JSON-RPC command.
+    func authenticate(channel: String, resource: String, token: String) async throws {
+        let _: AuthenticateResult = try await sendRequest(
+            method: "authenticate",
+            params: AuthenticateParams(channel: channel, resource: resource, token: token)
+        )
+    }
+
+    func disposeSession(session: String) async throws {
+        let _: AnyCodable? = try await sendRequest(
+            method: "disposeSession",
+            params: DisposeSessionParams(channel: session)
+        )
+    }
+
+    func createTerminal(params: CreateTerminalParams) async throws {
+        let _: AnyCodable? = try await sendRequest(method: "createTerminal", params: params)
+    }
+
+    func disposeTerminal(terminal: String) async throws {
+        let _: AnyCodable? = try await sendRequest(
+            method: "disposeTerminal",
+            params: DisposeTerminalParams(channel: terminal)
+        )
+    }
+
+    func listSessions() async throws -> [SessionSummary] {
+        let result: ListSessionsResult = try await sendRequest(
+            method: "listSessions",
+            params: ListSessionsParams(channel: RootResourceURI)
+        )
+        return result.items
+    }
+
+    func fetchTurns(session: String, before: String? = nil, limit: Int? = nil) async throws -> FetchTurnsResult {
+        try await sendRequest(
+            method: "fetchTurns",
+            params: FetchTurnsParams(channel: session, before: before, limit: limit)
+        )
+    }
+
+    func fetchContent(uri: String, encoding: ContentEncoding? = nil) async throws -> ResourceReadResult {
+        try await sendRequest(
+            method: "resourceRead",
+            params: ResourceReadParams(channel: RootResourceURI, uri: uri, encoding: encoding)
+        )
+    }
+
+    func dispatchAction(_ action: StateAction, channel: String) async throws {
+        let seq = nextSeq()
+        pendingOutboundActions.append(PendingOutboundAction(clientSeq: seq, channel: channel, action: action))
+        do {
+            try await sendDispatchAction(clientSeq: seq, channel: channel, action: action)
+        } catch {
+            throw mapConnectionError(error)
+        }
+    }
+
+    // MARK: - Private: SDK wiring
+
+    private func makeHostConfig(url: URL, headers: [String: String]) -> HostConfig {
+        HostConfig(
+            id: hostId,
+            label: url.host(percentEncoded: false) ?? url.absoluteString,
+            transportFactory: { [transportFactory] _ in
+                try await transportFactory(url, headers)
+            }
+        )
+        .withClientId(clientId)
+        .withInitialSubscriptions([RootResourceURI])
+        .withClientConfig(AHPClientConfig(
+            requestTimeout: duration(fromNanoseconds: requestTimeoutNanoseconds),
+            keepAlive: .enabled(
+                interval: duration(fromNanoseconds: heartbeatIntervalNanoseconds),
+                timeout: duration(fromNanoseconds: heartbeatTimeoutNanoseconds)
+            )
+        ))
+        .withReconnectPolicy(.disabled)
+        .withSessionSummaryRefreshOnConnect(false)
+        .withReconnectReplayFanOut(false)
+    }
+
+    private func startEventTasks(for client: MultiHostClient) async {
+        subscriptionEventTask?.cancel()
+        hostEventTask?.cancel()
+
+        let subscriptionEvents = await client.events()
+        subscriptionEventTask = Task { [weak self] in
+            guard let self else { return }
+            for await event in subscriptionEvents where event.hostId == "selected" {
+                await self.handleSubscriptionEvent(event)
+            }
+        }
+
+        let hostEvents = await client.hostEvents()
+        hostEventTask = Task { [weak self, client] in
+            guard let self else { return }
+            for await event in hostEvents {
+                await self.handleHostEvent(event, client: client)
+            }
+        }
+    }
+
+    private func handleSubscriptionEvent(_ event: HostSubscriptionEvent) async {
+        switch event.event {
+        case .action(let envelope):
+            serverSeq = envelope.serverSeq
+            acknowledgeOutboundAction(from: envelope)
+            if let callback = onAction {
+                await MainActor.run { callback(envelope) }
+            }
+        case .sessionAdded(let params):
+            if let callback = onNotification {
+                await MainActor.run { callback(.sessionAdded(params)) }
+            }
+        case .sessionRemoved(let params):
+            if let callback = onNotification {
+                await MainActor.run { callback(.sessionRemoved(params)) }
+            }
+        case .sessionSummaryChanged(let params):
+            if let callback = onNotification {
+                await MainActor.run { callback(.sessionSummaryChanged(params)) }
+            }
+        case .authRequired(let params):
+            if let callback = onNotification {
+                await MainActor.run { callback(.authRequired(params)) }
+            }
+        }
+    }
+
+    private func handleHostEvent(_ event: HostEvent, client: MultiHostClient) async {
+        switch event {
+        case .added(let id):
+            guard id == hostId else { return }
+        case .stateChanged(let id, let hostState, let lastError):
+            guard id == hostId else { return }
+            print("[AHP] host state → \(hostState)\(lastError.map { " lastError=\($0)" } ?? "")")
+            if let lastError { lastHostError = lastError }
+            await applyHostState(hostState)
+        case .reconnectResult(let id, let result):
+            guard id == hostId else { return }
+            latestReconnectResult = result
+        case .connected(let id, generation: _):
+            guard id == hostId else { return }
+            guard let handle = await client.host(id) else { return }
+            updateProtocolState(from: handle)
+            await setState(.connected)
+            resumeConnectedWaiters(returning: handle)
+        case .removed(let id):
+            guard id == hostId else { return }
+            await setState(.disconnected)
+            failConnectedWaiters(error: ConnectionError.notConnected)
+        }
+    }
+
+    private func applyHostState(_ hostState: HostState) async {
+        switch hostState {
+        case .disconnected:
+            await transitionAwayFromConnected(to: .disconnected)
+        case .connecting:
+            await setState(state == .reconnecting ? .reconnecting : .connecting)
+        case .connected:
+            break
+        case .reconnecting, .failed:
+            await transitionAwayFromConnected(to: .disconnected)
+            if case .failed = hostState {
+                failConnectedWaiters(error: connectionErrorForFailedHost())
+            }
+        }
+    }
+
+    /// Build the best `ConnectionError` we can from `lastHostError`. The host
+    /// runtime stringifies its underlying error before publishing it, so we
+    /// recognize known shapes (`AHPClientError.rpc(...)`) and surface specific
+    /// `ConnectionError` cases; otherwise we fall back to `.serverRejected`.
+    private func connectionErrorForFailedHost() -> ConnectionError {
+        guard let raw = lastHostError else { return .connectTimeout }
+        if let (code, message) = Self.parseRPCError(from: raw) {
+            if code == AhpErrorCodes.unsupportedProtocolVersion {
+                let versions = Self.parseSupportedVersions(from: raw)
+                return .unsupportedProtocolVersion(message: message, supportedVersions: versions)
+            }
+            return .requestFailed(code: code, message: message)
+        }
+        return .serverRejected(message: raw)
+    }
+
+    /// Extract `code` and `message` from a stringified
+    /// `AHPClientError.rpc(code: <N>, message: "...", ...)` representation.
+    private static func parseRPCError(from raw: String) -> (code: Int, message: String)? {
+        guard let codeRange = raw.range(of: #"rpc\(code:\s*(-?\d+),\s*message:\s*"(.*?)""#,
+                                        options: .regularExpression) else { return nil }
+        let match = String(raw[codeRange])
+        let nsmatch = match as NSString
+        let pattern = try? NSRegularExpression(pattern: #"code:\s*(-?\d+),\s*message:\s*"(.*)"$"#)
+        guard let result = pattern?.firstMatch(in: match, range: NSRange(location: 0, length: nsmatch.length)),
+              result.numberOfRanges >= 3,
+              let code = Int(nsmatch.substring(with: result.range(at: 1))) else { return nil }
+        let message = nsmatch.substring(with: result.range(at: 2)).replacingOccurrences(of: "\\\"", with: "\"")
+        return (code, message)
+    }
+
+    /// Extract `supportedVersions` from the stringified rpc `data` payload
+    /// produced by `AnyCodable.description`.
+    private static func parseSupportedVersions(from raw: String) -> [String] {
+        guard let r = raw.range(of: #""supportedVersions":\s*\[(.*?)\]"#, options: .regularExpression) else { return [] }
+        let inner = String(raw[r])
+        let nsinner = inner as NSString
+        let pattern = try? NSRegularExpression(pattern: #"\[(.*?)\]"#)
+        guard let match = pattern?.firstMatch(in: inner, range: NSRange(location: 0, length: nsinner.length)),
+              match.numberOfRanges >= 2 else { return [] }
+        let list = nsinner.substring(with: match.range(at: 1))
+        return list.split(separator: ",").map {
+            $0.trimmingCharacters(in: CharacterSet(charactersIn: " \""))
+        }.filter { !$0.isEmpty }
+    }
+
+    private func transitionAwayFromConnected(to newState: ConnectionState) async {
+        let shouldNotifyUnexpectedDisconnect = state == .connected && !isDisconnecting
+        await setState(newState)
+        if shouldNotifyUnexpectedDisconnect,
+           let callback = onUnexpectedDisconnect {
+            await MainActor.run { callback() }
+        }
+    }
+
+    private func waitForConnectedHost(after minimumGeneration: UInt64? = nil) async throws -> HostHandle {
+        if let client = multiHostClient,
+           let handle = await client.host(hostId) {
+            switch handle.state {
+            case .connected:
+                if minimumGeneration == nil || handle.generation > minimumGeneration! {
+                    return handle
+                }
+            case .failed:
+                throw ConnectionError.connectTimeout
+            default:
+                break
+            }
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            connectedWaiters.append(ConnectedWaiter(
+                minimumGeneration: minimumGeneration,
+                continuation: continuation
+            ))
+        }
+    }
+
+    private func resumeConnectedWaiters(returning handle: HostHandle) {
+        let waiters = connectedWaiters.filter { waiter in
+            waiter.minimumGeneration == nil || handle.generation > waiter.minimumGeneration!
+        }
+        connectedWaiters.removeAll { waiter in
+            waiter.minimumGeneration == nil || handle.generation > waiter.minimumGeneration!
+        }
+        for waiter in waiters {
+            waiter.continuation.resume(returning: handle)
+        }
+    }
+
+    private func failConnectedWaiters(error: Error) {
+        let waiters = connectedWaiters
+        connectedWaiters.removeAll()
+        for waiter in waiters {
+            waiter.continuation.resume(throwing: error)
+        }
+    }
+
+    private func shutdownRuntime(clearProtocolState: Bool, clearOutbox: Bool) async {
+        subscriptionEventTask?.cancel()
+        subscriptionEventTask = nil
+        hostEventTask?.cancel()
+        hostEventTask = nil
+
+        failConnectedWaiters(error: ConnectionError.notConnected)
+
+        let client = multiHostClient
+        multiHostClient = nil
+        if let client {
+            await client.shutdown()
+        }
+
+        latestReconnectResult = nil
+        if clearProtocolState {
+            serverSeq = 0
+            subscriptions.removeAll()
+        }
+        if clearOutbox {
+            pendingOutboundActions.removeAll()
+        }
+    }
+
+    // MARK: - Private: Commands
+
+    private func sendRequest<P: Encodable & Sendable, R: Decodable & Sendable>(
+        method: String,
+        params: P
+    ) async throws -> R {
+        do {
+            let handle = try await currentClientHandle()
+            return try await handle.request(method: method, params: params)
+        } catch {
+            let mapped = mapConnectionError(error)
+            if let connectionError = mapped as? ConnectionError,
+               case .timeout = connectionError {
+                await closeAfterRequestTimeout()
+            }
+            throw mapped
+        }
+    }
+
+    private func closeAfterRequestTimeout() async {
+        await transitionAwayFromConnected(to: .disconnected)
+    }
+
+    private func currentClientHandle() async throws -> HostClientHandle {
+        guard state == .connected else { throw ConnectionError.notConnected }
+        guard let client = multiHostClient,
+              let handle = await client.client(for: hostId) else {
+            throw ConnectionError.notConnected
+        }
+        return handle
+    }
+
+    private func nextSeq() -> Int {
+        let seq = nextClientSeq
+        nextClientSeq += 1
+        return seq
+    }
+
+    private func sendDispatchAction(clientSeq: Int, channel: String, action: StateAction) async throws {
+        guard let client = multiHostClient else { throw ConnectionError.notConnected }
+        do {
+            try await client.dispatch(host: hostId, action: action, channel: channel, clientSeq: clientSeq)
+        } catch {
+            throw mapConnectionError(error)
+        }
+    }
+
+    private func replayPendingOutboundActions() async throws {
+        for pending in pendingOutboundActions {
+            try await sendDispatchAction(clientSeq: pending.clientSeq, channel: pending.channel, action: pending.action)
+        }
+    }
+
+    private func acknowledgeOutboundActions(in result: ReconnectResult) {
+        guard case .replay(let replay) = result else { return }
+        for envelope in replay.actions {
+            acknowledgeOutboundAction(from: envelope)
+        }
+    }
+
+    private func acknowledgeOutboundAction(from envelope: ActionEnvelope) {
+        guard let origin = envelope.origin,
+              origin.clientId == clientId else { return }
+        pendingOutboundActions.removeAll { $0.clientSeq <= origin.clientSeq }
+    }
+
+    // MARK: - Private: State and errors
+
+    private func updateProtocolState(from handle: HostHandle) {
+        serverSeq = handle.serverSeq
+        subscriptions = handle.subscriptions
+    }
+
+    private func initializeResult(from handle: HostHandle) -> InitializeResult {
+        let root = RootState(
+            agents: handle.agents,
+            activeSessions: handle.activeSessions,
+            terminals: handle.terminals
+        )
+        let snapshot = Snapshot(
+            resource: RootResourceURI,
+            state: .root(root),
+            fromSeq: handle.serverSeq
+        )
+        return InitializeResult(
+            protocolVersion: handle.protocolVersion ?? "0.1.0",
+            serverSeq: handle.serverSeq,
+            snapshots: [snapshot],
+            defaultDirectory: handle.defaultDirectory,
+            completionTriggerCharacters: handle.completionTriggerCharacters
+        )
+    }
+
+    private func emptyReconnectResult() -> ReconnectResult {
+        .replay(ReconnectReplayResult(type: .replay, actions: [], missing: []))
+    }
+
+    private func setState(_ newState: ConnectionState) async {
+        state = newState
+        if let callback = onStateChange {
+            await MainActor.run { callback(newState) }
+        }
+    }
+
+    private func mapConnectionError(_ error: Error) -> Error {
+        if let connectionError = error as? ConnectionError {
+            return connectionError
+        }
+        if let hostError = error as? HostError {
+            switch hostError {
+            case .client(let clientError):
+                return mapClientError(clientError)
+            default:
+                return ConnectionError.notConnected
+            }
+        }
+        if let clientError = error as? AHPClientError {
+            return mapClientError(clientError)
+        }
+        if let transportError = error as? TransportError {
+            return ConnectionError.requestFailed(code: -1, message: String(describing: transportError))
+        }
+        return error
+    }
+
+    private func mapClientError(_ error: AHPClientError) -> ConnectionError {
+        switch error {
+        case .transport(let transportError):
+            return .requestFailed(code: -1, message: String(describing: transportError))
+        case .rpc(let code, let message, let data):
+            if code == AhpErrorCodes.authRequired {
+                let resources = Self.decodeAuthRequiredResources(from: data)
+                return .authRequired(message: message, resources: resources)
+            }
+            return .requestFailed(code: code, message: message)
+        case .decoding(let detail):
+            return .decodingFailed(detail)
+        case .shutdown:
+            return .notConnected
+        case .requestTimeout:
+            return .timeout
+        }
+    }
+
+    private static func decodeAuthRequiredResources(from data: AnyCodable?) -> [ProtectedResourceMetadata] {
+        guard let data else { return [] }
+        do {
+            let json = try JSONEncoder().encode(data)
+            let decoded = try JSONDecoder().decode(AuthRequiredErrorData.self, from: json)
+            return decoded.resources
+        } catch {
+            return []
+        }
+    }
+
+    private func duration(fromNanoseconds nanoseconds: UInt64) -> Duration {
+        if nanoseconds > UInt64(Int64.max) {
+            return .nanoseconds(Int64.max)
+        }
+        return .nanoseconds(Int64(nanoseconds))
+    }
+}
+
+private actor WebSocketTransportAdapter: AHPTransport, AHPKeepAliveTransport {
+    private let webSocket: any AHPWebSocketTransport
+    private let encoder = JSONEncoder()
+    private var didConnect = false
+    private var didClose = false
+
+    init(webSocket: any AHPWebSocketTransport) {
+        self.webSocket = webSocket
+    }
+
+    func send(_ message: TransportMessage) async throws {
+        try await connectIfNeeded()
+        let data: Data
+        switch message {
+        case .parsed(let parsed):
+            data = try encoder.encode(parsed)
+        case .text(let text):
+            data = Data(text.utf8)
+        case .binary(let binary):
+            data = binary
+        }
+        try await webSocket.send(data)
+    }
+
+    func recv() async throws -> TransportMessage? {
+        try await connectIfNeeded()
+        do {
+            return .binary(try await webSocket.receiveMessage())
+        } catch {
+            if didClose { return nil }
+            throw error
+        }
+    }
+
+    func close() async throws {
+        didClose = true
+        await webSocket.close()
+    }
+
+    func sendPing(timeout: Duration) async throws {
+        try await connectIfNeeded()
+        try await webSocket.sendPing(timeoutNanoseconds: nanoseconds(from: timeout))
+    }
+
+    private func connectIfNeeded() async throws {
+        guard !didConnect else { return }
+        try await webSocket.connect()
+        didConnect = true
+    }
+
+    private func nanoseconds(from duration: Duration) -> UInt64 {
+        let components = duration.components
+        let seconds = components.seconds > 0 ? UInt64(clamping: components.seconds) : 0
+        let attoseconds = components.attoseconds > 0 ? UInt64(clamping: components.attoseconds) : 0
+        let nanos = attoseconds / 1_000_000_000
+        if seconds > (UInt64.max - nanos) / 1_000_000_000 {
+            return UInt64.max
+        }
+        return seconds * 1_000_000_000 + nanos
+    }
+}
+
 /// WebSocket-based JSON-RPC transport for communicating with an Agent Host server.
 ///
 /// Handles the initialize/reconnect handshake, request/response correlation,
 /// and dispatches incoming server actions and notifications to the store.
-actor AHPConnection {
+private actor LegacyAHPConnection {
 
     // MARK: - Types
 
@@ -715,7 +1468,7 @@ private actor NativeWebSocketConnection: AHPWebSocketTransport {
 
     private let url: URL
     private let additionalHeaders: [String: String]
-    private let queue = DispatchQueue(label: "AHPClient.NativeWebSocketConnection")
+    private let queue = DispatchQueue(label: "AHPApp.NativeWebSocketConnection")
 
     private var connection: NWConnection?
     private var connectContinuation: CheckedContinuation<Void, Error>?

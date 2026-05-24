@@ -147,7 +147,17 @@ internal final class HostRuntime: Sendable {
     @discardableResult
     func dispatch(_ action: StateAction, channel: String) async throws -> DispatchHandle {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
-            cmdContinuation.yield(.dispatch(action: action, channel: channel, reply: continuation))
+            cmdContinuation.yield(.dispatch(action: action, channel: channel, clientSeq: nil, reply: continuation))
+        }
+    }
+
+    /// Dispatch an action through the current connection on `channel` with a
+    /// caller-owned `clientSeq`. Throws `HostError.hostShutDown` if the host
+    /// is disconnected.
+    @discardableResult
+    func dispatch(_ action: StateAction, channel: String, clientSeq: Int) async throws -> DispatchHandle {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
+            cmdContinuation.yield(.dispatch(action: action, channel: channel, clientSeq: clientSeq, reply: continuation))
         }
     }
 
@@ -200,11 +210,13 @@ internal final class HostRuntime: Sendable {
                     // through the backoff sleep. `attempt` here is either
                     // the count of consecutive failures since last success
                     // (no reset) or 0 (just reset by `resetOnSuccess`); the
-                    // displayed attempt is clamped to ≥ 1 per the
-                    // 1-based contract on `HostState.reconnecting`.
+                    // next reconnect attempt and displayed attempt are both
+                    // clamped to ≥ 1 per the 1-based contract on
+                    // `HostState.reconnecting`.
+                    attempt = max(1, attempt)
                     let lastErr = await shared.lastError()
                     await transition(
-                        to: .reconnecting(attempt: max(1, attempt)),
+                        to: .reconnecting(attempt: attempt),
                         error: lastErr
                     )
                 }
@@ -306,31 +318,16 @@ internal final class HostRuntime: Sendable {
         let priorSeq = priorSnapshot.serverSeq
 
         var initResult: InitializeResult? = nil
+        var reconnectResult: ReconnectResult? = nil
         var newSeq = priorSeq
 
         if canReconnect {
             do {
-                _ = try await client.reconnect(
+                reconnectResult = try await client.reconnect(
                     clientId: clientId,
                     lastSeenServerSeq: priorSeq,
                     subscriptions: priorSubscriptions
                 )
-                // NOTE: the `ReconnectResult` is intentionally discarded
-                // here, mirroring the Rust `ahp::hosts` runtime. Three
-                // related gaps follow from this and are tracked together
-                // for both SDKs as a follow-up:
-                //   1. Replay actions returned synchronously by the server
-                //      are not fanned out (live `action` frames after
-                //      reconnect still reach consumers normally).
-                //   2. `replay.missing` URIs (subscriptions the server
-                //      cannot resume) are not pruned from the replay set,
-                //      so the next reconnect re-asks for them.
-                //   3. `snapshot` results are not applied to the per-host
-                //      root mirror / `serverSeq`, so `HostHandle` can lag
-                //      behind the post-snapshot state until live events
-                //      catch up.
-                // All three should be fixed atomically across SDKs — see the
-                // parent multi-host series for tracking.
             } catch let error as AHPClientError {
                 if case .rpc = error {
                     let init1 = try await client.initialize(
@@ -357,10 +354,11 @@ internal final class HostRuntime: Sendable {
         // Refresh session summaries from `listSessions`. Cheap on first
         // connect; kept in sync by notifications afterward. Failures are
         // non-fatal: the cache stays as-is.
-        let summaries: ListSessionsResult? = try? await client.request(
-            method: "listSessions",
-            params: ListSessionsParams(channel: RootResourceURI)
-        )
+        let summaries: ListSessionsResult? = if config.refreshSessionSummariesOnConnect {
+            try? await client.request(method: "listSessions", params: ListSessionsParams(channel: RootResourceURI))
+        } else {
+            nil
+        }
 
         let newGeneration: UInt64 = await {
             var generation: UInt64 = 0
@@ -391,9 +389,62 @@ internal final class HostRuntime: Sendable {
             return generation
         }()
 
+        if let reconnectResult {
+            await applyReconnectResult(reconnectResult, priorSubscriptions: priorSubscriptions)
+            await hostEventSink(.reconnectResult(config.id, reconnectResult))
+        }
+
         await transition(to: .connected, error: nil)
         await hostEventSink(.connected(config.id, generation: newGeneration))
         return ConnectionStreams(events: events, stateChanges: stateChanges)
+    }
+
+    /// Apply the result of a successful `reconnect` call.
+    ///
+    /// Replay envelopes use the same reducer path as live action frames so
+    /// host snapshots advance before consumers see fanned-out replay events.
+    /// Snapshot results refresh root mirror state and prune subscriptions the
+    /// server could not resume.
+    private func applyReconnectResult(
+        _ result: ReconnectResult,
+        priorSubscriptions: [String]
+    ) async {
+        switch result {
+        case .replay(let replay):
+            for envelope in replay.actions {
+                await applyAction(envelope)
+                if config.fanOutReconnectReplayActions {
+                    await fanOut(HostSubscriptionEvent(
+                        hostId: config.id,
+                        resource: envelope.channel,
+                        event: .action(envelope)
+                    ))
+                }
+            }
+            if !replay.missing.isEmpty {
+                await shared.update { state in
+                    state.subscriptions.removeAll { replay.missing.contains($0) }
+                }
+            }
+        case .snapshot(let snapshotResult):
+            await shared.update { state in
+                var surviving: [String] = []
+                surviving.reserveCapacity(snapshotResult.snapshots.count)
+                for snapshot in snapshotResult.snapshots {
+                    if snapshot.fromSeq > state.serverSeq {
+                        state.serverSeq = snapshot.fromSeq
+                    }
+                    if snapshot.resource == RootResourceURI,
+                       case .root(let root) = snapshot.state {
+                        state.rootState = root
+                    }
+                    surviving.append(snapshot.resource)
+                }
+                state.subscriptions.removeAll { uri in
+                    priorSubscriptions.contains(uri) && !surviving.contains(uri)
+                }
+            }
+        }
     }
 
     /// Drain commands and the event pump until the connection ends, the user
@@ -454,8 +505,8 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 let result = await handleUnsubscribe(uri)
                 resumeCommand(reply: reply, with: result)
-            case .dispatch(let action, let channel, let reply):
-                let result = await handleDispatch(action, channel: channel)
+            case .dispatch(let action, let channel, let clientSeq, let reply):
+                let result = await handleDispatch(action, channel: channel, clientSeq: clientSeq)
                 resumeCommand(reply: reply, with: result)
             }
         }
@@ -482,7 +533,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, _, let reply):
+            case .dispatch(_, _, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -525,7 +576,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, _, let reply):
+            case .dispatch(_, _, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -612,12 +663,17 @@ internal final class HostRuntime: Sendable {
         return .success(())
     }
 
-    private func handleDispatch(_ action: StateAction, channel: String) async -> Result<DispatchHandle, HostError> {
+    private func handleDispatch(_ action: StateAction, channel: String, clientSeq: Int?) async -> Result<DispatchHandle, HostError> {
         guard let client = await shared.currentClient() else {
             return .failure(.hostShutDown(config.id))
         }
         do {
-            let handle = try await client.dispatch(action, channel: channel)
+            let handle: DispatchHandle
+            if let clientSeq {
+                handle = try await client.dispatch(action, channel: channel, clientSeq: clientSeq)
+            } else {
+                handle = try await client.dispatch(action, channel: channel)
+            }
             return .success(handle)
         } catch let error as AHPClientError {
             return .failure(.client(error))
@@ -673,7 +729,7 @@ internal enum HostCommand: Sendable {
     case manualReconnect(reply: CheckedContinuation<Void, Error>)
     case subscribe(uri: String, reply: CheckedContinuation<SubscribeResult, Error>)
     case unsubscribe(uri: String, reply: CheckedContinuation<Void, Error>)
-    case dispatch(action: StateAction, channel: String, reply: CheckedContinuation<DispatchHandle, Error>)
+    case dispatch(action: StateAction, channel: String, clientSeq: Int?, reply: CheckedContinuation<DispatchHandle, Error>)
 }
 
 /// Outcome of one of the supervisor's drain loops.

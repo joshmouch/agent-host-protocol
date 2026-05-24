@@ -36,7 +36,7 @@ extension Tunnel: @retroactive Identifiable {
 /// Persists the GitHub access token in the iOS Keychain so it survives
 /// across sheet presentations and app launches.
 enum TunnelTokenStore {
-    private static let service = "com.rebornix.AHPClient.DevTunnels"
+    private static let service = "com.rebornix.AHPApp.DevTunnels"
     private static let account = "github-token"
 
     static func save(_ token: String) {
@@ -80,6 +80,7 @@ enum TunnelTokenStore {
 
 let tunnelAuthenticationExpiredMessage = "GitHub sign-in expired. Sign in again to browse or connect to Dev Tunnels."
 let tunnelConnectTokenUnavailableMessage = "Couldn't acquire a Dev Tunnel connect token. Sign in again from Dev Tunnels."
+let tunnelEndpointUnavailableMessage = "Couldn't find a Dev Tunnel endpoint for the Agent Host port. Restart the tunnel and try again."
 
 func isTunnelAuthenticationFailure(_ error: Error) -> Bool {
     let nsError = error as NSError
@@ -175,26 +176,27 @@ struct TunnelListView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 4)
 
-                        HStack(spacing: 10) {
+                        HStack(spacing: 8) {
                             Button {
                                 UIPasteboard.general.string = dcr.userCode
                             } label: {
                                 Label("Copy Code", systemImage: "doc.on.doc")
+                                    .font(.subheadline.weight(.medium))
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.regular)
 
                             if let url = URL(string: dcr.verificationUri) {
                                 Link(destination: url) {
-                                    Label("Open GitHub", systemImage: "safari")
+                                    Label("Open GitHub", systemImage: "arrow.up.forward")
+                                        .font(.subheadline.weight(.medium))
                                         .frame(maxWidth: .infinity)
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.regular)
                             }
                         }
-                        .padding(.top, 2)
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .buttonBorderShape(.roundedRectangle(radius: 10))
+                        .padding(.top, 4)
 
                         if isPolling {
                             HStack {

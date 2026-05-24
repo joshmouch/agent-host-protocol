@@ -1,14 +1,15 @@
 //
-//  AHPClientTests.swift
-//  AHPClientTests
+//  AHPAppTests.swift
+//  AHPAppTests
 //
 //  Created by Peng Lyu on 3/27/26.
 //
 
 import Testing
 import AgentHostProtocol
+import DevTunnelsClient
 import Foundation
-@testable import AHPClient
+@testable import AHPApp
 
 // MARK: - Reconnect State Tests
 //
@@ -200,6 +201,27 @@ struct ReconnectResultTests {
 }
 
 struct TunnelAuthenticationTests {
+    @Test func tunnelServerEndpointUsesAdvertisedPortUriFormat() {
+        let tunnel = Tunnel(
+            clusterId: "usw2",
+            tunnelId: "kind-river-j323ccs",
+            name: "mac-pro-dev",
+            accessTokens: [TunnelAccessScopes.connect: "connect-token"],
+            endpoints: [TunnelEndpoint(portUriFormat: "https://jnm28zd6-{port}.usw2.devtunnels.ms/")]
+        )
+
+        let server = DevTunnelServerEndpoint.serverConfiguration(
+            name: tunnel.displayName,
+            tunnel: tunnel,
+            accessToken: "github-token",
+            connectToken: "connect-token"
+        )
+
+        #expect(server?.scheme == "wss")
+        #expect(server?.host == "jnm28zd6-31546.usw2.devtunnels.ms")
+        #expect(server?.endpointURLString == "wss://jnm28zd6-31546.usw2.devtunnels.ms")
+    }
+
     @Test func tunnelAuthenticationFailureMatchesHTTPStatusCode() {
         let error = NSError(
             domain: "TunnelTests",
@@ -232,28 +254,16 @@ struct TunnelAuthenticationTests {
         #expect(!isTunnelReauthenticationMessage("Socket timed out"))
     }
 
-    @Test func tunnelDeviceCodeResponseRoundTripsThroughStorageEncoding() {
-        let response = DeviceCodeResponse(
-            deviceCode: "device",
-            userCode: "ABCD-EFGH",
-            verificationUri: "https://github.com/login/device",
-            expiresIn: 900,
-            interval: 5
-        )
+    @Test func tunnelDeviceCodeResponseRoundTripsThroughStorageEncoding() throws {
+        let response = try makeDeviceCodeResponse()
 
         let encoded = encodeTunnelDeviceCodeResponse(response)
         #expect(encoded != nil)
         #expect(decodeTunnelDeviceCodeResponse(encoded!) == response)
     }
 
-    @Test func tunnelDeviceCodeResponseExpiryUsesResponseLifetime() {
-        let response = DeviceCodeResponse(
-            deviceCode: "device",
-            userCode: "ABCD-EFGH",
-            verificationUri: "https://github.com/login/device",
-            expiresIn: 900,
-            interval: 5
-        )
+    @Test func tunnelDeviceCodeResponseExpiryUsesResponseLifetime() throws {
+        let response = try makeDeviceCodeResponse()
 
         let startedAt = Date(timeIntervalSince1970: 1_000)
         #expect(!isTunnelDeviceCodeResponseExpired(
@@ -706,13 +716,6 @@ struct InjectedTransportTests {
         try await transport.enqueueSuccessResponse(
             id: try requireRequestID(reconnect),
             result: ReconnectResult.replay(ReconnectReplayResult(type: .replay, actions: [], missing: []))
-        )
-
-        let refreshedSummaries = await transport.nextSentMessage()
-        #expect(refreshedSummaries.method == "listSessions")
-        try await transport.enqueueSuccessResponse(
-            id: try requireRequestID(refreshedSummaries),
-            result: ListSessionsResult(items: [summary])
         )
 
         let retriedSubscribe = await transport.nextSentMessage()
@@ -1484,6 +1487,19 @@ private func decodeNotification<Params: Codable & Sendable>(
     as type: Params.Type
 ) throws -> JsonRpcNotification<Params> {
     try JSONDecoder().decode(JsonRpcNotification<Params>.self, from: message.data)
+}
+
+private func makeDeviceCodeResponse() throws -> DeviceCodeResponse {
+    let json = """
+    {
+      "device_code": "device",
+      "user_code": "ABCD-EFGH",
+      "verification_uri": "https://github.com/login/device",
+      "expires_in": 900,
+      "interval": 5
+    }
+    """
+    return try JSONDecoder().decode(DeviceCodeResponse.self, from: Data(json.utf8))
 }
 
 private func makeInitializeResult(serverSeq: Int) -> InitializeResult {
