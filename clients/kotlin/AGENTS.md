@@ -106,9 +106,9 @@ The Vanniktech plugin reads these from `ORG_GRADLE_PROJECT_*`-prefixed env vars 
 
 ### Cutting a release
 
-1. Bump `VERSION_NAME` in `clients/kotlin/gradle.properties` (drop `-SNAPSHOT` for a public release).
+1. Bump `VERSION_NAME` in `clients/kotlin/gradle.properties` (drop `-SNAPSHOT` for a public release; the version should match the `PROTOCOL_VERSION` in `types/version/registry.ts` when shipping a protocol-aligned drop, e.g. `0.2.0`).
 2. Commit, merge to `main`.
-3. Tag the merge commit: `git tag kotlin/v0.1.0 && git push origin kotlin/v0.1.0`.
+3. Tag the merge commit using `kotlin/v` + the same version (e.g. `git tag kotlin/v0.2.0 && git push origin kotlin/v0.2.0`). The publish workflow rejects any mismatch between the tag and `VERSION_NAME`, and refuses `*-SNAPSHOT` tags outright.
 4. The publish workflow runs and pushes to Maven Central. With `automaticRelease = true` set in `mavenPublishing { ... }`, no manual Sonatype UI interaction is required.
 5. Bump `VERSION_NAME` back to the next `-SNAPSHOT` for ongoing development.
 

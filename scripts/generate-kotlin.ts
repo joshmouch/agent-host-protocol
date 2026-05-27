@@ -955,7 +955,7 @@ function generateMergedToolCallConfirmedDataClass(): string {
 @Serializable
 data class SessionToolCallConfirmedAction(
     /** Action type discriminant */
-    val type: String = "session/toolCallConfirmed",
+    val type: ActionType = ActionType.SESSION_TOOL_CALL_CONFIRMED,
     /** Turn identifier */
     val turnId: String,
     /** Tool call identifier */
@@ -1534,6 +1534,12 @@ function checkExhaustiveness(project: Project): void {
       for (const decl of sf.getTypeAliases()) {
         if (decl.isExported()) imported.add(decl.getName());
       }
+      // Exported `const enum`s (e.g. ActionType, SessionStatus, ChangesetStatus) must
+      // also be covered by one of the *_ENUMS lists or a knownSpecial entry, otherwise
+      // a newly introduced enum would silently be omitted from the Kotlin output.
+      for (const decl of sf.getEnums()) {
+        if (decl.isExported()) imported.add(decl.getName());
+      }
     }
   }
 
@@ -1553,6 +1559,8 @@ function checkExhaustiveness(project: Project): void {
     'URI',                          // type alias for string
     'BaseParams',                    // marker base interface; flattened into each command params struct
     'PingParams',                    // empty interface; no Kotlin type emitted
+    'ActionType',                   // emitted directly by generateActionsFile(), not via STATE_ENUMS
+    'ChangesetOperationTargetKind', // discriminator enum embedded in the hand-rolled ChangesetOperationTarget union
     'StringOrMarkdown',              // generateStringOrMarkdown()
     'ToolCallState',                // TOOL_CALL_STATE_UNION discriminated union
     'StateAction',                  // StateAction enum in generateActionsFile()

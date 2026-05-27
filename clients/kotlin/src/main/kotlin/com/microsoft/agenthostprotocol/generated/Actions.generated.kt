@@ -374,7 +374,7 @@ data class SessionToolCallReadyAction(
 @Serializable
 data class SessionToolCallConfirmedAction(
     /** Action type discriminant */
-    val type: String = "session/toolCallConfirmed",
+    val type: ActionType = ActionType.SESSION_TOOL_CALL_CONFIRMED,
     /** Turn identifier */
     val turnId: String,
     /** Tool call identifier */
