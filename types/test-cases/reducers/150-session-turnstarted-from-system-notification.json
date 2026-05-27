@@ -1,35 +1,31 @@
 {
-  "description": "tool call actions for unknown toolCallId are no-op",
+  "description": "session/turnStarted from a system notification",
   "reducer": "session",
   "initial": {
     "summary": {
       "resource": "copilot:/test-session",
       "provider": "copilot",
       "title": "Test Session",
-      "status": 8,
+      "status": 1,
       "createdAt": 1000,
-      "modifiedAt": 2000
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
-    "turns": [],
-    "activeTurn": {
-      "id": "turn-1",
-      "input": {
-        "kind": "userMessage",
-        "userMessage": {
-          "text": "Hello"
-        }
-      },
-      "responseParts": [],
-      "usage": null
-    }
+    "turns": []
   },
   "actions": [
     {
-      "type": "session/toolCallDelta",
+      "type": "session/turnStarted",
       "turnId": "turn-1",
-      "toolCallId": "nonexistent",
-      "content": "data"
+      "input": {
+        "kind": "systemNotification",
+        "notification": {
+          "content": "Background terminal task `build` completed successfully.",
+          "_meta": {
+            "terminal": "term-42"
+          }
+        }
+      }
     }
   ],
   "expected": {
@@ -39,16 +35,19 @@
       "title": "Test Session",
       "status": 8,
       "createdAt": 1000,
-      "modifiedAt": 2000
+      "modifiedAt": 9999
     },
     "lifecycle": "ready",
     "turns": [],
     "activeTurn": {
       "id": "turn-1",
       "input": {
-        "kind": "userMessage",
-        "userMessage": {
-          "text": "Hello"
+        "kind": "systemNotification",
+        "notification": {
+          "content": "Background terminal task `build` completed successfully.",
+          "_meta": {
+            "terminal": "term-42"
+          }
         }
       },
       "responseParts": [],

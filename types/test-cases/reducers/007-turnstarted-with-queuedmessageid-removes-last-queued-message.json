@@ -25,8 +25,11 @@
     {
       "type": "session/turnStarted",
       "turnId": "turn-1",
-      "userMessage": {
-        "text": "Only"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Only"
+        }
       },
       "queuedMessageId": "q-1"
     }
@@ -45,8 +48,11 @@
     "queuedMessages": null,
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Only"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Only"
+        }
       },
       "responseParts": [],
       "usage": null

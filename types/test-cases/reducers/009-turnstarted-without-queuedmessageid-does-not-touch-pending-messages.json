@@ -31,8 +31,11 @@
     {
       "type": "session/turnStarted",
       "turnId": "turn-1",
-      "userMessage": {
-        "text": "Hello"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Hello"
+        }
       }
     }
   ],
@@ -63,8 +66,11 @@
     ],
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Hello"
+        }
       },
       "responseParts": [],
       "usage": null

@@ -133,6 +133,18 @@ pub enum TurnState {
     Error,
 }
 
+/// Discriminant for {@link TurnInput} variants — what started a turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TurnInputKind {
+    /// Turn was started by a user-authored message.
+    #[serde(rename = "userMessage")]
+    UserMessage,
+    /// Turn was started by a system notification that woke the agent
+    /// (e.g. a long-running background terminal task completing).
+    #[serde(rename = "systemNotification")]
+    SystemNotification,
+}
+
 /// Discriminant for {@link MessageAttachment} variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MessageAttachmentKind {
@@ -811,8 +823,8 @@ pub struct SessionConfigState {
 pub struct Turn {
     /// Turn identifier
     pub id: String,
-    /// The user's input
-    pub user_message: UserMessage,
+    /// What started this turn
+    pub input: TurnInput,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Consumers should derive display text by concatenating markdown parts,
@@ -834,8 +846,8 @@ pub struct Turn {
 pub struct ActiveTurn {
     /// Turn identifier
     pub id: String,
-    /// The user's input
-    pub user_message: UserMessage,
+    /// What started this turn
+    pub input: TurnInput,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -859,6 +871,48 @@ pub struct UserMessage {
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
+}
+
+/// A system notification surfaced as the input that initiates a turn.
+///
+/// Whereas a {@link UserMessage} represents content authored by the user,
+/// a system notification represents an event authored by the agent host
+/// or its environment that needs the agent to wake up and react. Examples
+/// include "background terminal task X completed" or "scheduled job Y is
+/// ready for review."
+///
+/// See also {@link SystemNotificationResponsePart}, which surfaces a similar
+/// notification *within* an existing turn's response stream rather than as
+/// the input that starts a new turn.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotification {
+    /// The content of the system notification
+    pub content: StringOrMarkdown,
+    /// Additional provider-specific metadata describing what produced this
+    /// notification.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    /// For example, a `terminal` key may reference the terminal whose
+    /// background task completion triggered the notification.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// A turn input wrapping a {@link UserMessage}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserMessageTurnInput {
+    /// The user's input
+    pub user_message: UserMessage,
+}
+
+/// A turn input wrapping a {@link SystemNotification}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SystemNotificationTurnInput {
+    /// The system notification that woke the agent
+    pub notification: SystemNotification,
 }
 
 /// A choice in a select-style question.
@@ -2347,6 +2401,20 @@ pub enum MessageAttachment {
     EmbeddedResource(MessageEmbeddedResourceAttachment),
     #[serde(rename = "resource")]
     Resource(MessageResourceAttachment),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// What started a turn — a user message or a system notification.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum TurnInput {
+    #[serde(rename = "userMessage")]
+    UserMessage(UserMessageTurnInput),
+    #[serde(rename = "systemNotification")]
+    SystemNotification(SystemNotificationTurnInput),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]

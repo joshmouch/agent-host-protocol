@@ -549,8 +549,8 @@ export const enum MessageAttachmentKind {
 export interface Turn {
   /** Turn identifier */
   id: string;
-  /** The user's input */
-  userMessage: UserMessage;
+  /** What started this turn */
+  input: TurnInput;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -574,8 +574,8 @@ export interface Turn {
 export interface ActiveTurn {
   /** Turn identifier */
   id: string;
-  /** The user's input */
-  userMessage: UserMessage;
+  /** What started this turn */
+  input: TurnInput;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -584,6 +584,84 @@ export interface ActiveTurn {
   responseParts: ResponsePart[];
   /** Token usage info */
   usage: UsageInfo | undefined;
+}
+
+/**
+ * Discriminant for {@link TurnInput} variants — what started a turn.
+ *
+ * @category Turn Types
+ */
+export const enum TurnInputKind {
+  /** Turn was started by a user-authored message. */
+  UserMessage = 'userMessage',
+  /**
+   * Turn was started by a system notification that woke the agent
+   * (e.g. a long-running background terminal task completing).
+   */
+  SystemNotification = 'systemNotification',
+}
+
+/**
+ * A turn input wrapping a {@link UserMessage}.
+ *
+ * @category Turn Types
+ */
+export interface UserMessageTurnInput {
+  /** Discriminant */
+  kind: TurnInputKind.UserMessage;
+  /** The user's input */
+  userMessage: UserMessage;
+}
+
+/**
+ * A turn input wrapping a {@link SystemNotification}.
+ *
+ * @category Turn Types
+ */
+export interface SystemNotificationTurnInput {
+  /** Discriminant */
+  kind: TurnInputKind.SystemNotification;
+  /** The system notification that woke the agent */
+  notification: SystemNotification;
+}
+
+/**
+ * What started a turn. A turn is normally initiated by a user-authored
+ * {@link UserMessage}, but MAY also be initiated by a {@link SystemNotification}
+ * — for example, when a background terminal task completes and the agent
+ * needs to wake up to react.
+ *
+ * @category Turn Types
+ */
+export type TurnInput = UserMessageTurnInput | SystemNotificationTurnInput;
+
+/**
+ * A system notification surfaced as the input that initiates a turn.
+ *
+ * Whereas a {@link UserMessage} represents content authored by the user,
+ * a system notification represents an event authored by the agent host
+ * or its environment that needs the agent to wake up and react. Examples
+ * include "background terminal task X completed" or "scheduled job Y is
+ * ready for review."
+ *
+ * See also {@link SystemNotificationResponsePart}, which surfaces a similar
+ * notification *within* an existing turn's response stream rather than as
+ * the input that starts a new turn.
+ *
+ * @category Turn Types
+ */
+export interface SystemNotification {
+  /** The content of the system notification */
+  content: StringOrMarkdown;
+  /**
+   * Additional provider-specific metadata describing what produced this
+   * notification.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI.
+   * For example, a `terminal` key may reference the terminal whose
+   * background task completion triggered the notification.
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**

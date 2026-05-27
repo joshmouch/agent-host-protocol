@@ -22,6 +22,7 @@ import type {
   ConfirmationOption,
   CustomizationStatus,
   AgentSelection,
+  TurnInput,
 } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import {
@@ -81,7 +82,11 @@ export interface SessionCreationFailedAction {
 }
 
 /**
- * User sent a message; server starts agent processing.
+ * A new turn begins; the server starts agent processing.
+ *
+ * A turn is normally started by a user-authored message, but MAY also be
+ * started by a {@link SystemNotification} that woke the agent (e.g. a
+ * background terminal task completing).
  *
  * @category Session Actions
  * @version 1
@@ -91,8 +96,8 @@ export interface SessionTurnStartedAction {
   type: ActionType.SessionTurnStarted;
   /** Turn identifier */
   turnId: string;
-  /** User's message */
-  userMessage: UserMessage;
+  /** What started this turn (user message or system notification) */
+  input: TurnInput;
   /** If this turn was auto-started from a queued message, the ID of that message */
   queuedMessageId?: string;
 }

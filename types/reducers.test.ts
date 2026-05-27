@@ -31,6 +31,7 @@ import {
   SessionLifecycle,
   SessionStatus,
   TurnState,
+  TurnInputKind,
 } from './state.js';
 import type { TerminalState } from './state.js';
 
@@ -202,7 +203,7 @@ describe('IS_CLIENT_DISPATCHABLE', () => {
 
 describe('isClientDispatchable', () => {
   it('returns true for client-dispatchable actions', () => {
-    const action = { type: ActionType.SessionTurnStarted, session: 'x', turnId: 't', userMessage: { text: 'Hello' } } as const;
+    const action = { type: ActionType.SessionTurnStarted, session: 'x', turnId: 't', input: { kind: TurnInputKind.UserMessage, userMessage: { text: 'Hello' } } } as const;
     assert.equal(isClientDispatchable(action), true);
   });
 
@@ -226,9 +227,9 @@ describe('reducer immutability', () => {
   });
 
   it('sessionReducer does not mutate original turns array', () => {
-    const turn1 = { id: 't1', userMessage: { text: 'First' }, responseParts: [], usage: undefined, state: TurnState.Complete };
-    const turn2 = { id: 't2', userMessage: { text: 'Second' }, responseParts: [], usage: undefined, state: TurnState.Complete };
-    const turn3 = { id: 't3', userMessage: { text: 'Third' }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn1 = { id: 't1', input: { kind: TurnInputKind.UserMessage, userMessage: { text: 'First' } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn2 = { id: 't2', input: { kind: TurnInputKind.UserMessage, userMessage: { text: 'Second' } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn3 = { id: 't3', input: { kind: TurnInputKind.UserMessage, userMessage: { text: 'Third' } }, responseParts: [], usage: undefined, state: TurnState.Complete };
     const state: SessionState = {
       summary: { resource: 'x', provider: 'copilot', title: 'T', status: SessionStatus.Idle, createdAt: 1000, modifiedAt: 1000, project: { uri: 'file:///test-project', displayName: 'Test Project' } },
       lifecycle: SessionLifecycle.Ready,

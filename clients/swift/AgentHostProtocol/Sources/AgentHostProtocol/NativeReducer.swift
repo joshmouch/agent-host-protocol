@@ -144,7 +144,7 @@ public struct AHPSessionReducer: Reducer {
             state.summary.modifiedAt = currentTimestamp()
             state.activeTurn = ActiveTurn(
                 id: a.turnId,
-                userMessage: a.userMessage,
+                input: a.input,
                 responseParts: [],
                 usage: nil
             )
@@ -650,7 +650,7 @@ public struct AHPSessionReducer: Reducer {
 
         let turn = Turn(
             id: activeTurn.id,
-            userMessage: activeTurn.userMessage,
+            input: activeTurn.input,
             responseParts: responseParts,
             usage: activeTurn.usage,
             state: turnState,

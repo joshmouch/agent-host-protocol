@@ -23,8 +23,11 @@
     {
       "type": "session/turnStarted",
       "turnId": "turn-1",
-      "userMessage": {
-        "text": "Steer"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Steer"
+        }
       },
       "queuedMessageId": "s-1"
     }
@@ -43,8 +46,11 @@
     "steeringMessage": null,
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Steer"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Steer"
+        }
       },
       "responseParts": [],
       "usage": null

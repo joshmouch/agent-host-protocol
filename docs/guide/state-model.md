@@ -138,7 +138,7 @@ A turn represents one request/response cycle between user and agent.
 ```typescript
 Turn {
   id: string
-  userMessage: UserMessage
+  input: TurnInput                    // user message or system notification
   responseParts: ResponsePart[]     // all content in stream order
   usage: UsageInfo | undefined
   state: 'complete' | 'cancelled' | 'error'
@@ -153,9 +153,24 @@ An in-progress turn where the assistant is actively streaming:
 ```typescript
 ActiveTurn {
   id: string
-  userMessage: UserMessage
+  input: TurnInput                    // user message or system notification
   responseParts: ResponsePart[]     // all content in stream order
   usage: UsageInfo | undefined
+}
+```
+
+### Turn Inputs
+
+A turn is started by either a user-authored message or a {@link SystemNotification} (e.g. a background terminal task completing that woke the agent):
+
+```typescript
+type TurnInput =
+  | { kind: 'userMessage'; userMessage: UserMessage }
+  | { kind: 'systemNotification'; notification: SystemNotification }
+
+SystemNotification {
+  content: StringOrMarkdown
+  _meta?: Record<string, unknown>     // implementation-defined metadata
 }
 ```
 

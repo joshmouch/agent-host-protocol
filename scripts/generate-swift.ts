@@ -491,7 +491,7 @@ const STATE_ENUMS = [
   'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
   'SessionInputAnswerState', 'SessionInputAnswerValueKind', 'SessionInputQuestionKind',
   'SessionInputResponseKind',
-  'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
+  'TurnState', 'TurnInputKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
   'ChangesetStatus', 'ChangesetOperationScope',
@@ -502,6 +502,7 @@ const STATE_STRUCTS = [
   'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
   'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'UserMessage',
+  'SystemNotification', 'UserMessageTurnInput', 'SystemNotificationTurnInput',
   'SessionInputOption',
   'SessionInputTextAnswerValue', 'SessionInputNumberAnswerValue',
   'SessionInputBooleanAnswerValue', 'SessionInputSelectedAnswerValue',
@@ -616,6 +617,15 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'embeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
+  ],
+};
+
+const TURN_INPUT_UNION: UnionConfig = {
+  name: 'TurnInput',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'userMessage', structName: 'UserMessageTurnInput', discriminantValue: 'userMessage' },
+    { caseName: 'systemNotification', structName: 'SystemNotificationTurnInput', discriminantValue: 'systemNotification' },
   ],
 };
 
@@ -785,6 +795,8 @@ function generateStateFile(project: Project): string {
   lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_UNION));
   lines.push('');
   lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TURN_INPUT_UNION));
   lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
@@ -1546,6 +1558,7 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputAnswer',           // SESSION_INPUT_ANSWER_UNION discriminated union
     'MessageAttachment',            // MESSAGE_ATTACHMENT_UNION discriminated union
     'MessageAttachmentBase',        // base interface, flattened into the variant structs via `extends`
+    'TurnInput',                    // TURN_INPUT_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()
     'PermissionDeniedErrorData',    // emitted by generateErrorsFile()
     'UnsupportedProtocolVersionErrorData', // emitted by generateErrorsFile()

@@ -163,20 +163,20 @@ public struct SessionTurnStartedAction: Codable, Sendable {
     public var type: ActionType
     /// Turn identifier
     public var turnId: String
-    /// User's message
-    public var userMessage: UserMessage
+    /// What started this turn (user message or system notification)
+    public var input: TurnInput
     /// If this turn was auto-started from a queued message, the ID of that message
     public var queuedMessageId: String?
 
     public init(
         type: ActionType,
         turnId: String,
-        userMessage: UserMessage,
+        input: TurnInput,
         queuedMessageId: String? = nil
     ) {
         self.type = type
         self.turnId = turnId
-        self.userMessage = userMessage
+        self.input = input
         self.queuedMessageId = queuedMessageId
     }
 }

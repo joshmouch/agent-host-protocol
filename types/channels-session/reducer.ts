@@ -142,7 +142,7 @@ function endTurn(
 
   const turn: Turn = {
     id: active.id,
-    userMessage: active.userMessage,
+    input: active.input,
     responseParts,
     usage: active.usage,
     state: turnState,
@@ -289,7 +289,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         ...state,
         activeTurn: {
           id: action.turnId,
-          userMessage: action.userMessage,
+          input: action.input,
           responseParts: [],
           usage: undefined,
         },

@@ -286,7 +286,7 @@ fn end_turn(
 
     let turn = Turn {
         id: active.id,
-        user_message: active.user_message,
+        input: active.input,
         response_parts,
         usage: active.usage,
         state: turn_state,
@@ -748,7 +748,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
 fn apply_turn_started(state: &mut SessionState, a: &SessionTurnStartedAction) -> ReduceOutcome {
     state.active_turn = Some(ActiveTurn {
         id: a.turn_id.clone(),
-        user_message: a.user_message.clone(),
+        input: a.input.clone(),
         response_parts: Vec::new(),
         usage: None,
     });
@@ -1136,7 +1136,7 @@ pub fn apply_action_to_terminal(state: &mut TerminalState, action: &StateAction)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ahp_types::state::{MarkdownResponsePart, SessionSummary, UserMessage};
+    use ahp_types::state::{MarkdownResponsePart, SessionSummary, TurnInput, UserMessage, UserMessageTurnInput};
 
     fn empty_session(resource: &str) -> SessionState {
         SessionState {
@@ -1174,10 +1174,13 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         let action = StateAction::SessionTurnStarted(SessionTurnStartedAction {
             turn_id: "t1".into(),
-            user_message: UserMessage {
-                text: "hi".into(),
-                attachments: None,
-            },
+            input: TurnInput::UserMessage(UserMessageTurnInput {
+
+                user_message: UserMessage {
+                    text: "hi".into(),
+                    attachments: None,
+                },
+            }),
             queued_message_id: None,
         });
         assert_eq!(
@@ -1193,10 +1196,13 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            user_message: UserMessage {
-                text: "hi".into(),
-                attachments: None,
-            },
+            input: TurnInput::UserMessage(UserMessageTurnInput {
+
+                user_message: UserMessage {
+                    text: "hi".into(),
+                    attachments: None,
+                },
+            }),
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
                 content: "Hello".into(),
@@ -1220,10 +1226,13 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            user_message: UserMessage {
-                text: "hi".into(),
-                attachments: None,
-            },
+            input: TurnInput::UserMessage(UserMessageTurnInput {
+
+                user_message: UserMessage {
+                    text: "hi".into(),
+                    attachments: None,
+                },
+            }),
             response_parts: Vec::new(),
             usage: None,
         });

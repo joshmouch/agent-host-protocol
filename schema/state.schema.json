@@ -1390,9 +1390,9 @@
           "type": "string",
           "description": "Turn identifier"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The user's input"
+        "input": {
+          "$ref": "#/$defs/TurnInput",
+          "description": "What started this turn"
         },
         "responseParts": {
           "type": "array",
@@ -1416,7 +1416,7 @@
       },
       "required": [
         "id",
-        "userMessage",
+        "input",
         "responseParts",
         "usage",
         "state"
@@ -1430,9 +1430,9 @@
           "type": "string",
           "description": "Turn identifier"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The user's input"
+        "input": {
+          "$ref": "#/$defs/TurnInput",
+          "description": "What started this turn"
         },
         "responseParts": {
           "type": "array",
@@ -1448,9 +1448,63 @@
       },
       "required": [
         "id",
-        "userMessage",
+        "input",
         "responseParts",
         "usage"
+      ]
+    },
+    "UserMessageTurnInput": {
+      "type": "object",
+      "description": "A turn input wrapping a {@link UserMessage}.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/TurnInputKind.UserMessage",
+          "description": "Discriminant"
+        },
+        "userMessage": {
+          "$ref": "#/$defs/UserMessage",
+          "description": "The user's input"
+        }
+      },
+      "required": [
+        "kind",
+        "userMessage"
+      ]
+    },
+    "SystemNotificationTurnInput": {
+      "type": "object",
+      "description": "A turn input wrapping a {@link SystemNotification}.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/TurnInputKind.SystemNotification",
+          "description": "Discriminant"
+        },
+        "notification": {
+          "$ref": "#/$defs/SystemNotification",
+          "description": "The system notification that woke the agent"
+        }
+      },
+      "required": [
+        "kind",
+        "notification"
+      ]
+    },
+    "SystemNotification": {
+      "type": "object",
+      "description": "A system notification surfaced as the input that initiates a turn.\n\nWhereas a {@link UserMessage} represents content authored by the user,\na system notification represents an event authored by the agent host\nor its environment that needs the agent to wake up and react. Examples\ninclude \"background terminal task X completed\" or \"scheduled job Y is\nready for review.\"\n\nSee also {@link SystemNotificationResponsePart}, which surfaces a similar\nnotification *within* an existing turn's response stream rather than as\nthe input that starts a new turn.",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "The content of the system notification"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata describing what produced this\nnotification.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `terminal` key may reference the terminal whose\nbackground task completion triggered the notification."
+        }
+      },
+      "required": [
+        "content"
       ]
     },
     "UserMessage": {
@@ -2946,19 +3000,19 @@
     },
     "TelemetryCapabilities": {
       "type": "object",
-      "description": "OTLP telemetry channels the agent host emits.\r\n\r\nEach field, when present, is either a literal channel URI or an\r\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\r\na client expands and then subscribes to. Absent fields indicate the host\r\ndoes not emit that signal.\r\n\r\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\r\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\r\ntype by URI alone; the host is free to choose any authority/path that\r\nmakes sense for its implementation. Clients MUST treat the URI as\r\nopaque (apart from expanding any well-known template variables defined\r\nbelow) and subscribe with the resulting concrete URI.\r\n\r\nPayloads delivered on these channels are OTLP/JSON values — see\r\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\r\nfor the wire shapes (`ExportLogsServiceRequest`,\r\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
+      "description": "OTLP telemetry channels the agent host emits.\n\nEach field, when present, is either a literal channel URI or an\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\na client expands and then subscribes to. Absent fields indicate the host\ndoes not emit that signal.\n\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\ntype by URI alone; the host is free to choose any authority/path that\nmakes sense for its implementation. Clients MUST treat the URI as\nopaque (apart from expanding any well-known template variables defined\nbelow) and subscribe with the resulting concrete URI.\n\nPayloads delivered on these channels are OTLP/JSON values — see\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\nfor the wire shapes (`ExportLogsServiceRequest`,\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
       "properties": {
         "logs": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\r\n(`otlp/exportLogs` notifications).\r\n\r\nThe following template variables are defined by this protocol; any\r\nother variable name MUST be ignored by clients (there is no\r\nprotocol-defined way to obtain values for unknown variables):\r\n\r\n| Variables in template | Meaning                                                                                                 |\r\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\r\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\r\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\r\n\r\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\r\ndefensively in case a host ignores the parameter. Hosts that do not\r\nadvertise `{level}` deliver all severities.\r\n\r\nFuture protocol versions MAY add new well-known variables (e.g. scope\r\nor attribute filters)."
+          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\n(`otlp/exportLogs` notifications).\n\nThe following template variables are defined by this protocol; any\nother variable name MUST be ignored by clients (there is no\nprotocol-defined way to obtain values for unknown variables):\n\n| Variables in template | Meaning                                                                                                 |\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\n\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\ndefensively in case a host ignores the parameter. Hosts that do not\nadvertise `{level}` deliver all severities.\n\nFuture protocol versions MAY add new well-known variables (e.g. scope\nor attribute filters)."
         },
         "traces": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\r\ntemplate variables are defined by this protocol version."
+          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\ntemplate variables are defined by this protocol version."
         },
         "metrics": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\r\nnotifications). No template variables are defined by this protocol\r\nversion."
+          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\nnotifications). No template variables are defined by this protocol\nversion."
         }
       }
     },
@@ -3030,6 +3084,17 @@
         }
       ],
       "description": "Draft, submitted, or skipped answer for one question."
+    },
+    "TurnInput": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/UserMessageTurnInput"
+        },
+        {
+          "$ref": "#/$defs/SystemNotificationTurnInput"
+        }
+      ],
+      "description": "What started a turn. A turn is normally initiated by a user-authored\n{@link UserMessage}, but MAY also be initiated by a {@link SystemNotification}\n— for example, when a background terminal task completes and the agent\nneeds to wake up to react."
     },
     "MessageAttachment": {
       "oneOf": [

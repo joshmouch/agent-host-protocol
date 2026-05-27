@@ -14,8 +14,11 @@
     "turns": [
       {
         "id": "kept",
-        "userMessage": {
-          "text": "Kept"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "Kept"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -23,8 +26,11 @@
       },
       {
         "id": "dropped",
-        "userMessage": {
-          "text": "Dropped"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "Dropped"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -33,8 +39,11 @@
     ],
     "activeTurn": {
       "id": "active",
-      "userMessage": {
-        "text": "Active"
+      "input": {
+        "kind": "userMessage",
+        "userMessage": {
+          "text": "Active"
+        }
       },
       "responseParts": [],
       "usage": null
@@ -75,8 +84,11 @@
     "turns": [
       {
         "id": "kept",
-        "userMessage": {
-          "text": "Kept"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "Kept"
+          }
         },
         "responseParts": [],
         "usage": null,

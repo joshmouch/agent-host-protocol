@@ -17,8 +17,8 @@ use crate::state::{
     CustomizationStatus, ErrorInfo, ModelSelection, PendingMessageKind, ResponsePart,
     SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest,
     SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
-    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
-    UserMessage,
+    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, TurnInput,
+    UsageInfo, UserMessage,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -220,14 +220,18 @@ pub struct SessionCreationFailedAction {
     pub error: ErrorInfo,
 }
 
-/// User sent a message; server starts agent processing.
+/// A new turn begins; the server starts agent processing.
+///
+/// A turn is normally started by a user-authored message, but MAY also be
+/// started by a {@link SystemNotification} that woke the agent (e.g. a
+/// background terminal task completing).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTurnStartedAction {
     /// Turn identifier
     pub turn_id: String,
-    /// User's message
-    pub user_message: UserMessage,
+    /// What started this turn (user message or system notification)
+    pub input: TurnInput,
     /// If this turn was auto-started from a queued message, the ID of that message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queued_message_id: Option<String>,

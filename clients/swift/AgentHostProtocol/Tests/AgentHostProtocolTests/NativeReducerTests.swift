@@ -57,7 +57,7 @@ final class NativeReducerTests: XCTestCase {
             turns: [],
             activeTurn: ActiveTurn(
                 id: T,
-                userMessage: UserMessage(text: "Hello"),
+                input: .userMessage(UserMessageTurnInput(kind: .userMessage, userMessage: UserMessage(text: "Hello"))),
                 responseParts: [],
                 usage: nil
             )

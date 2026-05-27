@@ -1538,6 +1538,6 @@ private func makeTurnStartedAction(text: String) -> StateAction {
     .sessionTurnStarted(SessionTurnStartedAction(
         type: .sessionTurnStarted,
         turnId: UUID().uuidString,
-        userMessage: UserMessage(text: text)
+        input: .userMessage(UserMessageTurnInput(kind: .userMessage, userMessage: UserMessage(text: text)))
     ))
 }

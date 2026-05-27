@@ -14,8 +14,11 @@
     "turns": [
       {
         "id": "t1",
-        "userMessage": {
-          "text": "First"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "First"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -23,8 +26,11 @@
       },
       {
         "id": "t2",
-        "userMessage": {
-          "text": "Second"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "Second"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -32,8 +38,11 @@
       },
       {
         "id": "t3",
-        "userMessage": {
-          "text": "Third"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "Third"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -60,8 +69,11 @@
     "turns": [
       {
         "id": "t1",
-        "userMessage": {
-          "text": "First"
+        "input": {
+          "kind": "userMessage",
+          "userMessage": {
+            "text": "First"
+          }
         },
         "responseParts": [],
         "usage": null,

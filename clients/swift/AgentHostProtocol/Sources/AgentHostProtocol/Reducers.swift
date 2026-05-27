@@ -90,7 +90,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         next.activeTurn = ActiveTurn(
             id: a.turnId,
-            userMessage: a.userMessage,
+            input: a.input,
             responseParts: [],
             usage: nil
         )
@@ -747,7 +747,7 @@ private func endTurn(
 
     let turn = Turn(
         id: activeTurn.id,
-        userMessage: activeTurn.userMessage,
+        input: activeTurn.input,
         responseParts: responseParts,
         usage: activeTurn.usage,
         state: turnState,
