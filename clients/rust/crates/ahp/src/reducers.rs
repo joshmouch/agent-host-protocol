@@ -287,6 +287,7 @@ fn end_turn(
     let turn = Turn {
         id: active.id,
         user_message: active.user_message,
+        system_initiated_label: active.system_initiated_label,
         response_parts,
         usage: active.usage,
         state: turn_state,
@@ -749,6 +750,7 @@ fn apply_turn_started(state: &mut SessionState, a: &SessionTurnStartedAction) ->
     state.active_turn = Some(ActiveTurn {
         id: a.turn_id.clone(),
         user_message: a.user_message.clone(),
+        system_initiated_label: a.system_initiated_label.clone(),
         response_parts: Vec::new(),
         usage: None,
     });
@@ -1178,6 +1180,7 @@ mod tests {
                 text: "hi".into(),
                 attachments: None,
             },
+            system_initiated_label: None,
             queued_message_id: None,
         });
         assert_eq!(
@@ -1197,6 +1200,7 @@ mod tests {
                 text: "hi".into(),
                 attachments: None,
             },
+            system_initiated_label: None,
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
                 content: "Hello".into(),
@@ -1224,6 +1228,7 @@ mod tests {
                 text: "hi".into(),
                 attachments: None,
             },
+            system_initiated_label: None,
             response_parts: Vec::new(),
             usage: None,
         });
