@@ -16,7 +16,7 @@
   "actions": [
     {
       "type": "session/customizationToggled",
-      "uri": "https://plugins.example/a",
+      "id": "plugin-a",
       "enabled": false
     }
   ],

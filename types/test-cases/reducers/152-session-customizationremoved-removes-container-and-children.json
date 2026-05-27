@@ -1,5 +1,5 @@
 {
-  "description": "session/customizationsChanged replaces existing customizations",
+  "description": "session/customizationRemoved removes a top-level container and its children",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -18,22 +18,29 @@
         "id": "plugin-a",
         "uri": "https://plugins.example/a",
         "name": "Plugin A",
+        "enabled": true,
+        "children": [
+          {
+            "type": "skill",
+            "id": "skill-1",
+            "uri": "https://plugins.example/a#skills/lint",
+            "name": "lint"
+          }
+        ]
+      },
+      {
+        "type": "plugin",
+        "id": "plugin-b",
+        "uri": "https://plugins.example/b",
+        "name": "Plugin B",
         "enabled": true
       }
     ]
   },
   "actions": [
     {
-      "type": "session/customizationsChanged",
-      "customizations": [
-        {
-          "type": "plugin",
-          "id": "plugin-b",
-          "uri": "https://plugins.example/b",
-          "name": "Plugin B",
-          "enabled": false
-        }
-      ]
+      "type": "session/customizationRemoved",
+      "id": "plugin-a"
     }
   ],
   "expected": {
@@ -53,7 +60,7 @@
         "id": "plugin-b",
         "uri": "https://plugins.example/b",
         "name": "Plugin B",
-        "enabled": false
+        "enabled": true
       }
     ]
   }

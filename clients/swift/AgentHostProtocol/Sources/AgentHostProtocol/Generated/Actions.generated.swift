@@ -40,6 +40,7 @@ public enum ActionType: String, Codable, Sendable {
     case sessionCustomizationsChanged = "session/customizationsChanged"
     case sessionCustomizationToggled = "session/customizationToggled"
     case sessionCustomizationUpdated = "session/customizationUpdated"
+    case sessionCustomizationRemoved = "session/customizationRemoved"
     case sessionTruncated = "session/truncated"
     case sessionIsReadChanged = "session/isReadChanged"
     case sessionIsArchivedChanged = "session/isArchivedChanged"
@@ -868,12 +869,12 @@ public struct SessionInputCompletedAction: Codable, Sendable {
 
 public struct SessionCustomizationsChangedAction: Codable, Sendable {
     public var type: ActionType
-    /// Updated customization list (full replacement)
-    public var customizations: [SessionCustomization]
+    /// Updated customization list (full replacement).
+    public var customizations: [Customization]
 
     public init(
         type: ActionType,
-        customizations: [SessionCustomization]
+        customizations: [Customization]
     ) {
         self.type = type
         self.customizations = customizations
@@ -882,51 +883,47 @@ public struct SessionCustomizationsChangedAction: Codable, Sendable {
 
 public struct SessionCustomizationToggledAction: Codable, Sendable {
     public var type: ActionType
-    /// The URI of the customization to toggle
-    public var uri: String
-    /// Whether to enable or disable the customization
+    /// The id of the container to toggle.
+    public var id: String
+    /// Whether to enable or disable the container.
     public var enabled: Bool
 
     public init(
         type: ActionType,
-        uri: String,
+        id: String,
         enabled: Bool
     ) {
         self.type = type
-        self.uri = uri
+        self.id = id
         self.enabled = enabled
     }
 }
 
 public struct SessionCustomizationUpdatedAction: Codable, Sendable {
     public var type: ActionType
-    /// The customization to update or insert (matched by `customization.uri`)
-    public var customization: CustomizationRef
-    /// New enabled state (defaults to `false` on insert)
-    public var enabled: Bool?
-    /// New loading status
-    public var status: CustomizationStatus?
-    /// New human-readable status detail
-    public var statusMessage: String?
-    /// Custom agents contributed by this customization, as resolved by the
-    /// agent host. Populated only by the agent host. See
-    /// {@link SessionCustomization.agents} for absent-vs-empty semantics.
-    public var agents: [CustomizationAgentRef]?
+    /// The customization to upsert (matched by `customization.id`).
+    public var customization: Customization
 
     public init(
         type: ActionType,
-        customization: CustomizationRef,
-        enabled: Bool? = nil,
-        status: CustomizationStatus? = nil,
-        statusMessage: String? = nil,
-        agents: [CustomizationAgentRef]? = nil
+        customization: Customization
     ) {
         self.type = type
         self.customization = customization
-        self.enabled = enabled
-        self.status = status
-        self.statusMessage = statusMessage
-        self.agents = agents
+    }
+}
+
+public struct SessionCustomizationRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The id of the customization to remove.
+    public var id: String
+
+    public init(
+        type: ActionType,
+        id: String
+    ) {
+        self.type = type
+        self.id = id
     }
 }
 
@@ -1332,6 +1329,7 @@ public enum StateAction: Codable, Sendable {
     case sessionCustomizationsChanged(SessionCustomizationsChangedAction)
     case sessionCustomizationToggled(SessionCustomizationToggledAction)
     case sessionCustomizationUpdated(SessionCustomizationUpdatedAction)
+    case sessionCustomizationRemoved(SessionCustomizationRemovedAction)
     case sessionTruncated(SessionTruncatedAction)
     case sessionConfigChanged(SessionConfigChangedAction)
     case sessionMetaChanged(SessionMetaChangedAction)
@@ -1437,6 +1435,8 @@ public enum StateAction: Codable, Sendable {
             self = .sessionCustomizationToggled(try SessionCustomizationToggledAction(from: decoder))
         case "session/customizationUpdated":
             self = .sessionCustomizationUpdated(try SessionCustomizationUpdatedAction(from: decoder))
+        case "session/customizationRemoved":
+            self = .sessionCustomizationRemoved(try SessionCustomizationRemovedAction(from: decoder))
         case "session/truncated":
             self = .sessionTruncated(try SessionTruncatedAction(from: decoder))
         case "session/configChanged":
@@ -1525,6 +1525,7 @@ public enum StateAction: Codable, Sendable {
         case .sessionCustomizationsChanged(let v): try v.encode(to: encoder)
         case .sessionCustomizationToggled(let v): try v.encode(to: encoder)
         case .sessionCustomizationUpdated(let v): try v.encode(to: encoder)
+        case .sessionCustomizationRemoved(let v): try v.encode(to: encoder)
         case .sessionTruncated(let v): try v.encode(to: encoder)
         case .sessionConfigChanged(let v): try v.encode(to: encoder)
         case .sessionMetaChanged(let v): try v.encode(to: encoder)

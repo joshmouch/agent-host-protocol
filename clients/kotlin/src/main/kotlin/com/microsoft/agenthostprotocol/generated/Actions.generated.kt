@@ -94,6 +94,8 @@ enum class ActionType {
     SESSION_CUSTOMIZATION_TOGGLED,
     @SerialName("session/customizationUpdated")
     SESSION_CUSTOMIZATION_UPDATED,
+    @SerialName("session/customizationRemoved")
+    SESSION_CUSTOMIZATION_REMOVED,
     @SerialName("session/truncated")
     SESSION_TRUNCATED,
     @SerialName("session/isReadChanged")
@@ -693,20 +695,20 @@ data class SessionInputCompletedAction(
 data class SessionCustomizationsChangedAction(
     val type: ActionType,
     /**
-     * Updated customization list (full replacement)
+     * Updated customization list (full replacement).
      */
-    val customizations: List<SessionCustomization>
+    val customizations: List<Customization>
 )
 
 @Serializable
 data class SessionCustomizationToggledAction(
     val type: ActionType,
     /**
-     * The URI of the customization to toggle
+     * The id of the container to toggle.
      */
-    val uri: String,
+    val id: String,
     /**
-     * Whether to enable or disable the customization
+     * Whether to enable or disable the container.
      */
     val enabled: Boolean
 )
@@ -715,27 +717,18 @@ data class SessionCustomizationToggledAction(
 data class SessionCustomizationUpdatedAction(
     val type: ActionType,
     /**
-     * The customization to update or insert (matched by `customization.uri`)
+     * The customization to upsert (matched by `customization.id`).
      */
-    val customization: CustomizationRef,
+    val customization: Customization
+)
+
+@Serializable
+data class SessionCustomizationRemovedAction(
+    val type: ActionType,
     /**
-     * New enabled state (defaults to `false` on insert)
+     * The id of the customization to remove.
      */
-    val enabled: Boolean? = null,
-    /**
-     * New loading status
-     */
-    val status: CustomizationStatus? = null,
-    /**
-     * New human-readable status detail
-     */
-    val statusMessage: String? = null,
-    /**
-     * Custom agents contributed by this customization, as resolved by the
-     * agent host. Populated only by the agent host. See
-     * {@link SessionCustomization.agents} for absent-vs-empty semantics.
-     */
-    val agents: List<CustomizationAgentRef>? = null
+    val id: String
 )
 
 @Serializable
@@ -1027,6 +1020,7 @@ sealed interface StateAction
 @JvmInline value class StateActionSessionCustomizationsChanged(val value: SessionCustomizationsChangedAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationToggled(val value: SessionCustomizationToggledAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationUpdated(val value: SessionCustomizationUpdatedAction) : StateAction
+@JvmInline value class StateActionSessionCustomizationRemoved(val value: SessionCustomizationRemovedAction) : StateAction
 @JvmInline value class StateActionSessionTruncated(val value: SessionTruncatedAction) : StateAction
 @JvmInline value class StateActionSessionConfigChanged(val value: SessionConfigChangedAction) : StateAction
 @JvmInline value class StateActionSessionMetaChanged(val value: SessionMetaChangedAction) : StateAction
@@ -1101,6 +1095,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "session/customizationsChanged" -> StateActionSessionCustomizationsChanged(input.json.decodeFromJsonElement(SessionCustomizationsChangedAction.serializer(), element))
             "session/customizationToggled" -> StateActionSessionCustomizationToggled(input.json.decodeFromJsonElement(SessionCustomizationToggledAction.serializer(), element))
             "session/customizationUpdated" -> StateActionSessionCustomizationUpdated(input.json.decodeFromJsonElement(SessionCustomizationUpdatedAction.serializer(), element))
+            "session/customizationRemoved" -> StateActionSessionCustomizationRemoved(input.json.decodeFromJsonElement(SessionCustomizationRemovedAction.serializer(), element))
             "session/truncated" -> StateActionSessionTruncated(input.json.decodeFromJsonElement(SessionTruncatedAction.serializer(), element))
             "session/configChanged" -> StateActionSessionConfigChanged(input.json.decodeFromJsonElement(SessionConfigChangedAction.serializer(), element))
             "session/metaChanged" -> StateActionSessionMetaChanged(input.json.decodeFromJsonElement(SessionMetaChangedAction.serializer(), element))
@@ -1168,6 +1163,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionSessionCustomizationsChanged -> output.json.encodeToJsonElement(SessionCustomizationsChangedAction.serializer(), value.value)
             is StateActionSessionCustomizationToggled -> output.json.encodeToJsonElement(SessionCustomizationToggledAction.serializer(), value.value)
             is StateActionSessionCustomizationUpdated -> output.json.encodeToJsonElement(SessionCustomizationUpdatedAction.serializer(), value.value)
+            is StateActionSessionCustomizationRemoved -> output.json.encodeToJsonElement(SessionCustomizationRemovedAction.serializer(), value.value)
             is StateActionSessionTruncated -> output.json.encodeToJsonElement(SessionTruncatedAction.serializer(), value.value)
             is StateActionSessionConfigChanged -> output.json.encodeToJsonElement(SessionConfigChangedAction.serializer(), value.value)
             is StateActionSessionMetaChanged -> output.json.encodeToJsonElement(SessionMetaChangedAction.serializer(), value.value)

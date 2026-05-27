@@ -141,7 +141,7 @@
     },
     "OtlpExportLogsParams": {
       "type": "object",
-      "description": "Delivers a batch of OTLP log records to a client subscribed to the host's\r\nlogs channel (advertised on `TelemetryCapabilities.logs`).\r\n\r\nThe `payload` field is an OTLP/JSON `ExportLogsServiceRequest` value\r\nverbatim — i.e. an object of shape `{ resourceLogs: ResourceLogs[] }` as\r\ndefined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/logs/v1/logs_service.proto).\r\nAHP does not redeclare the OTLP type system; clients SHOULD use an\r\nOpenTelemetry SDK or schema to parse it.\r\n\r\nLike all stateless-channel notifications, this is ephemeral: it is not\r\nreplayed on reconnect. Subscribers receive only batches emitted after\r\ntheir `subscribe` succeeds.",
+      "description": "Delivers a batch of OTLP log records to a client subscribed to the host's\nlogs channel (advertised on `TelemetryCapabilities.logs`).\n\nThe `payload` field is an OTLP/JSON `ExportLogsServiceRequest` value\nverbatim — i.e. an object of shape `{ resourceLogs: ResourceLogs[] }` as\ndefined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/logs/v1/logs_service.proto).\nAHP does not redeclare the OTLP type system; clients SHOULD use an\nOpenTelemetry SDK or schema to parse it.\n\nLike all stateless-channel notifications, this is ephemeral: it is not\nreplayed on reconnect. Subscribers receive only batches emitted after\ntheir `subscribe` succeeds.",
       "properties": {
         "channel": {
           "$ref": "#/$defs/URI",
@@ -150,7 +150,7 @@
         "payload": {
           "type": "object",
           "additionalProperties": {},
-          "description": "OTLP/JSON `ExportLogsServiceRequest` value. The top-level field is\r\n`resourceLogs: ResourceLogs[]`; nested shapes are defined by\r\nopentelemetry-proto and are not redeclared here."
+          "description": "OTLP/JSON `ExportLogsServiceRequest` value. The top-level field is\n`resourceLogs: ResourceLogs[]`; nested shapes are defined by\nopentelemetry-proto and are not redeclared here."
         }
       },
       "required": [
@@ -160,7 +160,7 @@
     },
     "OtlpExportTracesParams": {
       "type": "object",
-      "description": "Delivers a batch of OTLP spans to a client subscribed to the host's\r\ntraces channel (advertised on `TelemetryCapabilities.traces`).\r\n\r\nThe `payload` field is an OTLP/JSON `ExportTraceServiceRequest` value\r\nverbatim — i.e. an object of shape `{ resourceSpans: ResourceSpans[] }`\r\nas defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto).",
+      "description": "Delivers a batch of OTLP spans to a client subscribed to the host's\ntraces channel (advertised on `TelemetryCapabilities.traces`).\n\nThe `payload` field is an OTLP/JSON `ExportTraceServiceRequest` value\nverbatim — i.e. an object of shape `{ resourceSpans: ResourceSpans[] }`\nas defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto).",
       "properties": {
         "channel": {
           "$ref": "#/$defs/URI",
@@ -169,7 +169,7 @@
         "payload": {
           "type": "object",
           "additionalProperties": {},
-          "description": "OTLP/JSON `ExportTraceServiceRequest` value. The top-level field is\r\n`resourceSpans: ResourceSpans[]`; nested shapes are defined by\r\nopentelemetry-proto and are not redeclared here."
+          "description": "OTLP/JSON `ExportTraceServiceRequest` value. The top-level field is\n`resourceSpans: ResourceSpans[]`; nested shapes are defined by\nopentelemetry-proto and are not redeclared here."
         }
       },
       "required": [
@@ -179,7 +179,7 @@
     },
     "OtlpExportMetricsParams": {
       "type": "object",
-      "description": "Delivers a batch of OTLP metric data points to a client subscribed to\r\nthe host's metrics channel (advertised on `TelemetryCapabilities.metrics`).\r\n\r\nThe `payload` field is an OTLP/JSON `ExportMetricsServiceRequest` value\r\nverbatim — i.e. an object of shape `{ resourceMetrics: ResourceMetrics[] }`\r\nas defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/metrics/v1/metrics_service.proto).",
+      "description": "Delivers a batch of OTLP metric data points to a client subscribed to\nthe host's metrics channel (advertised on `TelemetryCapabilities.metrics`).\n\nThe `payload` field is an OTLP/JSON `ExportMetricsServiceRequest` value\nverbatim — i.e. an object of shape `{ resourceMetrics: ResourceMetrics[] }`\nas defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/metrics/v1/metrics_service.proto).",
       "properties": {
         "channel": {
           "$ref": "#/$defs/URI",
@@ -188,7 +188,7 @@
         "payload": {
           "type": "object",
           "additionalProperties": {},
-          "description": "OTLP/JSON `ExportMetricsServiceRequest` value. The top-level field is\r\n`resourceMetrics: ResourceMetrics[]`; nested shapes are defined by\r\nopentelemetry-proto and are not redeclared here."
+          "description": "OTLP/JSON `ExportMetricsServiceRequest` value. The top-level field is\n`resourceMetrics: ResourceMetrics[]`; nested shapes are defined by\nopentelemetry-proto and are not redeclared here."
         }
       },
       "required": [
@@ -705,9 +705,9 @@
         "customizations": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomizationRef"
+            "$ref": "#/$defs/Customization"
           },
-          "description": "Customizations (Open Plugins) associated with this agent.\n\nEach entry is a reference to an [Open Plugins](https://open-plugins.com/)\nplugin that the agent host can activate for sessions using this agent."
+          "description": "Customizations associated with this agent.\n\nAlways container customizations —\n{@link PluginCustomization | `PluginCustomization`} entries the agent\nbundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}\nentries it watches in any workspace it's used with. When a session is\ncreated with this agent, these entries are augmented (e.g. directory\nURIs are resolved against the workspace, children are parsed) and\npropagated into the session's `customizations` list."
         }
       },
       "required": [
@@ -880,9 +880,9 @@
         "customizations": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SessionCustomization"
+            "$ref": "#/$defs/Customization"
           },
-          "description": "Server-provided customizations active in this session.\n\nClient-provided customizations are available on\n{@link SessionActiveClient.customizations | activeClient.customizations}."
+          "description": "Top-level customizations active in this session.\n\nAlways container customizations — {@link PluginCustomization} or\n{@link DirectoryCustomization}. Children (agents, skills, prompts,\nrules, hooks, MCP servers) live in each container's\n{@link ContainerCustomizationBase.children | `children`} array.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated)."
         },
         "_meta": {
           "type": "object",
@@ -918,9 +918,9 @@
         "customizations": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomizationRef"
+            "$ref": "#/$defs/ClientPluginCustomization"
           },
-          "description": "Customizations this client contributes to the session"
+          "description": "Plugin customizations this client contributes to the session.\n\nClients publish in [Open Plugins](https://open-plugins.com/) format\n— i.e. always container-shaped plugins. They MAY synthesize virtual\nplugins in memory and rely on the host to expand them into concrete\nchildren inside {@link SessionState.customizations}."
         }
       },
       "required": [
@@ -1012,11 +1012,11 @@
     },
     "AgentSelection": {
       "type": "object",
-      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations). Consumers resolve the\nagent's display name by looking up `uri` in\n{@link SessionCustomization.agents | `SessionCustomization.agents`}.\n\nA session with no `agent` selected uses the provider's default behavior.",
+      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching an\n{@link AgentCustomization.uri | `AgentCustomization.uri`} exposed via\nthe session's effective customizations). Consumers resolve the agent's\ndisplay name by looking up `uri` in the session's customization tree.\n\nA session with no `agent` selected uses the provider's default behavior.",
       "properties": {
         "uri": {
           "$ref": "#/$defs/URI",
-          "description": "Stable agent URI (matches a {@link CustomizationAgentRef.uri})"
+          "description": "Stable agent URI (matches an {@link AgentCustomization.uri})."
         }
       },
       "required": [
@@ -2757,96 +2757,597 @@
         "title"
       ]
     },
-    "CustomizationAgentRef": {
+    "CustomizationBase": {
       "type": "object",
-      "description": "A lightweight reference to a custom agent contributed by a customization.\n\nCustom agents have a single `name` (sourced from the agent file's YAML\nfrontmatter, or derived from the file name); they do not have a separate\ndisplay name.",
+      "description": "Fields shared by every customization variant.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
         "uri": {
           "$ref": "#/$defs/URI",
-          "description": "Stable agent URI"
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
         },
         "name": {
           "type": "string",
-          "description": "Agent name (from frontmatter `name`, or file-derived)"
-        },
-        "description": {
-          "type": "string",
-          "description": "Optional short description for UI preview (from frontmatter `description`)"
-        }
-      },
-      "required": [
-        "uri",
-        "name"
-      ]
-    },
-    "CustomizationRef": {
-      "type": "object",
-      "description": "A reference to an [Open Plugins](https://open-plugins.com/) plugin.\n\nThis is intentionally thin — AHP specifies plugin identity and metadata\nbut not implementation details, which are defined by the Open Plugins spec.",
-      "properties": {
-        "uri": {
-          "$ref": "#/$defs/URI",
-          "description": "Plugin URI (e.g. an HTTPS URL or marketplace identifier)"
-        },
-        "displayName": {
-          "type": "string",
-          "description": "Human-readable name"
-        },
-        "description": {
-          "type": "string",
-          "description": "Description of what the plugin provides"
+          "description": "Human-readable name."
         },
         "icons": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Icon"
           },
-          "description": "Icons for the plugin"
+          "description": "Icons for UI display."
         },
-        "nonce": {
-          "type": "string",
-          "description": "Opaque version token for this customization.\n\nClients SHOULD include a nonce with every customization they provide.\nConsumers can compare nonces to detect whether a customization has\nchanged since it was last seen, avoiding redundant reloads or copies."
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
         }
       },
       "required": [
+        "id",
         "uri",
-        "displayName"
+        "name"
       ]
     },
-    "SessionCustomization": {
+    "CustomizationLoadingState": {
       "type": "object",
-      "description": "A customization active in a session.",
+      "description": "Container is being loaded by the host.",
       "properties": {
-        "customization": {
-          "$ref": "#/$defs/CustomizationRef",
-          "description": "The plugin this customization refers to"
+        "kind": {
+          "$ref": "#/$defs/CustomizationLoadStatus.Loading"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "CustomizationLoadedState": {
+      "type": "object",
+      "description": "Container loaded successfully.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CustomizationLoadStatus.Loaded"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "CustomizationDegradedState": {
+      "type": "object",
+      "description": "Container partially loaded but has warnings.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CustomizationLoadStatus.Degraded"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable description of the warning."
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ]
+    },
+    "CustomizationErrorState": {
+      "type": "object",
+      "description": "Container failed to load.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CustomizationLoadStatus.Error"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message."
+        }
+      },
+      "required": [
+        "kind",
+        "message"
+      ]
+    },
+    "ContainerCustomizationBase": {
+      "type": "object",
+      "description": "Fields shared by container customizations.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
         },
         "enabled": {
           "type": "boolean",
-          "description": "Whether this customization is currently enabled"
+          "description": "Whether this container is currently enabled."
         },
         "clientId": {
           "type": "string",
-          "description": "The `clientId` of the client that contributed this customization.\nAbsent for server-provided customizations."
+          "description": "`clientId` of the client that contributed this container. Absent for\nserver-originated entries."
         },
-        "status": {
-          "$ref": "#/$defs/CustomizationStatus",
-          "description": "Server-reported loading status"
+        "load": {
+          "$ref": "#/$defs/CustomizationLoadState",
+          "description": "Host-reported load state. Absent means the host has not yet reported\na load state for this container."
         },
-        "statusMessage": {
-          "type": "string",
-          "description": "Human-readable status detail (e.g. error message or degradation warning)."
-        },
-        "agents": {
+        "children": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/CustomizationAgentRef"
+            "$ref": "#/$defs/ChildCustomization"
           },
-          "description": "Custom agents contributed by this customization, as resolved by the\nagent host after parsing the customization.\n\nConsumers MUST treat an absent field as \"unknown\" (e.g. the host has\nnot finished parsing the customization yet). An empty array means the\nhost parsed the customization and it contributes no agents.\n\nClients are not authoritative here: only the agent host populates\nthis field."
+          "description": "Children discovered inside this container.\n\nAbsent means the host has not parsed this container yet. An empty\narray means the host parsed the container and it contributes\nnothing."
         }
       },
       "required": [
-        "customization",
+        "id",
+        "uri",
+        "name",
         "enabled"
+      ]
+    },
+    "PluginCustomization": {
+      "type": "object",
+      "description": "An [Open Plugins](https://open-plugins.com/) plugin.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this container is currently enabled."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "`clientId` of the client that contributed this container. Absent for\nserver-originated entries."
+        },
+        "load": {
+          "$ref": "#/$defs/CustomizationLoadState",
+          "description": "Host-reported load state. Absent means the host has not yet reported\na load state for this container."
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChildCustomization"
+          },
+          "description": "Children discovered inside this container.\n\nAbsent means the host has not parsed this container yet. An empty\narray means the host parsed the container and it contributes\nnothing."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Plugin"
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "enabled",
+        "type"
+      ]
+    },
+    "ClientPluginCustomization": {
+      "type": "object",
+      "description": "A {@link PluginCustomization} as published by a client. Extends the\nserver-facing shape with an opaque `nonce` so the host can detect when\nthe client's view of a plugin has changed and re-parse only as needed.\n\nClients SHOULD include a `nonce`. Server-side fields like\n{@link ContainerCustomizationBase.children | `children`} and\n{@link ContainerCustomizationBase.load | `load`} are typically left\nabsent on publication and populated by the host when the resolved\nplugin appears in {@link SessionState.customizations}.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this container is currently enabled."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "`clientId` of the client that contributed this container. Absent for\nserver-originated entries."
+        },
+        "load": {
+          "$ref": "#/$defs/CustomizationLoadState",
+          "description": "Host-reported load state. Absent means the host has not yet reported\na load state for this container."
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChildCustomization"
+          },
+          "description": "Children discovered inside this container.\n\nAbsent means the host has not parsed this container yet. An empty\narray means the host parsed the container and it contributes\nnothing."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Plugin"
+        },
+        "nonce": {
+          "type": "string",
+          "description": "Opaque version token used by the host to detect changes."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "enabled",
+        "type"
+      ]
+    },
+    "DirectoryCustomization": {
+      "type": "object",
+      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/commands#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this container is currently enabled."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "`clientId` of the client that contributed this container. Absent for\nserver-originated entries."
+        },
+        "load": {
+          "$ref": "#/$defs/CustomizationLoadState",
+          "description": "Host-reported load state. Absent means the host has not yet reported\na load state for this container."
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChildCustomization"
+          },
+          "description": "Children discovered inside this container.\n\nAbsent means the host has not parsed this container yet. An empty\narray means the host parsed the container and it contributes\nnothing."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Directory"
+        },
+        "contents": {
+          "$ref": "#/$defs/ChildCustomizationType",
+          "description": "Which child customization type this directory holds."
+        },
+        "writable": {
+          "type": "boolean",
+          "description": "Whether clients may write into this directory."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "enabled",
+        "type",
+        "contents",
+        "writable"
+      ]
+    },
+    "AgentCustomization": {
+      "type": "object",
+      "description": "A custom agent contributed by a plugin or directory.\n\nMirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)\nformat: a markdown file with YAML frontmatter, where the body is the\nagent's system prompt.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Agent"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of what the agent specializes in and when to\ninvoke it. Sourced from the agent file's frontmatter `description`."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
+      ]
+    },
+    "SkillCustomization": {
+      "type": "object",
+      "description": "A skill contributed by a plugin or directory.\n\nCovers both [Open Plugins skill formats](https://open-plugins.com/agent-builders/components/skills)\n— the `skills/` directory layout (one subdirectory per skill, each with\na `SKILL.md`) and the flatter `commands/` directory of slash-command\nskills.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Skill"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description used for help text and auto-invocation matching.\nSourced from the skill's frontmatter `description`."
+        },
+        "disableModelInvocation": {
+          "type": "boolean",
+          "description": "When `true`, only the user can invoke this skill — the agent will not\nauto-invoke it. Sourced from the command skill's frontmatter\n`disable-model-invocation` flag."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
+      ]
+    },
+    "PromptCustomization": {
+      "type": "object",
+      "description": "A prompt contributed by a plugin or directory.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Prompt"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of what the prompt does."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
+      ]
+    },
+    "RuleCustomization": {
+      "type": "object",
+      "description": "A rule contributed by a plugin or directory.\n\nMirrors the [Open Plugins rule](https://open-plugins.com/agent-builders/components/rules)\nformat: a markdown file (e.g. `.mdc`) whose body is injected into\ncontext while the rule is active. This type also covers tool-specific\n\"instruction\" formats (e.g. VS Code Copilot's\n`.github/instructions/*.md`), which differ only in naming — they\nshare the same semantics of `description`, optional always-on\nactivation, and optional glob scoping.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Rule"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of what the rule enforces."
+        },
+        "alwaysApply": {
+          "type": "boolean",
+          "description": "When `true`, the rule is always active (subject to `globs` if any).\nWhen `false` or absent, the agent or user decides whether to apply\nthe rule."
+        },
+        "globs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Glob patterns the rule applies to. When present, the rule is only\nactive for matching files."
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
+      ]
+    },
+    "HookCustomization": {
+      "type": "object",
+      "description": "A hook manifest contributed by a plugin or directory.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.Hook"
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
+      ]
+    },
+    "McpServerCustomization": {
+      "type": "object",
+      "description": "An MCP manifest contributed by a plugin or directory.\n\nWhen the server is declared inline in the containing plugin manifest,\n`uri` points at the manifest file and\n{@link CustomizationBase.range | `range`} narrows it to the\ndeclaration's span.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Session-unique opaque identifier. Used by every action that targets a\nspecific customization. Minted by whoever publishes the customization\n(typically the agent host)."
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Source URI for this customization. A plugin URL, a file URI, or a\ndirectory URI.\n\nFor declarations that live inside a larger file — e.g. an MCP\nserver declared inline in a `plugins.json` manifest — `uri` points\nto the containing file and {@link CustomizationBase.range | `range`}\nnarrows it to the declaration's span."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name."
+        },
+        "icons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Icon"
+          },
+          "description": "Icons for UI display."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Optional span within {@link CustomizationBase.uri | `uri`} when this\ncustomization is a subset of a larger file (for example, one entry\nin an inline `mcpServers` block of a `plugins.json` manifest).\nAbsent when the customization covers the whole resource."
+        },
+        "type": {
+          "$ref": "#/$defs/CustomizationType.McpServer"
+        }
+      },
+      "required": [
+        "id",
+        "uri",
+        "name",
+        "type"
       ]
     },
     "TerminalInfo": {
@@ -3163,19 +3664,19 @@
     },
     "TelemetryCapabilities": {
       "type": "object",
-      "description": "OTLP telemetry channels the agent host emits.\r\n\r\nEach field, when present, is either a literal channel URI or an\r\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\r\na client expands and then subscribes to. Absent fields indicate the host\r\ndoes not emit that signal.\r\n\r\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\r\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\r\ntype by URI alone; the host is free to choose any authority/path that\r\nmakes sense for its implementation. Clients MUST treat the URI as\r\nopaque (apart from expanding any well-known template variables defined\r\nbelow) and subscribe with the resulting concrete URI.\r\n\r\nPayloads delivered on these channels are OTLP/JSON values — see\r\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\r\nfor the wire shapes (`ExportLogsServiceRequest`,\r\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
+      "description": "OTLP telemetry channels the agent host emits.\n\nEach field, when present, is either a literal channel URI or an\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\na client expands and then subscribes to. Absent fields indicate the host\ndoes not emit that signal.\n\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\ntype by URI alone; the host is free to choose any authority/path that\nmakes sense for its implementation. Clients MUST treat the URI as\nopaque (apart from expanding any well-known template variables defined\nbelow) and subscribe with the resulting concrete URI.\n\nPayloads delivered on these channels are OTLP/JSON values — see\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\nfor the wire shapes (`ExportLogsServiceRequest`,\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
       "properties": {
         "logs": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\r\n(`otlp/exportLogs` notifications).\r\n\r\nThe following template variables are defined by this protocol; any\r\nother variable name MUST be ignored by clients (there is no\r\nprotocol-defined way to obtain values for unknown variables):\r\n\r\n| Variables in template | Meaning                                                                                                 |\r\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\r\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\r\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\r\n\r\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\r\ndefensively in case a host ignores the parameter. Hosts that do not\r\nadvertise `{level}` deliver all severities.\r\n\r\nFuture protocol versions MAY add new well-known variables (e.g. scope\r\nor attribute filters)."
+          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\n(`otlp/exportLogs` notifications).\n\nThe following template variables are defined by this protocol; any\nother variable name MUST be ignored by clients (there is no\nprotocol-defined way to obtain values for unknown variables):\n\n| Variables in template | Meaning                                                                                                 |\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\n\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\ndefensively in case a host ignores the parameter. Hosts that do not\nadvertise `{level}` deliver all severities.\n\nFuture protocol versions MAY add new well-known variables (e.g. scope\nor attribute filters)."
         },
         "traces": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\r\ntemplate variables are defined by this protocol version."
+          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\ntemplate variables are defined by this protocol version."
         },
         "metrics": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\r\nnotifications). No template variables are defined by this protocol\r\nversion."
+          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\nnotifications). No template variables are defined by this protocol\nversion."
         }
       }
     }

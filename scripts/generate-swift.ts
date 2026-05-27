@@ -99,6 +99,8 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   // Type aliases
   if (tsType === 'URI') return 'String';
   if (tsType === 'StringOrMarkdown') return 'StringOrMarkdown';
+  // ChildCustomizationType is a TS-only subset alias of CustomizationType.
+  if (tsType === 'ChildCustomizationType') return 'CustomizationType';
 
   // Known unions
   if (tsType === 'RootState | SessionState'
@@ -493,7 +495,7 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
-  'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
+  'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
   'ChangesetStatus', 'ChangesetOperationScope',
 ];
 
@@ -522,8 +524,14 @@ const STATE_STRUCTS = [
   'ToolCallCancelledState', 'ConfirmationOption', 'ToolDefinition', 'ToolAnnotations',
   'ToolResultTextContent', 'ToolResultEmbeddedResourceContent',
   'ToolResultResourceContent', 'ToolResultFileEditContent',
-  'ToolResultTerminalContent', 'ToolResultSubagentContent', 'CustomizationRef', 'CustomizationAgentRef',
-  'SessionCustomization', 'FileEdit', 'TerminalInfo',
+  'ToolResultTerminalContent', 'ToolResultSubagentContent',
+  'CustomizationLoadingState', 'CustomizationLoadedState',
+  'CustomizationDegradedState', 'CustomizationErrorState',
+  'PluginCustomization', 'ClientPluginCustomization', 'DirectoryCustomization',
+  'AgentCustomization', 'SkillCustomization', 'PromptCustomization',
+  'RuleCustomization', 'HookCustomization',
+  'McpServerCustomization',
+  'FileEdit', 'TerminalInfo',
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
@@ -616,6 +624,39 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'embeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
+  ],
+};
+
+const CUSTOMIZATION_UNION: UnionConfig = {
+  name: 'Customization',
+  discriminantField: 'type',
+  variants: [
+    { caseName: 'plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
+    { caseName: 'directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
+  ],
+};
+
+const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
+  name: 'ChildCustomization',
+  discriminantField: 'type',
+  variants: [
+    { caseName: 'agent', structName: 'AgentCustomization', discriminantValue: 'agent' },
+    { caseName: 'skill', structName: 'SkillCustomization', discriminantValue: 'skill' },
+    { caseName: 'prompt', structName: 'PromptCustomization', discriminantValue: 'prompt' },
+    { caseName: 'rule', structName: 'RuleCustomization', discriminantValue: 'rule' },
+    { caseName: 'hook', structName: 'HookCustomization', discriminantValue: 'hook' },
+    { caseName: 'mcpServer', structName: 'McpServerCustomization', discriminantValue: 'mcpServer' },
+  ],
+};
+
+const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
+  name: 'CustomizationLoadState',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'loading', structName: 'CustomizationLoadingState', discriminantValue: 'loading' },
+    { caseName: 'loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
+    { caseName: 'degraded', structName: 'CustomizationDegradedState', discriminantValue: 'degraded' },
+    { caseName: 'error', structName: 'CustomizationErrorState', discriminantValue: 'error' },
   ],
 };
 
@@ -786,6 +827,12 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -835,6 +882,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/customizationsChanged', caseName: 'sessionCustomizationsChanged', tsInterface: 'SessionCustomizationsChangedAction' },
   { type: 'session/customizationToggled', caseName: 'sessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', caseName: 'sessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
+  { type: 'session/customizationRemoved', caseName: 'sessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
   { type: 'session/truncated', caseName: 'sessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', caseName: 'sessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', caseName: 'sessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1546,6 +1594,10 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputAnswer',           // SESSION_INPUT_ANSWER_UNION discriminated union
     'MessageAttachment',            // MESSAGE_ATTACHMENT_UNION discriminated union
     'MessageAttachmentBase',        // base interface, flattened into the variant structs via `extends`
+    'Customization',                // CUSTOMIZATION_UNION discriminated union
+    'ChildCustomization',           // CHILD_CUSTOMIZATION_UNION discriminated union
+    'ChildCustomizationType',       // TS subset alias of CustomizationType; consumers reuse the CustomizationType Swift enum
+    'CustomizationLoadState',       // CUSTOMIZATION_LOAD_STATE_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()
     'PermissionDeniedErrorData',    // emitted by generateErrorsFile()
     'UnsupportedProtocolVersionErrorData', // emitted by generateErrorsFile()

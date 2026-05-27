@@ -13,9 +13,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
     AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
-    ChangesetSummary, ConfirmationOption, CustomizationAgentRef, CustomizationRef,
-    CustomizationStatus, ErrorInfo, ModelSelection, PendingMessageKind, ResponsePart,
-    SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest,
+    ChangesetSummary, ConfirmationOption, Customization, ErrorInfo, ModelSelection,
+    PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
     SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
     ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
     UserMessage,
@@ -94,6 +93,8 @@ pub enum ActionType {
     SessionCustomizationToggled,
     #[serde(rename = "session/customizationUpdated")]
     SessionCustomizationUpdated,
+    #[serde(rename = "session/customizationRemoved")]
+    SessionCustomizationRemoved,
     #[serde(rename = "session/truncated")]
     SessionTruncated,
     #[serde(rename = "session/isReadChanged")]
@@ -718,54 +719,50 @@ pub struct SessionInputCompletedAction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomizationsChangedAction {
-    /// Updated customization list (full replacement)
-    pub customizations: Vec<SessionCustomization>,
+    /// Updated customization list (full replacement).
+    pub customizations: Vec<Customization>,
 }
 
-/// A client toggled a customization on or off.
+/// A client toggled a container customization on or off.
 ///
-/// The server locates the customization by `uri` in the session's
-/// customization list and sets its `enabled` flag.
+/// Targets a top-level container (plugin or directory) by `id`. Only
+/// containers have an `enabled` flag; children are always active when
+/// their container is enabled. Is a no-op when no matching container is
+/// found.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomizationToggledAction {
-    /// The URI of the customization to toggle
-    pub uri: Uri,
-    /// Whether to enable or disable the customization
+    /// The id of the container to toggle.
+    pub id: String,
+    /// Whether to enable or disable the container.
     pub enabled: bool,
 }
 
-/// Upserts mutable fields on a single customization.
+/// Upserts a top-level customization (plugin or directory).
 ///
-/// Dispatched by the server to update one or more fields on a customization,
-/// or to add a new customization to the session, without republishing the
-/// entire `customizations` list. The reducer locates the existing entry by
-/// `customization.uri`:
+/// The reducer locates the existing entry by `customization.id`:
 ///
-/// - If an entry exists, each provided field is assigned; absent (or
-///   `undefined`) fields are left unchanged. The stored `customization`
-///   ref is replaced with the one in the action.
-/// - If no entry exists, a new {@link SessionCustomization} is appended
-///   using the provided fields; `enabled` defaults to `false` when absent.
+/// - If found, the entry is replaced entirely with `customization`,
+///   including its `children` array. To preserve existing children, the
+///   host must include them on the payload.
+/// - If not found, the entry is appended.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionCustomizationUpdatedAction {
-    /// The customization to update or insert (matched by `customization.uri`)
-    pub customization: CustomizationRef,
-    /// New enabled state (defaults to `false` on insert)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub enabled: Option<bool>,
-    /// New loading status
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<CustomizationStatus>,
-    /// New human-readable status detail
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status_message: Option<String>,
-    /// Custom agents contributed by this customization, as resolved by the
-    /// agent host. Populated only by the agent host. See
-    /// {@link SessionCustomization.agents} for absent-vs-empty semantics.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agents: Option<Vec<CustomizationAgentRef>>,
+    /// The customization to upsert (matched by `customization.id`).
+    pub customization: Customization,
+}
+
+/// Removes a customization by id.
+///
+/// Searches every container and its children for the entry. If the entry
+/// is a container, its children are removed with it. Is a no-op when no
+/// matching id is found.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCustomizationRemovedAction {
+    /// The id of the customization to remove.
+    pub id: String,
 }
 
 /// Truncates a session's history. If `turnId` is provided, all turns after that
@@ -1128,6 +1125,8 @@ pub enum StateAction {
     SessionCustomizationToggled(SessionCustomizationToggledAction),
     #[serde(rename = "session/customizationUpdated")]
     SessionCustomizationUpdated(SessionCustomizationUpdatedAction),
+    #[serde(rename = "session/customizationRemoved")]
+    SessionCustomizationRemoved(SessionCustomizationRemovedAction),
     #[serde(rename = "session/truncated")]
     SessionTruncated(SessionTruncatedAction),
     #[serde(rename = "session/configChanged")]

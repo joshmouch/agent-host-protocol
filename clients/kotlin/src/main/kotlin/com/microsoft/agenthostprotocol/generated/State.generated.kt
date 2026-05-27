@@ -362,28 +362,45 @@ enum class ToolResultContentType {
 }
 
 /**
- * Loading status for a server-managed customization.
+ * Discriminant for the kind of customization.
+ * 
+ * Top-level entries in {@link SessionState.customizations} and
+ * {@link AgentInfo.customizations} are always
+ * {@link CustomizationType.Plugin | `Plugin`} or
+ * {@link CustomizationType.Directory | `Directory`}; the remaining
+ * types appear only as children of those containers.
  */
 @Serializable
-enum class CustomizationStatus {
-    /**
-     * Plugin is being loaded
-     */
+enum class CustomizationType {
+    @SerialName("plugin")
+    PLUGIN,
+    @SerialName("directory")
+    DIRECTORY,
+    @SerialName("agent")
+    AGENT,
+    @SerialName("skill")
+    SKILL,
+    @SerialName("prompt")
+    PROMPT,
+    @SerialName("rule")
+    RULE,
+    @SerialName("hook")
+    HOOK,
+    @SerialName("mcpServer")
+    MCP_SERVER
+}
+
+/**
+ * Discriminant values for {@link CustomizationLoadState}.
+ */
+@Serializable
+enum class CustomizationLoadStatus {
     @SerialName("loading")
     LOADING,
-    /**
-     * Plugin is fully operational
-     */
     @SerialName("loaded")
     LOADED,
-    /**
-     * Plugin partially loaded but has warnings
-     */
     @SerialName("degraded")
     DEGRADED,
-    /**
-     * Plugin was unable to load
-     */
     @SerialName("error")
     ERROR
 }
@@ -618,12 +635,17 @@ data class AgentInfo(
      */
     val protectedResources: List<ProtectedResourceMetadata>? = null,
     /**
-     * Customizations (Open Plugins) associated with this agent.
+     * Customizations associated with this agent.
      * 
-     * Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
-     * plugin that the agent host can activate for sessions using this agent.
+     * Always container customizations —
+     * {@link PluginCustomization | `PluginCustomization`} entries the agent
+     * bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
+     * entries it watches in any workspace it's used with. When a session is
+     * created with this agent, these entries are augmented (e.g. directory
+     * URIs are resolved against the workspace, children are parsed) and
+     * propagated into the session's `customizations` list.
      */
-    val customizations: List<CustomizationRef>? = null
+    val customizations: List<Customization>? = null
 )
 
 @Serializable
@@ -683,7 +705,7 @@ data class ModelSelection(
 @Serializable
 data class AgentSelection(
     /**
-     * Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+     * Stable agent URI (matches an {@link AgentCustomization.uri}).
      */
     val uri: String
 )
@@ -811,12 +833,19 @@ data class SessionState(
      */
     val config: SessionConfigState? = null,
     /**
-     * Server-provided customizations active in this session.
+     * Top-level customizations active in this session.
      * 
-     * Client-provided customizations are available on
-     * {@link SessionActiveClient.customizations | activeClient.customizations}.
+     * Always container customizations — {@link PluginCustomization} or
+     * {@link DirectoryCustomization}. Children (agents, skills, prompts,
+     * rules, hooks, MCP servers) live in each container's
+     * {@link ContainerCustomizationBase.children | `children`} array.
+     * 
+     * Client-published plugins arrive via
+     * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+     * and the host propagates them into this list (typically with the
+     * container's `clientId` set and `children` populated).
      */
-    val customizations: List<SessionCustomization>? = null,
+    val customizations: List<Customization>? = null,
     /**
      * Additional provider-specific metadata for this session.
      * 
@@ -843,9 +872,14 @@ data class SessionActiveClient(
      */
     val tools: List<ToolDefinition>,
     /**
-     * Customizations this client contributes to the session
+     * Plugin customizations this client contributes to the session.
+     * 
+     * Clients publish in [Open Plugins](https://open-plugins.com/) format
+     * — i.e. always container-shaped plugins. They MAY synthesize virtual
+     * plugins in memory and rely on the host to expand them into concrete
+     * children inside {@link SessionState.customizations}.
      */
-    val customizations: List<CustomizationRef>? = null
+    val customizations: List<ClientPluginCustomization>? = null
 )
 
 @Serializable
@@ -2130,84 +2164,468 @@ data class ToolResultSubagentContent(
 )
 
 @Serializable
-data class CustomizationRef(
+data class CustomizationLoadingState(
+    val kind: CustomizationLoadStatus
+)
+
+@Serializable
+data class CustomizationLoadedState(
+    val kind: CustomizationLoadStatus
+)
+
+@Serializable
+data class CustomizationDegradedState(
+    val kind: CustomizationLoadStatus,
     /**
-     * Plugin URI (e.g. an HTTPS URL or marketplace identifier)
+     * Human-readable description of the warning.
+     */
+    val message: String
+)
+
+@Serializable
+data class CustomizationErrorState(
+    val kind: CustomizationLoadStatus,
+    /**
+     * Human-readable error message.
+     */
+    val message: String
+)
+
+@Serializable
+data class PluginCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
      */
     val uri: String,
     /**
-     * Human-readable name
+     * Human-readable name.
      */
-    val displayName: String,
+    val name: String,
     /**
-     * Description of what the plugin provides
-     */
-    val description: String? = null,
-    /**
-     * Icons for the plugin
+     * Icons for UI display.
      */
     val icons: List<Icon>? = null,
     /**
-     * Opaque version token for this customization.
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    /**
+     * Whether this container is currently enabled.
+     */
+    val enabled: Boolean,
+    /**
+     * `clientId` of the client that contributed this container. Absent for
+     * server-originated entries.
+     */
+    val clientId: String? = null,
+    /**
+     * Host-reported load state. Absent means the host has not yet reported
+     * a load state for this container.
+     */
+    val load: CustomizationLoadState? = null,
+    /**
+     * Children discovered inside this container.
      * 
-     * Clients SHOULD include a nonce with every customization they provide.
-     * Consumers can compare nonces to detect whether a customization has
-     * changed since it was last seen, avoiding redundant reloads or copies.
+     * Absent means the host has not parsed this container yet. An empty
+     * array means the host parsed the container and it contributes
+     * nothing.
+     */
+    val children: List<ChildCustomization>? = null,
+    val type: CustomizationType
+)
+
+@Serializable
+data class ClientPluginCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    /**
+     * Whether this container is currently enabled.
+     */
+    val enabled: Boolean,
+    /**
+     * `clientId` of the client that contributed this container. Absent for
+     * server-originated entries.
+     */
+    val clientId: String? = null,
+    /**
+     * Host-reported load state. Absent means the host has not yet reported
+     * a load state for this container.
+     */
+    val load: CustomizationLoadState? = null,
+    /**
+     * Children discovered inside this container.
+     * 
+     * Absent means the host has not parsed this container yet. An empty
+     * array means the host parsed the container and it contributes
+     * nothing.
+     */
+    val children: List<ChildCustomization>? = null,
+    val type: CustomizationType,
+    /**
+     * Opaque version token used by the host to detect changes.
      */
     val nonce: String? = null
 )
 
 @Serializable
-data class CustomizationAgentRef(
+data class DirectoryCustomization(
     /**
-     * Stable agent URI
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
      */
     val uri: String,
     /**
-     * Agent name (from frontmatter `name`, or file-derived)
+     * Human-readable name.
      */
     val name: String,
     /**
-     * Optional short description for UI preview (from frontmatter `description`)
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    /**
+     * Whether this container is currently enabled.
+     */
+    val enabled: Boolean,
+    /**
+     * `clientId` of the client that contributed this container. Absent for
+     * server-originated entries.
+     */
+    val clientId: String? = null,
+    /**
+     * Host-reported load state. Absent means the host has not yet reported
+     * a load state for this container.
+     */
+    val load: CustomizationLoadState? = null,
+    /**
+     * Children discovered inside this container.
+     * 
+     * Absent means the host has not parsed this container yet. An empty
+     * array means the host parsed the container and it contributes
+     * nothing.
+     */
+    val children: List<ChildCustomization>? = null,
+    val type: CustomizationType,
+    /**
+     * Which child customization type this directory holds.
+     */
+    val contents: CustomizationType,
+    /**
+     * Whether clients may write into this directory.
+     */
+    val writable: Boolean
+)
+
+@Serializable
+data class AgentCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType,
+    /**
+     * Short description of what the agent specializes in and when to
+     * invoke it. Sourced from the agent file's frontmatter `description`.
      */
     val description: String? = null
 )
 
 @Serializable
-data class SessionCustomization(
+data class SkillCustomization(
     /**
-     * The plugin this customization refers to
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
      */
-    val customization: CustomizationRef,
+    val id: String,
     /**
-     * Whether this customization is currently enabled
-     */
-    val enabled: Boolean,
-    /**
-     * The `clientId` of the client that contributed this customization.
-     * Absent for server-provided customizations.
-     */
-    val clientId: String? = null,
-    /**
-     * Server-reported loading status
-     */
-    val status: CustomizationStatus? = null,
-    /**
-     * Human-readable status detail (e.g. error message or degradation warning).
-     */
-    val statusMessage: String? = null,
-    /**
-     * Custom agents contributed by this customization, as resolved by the
-     * agent host after parsing the customization.
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
      * 
-     * Consumers MUST treat an absent field as "unknown" (e.g. the host has
-     * not finished parsing the customization yet). An empty array means the
-     * host parsed the customization and it contributes no agents.
-     * 
-     * Clients are not authoritative here: only the agent host populates
-     * this field.
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
      */
-    val agents: List<CustomizationAgentRef>? = null
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType,
+    /**
+     * Short description used for help text and auto-invocation matching.
+     * Sourced from the skill's frontmatter `description`.
+     */
+    val description: String? = null,
+    /**
+     * When `true`, only the user can invoke this skill — the agent will not
+     * auto-invoke it. Sourced from the command skill's frontmatter
+     * `disable-model-invocation` flag.
+     */
+    val disableModelInvocation: Boolean? = null
+)
+
+@Serializable
+data class PromptCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType,
+    /**
+     * Short description of what the prompt does.
+     */
+    val description: String? = null
+)
+
+@Serializable
+data class RuleCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType,
+    /**
+     * Description of what the rule enforces.
+     */
+    val description: String? = null,
+    /**
+     * When `true`, the rule is always active (subject to `globs` if any).
+     * When `false` or absent, the agent or user decides whether to apply
+     * the rule.
+     */
+    val alwaysApply: Boolean? = null,
+    /**
+     * Glob patterns the rule applies to. When present, the rule is only
+     * active for matching files.
+     */
+    val globs: List<String>? = null
+)
+
+@Serializable
+data class HookCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType
+)
+
+@Serializable
+data class McpServerCustomization(
+    /**
+     * Session-unique opaque identifier. Used by every action that targets a
+     * specific customization. Minted by whoever publishes the customization
+     * (typically the agent host).
+     */
+    val id: String,
+    /**
+     * Source URI for this customization. A plugin URL, a file URI, or a
+     * directory URI.
+     * 
+     * For declarations that live inside a larger file — e.g. an MCP
+     * server declared inline in a `plugins.json` manifest — `uri` points
+     * to the containing file and {@link CustomizationBase.range | `range`}
+     * narrows it to the declaration's span.
+     */
+    val uri: String,
+    /**
+     * Human-readable name.
+     */
+    val name: String,
+    /**
+     * Icons for UI display.
+     */
+    val icons: List<Icon>? = null,
+    /**
+     * Optional span within {@link CustomizationBase.uri | `uri`} when this
+     * customization is a subset of a larger file (for example, one entry
+     * in an inline `mcpServers` block of a `plugins.json` manifest).
+     * Absent when the customization covers the whole resource.
+     */
+    val range: TextRange? = null,
+    val type: CustomizationType
 )
 
 @Serializable
@@ -2937,6 +3355,144 @@ internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
             is MessageAttachmentSimple -> output.json.encodeToJsonElement(SimpleMessageAttachment.serializer(), value.value)
             is MessageAttachmentEmbeddedResource -> output.json.encodeToJsonElement(MessageEmbeddedResourceAttachment.serializer(), value.value)
             is MessageAttachmentResource -> output.json.encodeToJsonElement(MessageResourceAttachment.serializer(), value.value)
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = CustomizationSerializer::class)
+sealed interface Customization
+
+@JvmInline
+value class CustomizationPlugin(val value: PluginCustomization) : Customization
+@JvmInline
+value class CustomizationDirectory(val value: DirectoryCustomization) : Customization
+
+internal object CustomizationSerializer : KSerializer<Customization> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("Customization")
+
+    override fun deserialize(decoder: Decoder): Customization {
+        val input = decoder as? JsonDecoder
+            ?: error("Customization can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for Customization")
+        val discriminant = (obj["type"] as? JsonPrimitive)?.content
+            ?: error("Missing type discriminator on Customization")
+        return when (discriminant) {
+            "plugin" -> CustomizationPlugin(input.json.decodeFromJsonElement(PluginCustomization.serializer(), element))
+            "directory" -> CustomizationDirectory(input.json.decodeFromJsonElement(DirectoryCustomization.serializer(), element))
+            else -> error("Unknown Customization discriminator: $discriminant")
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: Customization) {
+        val output = encoder as? JsonEncoder
+            ?: error("Customization can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is CustomizationPlugin -> output.json.encodeToJsonElement(PluginCustomization.serializer(), value.value)
+            is CustomizationDirectory -> output.json.encodeToJsonElement(DirectoryCustomization.serializer(), value.value)
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = ChildCustomizationSerializer::class)
+sealed interface ChildCustomization
+
+@JvmInline
+value class ChildCustomizationAgent(val value: AgentCustomization) : ChildCustomization
+@JvmInline
+value class ChildCustomizationSkill(val value: SkillCustomization) : ChildCustomization
+@JvmInline
+value class ChildCustomizationPrompt(val value: PromptCustomization) : ChildCustomization
+@JvmInline
+value class ChildCustomizationRule(val value: RuleCustomization) : ChildCustomization
+@JvmInline
+value class ChildCustomizationHook(val value: HookCustomization) : ChildCustomization
+@JvmInline
+value class ChildCustomizationMcpServer(val value: McpServerCustomization) : ChildCustomization
+
+internal object ChildCustomizationSerializer : KSerializer<ChildCustomization> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("ChildCustomization")
+
+    override fun deserialize(decoder: Decoder): ChildCustomization {
+        val input = decoder as? JsonDecoder
+            ?: error("ChildCustomization can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for ChildCustomization")
+        val discriminant = (obj["type"] as? JsonPrimitive)?.content
+            ?: error("Missing type discriminator on ChildCustomization")
+        return when (discriminant) {
+            "agent" -> ChildCustomizationAgent(input.json.decodeFromJsonElement(AgentCustomization.serializer(), element))
+            "skill" -> ChildCustomizationSkill(input.json.decodeFromJsonElement(SkillCustomization.serializer(), element))
+            "prompt" -> ChildCustomizationPrompt(input.json.decodeFromJsonElement(PromptCustomization.serializer(), element))
+            "rule" -> ChildCustomizationRule(input.json.decodeFromJsonElement(RuleCustomization.serializer(), element))
+            "hook" -> ChildCustomizationHook(input.json.decodeFromJsonElement(HookCustomization.serializer(), element))
+            "mcpServer" -> ChildCustomizationMcpServer(input.json.decodeFromJsonElement(McpServerCustomization.serializer(), element))
+            else -> error("Unknown ChildCustomization discriminator: $discriminant")
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: ChildCustomization) {
+        val output = encoder as? JsonEncoder
+            ?: error("ChildCustomization can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is ChildCustomizationAgent -> output.json.encodeToJsonElement(AgentCustomization.serializer(), value.value)
+            is ChildCustomizationSkill -> output.json.encodeToJsonElement(SkillCustomization.serializer(), value.value)
+            is ChildCustomizationPrompt -> output.json.encodeToJsonElement(PromptCustomization.serializer(), value.value)
+            is ChildCustomizationRule -> output.json.encodeToJsonElement(RuleCustomization.serializer(), value.value)
+            is ChildCustomizationHook -> output.json.encodeToJsonElement(HookCustomization.serializer(), value.value)
+            is ChildCustomizationMcpServer -> output.json.encodeToJsonElement(McpServerCustomization.serializer(), value.value)
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = CustomizationLoadStateSerializer::class)
+sealed interface CustomizationLoadState
+
+@JvmInline
+value class CustomizationLoadStateLoading(val value: CustomizationLoadingState) : CustomizationLoadState
+@JvmInline
+value class CustomizationLoadStateLoaded(val value: CustomizationLoadedState) : CustomizationLoadState
+@JvmInline
+value class CustomizationLoadStateDegraded(val value: CustomizationDegradedState) : CustomizationLoadState
+@JvmInline
+value class CustomizationLoadStateError(val value: CustomizationErrorState) : CustomizationLoadState
+
+internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoadState> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("CustomizationLoadState")
+
+    override fun deserialize(decoder: Decoder): CustomizationLoadState {
+        val input = decoder as? JsonDecoder
+            ?: error("CustomizationLoadState can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for CustomizationLoadState")
+        val discriminant = (obj["kind"] as? JsonPrimitive)?.content
+            ?: error("Missing kind discriminator on CustomizationLoadState")
+        return when (discriminant) {
+            "loading" -> CustomizationLoadStateLoading(input.json.decodeFromJsonElement(CustomizationLoadingState.serializer(), element))
+            "loaded" -> CustomizationLoadStateLoaded(input.json.decodeFromJsonElement(CustomizationLoadedState.serializer(), element))
+            "degraded" -> CustomizationLoadStateDegraded(input.json.decodeFromJsonElement(CustomizationDegradedState.serializer(), element))
+            "error" -> CustomizationLoadStateError(input.json.decodeFromJsonElement(CustomizationErrorState.serializer(), element))
+            else -> error("Unknown CustomizationLoadState discriminator: $discriminant")
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: CustomizationLoadState) {
+        val output = encoder as? JsonEncoder
+            ?: error("CustomizationLoadState can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is CustomizationLoadStateLoading -> output.json.encodeToJsonElement(CustomizationLoadingState.serializer(), value.value)
+            is CustomizationLoadStateLoaded -> output.json.encodeToJsonElement(CustomizationLoadedState.serializer(), value.value)
+            is CustomizationLoadStateDegraded -> output.json.encodeToJsonElement(CustomizationDegradedState.serializer(), value.value)
+            is CustomizationLoadStateError -> output.json.encodeToJsonElement(CustomizationErrorState.serializer(), value.value)
         }
         output.encodeJsonElement(element)
     }

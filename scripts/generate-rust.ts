@@ -137,6 +137,9 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   if (tsType === 'URI') return 'Uri';
   if (tsType === 'StringOrMarkdown') return 'StringOrMarkdown';
 
+  // ChildCustomizationType is a TS-only subset alias of CustomizationType.
+  if (tsType === 'ChildCustomizationType') return 'CustomizationType';
+
   // SessionStatus is a bitfield — represent as raw u32 rather than enum.
   if (tsType === 'SessionStatus') return 'u32';
 
@@ -520,7 +523,7 @@ const STATE_ENUMS = [
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
-  'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
+  'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
   'ChangesetStatus', 'ChangesetOperationScope',
 ];
 
@@ -593,9 +596,19 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ToolResultFileEditContent', omitDiscriminants: true },
   { name: 'ToolResultTerminalContent', omitDiscriminants: true },
   { name: 'ToolResultSubagentContent', omitDiscriminants: true },
-  { name: 'CustomizationRef' },
-  { name: 'CustomizationAgentRef' },
-  { name: 'SessionCustomization' },
+  { name: 'CustomizationLoadingState', omitDiscriminants: true },
+  { name: 'CustomizationLoadedState', omitDiscriminants: true },
+  { name: 'CustomizationDegradedState', omitDiscriminants: true },
+  { name: 'CustomizationErrorState', omitDiscriminants: true },
+  { name: 'PluginCustomization', omitDiscriminants: true },
+  { name: 'ClientPluginCustomization', omitDiscriminants: true },
+  { name: 'DirectoryCustomization', omitDiscriminants: true },
+  { name: 'AgentCustomization', omitDiscriminants: true },
+  { name: 'SkillCustomization', omitDiscriminants: true },
+  { name: 'PromptCustomization', omitDiscriminants: true },
+  { name: 'RuleCustomization', omitDiscriminants: true },
+  { name: 'HookCustomization', omitDiscriminants: true },
+  { name: 'McpServerCustomization', omitDiscriminants: true },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
   { name: 'TerminalClientClaim', omitDiscriminants: true },
@@ -732,6 +745,45 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
   unknown: true,
 };
 
+const CUSTOMIZATION_UNION: UnionConfig = {
+  name: 'Customization',
+  discriminantField: 'type',
+  doc: 'A top-level customization (plugin or directory).',
+  variants: [
+    { variantName: 'Plugin', innerType: 'PluginCustomization', wireValue: 'plugin' },
+    { variantName: 'Directory', innerType: 'DirectoryCustomization', wireValue: 'directory' },
+  ],
+  unknown: true,
+};
+
+const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
+  name: 'ChildCustomization',
+  discriminantField: 'type',
+  doc: 'A child customization living inside a plugin or directory.',
+  variants: [
+    { variantName: 'Agent', innerType: 'AgentCustomization', wireValue: 'agent' },
+    { variantName: 'Skill', innerType: 'SkillCustomization', wireValue: 'skill' },
+    { variantName: 'Prompt', innerType: 'PromptCustomization', wireValue: 'prompt' },
+    { variantName: 'Rule', innerType: 'RuleCustomization', wireValue: 'rule' },
+    { variantName: 'Hook', innerType: 'HookCustomization', wireValue: 'hook' },
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
+  ],
+  unknown: true,
+};
+
+const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
+  name: 'CustomizationLoadState',
+  discriminantField: 'kind',
+  doc: 'Host-reported load state for a container customization.',
+  variants: [
+    { variantName: 'Loading', innerType: 'CustomizationLoadingState', wireValue: 'loading' },
+    { variantName: 'Loaded', innerType: 'CustomizationLoadedState', wireValue: 'loaded' },
+    { variantName: 'Degraded', innerType: 'CustomizationDegradedState', wireValue: 'degraded' },
+    { variantName: 'Error', innerType: 'CustomizationErrorState', wireValue: 'error' },
+  ],
+  unknown: true,
+};
+
 function generateSnapshotState(): string {
   return `/// The state payload of a snapshot — root, session, terminal, or
 /// changeset state.
@@ -793,6 +845,12 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
 
@@ -845,6 +903,7 @@ const ACTION_VARIANTS: {
   { type: 'session/customizationsChanged', variantName: 'SessionCustomizationsChanged', tsInterface: 'SessionCustomizationsChangedAction' },
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
+  { type: 'session/customizationRemoved', variantName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -903,7 +962,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
   lines.push('');
 
   // ActionType enum
@@ -1389,6 +1448,10 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputAnswer',
     'MessageAttachment',
     'MessageAttachmentBase',
+    'Customization',                // CUSTOMIZATION_UNION discriminated union
+    'ChildCustomization',           // CHILD_CUSTOMIZATION_UNION discriminated union
+    'ChildCustomizationType',       // TS subset alias of CustomizationType; Rust consumers reuse CustomizationType
+    'CustomizationLoadState',       // CUSTOMIZATION_LOAD_STATE_UNION discriminated union
     'ReconnectResult',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',

@@ -437,32 +437,37 @@ public struct AHPSessionReducer: Reducer {
             state.customizations = a.customizations
 
         case .sessionCustomizationToggled(let a):
-            guard let idx = state.customizations?.firstIndex(where: { $0.customization.uri == a.uri }) else { return }
-            state.customizations?[idx].enabled = a.enabled
+            guard var list = state.customizations else { return }
+            if toggleCustomization(in: &list, id: a.id, enabled: a.enabled) {
+                state.customizations = list
+            }
 
         case .sessionCustomizationUpdated(let a):
-            if state.customizations == nil {
-                state.customizations = []
-            }
-            if let idx = state.customizations?.firstIndex(where: { $0.customization.uri == a.customization.uri }) {
-                state.customizations?[idx].customization = a.customization
-                if let enabled = a.enabled {
-                    state.customizations?[idx].enabled = enabled
-                }
-                if let status = a.status {
-                    state.customizations?[idx].status = status
-                }
-                if let message = a.statusMessage {
-                    state.customizations?[idx].statusMessage = message
-                }
+            var list = state.customizations ?? []
+            if let idx = list.firstIndex(where: { customizationId($0) == customizationId(a.customization) }) {
+                list[idx] = a.customization
             } else {
-                state.customizations?.append(SessionCustomization(
-                    customization: a.customization,
-                    enabled: a.enabled ?? false,
-                    clientId: nil,
-                    status: a.status,
-                    statusMessage: a.statusMessage
-                ))
+                list.append(a.customization)
+            }
+            state.customizations = list
+
+        case .sessionCustomizationRemoved(let a):
+            guard var list = state.customizations else { return }
+            if let idx = list.firstIndex(where: { customizationId($0) == a.id }) {
+                list.remove(at: idx)
+                state.customizations = list
+                return
+            }
+            for containerIdx in list.indices {
+                var container = list[containerIdx]
+                guard var children = customizationChildren(container) else { continue }
+                if let idx = children.firstIndex(where: { childId($0) == a.id }) {
+                    children.remove(at: idx)
+                    setCustomizationChildren(&container, children)
+                    list[containerIdx] = container
+                    state.customizations = list
+                    return
+                }
             }
 
         // ── Truncation ────────────────────────────────────────────────────────
@@ -783,4 +788,65 @@ extension Reducer {
 
 private func currentTimestamp() -> Int {
     currentTimestampProvider()
+}
+
+// MARK: - Customization Helpers
+
+func customizationId(_ c: Customization) -> String {
+    switch c {
+    case .plugin(let p): return p.id
+    case .directory(let d): return d.id
+    }
+}
+
+func childId(_ c: ChildCustomization) -> String {
+    switch c {
+    case .agent(let x): return x.id
+    case .skill(let x): return x.id
+    case .prompt(let x): return x.id
+    case .rule(let x): return x.id
+    case .hook(let x): return x.id
+    case .mcpServer(let x): return x.id
+    }
+}
+
+func customizationChildren(_ c: Customization) -> [ChildCustomization]? {
+    switch c {
+    case .plugin(let p): return p.children
+    case .directory(let d): return d.children
+    }
+}
+
+func setCustomizationChildren(_ c: inout Customization, _ children: [ChildCustomization]) {
+    switch c {
+    case .plugin(var p):
+        p.children = children
+        c = .plugin(p)
+    case .directory(var d):
+        d.children = children
+        c = .directory(d)
+    }
+}
+
+func setCustomizationEnabled(_ c: inout Customization, _ enabled: Bool) {
+    switch c {
+    case .plugin(var p):
+        p.enabled = enabled
+        c = .plugin(p)
+    case .directory(var d):
+        d.enabled = enabled
+        c = .directory(d)
+    }
+}
+
+func toggleCustomization(in list: inout [Customization], id: String, enabled: Bool) -> Bool {
+    for i in list.indices {
+        if customizationId(list[i]) == id {
+            var entry = list[i]
+            setCustomizationEnabled(&entry, enabled)
+            list[i] = entry
+            return true
+        }
+    }
+    return false
 }

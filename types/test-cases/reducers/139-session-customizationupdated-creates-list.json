@@ -17,12 +17,14 @@
     {
       "type": "session/customizationUpdated",
       "customization": {
-        "uri": "https://plugins.example/a",
-        "displayName": "Plugin A"
-      },
-      "enabled": true,
-      "status": "error",
-      "statusMessage": "Failed to load"
+        "type": "directory",
+        "id": "dir-skills",
+        "uri": "file:///workspace/.github/skills",
+        "name": "Workspace Skills",
+        "enabled": true,
+        "contents": "skill",
+        "writable": true
+      }
     }
   ],
   "expected": {
@@ -38,15 +40,14 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
+        "type": "directory",
+        "id": "dir-skills",
+        "uri": "file:///workspace/.github/skills",
+        "name": "Workspace Skills",
         "enabled": true,
-        "status": "error",
-        "statusMessage": "Failed to load"
+        "contents": "skill",
+        "writable": true
       }
     ]
   }
 }
-
