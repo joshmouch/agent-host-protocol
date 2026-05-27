@@ -1,14 +1,14 @@
 /**
  * TypeScript Client Generator — Copies the canonical TypeScript protocol
- * sources under `types/` into the published TypeScript client source tree
- * at `clients/typescript/src/types/`, prepending a generated-file banner to
+ * sources under `types/` into the TypeScript client source tree at
+ * `clients/typescript/src/types/`, prepending a generated-file banner to
  * each emitted file.
  *
- * Because the TypeScript types are already the source of truth, generation
- * is a structured copy rather than a translation. The intent matches
- * `generate-rust.ts` / `generate-swift.ts`: the published client carries
- * its own self-contained snapshot of the protocol sources, regenerated
- * from `types/` whenever the protocol changes.
+ * Unlike the Rust and Swift generators (which translate the TypeScript
+ * source into a different language and commit the result), this output is
+ * a literal copy and is intentionally **not** committed. The destination
+ * directory is gitignored in `clients/typescript/.gitignore`; CI and the
+ * documented dev flow regenerate it from the canonical sources.
  *
  * Before copying, the generator runs `generateActionOrigin` so the
  * derived `action-origin.generated.ts` file in `types/` is current. This

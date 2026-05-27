@@ -133,26 +133,41 @@ A typical app-level reconnect flow is:
 5. Re-fetch `listSessions` or other ephemeral data — protocol
    notifications are not replayed.
 
-## Regenerating the types
+## Wire types
 
-The wire types under `src/types/` are generated from `types/*.ts` at
-the repository root. Regenerate after a protocol change:
+The wire types under `src/types/` are generated from `types/*.ts` at the
+repository root and are **not committed** to the repo — avoiding a
+byte-for-byte duplication of the canonical TypeScript sources. Regenerate
+them whenever you pull or change the protocol:
 
 ```bash
 npm run generate:typescript    # from the repo root
 ```
 
-Generated files carry a banner; do not edit them by hand.
+Generated files carry a banner; do not edit them by hand. The
+`generate:typescript` script is also part of `npm run generate`, which
+regenerates every language's client output.
 
 ## Development
 
+From a fresh checkout:
+
 ```bash
+# 1. Install the root tooling and generate the TS client's wire types.
+npm install
+npm run generate:typescript
+
+# 2. Work in the client package.
 cd clients/typescript
 npm install
 npm run typecheck
 npm test
 npm run build
 ```
+
+CI runs the generate step automatically before the install/typecheck/test/build
+sequence, so contributors only need to remember step 1 locally after pulling
+protocol changes.
 
 ## License
 
