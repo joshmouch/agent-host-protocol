@@ -18,7 +18,7 @@ public enum ContentEncoding: String, Codable, Sendable {
 
 /// The kind of completion items being requested.
 public enum CompletionItemKind: String, Codable, Sendable {
-    /// Completions for the text of a {@link UserMessage} the user is composing.
+    /// Completions for the text of a {@link Message} the user is composing.
     /// Each returned item carries an attachment that gets associated with the
     /// message when accepted.
     case userMessage = "userMessage"
@@ -72,7 +72,7 @@ public struct InitializeResult: Codable, Sendable {
     public var snapshots: [Snapshot]
     /// Suggested default directory for remote filesystem browsing
     public var defaultDirectory: String?
-    /// Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+    /// Characters that, when typed in a {@link Message} input, SHOULD cause
     /// the client to issue a `completions` request with
     /// {@link CompletionItemKind.UserMessage}. Typically includes characters like
     /// `'@'` or `'/'`.
@@ -894,7 +894,7 @@ public struct CompletionItem: Codable, Sendable {
     /// 
     /// Note: this range refers to positions in the *current* input. The
     /// attachment's own `rangeStart`/`rangeEnd` (when present) refer to
-    /// positions in the final {@link UserMessage.text} after the item is
+    /// positions in the final {@link Message.text} after the item is
     /// accepted.
     public var rangeStart: Int?
     /// The end of the range in the input's `text` that is replaced by

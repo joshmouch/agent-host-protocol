@@ -606,8 +606,8 @@ pub struct ConfigSchema {
 pub struct PendingMessage {
     /// Unique identifier for this pending message
     pub id: String,
-    /// The message content
-    pub user_message: UserMessage,
+    /// The message that will start the next turn
+    pub message: Message,
 }
 
 /// Full state for a single session, loaded when a client subscribes to the session's URI.
@@ -811,8 +811,8 @@ pub struct SessionConfigState {
 pub struct Turn {
     /// Turn identifier
     pub id: String,
-    /// The user's input
-    pub user_message: UserMessage,
+    /// The message that initiated the turn
+    pub message: Message,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Consumers should derive display text by concatenating markdown parts,
@@ -834,8 +834,8 @@ pub struct Turn {
 pub struct ActiveTurn {
     /// Turn identifier
     pub id: String,
-    /// The user's input
-    pub user_message: UserMessage,
+    /// The message that initiated the turn
+    pub message: Message,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -845,17 +845,20 @@ pub struct ActiveTurn {
     pub usage: Option<UsageInfo>,
 }
 
-/// A user message and its associated attachments.
+/// A message that initiates or steers a turn. Messages can originate from the
+/// user or be system-generated (see {@link MessageKind}).
 ///
-/// Attachments MAY be referenced inside {@link UserMessage.text} via their
+/// Attachments MAY be referenced inside {@link Message.text} via their
 /// {@link MessageAttachmentBase.range} field. Attachments without a range are
 /// still associated with the message but do not correspond to a specific span
 /// in the text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UserMessage {
+pub struct Message {
     /// Message text
     pub text: String,
+    /// The origin of the message
+    pub origin: AnyValue,
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
@@ -1113,7 +1116,7 @@ pub struct SimpleMessageAttachment {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     pub label: String,
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<TextRange>,
@@ -1157,7 +1160,7 @@ pub struct MessageEmbeddedResourceAttachment {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     pub label: String,
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<TextRange>,
@@ -1200,7 +1203,7 @@ pub struct MessageResourceAttachment {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     pub label: String,
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<TextRange>,
@@ -1624,7 +1627,7 @@ pub struct ToolCallCancelledState {
     pub reason_message: Option<StringOrMarkdown>,
     /// What the user suggested doing instead
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_suggestion: Option<UserMessage>,
+    pub user_suggestion: Option<Message>,
     /// The confirmation option the user selected, if confirmation options were provided
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_option: Option<ConfirmationOption>,
@@ -2337,7 +2340,7 @@ pub enum ToolResultContent {
     Unknown(serde_json::Value),
 }
 
-/// An attachment associated with a `UserMessage`.
+/// An attachment associated with a `Message`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum MessageAttachment {

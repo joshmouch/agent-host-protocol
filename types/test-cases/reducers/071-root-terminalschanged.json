@@ -11,12 +11,18 @@
         {
           "resource": "agenthost:/terminal/1",
           "title": "bash",
-          "claim": { "kind": "client", "clientId": "c1" }
+          "claim": {
+            "kind": "client",
+            "clientId": "c1"
+          }
         },
         {
           "resource": "agenthost:/terminal/2",
           "title": "zsh",
-          "claim": { "kind": "session", "session": "copilot:/s1" }
+          "claim": {
+            "kind": "session",
+            "session": "copilot:/s1"
+          }
         }
       ]
     }
@@ -27,12 +33,18 @@
       {
         "resource": "agenthost:/terminal/1",
         "title": "bash",
-        "claim": { "kind": "client", "clientId": "c1" }
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        }
       },
       {
         "resource": "agenthost:/terminal/2",
         "title": "zsh",
-        "claim": { "kind": "session", "session": "copilot:/s1" }
+        "claim": {
+          "kind": "session",
+          "session": "copilot:/s1"
+        }
       }
     ]
   }

@@ -15,8 +15,11 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "Hello"
+        "message": {
+          "text": "Hello",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -42,8 +45,11 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "Hello"
+        "message": {
+          "text": "Hello",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

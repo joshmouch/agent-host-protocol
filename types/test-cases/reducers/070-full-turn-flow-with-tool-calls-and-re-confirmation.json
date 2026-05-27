@@ -17,8 +17,11 @@
     {
       "type": "session/turnStarted",
       "turnId": "t1",
-      "userMessage": {
-        "text": "Fix the bug"
+      "message": {
+        "text": "Fix the bug",
+        "origin": {
+          "kind": "user"
+        }
       }
     },
     {
@@ -155,8 +158,11 @@
     "turns": [
       {
         "id": "t1",
-        "userMessage": {
-          "text": "Fix the bug"
+        "message": {
+          "text": "Fix the bug",
+          "origin": {
+            "kind": "user"
+          }
         },
         "responseParts": [
           {

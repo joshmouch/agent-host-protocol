@@ -163,20 +163,20 @@ public struct SessionTurnStartedAction: Codable, Sendable {
     public var type: ActionType
     /// Turn identifier
     public var turnId: String
-    /// User's message
-    public var userMessage: UserMessage
+    /// The new message
+    public var message: Message
     /// If this turn was auto-started from a queued message, the ID of that message
     public var queuedMessageId: String?
 
     public init(
         type: ActionType,
         turnId: String,
-        userMessage: UserMessage,
+        message: Message,
         queuedMessageId: String? = nil
     ) {
         self.type = type
         self.turnId = turnId
-        self.userMessage = userMessage
+        self.message = message
         self.queuedMessageId = queuedMessageId
     }
 }
@@ -404,7 +404,7 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
     /// Why the tool was cancelled (present when denied)
     public var reason: ToolCallCancellationReason?
     /// What the user suggested instead (present when denied)
-    public var userSuggestion: UserMessage?
+    public var userSuggestion: Message?
     /// Explanation for the denial
     public var reasonMessage: StringOrMarkdown?
     /// ID of the selected confirmation option, if the server provided options
@@ -425,7 +425,7 @@ public struct SessionToolCallConfirmedAction: Codable, Sendable {
         confirmed: ToolCallConfirmationReason? = nil,
         editedToolInput: String? = nil,
         reason: ToolCallCancellationReason? = nil,
-        userSuggestion: UserMessage? = nil,
+        userSuggestion: Message? = nil,
         reasonMessage: StringOrMarkdown? = nil,
         selectedOptionId: String? = nil,
         meta: [String: AnyCodable]? = nil
@@ -761,18 +761,18 @@ public struct SessionPendingMessageSetAction: Codable, Sendable {
     /// Unique identifier for this pending message
     public var id: String
     /// The message content
-    public var userMessage: UserMessage
+    public var message: Message
 
     public init(
         type: ActionType,
         kind: PendingMessageKind,
         id: String,
-        userMessage: UserMessage
+        message: Message
     ) {
         self.type = type
         self.kind = kind
         self.id = id
-        self.userMessage = userMessage
+        self.message = message
     }
 }
 

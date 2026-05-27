@@ -97,7 +97,7 @@ export interface InitializeResult {
   /** Suggested default directory for remote filesystem browsing */
   defaultDirectory?: URI;
   /**
-   * Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+   * Characters that, when typed in a {@link Message} input, SHOULD cause
    * the client to issue a `completions` request with
    * {@link CompletionItemKind.UserMessage}. Typically includes characters like
    * `'@'` or `'/'`.

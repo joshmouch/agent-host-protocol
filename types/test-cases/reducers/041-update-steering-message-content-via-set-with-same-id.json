@@ -14,8 +14,11 @@
     "turns": [],
     "steeringMessage": {
       "id": "sm-1",
-      "userMessage": {
-        "text": "Original"
+      "message": {
+        "text": "Original",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   },
@@ -24,8 +27,11 @@
       "type": "session/pendingMessageSet",
       "kind": "steering",
       "id": "sm-1",
-      "userMessage": {
-        "text": "Updated"
+      "message": {
+        "text": "Updated",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   ],
@@ -42,8 +48,11 @@
     "turns": [],
     "steeringMessage": {
       "id": "sm-1",
-      "userMessage": {
-        "text": "Updated"
+      "message": {
+        "text": "Updated",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   }

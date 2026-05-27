@@ -18,8 +18,11 @@
       "type": "session/pendingMessageSet",
       "kind": "steering",
       "id": "sm-1",
-      "userMessage": {
-        "text": "Focus on tests"
+      "message": {
+        "text": "Focus on tests",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   ],
@@ -36,8 +39,11 @@
     "turns": [],
     "steeringMessage": {
       "id": "sm-1",
-      "userMessage": {
-        "text": "Focus on tests"
+      "message": {
+        "text": "Focus on tests",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   }

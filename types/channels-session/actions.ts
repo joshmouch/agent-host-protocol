@@ -81,7 +81,9 @@ export interface SessionCreationFailedAction {
 }
 
 /**
- * User sent a message; server starts agent processing.
+ * A new message has been sent to the agent, and a new turn starts.
+ * 
+ * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Session Actions
  * @version 1
@@ -91,8 +93,8 @@ export interface SessionTurnStartedAction {
   type: ActionType.SessionTurnStarted;
   /** Turn identifier */
   turnId: string;
-  /** User's message */
-  userMessage: Message;
+  /** The new message */
+  message: Message;
   /** If this turn was auto-started from a queued message, the ID of that message */
   queuedMessageId?: string;
 }
@@ -700,6 +702,8 @@ export interface SessionTruncatedAction {
  * updated in place; otherwise it is appended to the queue. If the session is
  * idle when a queued message is set, the server SHOULD immediately consume it
  * and start a new turn.
+ * 
+ * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Session Actions
  * @version 1
@@ -712,7 +716,7 @@ export interface SessionPendingMessageSetAction {
   /** Unique identifier for this pending message */
   id: string;
   /** The message content */
-  userMessage: Message;
+  message: Message;
 }
 
 /**

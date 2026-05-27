@@ -15,14 +15,20 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "First"
+        "message": {
+          "text": "First",
+          "origin": {
+            "kind": "user"
+          }
         }
       },
       {
         "id": "pm-2",
-        "userMessage": {
-          "text": "Second"
+        "message": {
+          "text": "Second",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -32,8 +38,11 @@
       "type": "session/pendingMessageSet",
       "kind": "queued",
       "id": "pm-1",
-      "userMessage": {
-        "text": "Updated first"
+      "message": {
+        "text": "Updated first",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   ],
@@ -51,14 +60,20 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "Updated first"
+        "message": {
+          "text": "Updated first",
+          "origin": {
+            "kind": "user"
+          }
         }
       },
       {
         "id": "pm-2",
-        "userMessage": {
-          "text": "Second"
+        "message": {
+          "text": "Second",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

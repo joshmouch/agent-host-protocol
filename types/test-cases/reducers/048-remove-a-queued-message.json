@@ -15,14 +15,20 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "First"
+        "message": {
+          "text": "First",
+          "origin": {
+            "kind": "user"
+          }
         }
       },
       {
         "id": "pm-2",
-        "userMessage": {
-          "text": "Second"
+        "message": {
+          "text": "Second",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -48,8 +54,11 @@
     "queuedMessages": [
       {
         "id": "pm-2",
-        "userMessage": {
-          "text": "Second"
+        "message": {
+          "text": "Second",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

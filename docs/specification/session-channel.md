@@ -111,7 +111,7 @@ The server consumes pending messages according to their kind:
 When a turn completes and `queuedMessages` is non-empty, the server SHOULD:
 
 1. Dispatch `session/pendingMessageRemoved` with `kind: 'queued'` for the first queued message.
-2. Dispatch `session/turnStarted` with the queued message's `userMessage` and `queuedMessageId` set to the message's `id`.
+2. Dispatch `session/turnStarted` with the queued message's `message` and `queuedMessageId` set to the message's `id`.
 
 When a queued message is added while the session is idle (no active turn), the server SHOULD immediately consume it using the same two-step sequence.
 

@@ -10,7 +10,10 @@
           "theme": {
             "type": "string",
             "title": "Theme",
-            "enum": ["light", "dark"]
+            "enum": [
+              "light",
+              "dark"
+            ]
           }
         }
       },
@@ -36,7 +39,10 @@
           "theme": {
             "type": "string",
             "title": "Theme",
-            "enum": ["light", "dark"]
+            "enum": [
+              "light",
+              "dark"
+            ]
           }
         }
       },

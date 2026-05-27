@@ -15,8 +15,11 @@
     "queuedMessages": [
       {
         "id": "a",
-        "userMessage": {
-          "text": "A"
+        "message": {
+          "text": "A",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -41,8 +44,11 @@
     "queuedMessages": [
       {
         "id": "a",
-        "userMessage": {
-          "text": "A"
+        "message": {
+          "text": "A",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

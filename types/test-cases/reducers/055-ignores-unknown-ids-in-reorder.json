@@ -15,14 +15,20 @@
     "queuedMessages": [
       {
         "id": "a",
-        "userMessage": {
-          "text": "A"
+        "message": {
+          "text": "A",
+          "origin": {
+            "kind": "user"
+          }
         }
       },
       {
         "id": "b",
-        "userMessage": {
-          "text": "B"
+        "message": {
+          "text": "B",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -52,14 +58,20 @@
     "queuedMessages": [
       {
         "id": "b",
-        "userMessage": {
-          "text": "B"
+        "message": {
+          "text": "B",
+          "origin": {
+            "kind": "user"
+          }
         }
       },
       {
         "id": "a",
-        "userMessage": {
-          "text": "A"
+        "message": {
+          "text": "A",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

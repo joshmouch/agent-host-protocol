@@ -7,15 +7,29 @@
       {
         "id": "file:///src/a.ts",
         "edit": {
-          "after": { "uri": "file:///src/a.ts", "content": { "uri": "content:/a" } },
-          "diff": { "added": 1 }
+          "after": {
+            "uri": "file:///src/a.ts",
+            "content": {
+              "uri": "content:/a"
+            }
+          },
+          "diff": {
+            "added": 1
+          }
         }
       },
       {
         "id": "file:///src/b.ts",
         "edit": {
-          "after": { "uri": "file:///src/b.ts", "content": { "uri": "content:/b" } },
-          "diff": { "added": 5 }
+          "after": {
+            "uri": "file:///src/b.ts",
+            "content": {
+              "uri": "content:/b"
+            }
+          },
+          "diff": {
+            "added": 5
+          }
         }
       }
     ]
@@ -26,8 +40,16 @@
       "file": {
         "id": "file:///src/b.ts",
         "edit": {
-          "after": { "uri": "file:///src/b.ts", "content": { "uri": "content:/b2" } },
-          "diff": { "added": 9, "removed": 4 }
+          "after": {
+            "uri": "file:///src/b.ts",
+            "content": {
+              "uri": "content:/b2"
+            }
+          },
+          "diff": {
+            "added": 9,
+            "removed": 4
+          }
         }
       }
     }
@@ -38,15 +60,30 @@
       {
         "id": "file:///src/a.ts",
         "edit": {
-          "after": { "uri": "file:///src/a.ts", "content": { "uri": "content:/a" } },
-          "diff": { "added": 1 }
+          "after": {
+            "uri": "file:///src/a.ts",
+            "content": {
+              "uri": "content:/a"
+            }
+          },
+          "diff": {
+            "added": 1
+          }
         }
       },
       {
         "id": "file:///src/b.ts",
         "edit": {
-          "after": { "uri": "file:///src/b.ts", "content": { "uri": "content:/b2" } },
-          "diff": { "added": 9, "removed": 4 }
+          "after": {
+            "uri": "file:///src/b.ts",
+            "content": {
+              "uri": "content:/b2"
+            }
+          },
+          "diff": {
+            "added": 9,
+            "removed": 4
+          }
         }
       }
     ]

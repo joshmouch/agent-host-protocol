@@ -550,7 +550,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'SessionConfigState' },
   { name: 'Turn' },
   { name: 'ActiveTurn' },
-  { name: 'UserMessage' },
+  { name: 'Message' },
   { name: 'SessionInputOption' },
   { name: 'SessionInputTextAnswerValue', omitDiscriminants: true },
   { name: 'SessionInputNumberAnswerValue', omitDiscriminants: true },
@@ -723,7 +723,7 @@ const TOOL_RESULT_CONTENT_UNION: UnionConfig = {
 const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
   name: 'MessageAttachment',
   discriminantField: 'type',
-  doc: 'An attachment associated with a `UserMessage`.',
+  doc: 'An attachment associated with a `Message`.',
   variants: [
     { variantName: 'Simple', innerType: 'SimpleMessageAttachment', wireValue: 'simple' },
     { variantName: 'EmbeddedResource', innerType: 'MessageEmbeddedResourceAttachment', wireValue: 'embeddedResource' },
@@ -891,7 +891,7 @@ pub struct SessionToolCallConfirmedAction {
     pub edited_tool_input: Option<String>,
     /// What the user suggested doing instead (present when denied).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_suggestion: Option<UserMessage>,
+    pub user_suggestion: Option<Message>,
     /// Explanation for the denial.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_message: Option<StringOrMarkdown>,
@@ -903,7 +903,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
   lines.push('');
 
   // ActionType enum

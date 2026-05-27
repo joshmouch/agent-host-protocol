@@ -18,8 +18,11 @@
       "type": "session/pendingMessageSet",
       "kind": "queued",
       "id": "pm-1",
-      "userMessage": {
-        "text": "Do something"
+      "message": {
+        "text": "Do something",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   ],
@@ -37,8 +40,11 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "Do something"
+        "message": {
+          "text": "Do something",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

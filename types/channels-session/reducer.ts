@@ -142,7 +142,7 @@ function endTurn(
 
   const turn: Turn = {
     id: active.id,
-    userMessage: active.userMessage,
+    message: active.message,
     responseParts,
     usage: active.usage,
     state: turnState,
@@ -289,7 +289,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         ...state,
         activeTurn: {
           id: action.turnId,
-          userMessage: action.userMessage,
+          message: action.message,
           responseParts: [],
           usage: undefined,
         },
@@ -748,7 +748,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
     // ── Pending Messages ──────────────────────────────────────────────────
 
     case ActionType.SessionPendingMessageSet: {
-      const entry: PendingMessage = { id: action.id, userMessage: action.userMessage };
+      const entry: PendingMessage = { id: action.id, message: action.message };
       if (action.kind === PendingMessageKind.Steering) {
         return { ...state, steeringMessage: entry };
       }

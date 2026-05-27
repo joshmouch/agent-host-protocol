@@ -138,7 +138,7 @@ A turn represents one request/response cycle between user and agent.
 ```typescript
 Turn {
   id: string
-  userMessage: UserMessage
+  message: Message
   responseParts: ResponsePart[]     // all content in stream order
   usage: UsageInfo | undefined
   state: 'complete' | 'cancelled' | 'error'
@@ -153,7 +153,7 @@ An in-progress turn where the assistant is actively streaming:
 ```typescript
 ActiveTurn {
   id: string
-  userMessage: UserMessage
+  message: Message
   responseParts: ResponsePart[]     // all content in stream order
   usage: UsageInfo | undefined
 }
@@ -162,8 +162,9 @@ ActiveTurn {
 ### User Messages
 
 ```typescript
-UserMessage {
+Message {
   text: string
+  origin: { kind: MessageKind }
   attachments?: MessageAttachment[]
 }
 
@@ -229,7 +230,7 @@ CompletionItem {
 }
 ```
 
-Servers advertise the characters that should auto-trigger this request via `InitializeResult.completionTriggerCharacters` (e.g. `['@', '#']`). Clients MAY also issue `completions` calls in response to explicit user actions (such as a keyboard shortcut). When the user accepts an item, the client replaces `[rangeStart, rangeEnd)` in the input with `insertText` and associates the item's `attachment` with the resulting `UserMessage`.
+Servers advertise the characters that should auto-trigger this request via `InitializeResult.completionTriggerCharacters` (e.g. `['@', '#']`). Clients MAY also issue `completions` calls in response to explicit user actions (such as a keyboard shortcut). When the user accepts an item, the client replaces `[rangeStart, rangeEnd)` in the input with `insertText` and associates the item's `attachment` with the resulting `Message`.
 
 ## Response Parts
 
@@ -391,7 +392,7 @@ SessionState {
 
 PendingMessage {
   id: string
-  userMessage: UserMessage
+  message: Message
 }
 ```
 

@@ -7,8 +7,15 @@
       {
         "id": "file:///src/a.ts",
         "edit": {
-          "after": { "uri": "file:///src/a.ts", "content": { "uri": "content:/a" } },
-          "diff": { "added": 1 }
+          "after": {
+            "uri": "file:///src/a.ts",
+            "content": {
+              "uri": "content:/a"
+            }
+          },
+          "diff": {
+            "added": 1
+          }
         }
       }
     ]

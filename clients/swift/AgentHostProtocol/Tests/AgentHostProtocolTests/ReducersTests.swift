@@ -54,7 +54,7 @@ final class ReducersTests: XCTestCase {
             turns: [],
             activeTurn: ActiveTurn(
                 id: T,
-                userMessage: UserMessage(text: "Hello"),
+                message: Message(text: "Hello", origin: AnyCodable(["kind": "user"])),
                 responseParts: [],
                 usage: nil
             )
@@ -74,9 +74,9 @@ final class ReducersTests: XCTestCase {
     }
 
     func testSessionReducerDoesNotMutateTurnsArray() {
-        let turn1 = Turn(id: "t1", userMessage: UserMessage(text: "First"), responseParts: [], state: .complete)
-        let turn2 = Turn(id: "t2", userMessage: UserMessage(text: "Second"), responseParts: [], state: .complete)
-        let turn3 = Turn(id: "t3", userMessage: UserMessage(text: "Third"), responseParts: [], state: .complete)
+        let turn1 = Turn(id: "t1", message: Message(text: "First", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
+        let turn2 = Turn(id: "t2", message: Message(text: "Second", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
+        let turn3 = Turn(id: "t3", message: Message(text: "Third", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
         let state = SessionState(
             summary: SessionSummary(
                 resource: S,
@@ -101,7 +101,7 @@ final class ReducersTests: XCTestCase {
 
     func testClientDispatchableReturnsTrue() {
         let action: StateAction = .sessionTurnStarted(SessionTurnStartedAction(
-            type: .sessionTurnStarted, turnId: T, userMessage: UserMessage(text: "Hello")
+            type: .sessionTurnStarted, turnId: T, message: Message(text: "Hello", origin: AnyCodable(["kind": "user"]))
         ))
         XCTAssertTrue(isClientDispatchable(action))
     }
@@ -118,7 +118,7 @@ final class ReducersTests: XCTestCase {
         let next = sessionReducer(
             state: state,
             action: .sessionTurnStarted(SessionTurnStartedAction(
-                type: .sessionTurnStarted, turnId: T, userMessage: UserMessage(text: "Hello")
+                type: .sessionTurnStarted, turnId: T, message: Message(text: "Hello", origin: AnyCodable(["kind": "user"]))
             ))
         )
         XCTAssertGreaterThan(next.summary.modifiedAt, state.summary.modifiedAt)

@@ -9,12 +9,18 @@
     {
       "type": "changeset/statusChanged",
       "status": "error",
-      "error": { "errorType": "git", "message": "fatal: not a git repository" }
+      "error": {
+        "errorType": "git",
+        "message": "fatal: not a git repository"
+      }
     }
   ],
   "expected": {
     "status": "error",
-    "error": { "errorType": "git", "message": "fatal: not a git repository" },
+    "error": {
+      "errorType": "git",
+      "message": "fatal: not a git repository"
+    },
     "files": []
   }
 }

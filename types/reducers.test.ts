@@ -31,6 +31,7 @@ import {
   SessionLifecycle,
   SessionStatus,
   TurnState,
+  MessageKind
 } from './state.js';
 import type { TerminalState } from './state.js';
 
@@ -202,7 +203,7 @@ describe('IS_CLIENT_DISPATCHABLE', () => {
 
 describe('isClientDispatchable', () => {
   it('returns true for client-dispatchable actions', () => {
-    const action = { type: ActionType.SessionTurnStarted, session: 'x', turnId: 't', userMessage: { text: 'Hello' } } as const;
+    const action = { type: ActionType.SessionTurnStarted, turnId: 't', message: { text: 'Hello', origin: { kind: MessageKind.User } } } as const;
     assert.equal(isClientDispatchable(action), true);
   });
 
@@ -226,16 +227,16 @@ describe('reducer immutability', () => {
   });
 
   it('sessionReducer does not mutate original turns array', () => {
-    const turn1 = { id: 't1', userMessage: { text: 'First' }, responseParts: [], usage: undefined, state: TurnState.Complete };
-    const turn2 = { id: 't2', userMessage: { text: 'Second' }, responseParts: [], usage: undefined, state: TurnState.Complete };
-    const turn3 = { id: 't3', userMessage: { text: 'Third' }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn1 = { id: 't1', message: { text: 'First', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn2 = { id: 't2', message: { text: 'Second', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
+    const turn3 = { id: 't3', message: { text: 'Third', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete };
     const state: SessionState = {
       summary: { resource: 'x', provider: 'copilot', title: 'T', status: SessionStatus.Idle, createdAt: 1000, modifiedAt: 1000, project: { uri: 'file:///test-project', displayName: 'Test Project' } },
       lifecycle: SessionLifecycle.Ready,
       turns: [turn1, turn2, turn3],
     };
     const original = [...state.turns];
-    sessionReducer(state, { type: ActionType.SessionTruncated, session: 'x', turnId: 't1' });
+    sessionReducer(state, { type: ActionType.SessionTruncated, turnId: 't1' });
     assert.deepStrictEqual(state.turns, original);
   });
 });

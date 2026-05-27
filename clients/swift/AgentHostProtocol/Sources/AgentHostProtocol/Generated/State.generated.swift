@@ -597,15 +597,15 @@ public struct ConfigSchema: Codable, Sendable {
 public struct PendingMessage: Codable, Sendable {
     /// Unique identifier for this pending message
     public var id: String
-    /// The message content
-    public var userMessage: UserMessage
+    /// The message that will start the next turn
+    public var message: Message
 
     public init(
         id: String,
-        userMessage: UserMessage
+        message: Message
     ) {
         self.id = id
-        self.userMessage = userMessage
+        self.message = message
     }
 }
 
@@ -809,8 +809,8 @@ public struct SessionConfigState: Codable, Sendable {
 public struct Turn: Codable, Sendable {
     /// Turn identifier
     public var id: String
-    /// The user's input
-    public var userMessage: UserMessage
+    /// The message that initiated the turn
+    public var message: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Consumers should derive display text by concatenating markdown parts,
@@ -825,14 +825,14 @@ public struct Turn: Codable, Sendable {
 
     public init(
         id: String,
-        userMessage: UserMessage,
+        message: Message,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil,
         state: TurnState,
         error: ErrorInfo? = nil
     ) {
         self.id = id
-        self.userMessage = userMessage
+        self.message = message
         self.responseParts = responseParts
         self.usage = usage
         self.state = state
@@ -843,8 +843,8 @@ public struct Turn: Codable, Sendable {
 public struct ActiveTurn: Codable, Sendable {
     /// Turn identifier
     public var id: String
-    /// The user's input
-    public var userMessage: UserMessage
+    /// The message that initiated the turn
+    public var message: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -854,28 +854,32 @@ public struct ActiveTurn: Codable, Sendable {
 
     public init(
         id: String,
-        userMessage: UserMessage,
+        message: Message,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil
     ) {
         self.id = id
-        self.userMessage = userMessage
+        self.message = message
         self.responseParts = responseParts
         self.usage = usage
     }
 }
 
-public struct UserMessage: Codable, Sendable {
+public struct Message: Codable, Sendable {
     /// Message text
     public var text: String
+    /// The origin of the message
+    public var origin: AnyCodable
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
 
     public init(
         text: String,
+        origin: AnyCodable,
         attachments: [MessageAttachment]? = nil
     ) {
         self.text = text
+        self.origin = origin
         self.attachments = attachments
     }
 }
@@ -1264,7 +1268,7 @@ public struct SimpleMessageAttachment: Codable, Sendable {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     public var label: String
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
@@ -1325,7 +1329,7 @@ public struct MessageEmbeddedResourceAttachment: Codable, Sendable {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     public var label: String
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
@@ -1393,7 +1397,7 @@ public struct MessageResourceAttachment: Codable, Sendable {
     /// A human-readable label for the attachment (e.g. the filename of a file
     /// attachment). Used for display in UI.
     public var label: String
-    /// If defined, the range in {@link UserMessage.text} that references this
+    /// If defined, the range in {@link Message.text} that references this
     /// attachment. This is a text range, not a byte range.
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
@@ -2042,7 +2046,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
     /// Optional message explaining the cancellation
     public var reasonMessage: StringOrMarkdown?
     /// What the user suggested doing instead
-    public var userSuggestion: UserMessage?
+    public var userSuggestion: Message?
     /// The confirmation option the user selected, if confirmation options were provided
     public var selectedOption: ConfirmationOption?
 
@@ -2072,7 +2076,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         status: ToolCallStatus,
         reason: ToolCallCancellationReason,
         reasonMessage: StringOrMarkdown? = nil,
-        userSuggestion: UserMessage? = nil,
+        userSuggestion: Message? = nil,
         selectedOption: ConfirmationOption? = nil
     ) {
         self.toolCallId = toolCallId

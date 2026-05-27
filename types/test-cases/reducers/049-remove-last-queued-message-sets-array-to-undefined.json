@@ -15,8 +15,11 @@
     "queuedMessages": [
       {
         "id": "pm-1",
-        "userMessage": {
-          "text": "Only one"
+        "message": {
+          "text": "Only one",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]

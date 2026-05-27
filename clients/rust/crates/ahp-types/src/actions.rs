@@ -14,11 +14,10 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use crate::state::{
     AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
     ChangesetSummary, ConfirmationOption, CustomizationAgentRef, CustomizationRef,
-    CustomizationStatus, ErrorInfo, ModelSelection, PendingMessageKind, ResponsePart,
+    CustomizationStatus, ErrorInfo, Message, ModelSelection, PendingMessageKind, ResponsePart,
     SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest,
     SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
     ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
-    UserMessage,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -220,14 +219,16 @@ pub struct SessionCreationFailedAction {
     pub error: ErrorInfo,
 }
 
-/// User sent a message; server starts agent processing.
+/// A new message has been sent to the agent, and a new turn starts.
+///
+/// A client is only allowed to send {@link MessageKind.User} messages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionTurnStartedAction {
     /// Turn identifier
     pub turn_id: String,
-    /// User's message
-    pub user_message: UserMessage,
+    /// The new message
+    pub message: Message,
     /// If this turn was auto-started from a queued message, the ID of that message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queued_message_id: Option<String>,
@@ -386,7 +387,7 @@ pub struct SessionToolCallConfirmedAction {
     pub edited_tool_input: Option<String>,
     /// What the user suggested doing instead (present when denied).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub user_suggestion: Option<UserMessage>,
+    pub user_suggestion: Option<Message>,
     /// Explanation for the denial.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_message: Option<StringOrMarkdown>,
@@ -629,6 +630,8 @@ pub struct SessionActiveClientToolsChangedAction {
 /// updated in place; otherwise it is appended to the queue. If the session is
 /// idle when a queued message is set, the server SHOULD immediately consume it
 /// and start a new turn.
+///
+/// A client is only allowed to send {@link MessageKind.User} messages.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionPendingMessageSetAction {
@@ -637,7 +640,7 @@ pub struct SessionPendingMessageSetAction {
     /// Unique identifier for this pending message
     pub id: String,
     /// The message content
-    pub user_message: UserMessage,
+    pub message: Message,
 }
 
 /// A pending message was removed (steering or queued).

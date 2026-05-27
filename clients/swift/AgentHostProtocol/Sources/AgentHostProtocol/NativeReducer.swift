@@ -144,7 +144,7 @@ public struct AHPSessionReducer: Reducer {
             state.summary.modifiedAt = currentTimestamp()
             state.activeTurn = ActiveTurn(
                 id: a.turnId,
-                userMessage: a.userMessage,
+                message: a.message,
                 responseParts: [],
                 usage: nil
             )
@@ -504,7 +504,7 @@ public struct AHPSessionReducer: Reducer {
         // ── Pending Messages ──────────────────────────────────────────────────
 
         case .sessionPendingMessageSet(let a):
-            let entry = PendingMessage(id: a.id, userMessage: a.userMessage)
+            let entry = PendingMessage(id: a.id, message: a.message)
             if a.kind == .steering {
                 state.steeringMessage = entry
                 return
@@ -650,7 +650,7 @@ public struct AHPSessionReducer: Reducer {
 
         let turn = Turn(
             id: activeTurn.id,
-            userMessage: activeTurn.userMessage,
+            message: activeTurn.message,
             responseParts: responseParts,
             usage: activeTurn.usage,
             state: turnState,

@@ -90,7 +90,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         next.activeTurn = ActiveTurn(
             id: a.turnId,
-            userMessage: a.userMessage,
+            message: a.message,
             responseParts: [],
             usage: nil
         )
@@ -497,7 +497,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
     // ── Pending Messages ──────────────────────────────────────────────────
 
     case .sessionPendingMessageSet(let a):
-        let entry = PendingMessage(id: a.id, userMessage: a.userMessage)
+        let entry = PendingMessage(id: a.id, message: a.message)
         var next = state
         if a.kind == .steering {
             next.steeringMessage = entry
@@ -747,7 +747,7 @@ private func endTurn(
 
     let turn = Turn(
         id: activeTurn.id,
-        userMessage: activeTurn.userMessage,
+        message: activeTurn.message,
         responseParts: responseParts,
         usage: activeTurn.usage,
         state: turnState,

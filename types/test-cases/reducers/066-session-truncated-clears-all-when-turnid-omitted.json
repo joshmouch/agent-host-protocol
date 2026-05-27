@@ -14,8 +14,11 @@
     "turns": [
       {
         "id": "t1",
-        "userMessage": {
-          "text": "First"
+        "message": {
+          "text": "First",
+          "origin": {
+            "kind": "user"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -23,8 +26,11 @@
       },
       {
         "id": "t2",
-        "userMessage": {
-          "text": "Second"
+        "message": {
+          "text": "Second",
+          "origin": {
+            "kind": "user"
+          }
         },
         "responseParts": [],
         "usage": null,
@@ -32,8 +38,11 @@
       },
       {
         "id": "t3",
-        "userMessage": {
-          "text": "Third"
+        "message": {
+          "text": "Third",
+          "origin": {
+            "kind": "user"
+          }
         },
         "responseParts": [],
         "usage": null,

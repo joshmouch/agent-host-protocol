@@ -3,7 +3,10 @@
   "reducer": "changeset",
   "initial": {
     "status": "computing",
-    "error": { "errorType": "stale", "message": "old error" },
+    "error": {
+      "errorType": "stale",
+      "message": "old error"
+    },
     "files": []
   },
   "actions": [

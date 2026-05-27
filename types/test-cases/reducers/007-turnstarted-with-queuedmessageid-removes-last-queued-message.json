@@ -15,8 +15,11 @@
     "queuedMessages": [
       {
         "id": "q-1",
-        "userMessage": {
-          "text": "Only"
+        "message": {
+          "text": "Only",
+          "origin": {
+            "kind": "user"
+          }
         }
       }
     ]
@@ -25,8 +28,11 @@
     {
       "type": "session/turnStarted",
       "turnId": "turn-1",
-      "userMessage": {
-        "text": "Only"
+      "message": {
+        "text": "Only",
+        "origin": {
+          "kind": "user"
+        }
       },
       "queuedMessageId": "q-1"
     }
@@ -45,8 +51,11 @@
     "queuedMessages": null,
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Only"
+      "message": {
+        "text": "Only",
+        "origin": {
+          "kind": "user"
+        }
       },
       "responseParts": [],
       "usage": null

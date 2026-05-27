@@ -14,8 +14,11 @@
     "turns": [],
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
+      "message": {
+        "text": "Hello",
+        "origin": {
+          "kind": "user"
+        }
       },
       "responseParts": [],
       "usage": null
@@ -73,8 +76,11 @@
     "turns": [],
     "activeTurn": {
       "id": "turn-1",
-      "userMessage": {
-        "text": "Hello"
+      "message": {
+        "text": "Hello",
+        "origin": {
+          "kind": "user"
+        }
       },
       "responseParts": [
         {

@@ -43,7 +43,7 @@ pub enum ContentEncoding {
 /// The kind of completion items being requested.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CompletionItemKind {
-    /// Completions for the text of a {@link UserMessage} the user is composing.
+    /// Completions for the text of a {@link Message} the user is composing.
     /// Each returned item carries an attachment that gets associated with the
     /// message when accepted.
     #[serde(rename = "userMessage")]
@@ -100,7 +100,7 @@ pub struct InitializeResult {
     /// Suggested default directory for remote filesystem browsing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_directory: Option<Uri>,
-    /// Characters that, when typed in a {@link UserMessage} input, SHOULD cause
+    /// Characters that, when typed in a {@link Message} input, SHOULD cause
     /// the client to issue a `completions` request with
     /// {@link CompletionItemKind.UserMessage}. Typically includes characters like
     /// `'@'` or `'/'`.
@@ -714,7 +714,7 @@ pub struct CompletionsParams {
 /// When the user accepts an item, the client SHOULD:
 /// 1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`
 ///    (or insert `insertText` at the cursor when the range is omitted).
-/// 2. Associate the item's `attachment` with the resulting {@link UserMessage}.
+/// 2. Associate the item's `attachment` with the resulting {@link Message}.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionItem {
@@ -729,7 +729,7 @@ pub struct CompletionItem {
     ///
     /// Note: this range refers to positions in the *current* input. The
     /// attachment's own `rangeStart`/`rangeEnd` (when present) refer to
-    /// positions in the final {@link UserMessage.text} after the item is
+    /// positions in the final {@link Message.text} after the item is
     /// accepted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range_start: Option<i64>,

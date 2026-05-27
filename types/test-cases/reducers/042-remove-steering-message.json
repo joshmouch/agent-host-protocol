@@ -14,8 +14,11 @@
     "turns": [],
     "steeringMessage": {
       "id": "sm-1",
-      "userMessage": {
-        "text": "Steer"
+      "message": {
+        "text": "Steer",
+        "origin": {
+          "kind": "user"
+        }
       }
     }
   },

@@ -85,7 +85,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Characters that, when typed in a {@link UserMessage} input, SHOULD cause\nthe client to issue a `completions` request with\n{@link CompletionItemKind.UserMessage}. Typically includes characters like\n`'@'` or `'/'`."
+          "description": "Characters that, when typed in a {@link Message} input, SHOULD cause\nthe client to issue a `completions` request with\n{@link CompletionItemKind.UserMessage}. Typically includes characters like\n`'@'` or `'/'`."
         },
         "telemetry": {
           "$ref": "#/$defs/TelemetryCapabilities",
@@ -863,7 +863,7 @@
     },
     "CompletionItem": {
       "type": "object",
-      "description": "A single completion item returned by the `completions` command.\n\nWhen the user accepts an item, the client SHOULD:\n1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`\n   (or insert `insertText` at the cursor when the range is omitted).\n2. Associate the item's `attachment` with the resulting {@link UserMessage}.",
+      "description": "A single completion item returned by the `completions` command.\n\nWhen the user accepts an item, the client SHOULD:\n1. Replace the range `[rangeStart, rangeEnd)` in the input with `insertText`\n   (or insert `insertText` at the cursor when the range is omitted).\n2. Associate the item's `attachment` with the resulting {@link Message}.",
       "properties": {
         "insertText": {
           "type": "string",
@@ -871,7 +871,7 @@
         },
         "rangeStart": {
           "type": "number",
-          "description": "If defined, the start of the range in the input's `text` that is replaced\nby `insertText`. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen omitted, the client SHOULD insert `insertText` at the cursor.\n\nNote: this range refers to positions in the *current* input. The\nattachment's own `rangeStart`/`rangeEnd` (when present) refer to\npositions in the final {@link UserMessage.text} after the item is\naccepted."
+          "description": "If defined, the start of the range in the input's `text` that is replaced\nby `insertText`. The range is the half-open interval\n`[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code\nunits.\n\nWhen omitted, the client SHOULD insert `insertText` at the cursor.\n\nNote: this range refers to positions in the *current* input. The\nattachment's own `rangeStart`/`rangeEnd` (when present) refer to\npositions in the final {@link Message.text} after the item is\naccepted."
         },
         "rangeEnd": {
           "type": "number",
@@ -1587,14 +1587,14 @@
           "type": "string",
           "description": "Unique identifier for this pending message"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The message content"
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "The message that will start the next turn"
         }
       },
       "required": [
         "id",
-        "userMessage"
+        "message"
       ]
     },
     "SessionState": {
@@ -2387,9 +2387,9 @@
           "type": "string",
           "description": "Turn identifier"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The user's input"
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "The message that initiated the turn"
         },
         "responseParts": {
           "type": "array",
@@ -2413,7 +2413,7 @@
       },
       "required": [
         "id",
-        "userMessage",
+        "message",
         "responseParts",
         "usage",
         "state"
@@ -2427,9 +2427,9 @@
           "type": "string",
           "description": "Turn identifier"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The user's input"
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "The message that initiated the turn"
         },
         "responseParts": {
           "type": "array",
@@ -2445,18 +2445,30 @@
       },
       "required": [
         "id",
-        "userMessage",
+        "message",
         "responseParts",
         "usage"
       ]
     },
-    "UserMessage": {
+    "Message": {
       "type": "object",
-      "description": "A user message and its associated attachments.\n\nAttachments MAY be referenced inside {@link UserMessage.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
+      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser or be system-generated (see {@link MessageKind}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
       "properties": {
         "text": {
           "type": "string",
           "description": "Message text"
+        },
+        "origin": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "description": "The origin of the message"
         },
         "attachments": {
           "type": "array",
@@ -2467,7 +2479,8 @@
         }
       },
       "required": [
-        "text"
+        "text",
+        "origin"
       ]
     },
     "MessageAttachmentBase": {
@@ -2480,7 +2493,7 @@
         },
         "range": {
           "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
         },
         "displayKind": {
           "type": "string",
@@ -2506,7 +2519,7 @@
         },
         "range": {
           "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
         },
         "displayKind": {
           "type": "string",
@@ -2541,7 +2554,7 @@
         },
         "range": {
           "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
         },
         "displayKind": {
           "type": "string",
@@ -2586,7 +2599,7 @@
         },
         "range": {
           "$ref": "#/$defs/TextRange",
-          "description": "If defined, the range in {@link UserMessage.text} that references this\nattachment. This is a text range, not a byte range."
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
         },
         "displayKind": {
           "type": "string",
@@ -3256,7 +3269,7 @@
           "description": "Optional message explaining the cancellation"
         },
         "userSuggestion": {
-          "$ref": "#/$defs/UserMessage",
+          "$ref": "#/$defs/Message",
           "description": "What the user suggested doing instead"
         },
         "selectedOption": {
@@ -3943,19 +3956,19 @@
     },
     "TelemetryCapabilities": {
       "type": "object",
-      "description": "OTLP telemetry channels the agent host emits.\r\n\r\nEach field, when present, is either a literal channel URI or an\r\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\r\na client expands and then subscribes to. Absent fields indicate the host\r\ndoes not emit that signal.\r\n\r\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\r\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\r\ntype by URI alone; the host is free to choose any authority/path that\r\nmakes sense for its implementation. Clients MUST treat the URI as\r\nopaque (apart from expanding any well-known template variables defined\r\nbelow) and subscribe with the resulting concrete URI.\r\n\r\nPayloads delivered on these channels are OTLP/JSON values — see\r\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\r\nfor the wire shapes (`ExportLogsServiceRequest`,\r\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
+      "description": "OTLP telemetry channels the agent host emits.\n\nEach field, when present, is either a literal channel URI or an\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\na client expands and then subscribes to. Absent fields indicate the host\ndoes not emit that signal.\n\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\ntype by URI alone; the host is free to choose any authority/path that\nmakes sense for its implementation. Clients MUST treat the URI as\nopaque (apart from expanding any well-known template variables defined\nbelow) and subscribe with the resulting concrete URI.\n\nPayloads delivered on these channels are OTLP/JSON values — see\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\nfor the wire shapes (`ExportLogsServiceRequest`,\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
       "properties": {
         "logs": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\r\n(`otlp/exportLogs` notifications).\r\n\r\nThe following template variables are defined by this protocol; any\r\nother variable name MUST be ignored by clients (there is no\r\nprotocol-defined way to obtain values for unknown variables):\r\n\r\n| Variables in template | Meaning                                                                                                 |\r\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\r\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\r\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\r\n\r\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\r\ndefensively in case a host ignores the parameter. Hosts that do not\r\nadvertise `{level}` deliver all severities.\r\n\r\nFuture protocol versions MAY add new well-known variables (e.g. scope\r\nor attribute filters)."
+          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\n(`otlp/exportLogs` notifications).\n\nThe following template variables are defined by this protocol; any\nother variable name MUST be ignored by clients (there is no\nprotocol-defined way to obtain values for unknown variables):\n\n| Variables in template | Meaning                                                                                                 |\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\n\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\ndefensively in case a host ignores the parameter. Hosts that do not\nadvertise `{level}` deliver all severities.\n\nFuture protocol versions MAY add new well-known variables (e.g. scope\nor attribute filters)."
         },
         "traces": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\r\ntemplate variables are defined by this protocol version."
+          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\ntemplate variables are defined by this protocol version."
         },
         "metrics": {
           "$ref": "#/$defs/URI",
-          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\r\nnotifications). No template variables are defined by this protocol\r\nversion."
+          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\nnotifications). No template variables are defined by this protocol\nversion."
         }
       }
     },
@@ -4136,7 +4149,7 @@
     },
     "SessionTurnStartedAction": {
       "type": "object",
-      "description": "User sent a message; server starts agent processing.",
+      "description": "A new message has been sent to the agent, and a new turn starts.\n\nA client is only allowed to send {@link MessageKind.User} messages.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionTurnStarted"
@@ -4145,9 +4158,9 @@
           "type": "string",
           "description": "Turn identifier"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "User's message"
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "The new message"
         },
         "queuedMessageId": {
           "type": "string",
@@ -4157,7 +4170,7 @@
       "required": [
         "type",
         "turnId",
-        "userMessage"
+        "message"
       ]
     },
     "SessionDeltaAction": {
@@ -4432,7 +4445,7 @@
           "description": "Why the tool was cancelled"
         },
         "userSuggestion": {
-          "$ref": "#/$defs/UserMessage",
+          "$ref": "#/$defs/Message",
           "description": "What the user suggested doing instead"
         },
         "reasonMessage": {
@@ -4979,7 +4992,7 @@
     },
     "SessionPendingMessageSetAction": {
       "type": "object",
-      "description": "A pending message was set (upsert semantics: creates or replaces).\n\nFor steering messages, this always replaces the single steering message.\nFor queued messages, if a message with the given `id` already exists it is\nupdated in place; otherwise it is appended to the queue. If the session is\nidle when a queued message is set, the server SHOULD immediately consume it\nand start a new turn.",
+      "description": "A pending message was set (upsert semantics: creates or replaces).\n\nFor steering messages, this always replaces the single steering message.\nFor queued messages, if a message with the given `id` already exists it is\nupdated in place; otherwise it is appended to the queue. If the session is\nidle when a queued message is set, the server SHOULD immediately consume it\nand start a new turn.\n\nA client is only allowed to send {@link MessageKind.User} messages.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionPendingMessageSet"
@@ -4992,8 +5005,8 @@
           "type": "string",
           "description": "Unique identifier for this pending message"
         },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
+        "message": {
+          "$ref": "#/$defs/Message",
           "description": "The message content"
         }
       },
@@ -5001,7 +5014,7 @@
         "type",
         "kind",
         "id",
-        "userMessage"
+        "message"
       ]
     },
     "SessionPendingMessageRemovedAction": {

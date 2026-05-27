@@ -117,7 +117,7 @@ The client → server dispatch path uses a different method, `dispatchAction`, w
   "params": {
     "channel": "ahp-session:/<uuid>",
     "clientSeq": 1,
-    "action": { "type": "session/turnStarted", "turnId": "t1", "userMessage": { "text": "Hi" } }
+    "action": { "type": "session/turnStarted", "turnId": "t1", "message": { "text": "Hi", "origin": { "kind": "user" } } }
   }
 }
 ```

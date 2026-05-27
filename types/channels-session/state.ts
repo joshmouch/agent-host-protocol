@@ -46,8 +46,8 @@ export const enum PendingMessageKind {
 export interface PendingMessage {
   /** Unique identifier for this pending message */
   id: string;
-  /** The message content */
-  userMessage: Message;
+  /** The message that will start the next turn */
+  message: Message;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -549,8 +549,8 @@ export const enum MessageAttachmentKind {
 export interface Turn {
   /** Turn identifier */
   id: string;
-  /** The user's input */
-  userMessage: Message;
+  /** The message that initiated the turn */
+  message: Message;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -574,8 +574,8 @@ export interface Turn {
 export interface ActiveTurn {
   /** Turn identifier */
   id: string;
-  /** The user's input */
-  userMessage: Message;
+  /** The message that initiated the turn */
+  message: Message;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -586,16 +586,19 @@ export interface ActiveTurn {
   usage: UsageInfo | undefined;
 }
 
-enum MessageOrigin {
-  Human = 'human',
-  System = 'system',
-  
-  // eg, in the future
-  Channel = 'channel'
+/**
+ * Discriminant for Message types.
+ *  
+ * @category Turn Types
+ */
+export enum MessageKind {
+  User = 'user',
+  SystemNotification = 'systemNotification',
 }
 
 /**
- * A user message and its associated attachments.
+ * A message that initiates or steers a turn. Messages can originate from the
+ * user or be system-generated (see {@link MessageKind}).
  *
  * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are
@@ -608,7 +611,7 @@ export interface Message {
   /** Message text */
   text: string;
   /** The origin of the message */
-  origin: MessageOrigin;
+  origin: { kind: MessageKind };
   /** File/selection attachments */
   attachments?: MessageAttachment[];
 }
