@@ -146,7 +146,20 @@ export class WebSocketTransport implements AhpTransport {
     socket.addEventListener('close', ev => {
       this.closeInfo = { code: ev.code, reason: ev.reason, wasClean: ev.wasClean };
       this.closed = true;
-      this.deliver(null);
+      if (!ev.wasClean) {
+        // Abnormal close — surface as a transport error so consumers
+        // can distinguish unplanned drops from a clean EOF. The
+        // `AhpTransport.recv` contract says `recv()` throws on
+        // abnormal closure; the `null` return is reserved for clean
+        // close.
+        const err = new TransportError('closed', `websocket closed abnormally (code=${ev.code})`);
+        this.error = err;
+        this.drainWithError(err);
+      } else {
+        // Clean close — drain every pending `recv()` waiter with
+        // `null`, not just the head of the queue.
+        this.drainWithNull();
+      }
     });
   }
 
@@ -210,5 +223,11 @@ export class WebSocketTransport implements AhpTransport {
     const waiters = this.waiters;
     this.waiters = [];
     for (const w of waiters) w.reject(error);
+  }
+
+  private drainWithNull(): void {
+    const waiters = this.waiters;
+    this.waiters = [];
+    for (const w of waiters) w.resolve(null);
   }
 }

@@ -99,7 +99,9 @@ state and call the reducers directly.
 | `RpcTimeoutError`    | Client-side timeout fired before the server responded. Carries `method`, `timeoutMs`. Distinct from `RpcError`. |
 | `TransportError`     | Failure of the underlying transport. `kind: 'closed' \| 'io' \| 'protocol'`. |
 | `ClientClosedError`  | Request was in flight when the client was shut down. |
-| `ProtocolDecodeError`| Inbound frame was not parseable JSON-RPC. |
+| `AhpClientError`     | Base class for every error this SDK throws — use `instanceof` to catch them all. |
+
+Malformed inbound frames don't throw — they're logged via `console.warn` and the channel stays alive (matching the Rust client's `tracing::warn!` behavior). Pending requests still time out via `RpcTimeoutError` if the dropped frame would have been their reply.
 
 ## Server-initiated requests
 

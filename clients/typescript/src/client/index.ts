@@ -10,7 +10,6 @@ export type { ClientEvent, ClosedReason, ConnectionState, SubscriptionEvent } fr
 export {
   AhpClientError,
   ClientClosedError,
-  ProtocolDecodeError,
   RpcError,
   RpcTimeoutError,
   TransportError,

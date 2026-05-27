@@ -46,7 +46,6 @@ import { AsyncBroadcastQueue } from './async-queue.js';
 import type { ClientEvent, ConnectionState, SubscriptionEvent } from './events.js';
 import {
   ClientClosedError,
-  ProtocolDecodeError,
   RpcError,
   RpcTimeoutError,
   TransportError,
@@ -530,12 +529,8 @@ export class AhpClient {
       // frame from a peer that recovers shouldn't kill in-flight
       // requests. Surface it via `console.warn` so consumers have a
       // breadcrumb when requests later time out.
-      const decodeErr = new ProtocolDecodeError(
-        `malformed inbound frame: ${(err as Error).message}`,
-        { cause: err },
-      );
       // eslint-disable-next-line no-console
-      console.warn(decodeErr.message);
+      console.warn(`AhpClient: malformed inbound frame: ${(err as Error).message}`);
       return;
     }
 
