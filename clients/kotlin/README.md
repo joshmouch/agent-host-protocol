@@ -98,6 +98,13 @@ when (val action = envelope.action) {
   sealed interfaces (`StateAction`, `ResponsePart`, `ToolCallState`,
   `ToolResultContent`, `MessageAttachment`, `SnapshotState`,
   `ChangesetOperationTarget`, `ReconnectResult`, etc.).
+- **Pure reducers** — top-level `rootReducer`, `sessionReducer`,
+  `terminalReducer`, and `changesetReducer` functions (plus a
+  `Reducer<S, A>` fun-interface wrapped as `RootReducer` / `SessionReducer`
+  / `TerminalReducer` / `ChangesetReducer` objects) that produce the next
+  state from the current state and an applied action. Behavior parity with
+  the canonical TypeScript reducers is verified against the shared
+  `types/test-cases/reducers/` fixture corpus.
 - **Channel-scoped notification params** — `SessionAddedParams`,
   `SessionRemovedParams`, `SessionSummaryChangedParams`, `AuthRequiredParams`,
   `OtlpExportLogsParams`, etc. Notifications are routed by their JSON-RPC
@@ -109,8 +116,6 @@ when (val action = envelope.action) {
 ### What's NOT in the box (yet)
 
 - A WebSocket / network transport — bring your own (e.g. OkHttp, Ktor).
-- Reducers — the canonical TypeScript reducer logic in
-  [`types/reducers.ts`](../../types/reducers.ts) hasn't been ported to Kotlin yet.
 - An example Android client — see the Swift `AHPClient` example for the architecture
   pattern; a Kotlin/Android equivalent is planned for a follow-up release.
 
