@@ -8,10 +8,12 @@ mapping between the current source tree and protocol versions.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and the package follows [SemVer](https://semver.org).
 
-The `publish-typescript.yml` workflow refuses to publish a `typescript/vX.Y.Z`
-tag whose matching `## [X.Y.Z]` heading is missing from this file. (Note: the
-publish workflow itself ships in a separate PR; until that lands, the only
-enforcement is at `npm test` time.)
+The TypeScript client publishes through an Azure DevOps pipeline
+(`pipeline.yml`) — not a `typescript/v*` git tag. The repo's
+`npm run verify:changelog` script is wired into GitHub Actions CI and
+into the ADO pipeline's `buildSteps` + `testSteps`, so a `package.json`
+version that doesn't have a matching `## [X.Y.Z]` heading here will fail
+both on PR review and at publish time.
 
 ## [Unreleased]
 

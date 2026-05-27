@@ -81,10 +81,12 @@ Coupling client versions to the spec version was considered and rejected:
 | Spec       | `spec/vX.Y.Z` | GitHub Release with schema assets and a `registry-snapshot.json`. |
 | Rust       | `rust/vX.Y.Z` | crates.io (`ahp-types`, `ahp`, `ahp-ws`).                         |
 | Kotlin     | `kotlin/vX.Y.Z` | Maven Central (`com.microsoft.agenthostprotocol:agent-host-protocol`). |
-| TypeScript | `typescript/vX.Y.Z` | npm (`@microsoft/agent-host-protocol`).                         |
+| TypeScript | _no tag — manual Azure DevOps trigger_ | npm (`@microsoft/agent-host-protocol`). |
 | Swift      | `vX.Y.Z` (bare) | SwiftPM (resolved by tag at the repo root).                     |
 
 Bare `vX.Y.Z` tags at the repository root are reserved for the Swift release pipeline because SwiftPM only resolves bare semver tags at the manifest's repo root; path-prefixed tags like `swift/v0.2.0` are invisible to it.
+
+The TypeScript client publishes through an Azure DevOps pipeline (`clients/typescript/pipeline.yml`) that extends Microsoft's internal `vscode-engineering` npm-package template, with manual `publishPackage` toggling. There is no `typescript/v*` git tag; protocol-version mapping is enforced via `npm run verify:changelog` in `ci.yml`.
 
 ### Mapping client releases to spec versions
 

@@ -57,14 +57,19 @@ jobs:
             exit 1
           fi
 
-      - name: Verify release metadata is consistent
+      - name: Verify release metadata
         working-directory: .
         run: npm run verify:release-metadata
 
-      # CHANGELOG must have a matching `## [X.Y.Z]` heading. Catches the
-      # common mistake of bumping `Cargo.toml` and tagging without
-      # rotating the Unreleased section in the changelog.
       - name: Verify CHANGELOG entry exists
+        working-directory: .
+        run: npm run verify:changelog
+
+      # Belt and suspenders: also check the tag's exact version (which
+      # may differ from the package.json/native-manifest version on a
+      # racy commit). Catches "tagged a version that isn't in the
+      # checked-out source's CHANGELOG."
+      - name: Verify CHANGELOG entry exists for tag version
         working-directory: .
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#rust/v}"

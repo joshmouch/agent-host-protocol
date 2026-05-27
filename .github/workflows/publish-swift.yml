@@ -76,6 +76,9 @@ jobs:
       - name: Verify release metadata is consistent
         run: npm run verify:release-metadata
 
+      - name: Verify CHANGELOG entry exists
+        run: npm run verify:changelog
+
       # Verify the committed Swift sources match what `generate:swift`
       # would emit — same check ci.yml runs on every PR. Pre-release
       # safety net in case someone tagged without re-running the

@@ -24,12 +24,14 @@ jobs:
       - run: npm test
 
       # The check job covers the cross-cutting verifications that don't
-      # belong to a single language. `npm test` already runs
-      # `verify:release-metadata`, but call it out explicitly so a failure
-      # surfaces with a clear job step name rather than being buried in
-      # the test output.
+      # belong to a single language. `npm test` already runs these, but
+      # surface them as named steps so a failure has a clear job-step
+      # name rather than being buried in the test output.
       - name: Verify release metadata
         run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entries
+        run: npm run verify:changelog
 
   rust:
     runs-on: ubuntu-latest

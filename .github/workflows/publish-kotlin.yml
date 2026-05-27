@@ -59,10 +59,16 @@ jobs:
         working-directory: .
         run: npm run verify:release-metadata
 
-      # CHANGELOG must have a matching `## [X.Y.Z]` heading. Catches the
-      # common mistake of bumping VERSION_NAME and tagging without
-      # rotating the Unreleased section in the changelog.
       - name: Verify CHANGELOG entry exists
+        working-directory: .
+        run: npm run verify:changelog
+
+      # Belt and suspenders: also check the tag's exact version against
+      # the CHANGELOG. The PR-time `npm run verify:changelog` enforces
+      # this against `VERSION_NAME`, but a maintainer could tag with a
+      # different version than what's in `gradle.properties` on a racy
+      # commit — this catches that.
+      - name: Verify CHANGELOG entry exists for tag version
         working-directory: .
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#kotlin/v}"
