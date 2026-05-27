@@ -91,6 +91,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.activeTurn = ActiveTurn(
             id: a.turnId,
             userMessage: a.userMessage,
+            systemInitiatedLabel: a.systemInitiatedLabel,
             responseParts: [],
             usage: nil
         )
@@ -748,6 +749,7 @@ private func endTurn(
     let turn = Turn(
         id: activeTurn.id,
         userMessage: activeTurn.userMessage,
+        systemInitiatedLabel: activeTurn.systemInitiatedLabel,
         responseParts: responseParts,
         usage: activeTurn.usage,
         state: turnState,
