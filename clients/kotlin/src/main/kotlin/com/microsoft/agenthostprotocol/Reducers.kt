@@ -12,7 +12,17 @@ import com.microsoft.agenthostprotocol.generated.AgentSelection
 import com.microsoft.agenthostprotocol.generated.ChangesetFile
 import com.microsoft.agenthostprotocol.generated.ChangesetState
 import com.microsoft.agenthostprotocol.generated.ChangesetStatus
+import com.microsoft.agenthostprotocol.generated.ChildCustomization
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationAgent
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationHook
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationMcpServer
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationPrompt
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationRule
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationSkill
 import com.microsoft.agenthostprotocol.generated.ConfirmationOption
+import com.microsoft.agenthostprotocol.generated.Customization
+import com.microsoft.agenthostprotocol.generated.CustomizationDirectory
+import com.microsoft.agenthostprotocol.generated.CustomizationPlugin
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
 import com.microsoft.agenthostprotocol.generated.MarkdownResponsePart
 import com.microsoft.agenthostprotocol.generated.PendingMessage
@@ -25,7 +35,6 @@ import com.microsoft.agenthostprotocol.generated.ResponsePartReasoning
 import com.microsoft.agenthostprotocol.generated.ResponsePartToolCall
 import com.microsoft.agenthostprotocol.generated.RootState
 import com.microsoft.agenthostprotocol.generated.SessionActiveClient
-import com.microsoft.agenthostprotocol.generated.SessionCustomization
 import com.microsoft.agenthostprotocol.generated.SessionInputRequest
 import com.microsoft.agenthostprotocol.generated.SessionLifecycle
 import com.microsoft.agenthostprotocol.generated.SessionState
@@ -48,6 +57,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionSessionAgentChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionChangesetsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionConfigChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCreationFailed
+import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationRemoved
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationToggled
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationUpdated
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationsChanged
@@ -259,6 +269,35 @@ private fun resolveSelectedOption(options: List<ConfirmationOption>?, id: String
 }
 
 private fun toolCallIdOf(tc: ToolCallState): String = toolCallBase(tc).toolCallId
+
+private fun customizationId(c: Customization): String = when (c) {
+    is CustomizationPlugin -> c.value.id
+    is CustomizationDirectory -> c.value.id
+}
+
+private fun customizationChildren(c: Customization): List<ChildCustomization>? = when (c) {
+    is CustomizationPlugin -> c.value.children
+    is CustomizationDirectory -> c.value.children
+}
+
+private fun withCustomizationChildren(c: Customization, children: List<ChildCustomization>): Customization = when (c) {
+    is CustomizationPlugin -> CustomizationPlugin(c.value.copy(children = children))
+    is CustomizationDirectory -> CustomizationDirectory(c.value.copy(children = children))
+}
+
+private fun withCustomizationEnabled(c: Customization, enabled: Boolean): Customization = when (c) {
+    is CustomizationPlugin -> CustomizationPlugin(c.value.copy(enabled = enabled))
+    is CustomizationDirectory -> CustomizationDirectory(c.value.copy(enabled = enabled))
+}
+
+private fun childCustomizationId(c: ChildCustomization): String = when (c) {
+    is ChildCustomizationAgent -> c.value.id
+    is ChildCustomizationSkill -> c.value.id
+    is ChildCustomizationPrompt -> c.value.id
+    is ChildCustomizationRule -> c.value.id
+    is ChildCustomizationHook -> c.value.id
+    is ChildCustomizationMcpServer -> c.value.id
+}
 
 /**
  * Immutably updates the tool call inside a [ToolCallResponsePart] in the
@@ -898,12 +937,12 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
         if (list == null) {
             state
         } else {
-            val idx = list.indexOfFirst { it.customization.uri == a.uri }
+            val idx = list.indexOfFirst { customizationId(it) == a.id }
             if (idx < 0) {
                 state
             } else {
                 val updated = list.toMutableList()
-                updated[idx] = updated[idx].copy(enabled = a.enabled)
+                updated[idx] = withCustomizationEnabled(updated[idx], a.enabled)
                 state.copy(customizations = updated)
             }
         }
@@ -912,27 +951,47 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
     is StateActionSessionCustomizationUpdated -> {
         val a = action.value
         val list = state.customizations ?: emptyList()
-        val idx = list.indexOfFirst { it.customization.uri == a.customization.uri }
+        val idx = list.indexOfFirst { customizationId(it) == customizationId(a.customization) }
         if (idx < 0) {
-            val inserted = SessionCustomization(
-                customization = a.customization,
-                enabled = a.enabled ?: false,
-                status = a.status,
-                statusMessage = a.statusMessage,
-                agents = a.agents,
-            )
-            state.copy(customizations = list + inserted)
+            state.copy(customizations = list + a.customization)
         } else {
             val updated = list.toMutableList()
-            val existing = updated[idx]
-            updated[idx] = existing.copy(
-                customization = a.customization,
-                enabled = a.enabled ?: existing.enabled,
-                status = a.status ?: existing.status,
-                statusMessage = a.statusMessage ?: existing.statusMessage,
-                agents = a.agents ?: existing.agents,
-            )
+            updated[idx] = a.customization
             state.copy(customizations = updated)
+        }
+    }
+
+    is StateActionSessionCustomizationRemoved -> {
+        val a = action.value
+        val list = state.customizations
+        if (list == null) {
+            state
+        } else {
+            val topIdx = list.indexOfFirst { customizationId(it) == a.id }
+            if (topIdx >= 0) {
+                val updated = list.toMutableList()
+                updated.removeAt(topIdx)
+                state.copy(customizations = updated)
+            } else {
+                var changed = false
+                val updated = list.map { container ->
+                    val children = customizationChildren(container)
+                    if (children == null) {
+                        container
+                    } else {
+                        val childIdx = children.indexOfFirst { childCustomizationId(it) == a.id }
+                        if (childIdx < 0) {
+                            container
+                        } else {
+                            changed = true
+                            val newChildren = children.toMutableList()
+                            newChildren.removeAt(childIdx)
+                            withCustomizationChildren(container, newChildren)
+                        }
+                    }
+                }
+                if (!changed) state else state.copy(customizations = updated)
+            }
         }
     }
 
