@@ -85,17 +85,12 @@ jobs:
 
       - run: npm ci
 
-      # Verify the committed TypeScript client sources are in sync with the
-      # protocol definitions. If `npm run generate:typescript` produces any
-      # diff, the committed sources are stale.
-      - name: Verify generated TypeScript is up to date
-        run: |
-          npm run generate:typescript
-          if ! git diff --quiet -- clients/typescript/src/types; then
-            echo "::error::Generated TypeScript sources are out of date. Run 'npm run generate:typescript' and commit the result."
-            git --no-pager diff -- clients/typescript/src/types
-            exit 1
-          fi
+      # The wire types under clients/typescript/src/types/ are generated
+      # from the canonical types/ at the repo root and intentionally not
+      # committed (avoids byte-for-byte duplication). Generate them
+      # before installing/typechecking/testing the TS client.
+      - name: Generate TypeScript client sources
+        run: npm run generate:typescript
 
       - name: Install TypeScript client dependencies
         working-directory: clients/typescript
