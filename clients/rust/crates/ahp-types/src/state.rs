@@ -813,6 +813,9 @@ pub struct Turn {
     pub id: String,
     /// The user's input
     pub user_message: UserMessage,
+    /// Display label for a system-initiated turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_initiated_label: Option<String>,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Consumers should derive display text by concatenating markdown parts,
@@ -836,6 +839,9 @@ pub struct ActiveTurn {
     pub id: String,
     /// The user's input
     pub user_message: UserMessage,
+    /// Display label for a system-initiated turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_initiated_label: Option<String>,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.

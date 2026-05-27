@@ -811,6 +811,8 @@ public struct Turn: Codable, Sendable {
     public var id: String
     /// The user's input
     public var userMessage: UserMessage
+    /// Display label for a system-initiated turn.
+    public var systemInitiatedLabel: String?
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Consumers should derive display text by concatenating markdown parts,
@@ -826,6 +828,7 @@ public struct Turn: Codable, Sendable {
     public init(
         id: String,
         userMessage: UserMessage,
+        systemInitiatedLabel: String? = nil,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil,
         state: TurnState,
@@ -833,6 +836,7 @@ public struct Turn: Codable, Sendable {
     ) {
         self.id = id
         self.userMessage = userMessage
+        self.systemInitiatedLabel = systemInitiatedLabel
         self.responseParts = responseParts
         self.usage = usage
         self.state = state
@@ -845,6 +849,8 @@ public struct ActiveTurn: Codable, Sendable {
     public var id: String
     /// The user's input
     public var userMessage: UserMessage
+    /// Display label for a system-initiated turn.
+    public var systemInitiatedLabel: String?
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -855,11 +861,13 @@ public struct ActiveTurn: Codable, Sendable {
     public init(
         id: String,
         userMessage: UserMessage,
+        systemInitiatedLabel: String? = nil,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil
     ) {
         self.id = id
         self.userMessage = userMessage
+        self.systemInitiatedLabel = systemInitiatedLabel
         self.responseParts = responseParts
         self.usage = usage
     }

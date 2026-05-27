@@ -228,6 +228,9 @@ pub struct SessionTurnStartedAction {
     pub turn_id: String,
     /// User's message
     pub user_message: UserMessage,
+    /// Display label for a system-initiated turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_initiated_label: Option<String>,
     /// If this turn was auto-started from a queued message, the ID of that message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queued_message_id: Option<String>,

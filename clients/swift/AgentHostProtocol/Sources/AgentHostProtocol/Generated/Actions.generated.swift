@@ -165,6 +165,8 @@ public struct SessionTurnStartedAction: Codable, Sendable {
     public var turnId: String
     /// User's message
     public var userMessage: UserMessage
+    /// Display label for a system-initiated turn.
+    public var systemInitiatedLabel: String?
     /// If this turn was auto-started from a queued message, the ID of that message
     public var queuedMessageId: String?
 
@@ -172,11 +174,13 @@ public struct SessionTurnStartedAction: Codable, Sendable {
         type: ActionType,
         turnId: String,
         userMessage: UserMessage,
+        systemInitiatedLabel: String? = nil,
         queuedMessageId: String? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.userMessage = userMessage
+        self.systemInitiatedLabel = systemInitiatedLabel
         self.queuedMessageId = queuedMessageId
     }
 }

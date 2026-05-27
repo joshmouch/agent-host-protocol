@@ -551,6 +551,8 @@ export interface Turn {
   id: string;
   /** The user's input */
   userMessage: UserMessage;
+  /** Display label for a system-initiated turn. */
+  systemInitiatedLabel?: string;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -576,6 +578,8 @@ export interface ActiveTurn {
   id: string;
   /** The user's input */
   userMessage: UserMessage;
+  /** Display label for a system-initiated turn. */
+  systemInitiatedLabel?: string;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
