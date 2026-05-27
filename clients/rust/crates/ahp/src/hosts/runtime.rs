@@ -72,15 +72,21 @@ impl HostHandleTx {
 }
 
 /// Spawn a runtime for `config` and return its inbox.
+///
+/// `resolved_client_id` is the post-resolution `clientId` that the
+/// supervisor should send on every `initialize` / `reconnect`. It's
+/// resolved on the [`super::MultiHostClient`] side before the spawn so
+/// the runtime never has to await on the [`super::ClientIdStore`].
 pub(super) fn spawn(
     config: HostConfig,
+    resolved_client_id: String,
     fan_out: broadcast::Sender<HostSubscriptionEvent>,
     host_events: broadcast::Sender<HostEvent>,
 ) -> HostHandleTx {
     let initial = HostInternal {
         id: config.id.clone(),
         label: config.label.clone(),
-        client_id: config.client_id.clone(),
+        client_id: resolved_client_id.clone(),
         state: HostState::Disconnected,
         last_error: None,
         last_connected_at: None,
@@ -104,7 +110,7 @@ pub(super) fn spawn(
 
     let (cmd_tx, cmd_rx) = mpsc::channel(32);
     let runtime = HostRuntime {
-        client_id: config.client_id.clone(),
+        client_id: resolved_client_id,
         config,
         cmd_rx,
         shared: shared.clone(),

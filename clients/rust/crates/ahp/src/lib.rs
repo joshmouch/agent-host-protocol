@@ -147,6 +147,7 @@
 pub mod client;
 pub mod error;
 pub mod hosts;
+pub mod multi_host_state_mirror;
 pub mod reducers;
 pub mod transport;
 
@@ -157,6 +158,7 @@ pub use client::{
     SubscriptionEvent,
 };
 pub use error::{ClientError, TransportError};
+pub use multi_host_state_mirror::{HostedResourceKey, MultiHostStateMirror};
 pub use reducers::{
     apply_action_to_root, apply_action_to_session, apply_action_to_terminal, ReduceOutcome,
 };

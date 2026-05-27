@@ -90,12 +90,14 @@
 
 #![allow(clippy::module_inception)]
 
+mod client_id_store;
 mod factory;
 mod multi;
 mod policy;
 mod runtime;
 mod types;
 
+pub use client_id_store::{ClientIdStore, FileClientIdStore, InMemoryClientIdStore};
 pub use factory::HostTransportFactory;
 pub use multi::MultiHostClient;
 pub use policy::{Backoff, ReconnectPolicy};

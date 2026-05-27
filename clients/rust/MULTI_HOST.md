@@ -122,7 +122,72 @@ handle.check_alive().await?;
 # Ok(()) }
 ```
 
-Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`. For persistent identity across launches, persist the `clientId` you pass to [`HostConfig::with_client_id`](https://docs.rs/ahp/latest/ahp/hosts/struct.HostConfig.html#method.with_client_id) yourself, for example in your app's keychain or settings store, and supply it on subsequent launches.
+Configuration knobs live on `HostConfig` (`with_client_id`, `with_initial_subscriptions`, `with_client_config`, `with_reconnect_policy`) and on `ReconnectPolicy::{disabled, immediate_forever, exponential}`. For persistent identity across launches, plug in a persistent `ClientIdStore` via `MultiHostClient::with_client_id_store(...)` (see below) or load the `clientId` yourself and pass it through `HostConfig::with_client_id`.
+
+## Persistent `clientId`s — `ClientIdStore`
+
+`HostConfig::client_id` is `Option<String>`. When you don't set it explicitly, the multi-host client resolves the id at `add_host` time:
+
+1. `Some(explicit)` from `HostConfig::with_client_id(...)` always wins, and the value is also persisted into the store so subsequent launches transparently reuse it.
+2. Otherwise, the configured `ClientIdStore` is consulted; a stored value is reused as-is.
+3. Otherwise, a fresh UUID-shaped id is generated and persisted.
+
+`MultiHostClient::new()` uses an in-process `InMemoryClientIdStore` — fine for tests and short-lived CLIs, but ids reset on restart. For cross-launch identity (the AHP `reconnect` flow needs a stable `clientId` to work across processes), build the client with a persistent store:
+
+```rust
+use std::path::PathBuf;
+use std::sync::Arc;
+use ahp::hosts::{FileClientIdStore, HostConfig, MultiHostClient};
+
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+// Pick a path that suits the platform (e.g. `$XDG_DATA_HOME/<app>/client-ids`
+// on Linux, `Application Support/<app>/client-ids` on macOS).
+let store = Arc::new(FileClientIdStore::new(PathBuf::from(
+    "/tmp/my-app/client-ids",
+)));
+let multi = MultiHostClient::with_client_id_store(store);
+# # async fn open(_: ahp::hosts::HostId) -> Result<ahp::transport::BoxedTransport, ahp::TransportError> { unimplemented!() }
+multi.add_host(HostConfig::new("local", "Local", open)).await?;
+# Ok(()) }
+```
+
+`FileClientIdStore` writes one file per host id (atomic temp-file + rename, `0o600` mode on Unix from the start, percent-encoded filenames for URL-unsafe ids). Within a process, concurrent writes are serialized by an internal mutex; cross-process writes are last-writer-wins (matching the Swift SDK's `FileClientIdStore`). On Apple platforms that want Keychain semantics, wrap your own implementation of the `ClientIdStore` trait.
+
+Persistence failures bubble up as `HostError::ClientIdStore { host, error }` from `add_host` — they aren't silently swallowed.
+
+## Waking every host at once — `reconnect_all_unavailable`
+
+Mobile-style consumers can call `MultiHostClient::reconnect_all_unavailable().await` to manually reconnect every host that isn't already `Connected` or `Connecting` (so: `Disconnected`, `Reconnecting`, and exhausted-policy `Failed` hosts all wake at the same time). The call dispatches reconnects concurrently, never throws, and returns a `HashMap<HostId, HostError>` of per-host failures.
+
+```rust
+# async fn run(multi: ahp::hosts::MultiHostClient) {
+// Typical scene-phase pattern: when the app returns to the foreground,
+// wake every host the user has been away from in one call.
+let failures = multi.reconnect_all_unavailable().await;
+for (host_id, err) in failures {
+    eprintln!("[{host_id}] reconnect failed: {err}");
+}
+# }
+```
+
+## Host-aware reducer mirror — `MultiHostStateMirror`
+
+For UIs that need to track reducer state across multiple hosts (e.g. a sidebar that surfaces sessions from N hosts at once), the SDK ships `MultiHostStateMirror`. It wraps the existing per-state reducers but keys session/terminal/changeset state by `(host_id, uri)` so the common case of two hosts advertising the same session URI doesn't clobber.
+
+```rust
+use ahp::{HostedResourceKey, MultiHostStateMirror};
+# async fn run(mut mirror: MultiHostStateMirror, host_id: ahp::hosts::HostId, mut events: ahp::hosts::HostSubscriptionStream) {
+while let Some(event) = events.recv().await {
+    mirror.apply_event(&event);
+}
+let session = mirror
+    .sessions()
+    .get(&HostedResourceKey::new(host_id, "ahp-session:/s1"));
+# let _ = session;
+# }
+```
+
+⚠ Both event sources in the Rust SDK today are `tokio::sync::broadcast`-backed and **drop envelopes on slow consumers** once their buffer fills — `MultiHostClient::events()` and the per-channel `SessionSubscription` from `Client::subscribe` / `attach_subscription`. Neither survives a reconnect's replayed envelopes the way the Swift SDK's per-channel `events(host:uri:)` does. A dropped (or missed-because-reconnected) envelope permanently desyncs the mirror for that `(host, channel)` until it's re-seeded from a fresh snapshot via `apply_snapshot`. Consume with that in mind — the mirror is the right shape for multi-host UI state, but the Rust SDK doesn't yet ship a lossless feeder.
 
 ## Choosing single-host vs multi-host
 
