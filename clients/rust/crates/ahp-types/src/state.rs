@@ -231,21 +231,31 @@ pub enum ToolResultContentType {
     Subagent,
 }
 
-/// Loading status for a server-managed customization.
+/// Discriminant for the kind of customization.
+///
+/// Top-level entries in {@link SessionState.customizations} and
+/// {@link AgentInfo.customizations} are always
+/// {@link CustomizationType.Plugin | `Plugin`} or
+/// {@link CustomizationType.Directory | `Directory`}; the remaining
+/// types appear only as children of those containers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum CustomizationStatus {
-    /// Plugin is being loaded
-    #[serde(rename = "loading")]
-    Loading,
-    /// Plugin is fully operational
-    #[serde(rename = "loaded")]
-    Loaded,
-    /// Plugin partially loaded but has warnings
-    #[serde(rename = "degraded")]
-    Degraded,
-    /// Plugin was unable to load
-    #[serde(rename = "error")]
-    Error,
+pub enum CustomizationType {
+    #[serde(rename = "plugin")]
+    Plugin,
+    #[serde(rename = "directory")]
+    Directory,
+    #[serde(rename = "agent")]
+    Agent,
+    #[serde(rename = "skill")]
+    Skill,
+    #[serde(rename = "prompt")]
+    Prompt,
+    #[serde(rename = "rule")]
+    Rule,
+    #[serde(rename = "hook")]
+    Hook,
+    #[serde(rename = "mcpServer")]
+    McpServer,
 }
 
 /// Discriminant for terminal claim kinds.
@@ -467,12 +477,17 @@ pub struct AgentInfo {
     /// with this agent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protected_resources: Option<Vec<ProtectedResourceMetadata>>,
-    /// Customizations (Open Plugins) associated with this agent.
+    /// Customizations associated with this agent.
     ///
-    /// Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
-    /// plugin that the agent host can activate for sessions using this agent.
+    /// Always container customizations —
+    /// {@link PluginCustomization | `PluginCustomization`} entries the agent
+    /// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
+    /// entries it watches in any workspace it's used with. When a session is
+    /// created with this agent, these entries are augmented (e.g. directory
+    /// URIs are resolved against the workspace, children are parsed) and
+    /// propagated into the session's `customizations` list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub customizations: Option<Vec<CustomizationRef>>,
+    pub customizations: Option<Vec<Customization>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -521,17 +536,16 @@ pub struct ModelSelection {
 
 /// A selected custom agent for a session.
 ///
-/// The `uri` identifies a specific custom agent (matching a
-/// {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
-/// via the session's effective customizations). Consumers resolve the
-/// agent's display name by looking up `uri` in
-/// {@link SessionCustomization.agents | `SessionCustomization.agents`}.
+/// The `uri` identifies a specific custom agent (matching an
+/// {@link AgentCustomization.uri | `AgentCustomization.uri`} exposed via
+/// the session's effective customizations). Consumers resolve the agent's
+/// display name by looking up `uri` in the session's customization tree.
 ///
 /// A session with no `agent` selected uses the provider's default behavior.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSelection {
-    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    /// Stable agent URI (matches an {@link AgentCustomization.uri}).
     pub uri: Uri,
 }
 
@@ -644,12 +658,19 @@ pub struct SessionState {
     /// Session configuration schema and current values
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<SessionConfigState>,
-    /// Server-provided customizations active in this session.
+    /// Top-level customizations active in this session.
     ///
-    /// Client-provided customizations are available on
-    /// {@link SessionActiveClient.customizations | activeClient.customizations}.
+    /// Always container customizations — {@link PluginCustomization} or
+    /// {@link DirectoryCustomization}. Children (agents, skills, prompts,
+    /// rules, hooks, MCP servers) live in each container's
+    /// {@link ContainerCustomizationBase.children | `children`} array.
+    ///
+    /// Client-published plugins arrive via
+    /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
+    /// and the host propagates them into this list (typically with the
+    /// container's `clientId` set and `children` populated).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub customizations: Option<Vec<SessionCustomization>>,
+    pub customizations: Option<Vec<Customization>>,
     /// Additional provider-specific metadata for this session.
     ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -673,9 +694,14 @@ pub struct SessionActiveClient {
     pub display_name: Option<String>,
     /// Tools this client provides to the session
     pub tools: Vec<ToolDefinition>,
-    /// Customizations this client contributes to the session
+    /// Plugin customizations this client contributes to the session.
+    ///
+    /// Clients publish in [Open Plugins](https://open-plugins.com/) format
+    /// — i.e. always container-shaped plugins. They MAY synthesize virtual
+    /// plugins in memory and rely on the host to expand them into concrete
+    /// children inside {@link SessionState.customizations}.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub customizations: Option<Vec<CustomizationRef>>,
+    pub customizations: Option<Vec<ClientPluginCustomization>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1772,78 +1798,427 @@ pub struct ToolResultSubagentContent {
     pub description: Option<String>,
 }
 
-/// A reference to an [Open Plugins](https://open-plugins.com/) plugin.
-///
-/// This is intentionally thin — AHP specifies plugin identity and metadata
-/// but not implementation details, which are defined by the Open Plugins spec.
+/// Container is being loaded by the host.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CustomizationRef {
-    /// Plugin URI (e.g. an HTTPS URL or marketplace identifier)
+pub struct CustomizationLoadingState {}
+
+/// Container loaded successfully.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomizationLoadedState {}
+
+/// Container partially loaded but has warnings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomizationDegradedState {
+    /// Human-readable description of the warning.
+    pub message: String,
+}
+
+/// Container failed to load.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomizationErrorState {
+    /// Human-readable error message.
+    pub message: String,
+}
+
+/// An [Open Plugins](https://open-plugins.com/) plugin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
     pub uri: Uri,
-    /// Human-readable name
-    pub display_name: String,
-    /// Description of what the plugin provides
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Icons for the plugin
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icons: Option<Vec<Icon>>,
-    /// Opaque version token for this customization.
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub load: Option<CustomizationLoadState>,
+    /// Children discovered inside this container.
     ///
-    /// Clients SHOULD include a nonce with every customization they provide.
-    /// Consumers can compare nonces to detect whether a customization has
-    /// changed since it was last seen, avoiding redundant reloads or copies.
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<ChildCustomization>>,
+}
+
+/// A {@link PluginCustomization} as published by a client. Extends the
+/// server-facing shape with an opaque `nonce` so the host can detect when
+/// the client's view of a plugin has changed and re-parse only as needed.
+///
+/// Clients SHOULD include a `nonce`. Server-side fields like
+/// {@link ContainerCustomizationBase.children | `children`} and
+/// {@link ContainerCustomizationBase.load | `load`} are typically left
+/// absent on publication and populated by the host when the resolved
+/// plugin appears in {@link SessionState.customizations}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientPluginCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub load: Option<CustomizationLoadState>,
+    /// Children discovered inside this container.
+    ///
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<ChildCustomization>>,
+    /// Opaque version token used by the host to detect changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
 }
 
-/// A lightweight reference to a custom agent contributed by a customization.
+/// A directory the host watches for this session.
 ///
-/// Custom agents have a single `name` (sourced from the agent file's YAML
-/// frontmatter, or derived from the file name); they do not have a separate
-/// display name.
+/// Presence in the customization list signals that the host may discover
+/// customizations from this directory. When `writable` is `true`, clients
+/// MAY persist new customizations into the directory using
+/// [`resourceWrite`](/reference/commands#resourcewrite); the host will
+/// then surface the resulting child via the customization actions.
+///
+/// The directory may not yet exist on disk.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CustomizationAgentRef {
-    /// Stable agent URI
+pub struct DirectoryCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
     pub uri: Uri,
-    /// Agent name (from frontmatter `name`, or file-derived)
+    /// Human-readable name.
     pub name: String,
-    /// Optional short description for UI preview (from frontmatter `description`)
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<String>,
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub load: Option<CustomizationLoadState>,
+    /// Children discovered inside this container.
+    ///
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<ChildCustomization>>,
+    /// Which child customization type this directory holds.
+    pub contents: CustomizationType,
+    /// Whether clients may write into this directory.
+    pub writable: bool,
+}
+
+/// A custom agent contributed by a plugin or directory.
+///
+/// Mirrors the [Open Plugins agent](https://open-plugins.com/agent-builders/components/agents)
+/// format: a markdown file with YAML frontmatter, where the body is the
+/// agent's system prompt.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Short description of what the agent specializes in and when to
+    /// invoke it. Sourced from the agent file's frontmatter `description`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-/// A customization active in a session.
+/// A skill contributed by a plugin or directory.
+///
+/// Covers both [Open Plugins skill formats](https://open-plugins.com/agent-builders/components/skills)
+/// — the `skills/` directory layout (one subdirectory per skill, each with
+/// a `SKILL.md`) and the flatter `commands/` directory of slash-command
+/// skills.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionCustomization {
-    /// The plugin this customization refers to
-    pub customization: CustomizationRef,
-    /// Whether this customization is currently enabled
+pub struct SkillCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
     pub enabled: bool,
-    /// The `clientId` of the client that contributed this customization.
-    /// Absent for server-provided customizations.
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub client_id: Option<String>,
-    /// Server-reported loading status
+    pub range: Option<TextRange>,
+    /// Short description used for help text and auto-invocation matching.
+    /// Sourced from the skill's frontmatter `description`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<CustomizationStatus>,
-    /// Human-readable status detail (e.g. error message or degradation warning).
+    pub description: Option<String>,
+    /// When `true`, only the user can invoke this skill — the agent will not
+    /// auto-invoke it. Sourced from the command skill's frontmatter
+    /// `disable-model-invocation` flag.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status_message: Option<String>,
-    /// Custom agents contributed by this customization, as resolved by the
-    /// agent host after parsing the customization.
+    pub disable_model_invocation: Option<bool>,
+}
+
+/// A prompt contributed by a plugin or directory.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
     ///
-    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
-    /// not finished parsing the customization yet). An empty array means the
-    /// host parsed the customization and it contributes no agents.
-    ///
-    /// Clients are not authoritative here: only the agent host populates
-    /// this field.
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agents: Option<Vec<CustomizationAgentRef>>,
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Short description of what the prompt does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// A rule contributed by a plugin or directory.
+///
+/// Mirrors the [Open Plugins rule](https://open-plugins.com/agent-builders/components/rules)
+/// format: a markdown file (e.g. `.mdc`) whose body is injected into
+/// context while the rule is active. This type also covers tool-specific
+/// "instruction" formats (e.g. VS Code Copilot's
+/// `.github/instructions/*.md`), which differ only in naming — they
+/// share the same semantics of `description`, optional always-on
+/// activation, and optional glob scoping.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Description of what the rule enforces.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// When `true`, the rule is always active (subject to `globs` if any).
+    /// When `false` or absent, the agent or user decides whether to apply
+    /// the rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub always_apply: Option<bool>,
+    /// Glob patterns the rule applies to. When present, the rule is only
+    /// active for matching files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub globs: Option<Vec<String>>,
+}
+
+/// A hook manifest contributed by a plugin or directory.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+}
+
+/// An MCP manifest contributed by a plugin or directory.
+///
+/// When the server is declared inline in the containing plugin manifest,
+/// `uri` points at the manifest file and
+/// {@link CustomizationBase.range | `range`} narrows it to the
+/// declaration's span.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerCustomization {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    pub id: String,
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    ///
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    pub uri: Uri,
+    /// Human-readable name.
+    pub name: String,
+    /// Icons for UI display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icons: Option<Vec<Icon>>,
+    /// Whether this customization is currently active.
+    pub enabled: bool,
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
 }
 
 /// Describes a file modification with before/after state and diff metadata.
@@ -2347,6 +2722,60 @@ pub enum MessageAttachment {
     EmbeddedResource(MessageEmbeddedResourceAttachment),
     #[serde(rename = "resource")]
     Resource(MessageResourceAttachment),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// A top-level customization (plugin or directory).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Customization {
+    #[serde(rename = "plugin")]
+    Plugin(PluginCustomization),
+    #[serde(rename = "directory")]
+    Directory(DirectoryCustomization),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// A child customization living inside a plugin or directory.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ChildCustomization {
+    #[serde(rename = "agent")]
+    Agent(AgentCustomization),
+    #[serde(rename = "skill")]
+    Skill(SkillCustomization),
+    #[serde(rename = "prompt")]
+    Prompt(PromptCustomization),
+    #[serde(rename = "rule")]
+    Rule(RuleCustomization),
+    #[serde(rename = "hook")]
+    Hook(HookCustomization),
+    #[serde(rename = "mcpServer")]
+    McpServer(McpServerCustomization),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// Host-reported load state for a container customization.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum CustomizationLoadState {
+    #[serde(rename = "loading")]
+    Loading(CustomizationLoadingState),
+    #[serde(rename = "loaded")]
+    Loaded(CustomizationLoadedState),
+    #[serde(rename = "degraded")]
+    Degraded(CustomizationDegradedState),
+    #[serde(rename = "error")]
+    Error(CustomizationErrorState),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]

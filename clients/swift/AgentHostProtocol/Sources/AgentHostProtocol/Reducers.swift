@@ -418,39 +418,43 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
 
     case .sessionCustomizationToggled(let a):
         guard var list = state.customizations else { return state }
-        guard let idx = list.firstIndex(where: { $0.customization.uri == a.uri }) else {
-            return state
-        }
-        list[idx].enabled = a.enabled
+        guard toggleCustomization(in: &list, id: a.id, enabled: a.enabled) else { return state }
         var next = state
         next.customizations = list
         return next
 
     case .sessionCustomizationUpdated(let a):
         var list = state.customizations ?? []
-        if let idx = list.firstIndex(where: { $0.customization.uri == a.customization.uri }) {
-            list[idx].customization = a.customization
-            if let enabled = a.enabled {
-                list[idx].enabled = enabled
-            }
-            if let status = a.status {
-                list[idx].status = status
-            }
-            if let message = a.statusMessage {
-                list[idx].statusMessage = message
-            }
+        if let idx = list.firstIndex(where: { customizationId($0) == customizationId(a.customization) }) {
+            list[idx] = a.customization
         } else {
-            list.append(SessionCustomization(
-                customization: a.customization,
-                enabled: a.enabled ?? false,
-                clientId: nil,
-                status: a.status,
-                statusMessage: a.statusMessage
-            ))
+            list.append(a.customization)
         }
         var next = state
         next.customizations = list
         return next
+
+    case .sessionCustomizationRemoved(let a):
+        guard var list = state.customizations else { return state }
+        if let idx = list.firstIndex(where: { customizationId($0) == a.id }) {
+            list.remove(at: idx)
+            var next = state
+            next.customizations = list
+            return next
+        }
+        for containerIdx in list.indices {
+            var container = list[containerIdx]
+            guard var children = customizationChildren(container) else { continue }
+            if let idx = children.firstIndex(where: { childId($0) == a.id }) {
+                children.remove(at: idx)
+                setCustomizationChildren(&container, children)
+                list[containerIdx] = container
+                var next = state
+                next.customizations = list
+                return next
+            }
+        }
+        return state
 
     // ── Truncation ────────────────────────────────────────────────────────
 

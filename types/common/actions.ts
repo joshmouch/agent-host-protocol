@@ -48,6 +48,7 @@ import type {
   SessionCustomizationsChangedAction,
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
+  SessionCustomizationRemovedAction,
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
@@ -121,6 +122,7 @@ export const enum ActionType {
   SessionCustomizationsChanged = 'session/customizationsChanged',
   SessionCustomizationToggled = 'session/customizationToggled',
   SessionCustomizationUpdated = 'session/customizationUpdated',
+  SessionCustomizationRemoved = 'session/customizationRemoved',
   SessionTruncated = 'session/truncated',
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsArchivedChanged = 'session/isArchivedChanged',
@@ -218,6 +220,7 @@ export type StateAction =
   | SessionCustomizationsChangedAction
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction
+  | SessionCustomizationRemovedAction
   | SessionTruncatedAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction

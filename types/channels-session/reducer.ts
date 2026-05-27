@@ -8,7 +8,6 @@
 
 import { ActionType } from '../common/actions.js';
 import type {
-  SessionCustomization,
   SessionInputRequest,
   SessionState,
   ToolCallState,
@@ -623,49 +622,71 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       if (!list) {
         return state;
       }
-      const idx = list.findIndex(c => c.customization.uri === action.uri);
-      if (idx < 0) {
+      let changed = false;
+      const updated = list.map(container => {
+        if (container.id === action.id) {
+          changed = true;
+          return { ...container, enabled: action.enabled };
+        }
+        const children = container.children;
+        if (!children) {
+          return container;
+        }
+        const childIdx = children.findIndex(c => c.id === action.id);
+        if (childIdx < 0) {
+          return container;
+        }
+        changed = true;
+        const newChildren = [...children];
+        newChildren[childIdx] = { ...children[childIdx], enabled: action.enabled };
+        return { ...container, children: newChildren };
+      });
+      if (!changed) {
         return state;
       }
-      const updated = [...list];
-      updated[idx] = { ...list[idx], enabled: action.enabled };
       return { ...state, customizations: updated };
     }
 
     case ActionType.SessionCustomizationUpdated: {
       const list = state.customizations ?? [];
-      const idx = list.findIndex(c => c.customization.uri === action.customization.uri);
+      const idx = list.findIndex(c => c.id === action.customization.id);
       if (idx < 0) {
-        const inserted: SessionCustomization = {
-          customization: action.customization,
-          enabled: action.enabled ?? false,
-        };
-        if (action.status !== undefined) {
-          inserted.status = action.status;
-        }
-        if (action.statusMessage !== undefined) {
-          inserted.statusMessage = action.statusMessage;
-        }
-        if (action.agents !== undefined) {
-          inserted.agents = action.agents;
-        }
-        return { ...state, customizations: [...list, inserted] };
+        return { ...state, customizations: [...list, action.customization] };
       }
       const updated = [...list];
-      const next = { ...list[idx], customization: action.customization };
-      if (action.enabled !== undefined) {
-        next.enabled = action.enabled;
+      updated[idx] = action.customization;
+      return { ...state, customizations: updated };
+    }
+
+    case ActionType.SessionCustomizationRemoved: {
+      const list = state.customizations;
+      if (!list) {
+        return state;
       }
-      if (action.status !== undefined) {
-        next.status = action.status;
+      const topIdx = list.findIndex(c => c.id === action.id);
+      if (topIdx >= 0) {
+        const updated = list.slice();
+        updated.splice(topIdx, 1);
+        return { ...state, customizations: updated };
       }
-      if (action.statusMessage !== undefined) {
-        next.statusMessage = action.statusMessage;
+      let changed = false;
+      const updated = list.map(container => {
+        const children = container.children;
+        if (!children) {
+          return container;
+        }
+        const childIdx = children.findIndex(c => c.id === action.id);
+        if (childIdx < 0) {
+          return container;
+        }
+        changed = true;
+        const newChildren = children.slice();
+        newChildren.splice(childIdx, 1);
+        return { ...container, children: newChildren };
+      });
+      if (!changed) {
+        return state;
       }
-      if (action.agents !== undefined) {
-        next.agents = action.agents;
-      }
-      updated[idx] = next;
       return { ...state, customizations: updated };
     }
 

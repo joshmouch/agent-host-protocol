@@ -188,16 +188,22 @@ public enum ToolResultContentType: String, Codable, Sendable {
     case subagent = "subagent"
 }
 
-/// Loading status for a server-managed customization.
-public enum CustomizationStatus: String, Codable, Sendable {
-    /// Plugin is being loaded
-    case loading = "loading"
-    /// Plugin is fully operational
-    case loaded = "loaded"
-    /// Plugin partially loaded but has warnings
-    case degraded = "degraded"
-    /// Plugin was unable to load
-    case error = "error"
+/// Discriminant for the kind of customization.
+/// 
+/// Top-level entries in {@link SessionState.customizations} and
+/// {@link AgentInfo.customizations} are always
+/// {@link CustomizationType.Plugin | `Plugin`} or
+/// {@link CustomizationType.Directory | `Directory`}; the remaining
+/// types appear only as children of those containers.
+public enum CustomizationType: String, Codable, Sendable {
+    case plugin = "plugin"
+    case directory = "directory"
+    case agent = "agent"
+    case skill = "skill"
+    case prompt = "prompt"
+    case rule = "rule"
+    case hook = "hook"
+    case mcpServer = "mcpServer"
 }
 
 /// Discriminant for terminal claim kinds.
@@ -406,11 +412,16 @@ public struct AgentInfo: Codable, Sendable {
     /// and push them via the `authenticate` command before creating sessions
     /// with this agent.
     public var protectedResources: [ProtectedResourceMetadata]?
-    /// Customizations (Open Plugins) associated with this agent.
+    /// Customizations associated with this agent.
     /// 
-    /// Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
-    /// plugin that the agent host can activate for sessions using this agent.
-    public var customizations: [CustomizationRef]?
+    /// Always container customizations —
+    /// {@link PluginCustomization | `PluginCustomization`} entries the agent
+    /// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
+    /// entries it watches in any workspace it's used with. When a session is
+    /// created with this agent, these entries are augmented (e.g. directory
+    /// URIs are resolved against the workspace, children are parsed) and
+    /// propagated into the session's `customizations` list.
+    public var customizations: [Customization]?
 
     public init(
         provider: String,
@@ -418,7 +429,7 @@ public struct AgentInfo: Codable, Sendable {
         description: String,
         models: [SessionModelInfo],
         protectedResources: [ProtectedResourceMetadata]? = nil,
-        customizations: [CustomizationRef]? = nil
+        customizations: [Customization]? = nil
     ) {
         self.provider = provider
         self.displayName = displayName
@@ -500,7 +511,7 @@ public struct ModelSelection: Codable, Sendable {
 }
 
 public struct AgentSelection: Codable, Sendable {
-    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    /// Stable agent URI (matches an {@link AgentCustomization.uri}).
     public var uri: String
 
     public init(
@@ -632,11 +643,18 @@ public struct SessionState: Codable, Sendable {
     public var inputRequests: [SessionInputRequest]?
     /// Session configuration schema and current values
     public var config: SessionConfigState?
-    /// Server-provided customizations active in this session.
+    /// Top-level customizations active in this session.
     /// 
-    /// Client-provided customizations are available on
-    /// {@link SessionActiveClient.customizations | activeClient.customizations}.
-    public var customizations: [SessionCustomization]?
+    /// Always container customizations — {@link PluginCustomization} or
+    /// {@link DirectoryCustomization}. Children (agents, skills, prompts,
+    /// rules, hooks, MCP servers) live in each container's
+    /// {@link ContainerCustomizationBase.children | `children`} array.
+    /// 
+    /// Client-published plugins arrive via
+    /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
+    /// and the host propagates them into this list (typically with the
+    /// container's `clientId` set and `children` populated).
+    public var customizations: [Customization]?
     /// Additional provider-specific metadata for this session.
     /// 
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -672,7 +690,7 @@ public struct SessionState: Codable, Sendable {
         queuedMessages: [PendingMessage]? = nil,
         inputRequests: [SessionInputRequest]? = nil,
         config: SessionConfigState? = nil,
-        customizations: [SessionCustomization]? = nil,
+        customizations: [Customization]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.summary = summary
@@ -698,14 +716,19 @@ public struct SessionActiveClient: Codable, Sendable {
     public var displayName: String?
     /// Tools this client provides to the session
     public var tools: [ToolDefinition]
-    /// Customizations this client contributes to the session
-    public var customizations: [CustomizationRef]?
+    /// Plugin customizations this client contributes to the session.
+    /// 
+    /// Clients publish in [Open Plugins](https://open-plugins.com/) format
+    /// — i.e. always container-shaped plugins. They MAY synthesize virtual
+    /// plugins in memory and rely on the host to expand them into concrete
+    /// children inside {@link SessionState.customizations}.
+    public var customizations: [ClientPluginCustomization]?
 
     public init(
         clientId: String,
         displayName: String? = nil,
         tools: [ToolDefinition],
-        customizations: [CustomizationRef]? = nil
+        customizations: [ClientPluginCustomization]? = nil
     ) {
         self.clientId = clientId
         self.displayName = displayName
@@ -2316,93 +2339,557 @@ public struct ToolResultSubagentContent: Codable, Sendable {
     }
 }
 
-public struct CustomizationRef: Codable, Sendable {
-    /// Plugin URI (e.g. an HTTPS URL or marketplace identifier)
-    public var uri: String
-    /// Human-readable name
-    public var displayName: String
-    /// Description of what the plugin provides
-    public var description: String?
-    /// Icons for the plugin
-    public var icons: [Icon]?
-    /// Opaque version token for this customization.
+public struct CustomizationLoadingState: Codable, Sendable {
+    public var kind: String
+
+    public init(
+        kind: String
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct CustomizationLoadedState: Codable, Sendable {
+    public var kind: String
+
+    public init(
+        kind: String
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct CustomizationDegradedState: Codable, Sendable {
+    public var kind: String
+    /// Human-readable description of the warning.
+    public var message: String
+
+    public init(
+        kind: String,
+        message: String
+    ) {
+        self.kind = kind
+        self.message = message
+    }
+}
+
+public struct CustomizationErrorState: Codable, Sendable {
+    public var kind: String
+    /// Human-readable error message.
+    public var message: String
+
+    public init(
+        kind: String,
+        message: String
+    ) {
+        self.kind = kind
+        self.message = message
+    }
+}
+
+public struct PluginCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
     /// 
-    /// Clients SHOULD include a nonce with every customization they provide.
-    /// Consumers can compare nonces to detect whether a customization has
-    /// changed since it was last seen, avoiding redundant reloads or copies.
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    public var clientId: String?
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    public var load: CustomizationLoadState?
+    /// Children discovered inside this container.
+    /// 
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    public var children: [ChildCustomization]?
+    public var type: CustomizationType
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        clientId: String? = nil,
+        load: CustomizationLoadState? = nil,
+        children: [ChildCustomization]? = nil,
+        type: CustomizationType
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.clientId = clientId
+        self.load = load
+        self.children = children
+        self.type = type
+    }
+}
+
+public struct ClientPluginCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    public var clientId: String?
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    public var load: CustomizationLoadState?
+    /// Children discovered inside this container.
+    /// 
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    public var children: [ChildCustomization]?
+    public var type: CustomizationType
+    /// Opaque version token used by the host to detect changes.
     public var nonce: String?
 
     public init(
+        id: String,
         uri: String,
-        displayName: String,
-        description: String? = nil,
+        name: String,
         icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        clientId: String? = nil,
+        load: CustomizationLoadState? = nil,
+        children: [ChildCustomization]? = nil,
+        type: CustomizationType,
         nonce: String? = nil
     ) {
+        self.id = id
         self.uri = uri
-        self.displayName = displayName
-        self.description = description
+        self.name = name
         self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.clientId = clientId
+        self.load = load
+        self.children = children
+        self.type = type
         self.nonce = nonce
     }
 }
 
-public struct CustomizationAgentRef: Codable, Sendable {
-    /// Stable agent URI
+public struct DirectoryCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
     public var uri: String
-    /// Agent name (from frontmatter `name`, or file-derived)
+    /// Human-readable name.
     public var name: String
-    /// Optional short description for UI preview (from frontmatter `description`)
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    /// `clientId` of the client that contributed this container. Absent for
+    /// server-originated entries.
+    public var clientId: String?
+    /// Host-reported load state. Absent means the host has not yet reported
+    /// a load state for this container.
+    public var load: CustomizationLoadState?
+    /// Children discovered inside this container.
+    /// 
+    /// Absent means the host has not parsed this container yet. An empty
+    /// array means the host parsed the container and it contributes
+    /// nothing.
+    public var children: [ChildCustomization]?
+    public var type: CustomizationType
+    /// Which child customization type this directory holds.
+    public var contents: CustomizationType
+    /// Whether clients may write into this directory.
+    public var writable: Bool
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        clientId: String? = nil,
+        load: CustomizationLoadState? = nil,
+        children: [ChildCustomization]? = nil,
+        type: CustomizationType,
+        contents: CustomizationType,
+        writable: Bool
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.clientId = clientId
+        self.load = load
+        self.children = children
+        self.type = type
+        self.contents = contents
+        self.writable = writable
+    }
+}
+
+public struct AgentCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+    /// Short description of what the agent specializes in and when to
+    /// invoke it. Sourced from the agent file's frontmatter `description`.
     public var description: String?
 
     public init(
+        id: String,
         uri: String,
         name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        type: CustomizationType,
         description: String? = nil
     ) {
+        self.id = id
         self.uri = uri
         self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.type = type
         self.description = description
     }
 }
 
-public struct SessionCustomization: Codable, Sendable {
-    /// The plugin this customization refers to
-    public var customization: CustomizationRef
-    /// Whether this customization is currently enabled
+public struct SkillCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
     public var enabled: Bool
-    /// The `clientId` of the client that contributed this customization.
-    /// Absent for server-provided customizations.
-    public var clientId: String?
-    /// Server-reported loading status
-    public var status: CustomizationStatus?
-    /// Human-readable status detail (e.g. error message or degradation warning).
-    public var statusMessage: String?
-    /// Custom agents contributed by this customization, as resolved by the
-    /// agent host after parsing the customization.
-    /// 
-    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
-    /// not finished parsing the customization yet). An empty array means the
-    /// host parsed the customization and it contributes no agents.
-    /// 
-    /// Clients are not authoritative here: only the agent host populates
-    /// this field.
-    public var agents: [CustomizationAgentRef]?
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+    /// Short description used for help text and auto-invocation matching.
+    /// Sourced from the skill's frontmatter `description`.
+    public var description: String?
+    /// When `true`, only the user can invoke this skill — the agent will not
+    /// auto-invoke it. Sourced from the command skill's frontmatter
+    /// `disable-model-invocation` flag.
+    public var disableModelInvocation: Bool?
 
     public init(
-        customization: CustomizationRef,
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
         enabled: Bool,
-        clientId: String? = nil,
-        status: CustomizationStatus? = nil,
-        statusMessage: String? = nil,
-        agents: [CustomizationAgentRef]? = nil
+        range: TextRange? = nil,
+        type: CustomizationType,
+        description: String? = nil,
+        disableModelInvocation: Bool? = nil
     ) {
-        self.customization = customization
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
         self.enabled = enabled
-        self.clientId = clientId
-        self.status = status
-        self.statusMessage = statusMessage
-        self.agents = agents
+        self.range = range
+        self.type = type
+        self.description = description
+        self.disableModelInvocation = disableModelInvocation
+    }
+}
+
+public struct PromptCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+    /// Short description of what the prompt does.
+    public var description: String?
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        type: CustomizationType,
+        description: String? = nil
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.type = type
+        self.description = description
+    }
+}
+
+public struct RuleCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+    /// Description of what the rule enforces.
+    public var description: String?
+    /// When `true`, the rule is always active (subject to `globs` if any).
+    /// When `false` or absent, the agent or user decides whether to apply
+    /// the rule.
+    public var alwaysApply: Bool?
+    /// Glob patterns the rule applies to. When present, the rule is only
+    /// active for matching files.
+    public var globs: [String]?
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        type: CustomizationType,
+        description: String? = nil,
+        alwaysApply: Bool? = nil,
+        globs: [String]? = nil
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.type = type
+        self.description = description
+        self.alwaysApply = alwaysApply
+        self.globs = globs
+    }
+}
+
+public struct HookCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        type: CustomizationType
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.type = type
+    }
+}
+
+public struct McpServerCustomization: Codable, Sendable {
+    /// Session-unique opaque identifier. Used by every action that targets a
+    /// specific customization. Minted by whoever publishes the customization
+    /// (typically the agent host).
+    public var id: String
+    /// Source URI for this customization. A plugin URL, a file URI, or a
+    /// directory URI.
+    /// 
+    /// For declarations that live inside a larger file — e.g. an MCP
+    /// server declared inline in a `plugins.json` manifest — `uri` points
+    /// to the containing file and {@link CustomizationBase.range | `range`}
+    /// narrows it to the declaration's span.
+    public var uri: String
+    /// Human-readable name.
+    public var name: String
+    /// Icons for UI display.
+    public var icons: [Icon]?
+    /// Whether this customization is currently active.
+    public var enabled: Bool
+    /// Optional span within {@link CustomizationBase.uri | `uri`} when this
+    /// customization is a subset of a larger file (for example, one entry
+    /// in an inline `mcpServers` block of a `plugins.json` manifest).
+    /// Absent when the customization covers the whole resource.
+    public var range: TextRange?
+    public var type: CustomizationType
+
+    public init(
+        id: String,
+        uri: String,
+        name: String,
+        icons: [Icon]? = nil,
+        enabled: Bool,
+        range: TextRange? = nil,
+        type: CustomizationType
+    ) {
+        self.id = id
+        self.uri = uri
+        self.name = name
+        self.icons = icons
+        self.enabled = enabled
+        self.range = range
+        self.type = type
     }
 }
 
@@ -3129,6 +3616,117 @@ public enum MessageAttachment: Codable, Sendable {
         case .simple(let value): try value.encode(to: encoder)
         case .embeddedResource(let value): try value.encode(to: encoder)
         case .resource(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum Customization: Codable, Sendable {
+    case plugin(PluginCustomization)
+    case directory(DirectoryCustomization)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "type"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "plugin":
+            self = .plugin(try PluginCustomization(from: decoder))
+        case "directory":
+            self = .directory(try DirectoryCustomization(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown Customization discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .plugin(let value): try value.encode(to: encoder)
+        case .directory(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum ChildCustomization: Codable, Sendable {
+    case agent(AgentCustomization)
+    case skill(SkillCustomization)
+    case prompt(PromptCustomization)
+    case rule(RuleCustomization)
+    case hook(HookCustomization)
+    case mcpServer(McpServerCustomization)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "type"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "agent":
+            self = .agent(try AgentCustomization(from: decoder))
+        case "skill":
+            self = .skill(try SkillCustomization(from: decoder))
+        case "prompt":
+            self = .prompt(try PromptCustomization(from: decoder))
+        case "rule":
+            self = .rule(try RuleCustomization(from: decoder))
+        case "hook":
+            self = .hook(try HookCustomization(from: decoder))
+        case "mcpServer":
+            self = .mcpServer(try McpServerCustomization(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ChildCustomization discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .agent(let value): try value.encode(to: encoder)
+        case .skill(let value): try value.encode(to: encoder)
+        case .prompt(let value): try value.encode(to: encoder)
+        case .rule(let value): try value.encode(to: encoder)
+        case .hook(let value): try value.encode(to: encoder)
+        case .mcpServer(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum CustomizationLoadState: Codable, Sendable {
+    case loading(CustomizationLoadingState)
+    case loaded(CustomizationLoadedState)
+    case degraded(CustomizationDegradedState)
+    case error(CustomizationErrorState)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "loading":
+            self = .loading(try CustomizationLoadingState(from: decoder))
+        case "loaded":
+            self = .loaded(try CustomizationLoadedState(from: decoder))
+        case "degraded":
+            self = .degraded(try CustomizationDegradedState(from: decoder))
+        case "error":
+            self = .error(try CustomizationErrorState(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown CustomizationLoadState discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .loading(let value): try value.encode(to: encoder)
+        case .loaded(let value): try value.encode(to: encoder)
+        case .degraded(let value): try value.encode(to: encoder)
+        case .error(let value): try value.encode(to: encoder)
         }
     }
 }

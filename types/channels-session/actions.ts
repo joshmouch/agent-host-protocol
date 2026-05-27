@@ -13,14 +13,11 @@ import type {
   ToolResultContent,
   ToolDefinition,
   SessionActiveClient,
-  SessionCustomization,
-  CustomizationRef,
-  CustomizationAgentRef,
+  Customization,
   SessionInputAnswer,
   SessionInputRequest,
   SessionInputResponseKind,
   ConfirmationOption,
-  CustomizationStatus,
   AgentSelection,
 } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
@@ -575,15 +572,16 @@ export interface SessionActiveClientToolsChangedAction {
  */
 export interface SessionCustomizationsChangedAction {
   type: ActionType.SessionCustomizationsChanged;
-  /** Updated customization list (full replacement) */
-  customizations: SessionCustomization[];
+  /** Updated customization list (full replacement). */
+  customizations: Customization[];
 }
 
 /**
  * A client toggled a customization on or off.
  *
- * The server locates the customization by `uri` in the session's
- * customization list and sets its `enabled` flag.
+ * The reducer searches every container and its children for an entry
+ * with the matching `id` and sets its `enabled` flag. Is a no-op when
+ * no matching id is found.
  *
  * @category Session Actions
  * @version 1
@@ -591,45 +589,45 @@ export interface SessionCustomizationsChangedAction {
  */
 export interface SessionCustomizationToggledAction {
   type: ActionType.SessionCustomizationToggled;
-  /** The URI of the customization to toggle */
-  uri: URI;
-  /** Whether to enable or disable the customization */
+  /** The id of the customization to toggle. */
+  id: string;
+  /** Whether to enable or disable the customization. */
   enabled: boolean;
 }
 
 /**
- * Upserts mutable fields on a single customization.
+ * Upserts a top-level customization (plugin or directory).
  *
- * Dispatched by the server to update one or more fields on a customization,
- * or to add a new customization to the session, without republishing the
- * entire `customizations` list. The reducer locates the existing entry by
- * `customization.uri`:
+ * The reducer locates the existing entry by `customization.id`:
  *
- * - If an entry exists, each provided field is assigned; absent (or
- *   `undefined`) fields are left unchanged. The stored `customization`
- *   ref is replaced with the one in the action.
- * - If no entry exists, a new {@link SessionCustomization} is appended
- *   using the provided fields; `enabled` defaults to `false` when absent.
+ * - If found, the entry is replaced entirely with `customization`,
+ *   including its `children` array. To preserve existing children, the
+ *   host must include them on the payload.
+ * - If not found, the entry is appended.
  *
  * @category Session Actions
  * @version 1
  */
 export interface SessionCustomizationUpdatedAction {
   type: ActionType.SessionCustomizationUpdated;
-  /** The customization to update or insert (matched by `customization.uri`) */
-  customization: CustomizationRef;
-  /** New enabled state (defaults to `false` on insert) */
-  enabled?: boolean;
-  /** New loading status */
-  status?: CustomizationStatus;
-  /** New human-readable status detail */
-  statusMessage?: string;
-  /**
-   * Custom agents contributed by this customization, as resolved by the
-   * agent host. Populated only by the agent host. See
-   * {@link SessionCustomization.agents} for absent-vs-empty semantics.
-   */
-  agents?: CustomizationAgentRef[];
+  /** The customization to upsert (matched by `customization.id`). */
+  customization: Customization;
+}
+
+/**
+ * Removes a customization by id.
+ *
+ * Searches every container and its children for the entry. If the entry
+ * is a container, its children are removed with it. Is a no-op when no
+ * matching id is found.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionCustomizationRemovedAction {
+  type: ActionType.SessionCustomizationRemoved;
+  /** The id of the customization to remove. */
+  id: string;
 }
 
 // ─── Config Actions ──────────────────────────────────────────────────────────

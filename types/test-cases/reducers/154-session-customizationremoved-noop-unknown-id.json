@@ -1,5 +1,5 @@
 {
-  "description": "session/customizationToggled is no-op for unknown URI",
+  "description": "session/customizationRemoved is no-op for unknown id",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -14,19 +14,18 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
         "enabled": true
       }
     ]
   },
   "actions": [
     {
-      "type": "session/customizationToggled",
-      "uri": "https://plugins.example/unknown",
-      "enabled": false
+      "type": "session/customizationRemoved",
+      "id": "plugin-unknown"
     }
   ],
   "expected": {
@@ -42,10 +41,10 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
         "enabled": true
       }
     ]

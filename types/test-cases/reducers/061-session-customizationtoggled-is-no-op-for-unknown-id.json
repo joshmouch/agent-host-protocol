@@ -1,5 +1,5 @@
 {
-  "description": "session/customizationUpdated insert defaults enabled to false when absent",
+  "description": "session/customizationToggled is no-op for unknown id",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -12,15 +12,21 @@
     },
     "lifecycle": "creating",
     "turns": [],
-    "customizations": []
+    "customizations": [
+      {
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
+        "enabled": true
+      }
+    ]
   },
   "actions": [
     {
-      "type": "session/customizationUpdated",
-      "customization": {
-        "uri": "https://plugins.example/a",
-        "displayName": "Plugin A"
-      }
+      "type": "session/customizationToggled",
+      "id": "plugin-unknown",
+      "enabled": false
     }
   ],
   "expected": {
@@ -36,11 +42,11 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
-        "enabled": false
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
+        "enabled": true
       }
     ]
   }

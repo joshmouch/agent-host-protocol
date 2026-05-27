@@ -1,5 +1,5 @@
 {
-  "description": "session/customizationToggled toggles by URI",
+  "description": "session/customizationToggled toggles a container by id",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -14,17 +14,17 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
         "enabled": true
       },
       {
-        "customization": {
-          "uri": "https://plugins.example/b",
-          "displayName": "Plugin B"
-        },
+        "type": "plugin",
+        "id": "plugin-b",
+        "uri": "https://plugins.example/b",
+        "name": "Plugin B",
         "enabled": true
       }
     ]
@@ -32,7 +32,7 @@
   "actions": [
     {
       "type": "session/customizationToggled",
-      "uri": "https://plugins.example/a",
+      "id": "plugin-a",
       "enabled": false
     }
   ],
@@ -49,17 +49,17 @@
     "turns": [],
     "customizations": [
       {
-        "customization": {
-          "uri": "https://plugins.example/a",
-          "displayName": "Plugin A"
-        },
+        "type": "plugin",
+        "id": "plugin-a",
+        "uri": "https://plugins.example/a",
+        "name": "Plugin A",
         "enabled": false
       },
       {
-        "customization": {
-          "uri": "https://plugins.example/b",
-          "displayName": "Plugin B"
-        },
+        "type": "plugin",
+        "id": "plugin-b",
+        "uri": "https://plugins.example/b",
+        "name": "Plugin B",
         "enabled": true
       }
     ]

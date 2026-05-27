@@ -54,9 +54,9 @@ use ahp_types::actions::{
     SessionToolCallResultConfirmedAction, SessionTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, ConfirmationOption, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart,
-    RootState, SessionCustomization, SessionInputRequest, SessionLifecycle, SessionState,
-    SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
+    ActiveTurn, ChildCustomization, ConfirmationOption, Customization, ErrorInfo, PendingMessage,
+    PendingMessageKind, ResponsePart, RootState, SessionInputRequest, SessionLifecycle,
+    SessionState, SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
     TerminalUnclassifiedPart, ToolCallCancellationReason, ToolCallCancelledState,
     ToolCallCompletedState, ToolCallConfirmationReason, ToolCallPendingConfirmationState,
     ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
@@ -316,6 +316,72 @@ fn upsert_input_request(state: &mut SessionState, request: SessionInputRequest) 
     state.summary.status = summary_status(state, None);
     touch_modified(state);
     state.summary.status = with_status_flag(state.summary.status, SessionStatus::IsRead, false);
+}
+
+// ─── Customization Helpers ───────────────────────────────────────────────────
+
+fn customization_id(c: &Customization) -> Option<&str> {
+    match c {
+        Customization::Plugin(p) => Some(p.id.as_str()),
+        Customization::Directory(d) => Some(d.id.as_str()),
+        Customization::Unknown(_) => None,
+    }
+}
+
+fn child_id_of(c: &ChildCustomization) -> Option<&str> {
+    match c {
+        ChildCustomization::Agent(x) => Some(x.id.as_str()),
+        ChildCustomization::Skill(x) => Some(x.id.as_str()),
+        ChildCustomization::Prompt(x) => Some(x.id.as_str()),
+        ChildCustomization::Rule(x) => Some(x.id.as_str()),
+        ChildCustomization::Hook(x) => Some(x.id.as_str()),
+        ChildCustomization::McpServer(x) => Some(x.id.as_str()),
+        ChildCustomization::Unknown(_) => None,
+    }
+}
+
+fn container_children_mut(c: &mut Customization) -> Option<&mut Vec<ChildCustomization>> {
+    match c {
+        Customization::Plugin(p) => p.children.as_mut(),
+        Customization::Directory(d) => d.children.as_mut(),
+        Customization::Unknown(_) => None,
+    }
+}
+
+fn set_container_enabled(c: &mut Customization, enabled: bool) {
+    match c {
+        Customization::Plugin(p) => p.enabled = enabled,
+        Customization::Directory(d) => d.enabled = enabled,
+        Customization::Unknown(_) => {}
+    }
+}
+
+fn set_child_enabled(c: &mut ChildCustomization, enabled: bool) {
+    match c {
+        ChildCustomization::Agent(x) => x.enabled = enabled,
+        ChildCustomization::Skill(x) => x.enabled = enabled,
+        ChildCustomization::Prompt(x) => x.enabled = enabled,
+        ChildCustomization::Rule(x) => x.enabled = enabled,
+        ChildCustomization::Hook(x) => x.enabled = enabled,
+        ChildCustomization::McpServer(x) => x.enabled = enabled,
+        ChildCustomization::Unknown(_) => {}
+    }
+}
+
+fn apply_toggle(list: &mut [Customization], id: &str, enabled: bool) -> bool {
+    for container in list.iter_mut() {
+        if customization_id(container) == Some(id) {
+            set_container_enabled(container, enabled);
+            return true;
+        }
+        if let Some(children) = container_children_mut(container) {
+            if let Some(child) = children.iter_mut().find(|c| child_id_of(c) == Some(id)) {
+                set_child_enabled(child, enabled);
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn update_tool_call<F>(
@@ -617,42 +683,45 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             let Some(list) = state.customizations.as_mut() else {
                 return ReduceOutcome::NoOp;
             };
-            let Some(idx) = list.iter().position(|c| c.customization.uri == a.uri) else {
-                return ReduceOutcome::NoOp;
-            };
-            list[idx].enabled = a.enabled;
-            ReduceOutcome::Applied
+            if apply_toggle(list, &a.id, a.enabled) {
+                ReduceOutcome::Applied
+            } else {
+                ReduceOutcome::NoOp
+            }
         }
         StateAction::SessionCustomizationUpdated(a) => {
             let list = state.customizations.get_or_insert_with(Vec::new);
-            if let Some(idx) = list
-                .iter()
-                .position(|c| c.customization.uri == a.customization.uri)
-            {
-                list[idx].customization = a.customization.clone();
-                if let Some(enabled) = a.enabled {
-                    list[idx].enabled = enabled;
-                }
-                if let Some(status) = a.status {
-                    list[idx].status = Some(status);
-                }
-                if let Some(message) = a.status_message.clone() {
-                    list[idx].status_message = Some(message);
-                }
-                if let Some(agents) = a.agents.clone() {
-                    list[idx].agents = Some(agents);
-                }
+            let action_id = customization_id(&a.customization);
+            let Some(action_id) = action_id else {
+                // Unknown variant — no id to match on.
+                return ReduceOutcome::NoOp;
+            };
+            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(action_id)) {
+                list[idx] = a.customization.clone();
             } else {
-                list.push(SessionCustomization {
-                    customization: a.customization.clone(),
-                    enabled: a.enabled.unwrap_or(false),
-                    client_id: None,
-                    status: a.status,
-                    status_message: a.status_message.clone(),
-                    agents: a.agents.clone(),
-                });
+                list.push(a.customization.clone());
             }
             ReduceOutcome::Applied
+        }
+        StateAction::SessionCustomizationRemoved(a) => {
+            let Some(list) = state.customizations.as_mut() else {
+                return ReduceOutcome::NoOp;
+            };
+            // Try to remove a top-level container.
+            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(a.id.as_str())) {
+                list.remove(idx);
+                return ReduceOutcome::Applied;
+            }
+            // Otherwise look for a child to remove.
+            for container in list.iter_mut() {
+                if let Some(children) = container_children_mut(container) {
+                    if let Some(idx) = children.iter().position(|c| child_id_of(c) == Some(a.id.as_str())) {
+                        children.remove(idx);
+                        return ReduceOutcome::Applied;
+                    }
+                }
+            }
+            ReduceOutcome::NoOp
         }
         StateAction::SessionTruncated(a) => apply_truncated(state, a.turn_id.as_deref()),
         StateAction::SessionInputRequested(a) => {

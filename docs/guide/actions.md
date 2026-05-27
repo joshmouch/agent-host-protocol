@@ -122,8 +122,10 @@ See [Elicitation](/guide/elicitation) for the request lifecycle.
 
 | Type | Client-dispatchable? | When |
 |---|---|---|
-| `session/customizationsChanged` | No | Server updated the session's customization list (full replacement) |
-| `session/customizationToggled` | **Yes** | Client toggled a customization on or off by URI |
+| `session/customizationsChanged` | No | Server replaced the session's top-level customization list (full replacement) |
+| `session/customizationToggled` | **Yes** | Client toggled a container or child customization on or off by id |
+| `session/customizationUpdated` | No | Server upserted a top-level container (plugin or directory) by id (full-entry replacement, including children) |
+| `session/customizationRemoved` | No | Server removed a customization by id (containers cascade to children) |
 
 See the [Customizations guide](/guide/customizations) for the full flow.
 
@@ -176,7 +178,7 @@ The client applies the action **optimistically** to its local state before sendi
 | `session/pendingMessageSet` | Stores a steering or queued message (upsert); if queued and idle, auto-starts a turn |
 | `session/pendingMessageRemoved` | Cancels a pending message before it is consumed |
 | `session/queuedMessagesReordered` | Reorders queued messages; unknown IDs ignored, unmentioned messages kept at end |
-| `session/customizationToggled` | Toggles a customization on or off by URI |
+| `session/customizationToggled` | Toggles a customization on or off by id |
 | `session/isReadChanged` | Marks the session as read or unread |
 | `session/isArchivedChanged` | Archives or unarchives the session |
 | `session/activityChanged` | Updates the session's current activity description |

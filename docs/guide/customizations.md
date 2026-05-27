@@ -1,15 +1,18 @@
 # Customizations
 
-Customizations extend agent sessions with additional capabilities through [Open Plugins](https://open-plugins.com/) — a standard for packaging agent extensions like skills, hooks, MCP servers, and rules into distributable plugins.
+Customizations extend agent sessions with additional capabilities — agents, skills, prompts, rules, hooks, and MCP servers. AHP organises them as a discriminated union with a fixed set of types and a strict two-level tree:
 
-AHP treats plugins as opaque references. The protocol specifies identity and metadata (URI, display name, description, icons) but **not** plugin implementation details, which are defined by the Open Plugins specification.
+- **Top-level entries are always containers**: a `PluginCustomization` (an [Open Plugins](https://open-plugins.com/) package) or a `DirectoryCustomization` (a directory the host watches on disk).
+- **Everything else is a child** of a container: `AgentCustomization`, `SkillCustomization`, `PromptCustomization`, `RuleCustomization`, `HookCustomization`, `McpServerCustomization`.
+
+The agent host is authoritative on the effective tree. Clients publish plugins, the host expands them into children, and the host owns disk-backed directories.
 
 ## Sources
 
-Customizations enter a session from two sources:
+Customizations enter a session from two places:
 
-1. **Server-provided** — The agent host declares customizations on each agent via `AgentInfo.customizations`. When a session is created, the server activates relevant plugins and exposes them in `SessionState.customizations` with loading status.
-2. **Client-provided** — The active client contributes customizations via `SessionActiveClient.customizations`. These are lightweight references that the server may act on (e.g. loading the plugin server-side).
+1. **Server-provided** — The agent host declares containers on each agent via `AgentInfo.customizations`. When a session is created, the host resolves the containers, parses their contents, and exposes the result in `SessionState.customizations`.
+2. **Client-provided** — The active client contributes `ClientPluginCustomization` entries via `SessionActiveClient.customizations` (a `PluginCustomization` with an optional `nonce`). The host MAY parse the published plugin and surface it (with its children) in the session's top-level list.
 
 ```mermaid
 flowchart LR
@@ -22,50 +25,66 @@ flowchart LR
         AC["SessionActiveClient\n.customizations"]
     end
 
-    AI -- "server activates\non session create" --> SC
-    AC -- "client contributes\nvia activeClientChanged" --> AC
+    AI -- "host resolves & parses\non session create" --> SC
+    AC -- "client publishes ClientPluginCustomization\nvia activeClientChanged" --> SC
 ```
 
-## Customization Reference
+Clients publish in Open Plugins shape only. They MAY synthesize a virtual plugin in memory if their real source is on disk; mapping a workspace location to a physical directory is the host's job, not the client's.
 
-A `CustomizationRef` identifies a plugin with minimal metadata:
+## Identity
 
-```typescript
-CustomizationRef {
-  uri: URI             // plugin URI (HTTPS URL, marketplace ID, etc.)
-  displayName: string  // human-readable name
-  description?: string // what the plugin provides
-  icons?: Icon[]       // icons for UI display
-  nonce?: string       // opaque version token for change detection
-}
-```
+Every customization carries an `id` and a `uri`. They are different concepts:
 
-The `uri` is the stable identity for a customization — it is used to match customizations across sources and for toggling.
+- **`id`** is a session-unique opaque token. It identifies the entry to every customization action — toggles, updates, and removals. It is minted by whoever publishes the customization (typically the host).
+- **`uri`** is the descriptive source URI. For plugins it's the package URL, for directories it's the directory path, and for file-backed children it's the file URI. For inline declarations (e.g. an MCP server declared inside a `plugins.json` manifest) `uri` points at the containing file and the optional **`range`** narrows it to the declaration's span within that file.
 
-## Server Customizations
+Use `id` for protocol operations. Use `uri` for persistent references (e.g. `AgentSelection.uri`, which must survive across sessions).
 
-Server-provided customizations are exposed in `SessionState.customizations` as `SessionCustomization` entries. Each entry wraps a `CustomizationRef` with session-specific state:
+## Containers
+
+Container customizations carry a host-reported `load` state and a `children` array.
 
 ```typescript
-SessionCustomization {
-  customization: CustomizationRef
+PluginCustomization {
+  type: 'plugin'
+  id: string                     // session-unique handle
+  uri: URI                       // plugin URL or marketplace id
+  name: string
+  icons?: Icon[]
   enabled: boolean
-  status?: 'loading' | 'loaded' | 'degraded' | 'error'
-  statusMessage?: string
+  clientId?: string              // set when published by a client
+  load?: CustomizationLoadState  // host-reported parse/load state
+  children?: ChildCustomization[]
+}
+
+DirectoryCustomization {
+  type: 'directory'
+  id: string
+  uri: URI                       // directory URI
+  name: string
+  icons?: Icon[]
+  enabled: boolean
+  clientId?: string
+  load?: CustomizationLoadState
+  children?: ChildCustomization[]
+  contents: ChildCustomizationType  // which child kind lives here
+  writable: boolean                 // clients may write into it (via resourceWrite)
 }
 ```
 
-### Loading Status
+`children` is **absent** when the host has not parsed the container yet, and **empty** when it parsed it and found nothing.
 
-The server reports the loading state of each plugin it manages:
+### Load state
+
+`load` is a discriminated union:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> loading : session created
+    [*] --> loading : container published
 
-    loading --> loaded : plugin ready
-    loading --> degraded : partial load (warnings)
-    loading --> error : load failed
+    loading --> loaded : parsed cleanly
+    loading --> degraded : partial parse (warnings)
+    loading --> error : parse failed
 
     degraded --> loaded : warnings resolved
     loaded --> degraded : runtime warning
@@ -74,63 +93,51 @@ stateDiagram-v2
     degraded --> error : runtime failure
 ```
 
-| Status | Meaning |
+| Kind | Meaning |
 |---|---|
-| `loading` | Plugin is being loaded (initial state) |
-| `loaded` | Plugin is fully operational |
-| `degraded` | Plugin partially loaded — some components work but there are warnings. `statusMessage` describes the issue. |
-| `error` | Plugin failed to load entirely. `statusMessage` contains the error. |
+| `loading` | Host is loading / parsing the container (initial state) |
+| `loaded` | Host has fully resolved the container |
+| `degraded` | Container partially loaded; `message` describes the warning |
+| `error` | Container failed to load; `message` carries the error |
 
-The server updates `SessionState.customizations` via the `session/customizationsChanged` action whenever loading status changes. This action uses full-replacement semantics — the entire array is replaced.
+## Children
 
-## Client Customizations
+Every child carries the same base fields (`id`, `uri`, `name`, `enabled`, optional `icons`). Children are leaf nodes — no further nesting — and their parent is implied by which container holds them in its `children` array. Children have no `clientId`: client provenance lives on the container, since clients can only contribute containers, not individual children.
 
-The active client contributes customizations by including them in `SessionActiveClient.customizations` when claiming the active role (via `session/activeClientChanged`) or updating tools (via `session/activeClientToolsChanged`).
+Each child type carries optional metadata sourced from its [Open Plugins](https://open-plugins.com/plugin-builders/specification.md) component definition (typically the file's YAML frontmatter):
 
-Client customizations are `CustomizationRef` values — the client declares which plugins it has, and the server may choose to act on them (e.g. loading them server-side or surfacing them in the session's customization list).
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Server
-
-    Client->>Server: activeClientChanged (activeClient with customizations)
-    Note over Server: Server registers client customizations
-    Server->>Client: action echoed back
-
-    Note over Server: Server may load client plugins<br/>and add to session customizations
-    Server->>Client: customizationsChanged (updated list)
+```typescript
+AgentCustomization        { type: 'agent';       description? }
+SkillCustomization        { type: 'skill';       description?, disableModelInvocation? }
+PromptCustomization       { type: 'prompt';      description? }
+RuleCustomization         { type: 'rule';        description?, alwaysApply?, globs? }    // covers "instruction" formats too
+HookCustomization         { type: 'hook';        event?, matcher? }
+McpServerCustomization    { type: 'mcpServer';   description? }
 ```
 
-When the active client disconnects or is replaced, its customizations are no longer available. The server SHOULD update `SessionState.customizations` accordingly.
+The protocol intentionally omits host-internal execution details (a hook's command/script, an MCP server's `command`/`args`/`env`, etc.). Those stay on the agent host; clients see only what's needed for display, search, and selection. MCP tools and their descriptions surface through the standard tool channels once the server is running.
 
-## Session-Scoped Host Configuration
+Consumers filter by `type` to find the children they care about — for example, the agent picker reads every `AgentCustomization` under any container:
 
-The protocol intentionally treats plugin resolution as implementation-defined. For remote/browser clients, a useful pattern is to let the host resolve plugins from session configuration or workspace/server files, then publish the effective set through `SessionState.customizations`.
+```typescript
+state.customizations
+  ?.flatMap(c => c.children ?? [])
+  .filter(c => c.type === CustomizationType.Agent)
+```
 
-For example, a host might:
+## Toggling
 
-1. read a workspace file such as `.vscode/agent-host.json`
-2. expose the effective plugin list through `resolveSessionConfig`
-3. load those plugins when creating or resuming the session
-4. publish them as `SessionCustomization` entries (without `clientId`)
-
-This keeps plugin configuration usable from thin clients without extending AHP with plugin-install semantics.
-
-## Toggling Customizations
-
-Any client can enable or disable a customization by dispatching `session/customizationToggled`:
+Any client can enable or disable a customization at either level by dispatching `session/customizationToggled` with the entry's `id`:
 
 ```typescript
 {
   type: 'session/customizationToggled'
-  session: URI
-  uri: URI         // customization to toggle
-  enabled: boolean // new enabled state
+  id: string         // container or child id
+  enabled: boolean
 }
 ```
 
-This matches the customization by its `uri` field and sets `enabled`. The server applies the toggle and may react by activating or deactivating the plugin.
+The reducer searches every container and its children for the matching `id` and flips the `enabled` flag. The action is a no-op if no entry has that id.
 
 ```mermaid
 sequenceDiagram
@@ -139,34 +146,68 @@ sequenceDiagram
 
     Note over Server: customizations: [Plugin A (enabled), Plugin B (enabled)]
 
-    Client->>Server: customizationToggled (uri: Plugin A, enabled: false)
-    Server->>Client: customizationToggled echoed
+    Client->>Server: customizationToggled (id: plugin-a, enabled: false)
+    Server->>Client: action echoed
     Note over Server: customizations: [Plugin A (disabled), Plugin B (enabled)]
-
-    Client->>Server: customizationToggled (uri: Plugin A, enabled: true)
-    Server->>Client: customizationToggled echoed
-    Note over Server: customizations: [Plugin A (enabled), Plugin B (enabled)]
 ```
 
-## Reporting Customization Updates
+## Server-Side Updates
 
-The server reports plugin state via the `enabled`, `status` (`loading` / `loaded` / `degraded` / `error`) and `statusMessage` fields on each `SessionCustomization`. To change one or more of these for a single plugin — for example, when a plugin finishes loading or fails — the server dispatches `session/customizationUpdated` instead of republishing the entire `customizations` list:
+The host reports container changes via two actions:
+
+- **`session/customizationsChanged`** — full replacement of the top-level list. Use when the entire effective set changes.
+- **`session/customizationUpdated`** — upsert one top-level container by `customization.id`. If found, the entry is replaced entirely (including its `children` array); if not, it's appended.
+
+Children are always updated as part of their container. To reflect a per-child change (e.g. a single skill finishing parse), the host re-dispatches `customizationUpdated` with the same container and the updated `children` array. There is no field-level merge and no per-child action.
+
+For removals:
+
+- **`session/customizationRemoved { id }`** — remove a customization by id. If the entry is a top-level container, its children are removed with it. If the entry is a child, only that child is removed. No-op if no matching id is found.
+
+## Saving New Customizations
+
+When a client wants to persist a new customization (e.g. write a new skill file), it targets a `DirectoryCustomization` with `writable: true` and uses [`resourceWrite`](/reference/commands#resourcewrite) to write into it. The host watches the directory and surfaces the resulting child by re-dispatching `session/customizationUpdated` for the directory (which carries the updated `children` array).
+
+The protocol does not define a dedicated save action — directories plus `resourceWrite` are enough.
+
+## Client-Published Plugins
+
+A client claims the active role and contributes plugins via `session/activeClientChanged`. Client customizations are `ClientPluginCustomization` values — `PluginCustomization` with an optional `nonce` the host can use to detect changes between publications.
 
 ```typescript
-{
-  type: 'session/customizationUpdated'
-  session: URI
-  customization: CustomizationRef // matched by `customization.uri`
-  enabled?: boolean               // omit to leave unchanged (defaults to false on insert)
-  status?: CustomizationStatus    // omit to leave unchanged
-  statusMessage?: string          // omit to leave unchanged
-}
+dispatch({
+  type: 'session/activeClientChanged',
+  activeClient: {
+    clientId: 'my-client-id',
+    displayName: 'VS Code',
+    tools: [ /* ... */ ],
+    customizations: [
+      {
+        type: 'plugin',
+        id: 'client-plugin-1',
+        uri: 'virtual://my-client/workspace-skills',
+        name: 'Workspace Skills',
+        enabled: true,
+        nonce: 'sha256:...',
+      },
+    ],
+  },
+});
 ```
 
-This action is an upsert. The reducer locates the entry by `customization.uri`:
+The host parses the plugin and surfaces it in `SessionState.customizations` with `clientId` set and `children` populated. When the active client disconnects or is replaced, the host SHOULD remove its customizations from the session list.
 
-- If found, the stored `customization` ref is replaced with the one in the action and each provided mutable field is assigned. Absent fields are left unchanged.
-- If not found, a new entry is appended using the provided fields. `enabled` defaults to `false` when absent.
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+
+    Client->>Server: activeClientChanged (with ClientPluginCustomization[])
+    Server->>Client: action echoed
+
+    Note over Server: Host parses each plugin
+    Server->>Client: customizationUpdated (PluginCustomization with children)
+```
 
 ## Client-Provided Tools
 
@@ -287,9 +328,10 @@ This ensures tool calls do not remain stuck in `running` state indefinitely.
 
 | Type | Client-dispatchable? | When |
 |---|---|---|
-| `session/customizationsChanged` | No | Server updated the session's customization list (full replacement) |
-| `session/customizationToggled` | **Yes** | Client toggled a customization on or off |
-| `session/customizationUpdated` | No | Server upserts mutable fields on a single customization |
+| `session/customizationsChanged` | No | Server replaced the top-level customization list (full replacement) |
+| `session/customizationToggled` | **Yes** | Client toggled a container or child on or off by id |
+| `session/customizationUpdated` | No | Server upserts a top-level container by id (full-entry replacement, including children) |
+| `session/customizationRemoved` | No | Server removes a customization by id (containers cascade) |
 | `session/activeClientChanged` | **Yes** | Client claims/releases the active role (with tools + customizations) |
 | `session/activeClientToolsChanged` | **Yes** | Client updates its tool list without re-claiming |
 | `session/toolCallStart` | No | Server begins a tool call (sets `toolClientId` for client tools) |
@@ -305,33 +347,33 @@ sequenceDiagram
 
     Note over Client,Server: 1. Client subscribes to session
 
-    Server->>Client: snapshot (customizations: loading)
+    Server->>Client: snapshot (customizations: [Plugin A (load: loading)])
 
-    Note over Server: Server loads agent plugins
+    Note over Server: Host parses Plugin A
 
-    Server->>Client: customizationsChanged (Plugin A: loaded, Plugin B: degraded)
+    Server->>Client: customizationUpdated (Plugin A: load: loaded, children: [...])
 
-    Note over Client,Server: 2. Client becomes active with its own customizations
+    Note over Client,Server: 2. Client becomes active with its own plugin
 
     Client->>Server: activeClientChanged (tools + customizations: [Plugin C])
     Server->>Client: action echoed
 
-    Server->>Client: customizationsChanged (Plugin A: loaded, Plugin B: degraded, Plugin C: loading)
-    Server->>Client: customizationsChanged (Plugin A: loaded, Plugin B: degraded, Plugin C: loaded)
+    Server->>Client: customizationUpdated (Plugin C: load: loading)
+    Server->>Client: customizationUpdated (Plugin C: load: loaded, children: [...])
 
-    Note over Client,Server: 3. Client disables a plugin
+    Note over Client,Server: 3. Client disables a skill inside Plugin A
 
-    Client->>Server: customizationToggled (Plugin B, enabled: false)
+    Client->>Server: customizationToggled (id: skill-1, enabled: false)
     Server->>Client: action echoed
 
     Note over Client,Server: 4. Active client disconnects
 
     Server->>Client: activeClientChanged (null)
-    Server->>Client: customizationsChanged (Plugin A: loaded, Plugin B: degraded)
+    Server->>Client: customizationRemoved (Plugin C)
 ```
 
 ## Next Steps
 
 - [State Model](/guide/state-model) — The state tree that customizations and tools live in, including the tool call lifecycle state machine.
 - [Actions](/guide/actions) — How state is mutated by actions.
-- [Session Channel Reference](/reference/session) — `SessionActiveClient`, `ToolDefinition`, `ToolCallState`, `CustomizationRef`, and more.
+- [Session Channel Reference](/reference/session) — `SessionActiveClient`, `ToolDefinition`, `ToolCallState`, `Customization`, `ChildCustomization`, and more.
