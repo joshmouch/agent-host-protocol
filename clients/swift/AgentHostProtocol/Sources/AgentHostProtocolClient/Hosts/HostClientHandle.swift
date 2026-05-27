@@ -75,6 +75,21 @@ public struct HostClientHandle: Sendable {
 
     /// Issue an arbitrary JSON-RPC request through this connection, refusing
     /// if the connection has been replaced by a reconnect.
+    ///
+    /// **Cancellation:** observes `Task.isCancelled` through the underlying
+    /// `AHPClient.request`. Cancelling the surrounding `Task` throws
+    /// `CancellationError()` and removes the local pending entry. Useful
+    /// for typeahead / debounced flows.
+    ///
+    /// **Swift 6 actor isolation gotcha:** if your project sets
+    /// `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, any `Codable`
+    /// `params` / result type defined inside the actor-isolated module
+    /// will inherit `@MainActor` on its synthesised conformances, which
+    /// then fails the `Sendable` constraint on this method. Two fixes:
+    /// (a) declare the parameter/result types in a file that opts out
+    /// of the default isolation (e.g. `nonisolated`), or
+    /// (b) call `requestRaw(method:paramsData:)` and serialise/decode
+    /// JSON yourself.
     public func request<P: Encodable & Sendable, R: Decodable & Sendable>(
         method: String,
         params: P
@@ -82,6 +97,20 @@ public struct HostClientHandle: Sendable {
         try await checkAlive()
         do {
             return try await client.request(method: method, params: params)
+        } catch let error as AHPClientError {
+            throw HostError.client(error)
+        }
+    }
+
+    /// Raw-bytes escape hatch around `AHPClient.requestRaw`. Sends
+    /// `paramsData` as the JSON-RPC `params` value and returns the
+    /// raw `result` bytes. Refuses if the connection has been replaced
+    /// by a reconnect. Observes `Task.isCancelled` in the same way
+    /// `request(_:params:)` does.
+    public func requestRaw(method: String, paramsData: Data) async throws -> Data {
+        try await checkAlive()
+        do {
+            return try await client.requestRaw(method: method, paramsData: paramsData)
         } catch let error as AHPClientError {
             throw HostError.client(error)
         }

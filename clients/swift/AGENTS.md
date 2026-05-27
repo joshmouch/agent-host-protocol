@@ -7,6 +7,8 @@ This directory contains two Swift packages for the Agent Host Protocol (AHP):
 1. **AgentHostProtocol** — A pure Swift library (no external dependencies) providing auto-generated types, actions, and reducers for the protocol. Targets iOS 16+, macOS 13+, Swift 5.9+. The Swift sources live in `clients/swift/AgentHostProtocol/`, but the `Package.swift` manifest lives at the **repository root** (`/Package.swift`) so that external consumers can pull this in via `.package(url:)`. SwiftPM only resolves manifests at the root of a remote git repository.
 2. **AHPApp** — An example iOS app (Xcode project) demonstrating a full AHP client with WebSocket transport, state synchronization, reconnection, and a SwiftUI chat UI. Uses [dev-tunnels-swift](https://github.com/rebornix/dev-tunnels-swift) (remote Swift Package) for tunnel discovery, authentication, and relay connections.
 
+The `AgentHostProtocolClient` library also ships a multi-host `MultiHostClient` actor on top of the per-host `AHPClient`. Single-host consumers can use `MultiHostClient.single(_:)` to get the same observability surface (event streams, generation-checked handles, persistent client ids) without thinking about a registry. See `Sources/AgentHostProtocolClient/Hosts/`.
+
 ## Code Generation
 
 Types in `AgentHostProtocol/Sources/AgentHostProtocol/Generated/` are **auto-generated** from the TypeScript definitions in `types/`. Do not edit these files directly. Generated files are committed to source control so the package is consumable via SwiftPM without a code-generation toolchain.
