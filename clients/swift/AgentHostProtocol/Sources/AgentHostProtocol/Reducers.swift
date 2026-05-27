@@ -71,9 +71,10 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
     // ── Lifecycle ──────────────────────────────────────────────────────────
 
     case .sessionReady:
+        // Lifecycle-only transition. Must not touch `summary.status`: see
+        // the equivalent TypeScript reducer for the rationale.
         var next = state
         next.lifecycle = .ready
-        next.summary.status = .idle
         return next
 
     case .sessionCreationFailed(let a):
@@ -362,9 +363,20 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.modifiedAt = currentTimestamp()
         return next
 
+    case .sessionAgentChanged(let a):
+        var next = state
+        next.summary.agent = a.agent
+        next.summary.modifiedAt = currentTimestamp()
+        return next
+
     case .sessionActivityChanged(let a):
         var next = state
         next.summary.activity = a.activity
+        return next
+
+    case .sessionChangesetsChanged(let a):
+        var next = state
+        next.summary.changesets = a.changesets
         return next
 
     case .sessionConfigChanged(let a):
@@ -472,12 +484,6 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.summary.status = withStatusFlag(next.summary.status, .isArchived, a.isArchived)
         return next
 
-    // ── Diffs ─────────────────────────────────────────────────────────────
-
-    case .sessionDiffsChanged(let a):
-        var next = state
-        next.summary.diffs = a.diffs
-        return next
 
     // ── Tool Call Content ────────────────────────────────────────────────
 

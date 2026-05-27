@@ -405,6 +405,10 @@ public struct AHPSessionReducer: Reducer {
             state.summary.model = a.model
             state.summary.modifiedAt = currentTimestamp()
 
+        case .sessionAgentChanged(let a):
+            state.summary.agent = a.agent
+            state.summary.modifiedAt = currentTimestamp()
+
         case .sessionActivityChanged(let a):
             state.summary.activity = a.activity
 
@@ -487,10 +491,6 @@ public struct AHPSessionReducer: Reducer {
         case .sessionIsArchivedChanged(let a):
             state.summary.status = Self.withStatusFlag(state.summary.status, .isArchived, a.isArchived)
 
-        // ── Diffs ─────────────────────────────────────────────────────────────
-
-        case .sessionDiffsChanged(let a):
-            state.summary.diffs = a.diffs
 
         // ── Tool Call Content ────────────────────────────────────────────────
 

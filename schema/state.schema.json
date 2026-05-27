@@ -116,9 +116,318 @@
         "resource"
       ]
     },
+    "ConfigPropertySchema": {
+      "type": "object",
+      "description": "A JSON Schema-compatible property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI\nmetadata for each `enum` value.\n\nThis is the generic base type. See {@link SessionConfigPropertySchema} for\nsession-specific extensions.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "array",
+            "object"
+          ],
+          "description": "JSON Schema: property type"
+        },
+        "title": {
+          "type": "string",
+          "description": "JSON Schema: human-readable label for the property"
+        },
+        "description": {
+          "type": "string",
+          "description": "JSON Schema: description / tooltip"
+        },
+        "default": {
+          "description": "JSON Schema: default value"
+        },
+        "enum": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: allowed values (typically used with `string` type)"
+        },
+        "enumLabels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: human-readable label per enum value (parallel array)"
+        },
+        "enumDescriptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Display extension: description per enum value (parallel array)"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "JSON Schema: when `true`, the property is displayed but cannot be modified by the user"
+        },
+        "items": {
+          "$ref": "#/$defs/ConfigPropertySchema",
+          "description": "JSON Schema: schema for array items (used when `type` is `'array'`)"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConfigPropertySchema"
+          },
+          "description": "JSON Schema: property descriptors for object properties (used when `type` is `'object'`)"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: list of required property ids (used when `type` is `'object'`)"
+        }
+      },
+      "required": [
+        "type",
+        "title"
+      ]
+    },
+    "ConfigSchema": {
+      "type": "object",
+      "description": "A JSON Schema object describing available configuration properties.\n\nThis is the generic base type. See {@link SessionConfigSchema} for\nsession-specific usage.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "object"
+          ],
+          "description": "JSON Schema: always `'object'`"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ConfigPropertySchema"
+          },
+          "description": "JSON Schema: property descriptors keyed by property id"
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "JSON Schema: list of required property ids"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ]
+    },
+    "TextPosition": {
+      "type": "object",
+      "description": "A zero-based position within a textual document.",
+      "properties": {
+        "line": {
+          "type": "number",
+          "description": "Zero-based line number."
+        },
+        "character": {
+          "type": "number",
+          "description": "Zero-based character offset within the line."
+        }
+      },
+      "required": [
+        "line",
+        "character"
+      ]
+    },
+    "TextRange": {
+      "type": "object",
+      "description": "A range within a textual document.",
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/TextPosition",
+          "description": "Start position of the range."
+        },
+        "end": {
+          "$ref": "#/$defs/TextPosition",
+          "description": "End position of the range."
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ]
+    },
+    "TextSelection": {
+      "type": "object",
+      "description": "A selection within a textual resource.\n\nThis is only meaningful for textual resources. Binary resources may still\nuse resource or embedded resource attachments, but they should not use this\ntext selection field.",
+      "properties": {
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "The range covered by the selection."
+        }
+      },
+      "required": [
+        "range"
+      ]
+    },
+    "ContentRef": {
+      "type": "object",
+      "description": "A reference to large content stored outside the state tree.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Content URI"
+        },
+        "sizeHint": {
+          "type": "number",
+          "description": "Approximate size in bytes"
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Content MIME type"
+        }
+      },
+      "required": [
+        "uri"
+      ]
+    },
+    "FileEdit": {
+      "type": "object",
+      "description": "Describes a file modification with before/after state and diff metadata.\n\nSupports creates (only `after`), deletes (only `before`), renames/moves\n(different `uri` in `before` and `after`), and edits (same `uri`, different content).",
+      "properties": {
+        "before": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "content"
+          ],
+          "description": "The file state before the edit. Absent for file creations or for in-place file edits."
+        },
+        "after": {
+          "type": "object",
+          "properties": {
+            "uri": {
+              "type": "string"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri",
+            "content"
+          ],
+          "description": "The file state after the edit. Absent for file deletions."
+        },
+        "diff": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "number"
+            },
+            "removed": {
+              "type": "number"
+            }
+          },
+          "description": "Optional diff display metadata"
+        }
+      }
+    },
+    "UsageInfo": {
+      "type": "object",
+      "properties": {
+        "inputTokens": {
+          "type": "number",
+          "description": "Input tokens consumed"
+        },
+        "outputTokens": {
+          "type": "number",
+          "description": "Output tokens generated"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model used"
+        },
+        "cacheReadTokens": {
+          "type": "number",
+          "description": "Tokens read from cache"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this usage report.\nClients MAY look for well-known optional keys here to provide enhanced UI."
+        }
+      }
+    },
+    "ErrorInfo": {
+      "type": "object",
+      "properties": {
+        "errorType": {
+          "type": "string",
+          "description": "Error type identifier"
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable error message"
+        },
+        "stack": {
+          "type": "string",
+          "description": "Stack trace"
+        }
+      },
+      "required": [
+        "errorType",
+        "message"
+      ]
+    },
+    "Snapshot": {
+      "type": "object",
+      "description": "A point-in-time snapshot of a subscribed resource's state, returned by\n`initialize`, `reconnect`, and `subscribe`.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)"
+        },
+        "state": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RootState"
+            },
+            {
+              "$ref": "#/$defs/SessionState"
+            },
+            {
+              "$ref": "#/$defs/TerminalState"
+            },
+            {
+              "$ref": "#/$defs/ChangesetState"
+            }
+          ],
+          "description": "The current state of the resource"
+        },
+        "fromSeq": {
+          "type": "number",
+          "description": "The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`."
+        }
+      },
+      "required": [
+        "resource",
+        "state",
+        "fromSeq"
+      ]
+    },
     "RootState": {
       "type": "object",
-      "description": "Global state shared with every client subscribed to `agenthost:/root`.",
+      "description": "Global state shared with every client subscribed to `ahp-root://`.",
       "properties": {
         "agents": {
           "type": "array",
@@ -252,6 +561,25 @@
       },
       "required": [
         "id"
+      ]
+    },
+    "RootConfigState": {
+      "type": "object",
+      "description": "Live agent-host configuration metadata.\n\nThe schema describes the available configuration properties and the values\ncontain the current value for each resolved property.",
+      "properties": {
+        "schema": {
+          "$ref": "#/$defs/ConfigSchema",
+          "description": "JSON Schema describing available configuration properties"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Current configuration values"
+        }
+      },
+      "required": [
+        "schema",
+        "values"
       ]
     },
     "PendingMessage": {
@@ -440,16 +768,20 @@
           "$ref": "#/$defs/ModelSelection",
           "description": "Currently selected model"
         },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Currently selected custom agent.\n\nAbsent (`undefined`) means no custom agent is selected for this session\n— the session uses the provider's default behavior."
+        },
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
         },
-        "diffs": {
+        "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/FileEdit"
+            "$ref": "#/$defs/ChangesetSummary"
           },
-          "description": "Files changed during this session with diff statistics"
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         }
       },
       "required": [
@@ -461,129 +793,17 @@
         "modifiedAt"
       ]
     },
-    "ConfigPropertySchema": {
+    "AgentSelection": {
       "type": "object",
-      "description": "A JSON Schema-compatible property descriptor with display extensions.\n\nStandard JSON Schema fields (`type`, `title`, `description`, `default`,\n`enum`) allow validators to process the schema. Display extensions\n(`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI\nmetadata for each `enum` value.\n\nThis is the generic base type. See {@link SessionConfigPropertySchema} for\nsession-specific extensions.",
+      "description": "A selected custom agent for a session.\n\nThe `uri` identifies a specific custom agent (matching a\n{@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed\nvia the session's effective customizations). Consumers resolve the\nagent's display name by looking up `uri` in\n{@link SessionCustomization.agents | `SessionCustomization.agents`}.\n\nA session with no `agent` selected uses the provider's default behavior.",
       "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "array",
-            "object"
-          ],
-          "description": "JSON Schema: property type"
-        },
-        "title": {
-          "type": "string",
-          "description": "JSON Schema: human-readable label for the property"
-        },
-        "description": {
-          "type": "string",
-          "description": "JSON Schema: description / tooltip"
-        },
-        "default": {
-          "description": "JSON Schema: default value"
-        },
-        "enum": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "JSON Schema: allowed values (typically used with `string` type)"
-        },
-        "enumLabels": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Display extension: human-readable label per enum value (parallel array)"
-        },
-        "enumDescriptions": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Display extension: description per enum value (parallel array)"
-        },
-        "readOnly": {
-          "type": "boolean",
-          "description": "JSON Schema: when `true`, the property is displayed but cannot be modified by the user"
-        },
-        "items": {
-          "$ref": "#/$defs/ConfigPropertySchema",
-          "description": "JSON Schema: schema for array items (used when `type` is `'array'`)"
-        },
-        "properties": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/ConfigPropertySchema"
-          },
-          "description": "JSON Schema: property descriptors for object properties (used when `type` is `'object'`)"
-        },
-        "required": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "JSON Schema: list of required property ids (used when `type` is `'object'`)"
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI (matches a {@link CustomizationAgentRef.uri})"
         }
       },
       "required": [
-        "type",
-        "title"
-      ]
-    },
-    "ConfigSchema": {
-      "type": "object",
-      "description": "A JSON Schema object describing available configuration properties.\n\nThis is the generic base type. See {@link SessionConfigSchema} for\nsession-specific usage.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "object"
-          ],
-          "description": "JSON Schema: always `'object'`"
-        },
-        "properties": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/ConfigPropertySchema"
-          },
-          "description": "JSON Schema: property descriptors keyed by property id"
-        },
-        "required": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "JSON Schema: list of required property ids"
-        }
-      },
-      "required": [
-        "type",
-        "properties"
-      ]
-    },
-    "RootConfigState": {
-      "type": "object",
-      "description": "Live agent-host configuration metadata.\n\nThe schema describes the available configuration properties and the values\ncontain the current value for each resolved property.",
-      "properties": {
-        "schema": {
-          "$ref": "#/$defs/ConfigSchema",
-          "description": "JSON Schema describing available configuration properties"
-        },
-        "values": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "Current configuration values"
-        }
-      },
-      "required": [
-        "schema",
-        "values"
+        "uri"
       ]
     },
     "SessionConfigPropertySchema": {
@@ -1279,55 +1499,6 @@
         "label"
       ]
     },
-    "TextPosition": {
-      "type": "object",
-      "description": "A zero-based position within a textual document.",
-      "properties": {
-        "line": {
-          "type": "number",
-          "description": "Zero-based line number."
-        },
-        "character": {
-          "type": "number",
-          "description": "Zero-based character offset within the line."
-        }
-      },
-      "required": [
-        "line",
-        "character"
-      ]
-    },
-    "TextRange": {
-      "type": "object",
-      "description": "A range within a textual document.",
-      "properties": {
-        "start": {
-          "$ref": "#/$defs/TextPosition",
-          "description": "Start position of the range."
-        },
-        "end": {
-          "$ref": "#/$defs/TextPosition",
-          "description": "End position of the range."
-        }
-      },
-      "required": [
-        "start",
-        "end"
-      ]
-    },
-    "TextSelection": {
-      "type": "object",
-      "description": "A selection within a textual resource.\n\nThis is only meaningful for textual resources. Binary resources may still\nuse resource or embedded resource attachments, but they should not use this\ntext selection field.",
-      "properties": {
-        "range": {
-          "$ref": "#/$defs/TextRange",
-          "description": "The range covered by the selection."
-        }
-      },
-      "required": [
-        "range"
-      ]
-    },
     "SimpleMessageAttachment": {
       "type": "object",
       "description": "A simple, opaque attachment whose model representation is described by\nthe producer.",
@@ -1476,27 +1647,6 @@
         "kind",
         "id",
         "content"
-      ]
-    },
-    "ContentRef": {
-      "type": "object",
-      "description": "A reference to large content stored outside the state tree.",
-      "properties": {
-        "uri": {
-          "$ref": "#/$defs/URI",
-          "description": "Content URI"
-        },
-        "sizeHint": {
-          "type": "number",
-          "description": "Approximate size in bytes"
-        },
-        "contentType": {
-          "type": "string",
-          "description": "Content MIME type"
-        }
-      },
-      "required": [
-        "uri"
       ]
     },
     "ResourceReponsePart": {
@@ -2282,56 +2432,6 @@
         "type"
       ]
     },
-    "FileEdit": {
-      "type": "object",
-      "description": "Describes a file modification with before/after state and diff metadata.\n\nSupports creates (only `after`), deletes (only `before`), renames/moves\n(different `uri` in `before` and `after`), and edits (same `uri`, different content).",
-      "properties": {
-        "before": {
-          "type": "object",
-          "properties": {
-            "uri": {
-              "type": "string"
-            },
-            "content": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "uri",
-            "content"
-          ],
-          "description": "The file state before the edit. Absent for file creations or for in-place file edits."
-        },
-        "after": {
-          "type": "object",
-          "properties": {
-            "uri": {
-              "type": "string"
-            },
-            "content": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "uri",
-            "content"
-          ],
-          "description": "The file state after the edit. Absent for file deletions."
-        },
-        "diff": {
-          "type": "object",
-          "properties": {
-            "added": {
-              "type": "number"
-            },
-            "removed": {
-              "type": "number"
-            }
-          },
-          "description": "Optional diff display metadata"
-        }
-      }
-    },
     "ToolResultFileEditContent": {
       "type": "object",
       "description": "Describes a file modification performed by a tool.",
@@ -2440,6 +2540,28 @@
         "title"
       ]
     },
+    "CustomizationAgentRef": {
+      "type": "object",
+      "description": "A lightweight reference to a custom agent contributed by a customization.\n\nCustom agents have a single `name` (sourced from the agent file's YAML\nfrontmatter, or derived from the file name); they do not have a separate\ndisplay name.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable agent URI"
+        },
+        "name": {
+          "type": "string",
+          "description": "Agent name (from frontmatter `name`, or file-derived)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional short description for UI preview (from frontmatter `description`)"
+        }
+      },
+      "required": [
+        "uri",
+        "name"
+      ]
+    },
     "CustomizationRef": {
       "type": "object",
       "description": "A reference to an [Open Plugins](https://open-plugins.com/) plugin.\n\nThis is intentionally thin — AHP specifies plugin identity and metadata\nbut not implementation details, which are defined by the Open Plugins spec.",
@@ -2496,6 +2618,13 @@
         "statusMessage": {
           "type": "string",
           "description": "Human-readable status detail (e.g. error message or degradation warning)."
+        },
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomizationAgentRef"
+          },
+          "description": "Custom agents contributed by this customization, as resolved by the\nagent host after parsing the customization.\n\nConsumers MUST treat an absent field as \"unknown\" (e.g. the host has\nnot finished parsing the customization yet). An empty array means the\nhost parsed the customization and it contributes no agents.\n\nClients are not authoritative here: only the agent host populates\nthis field."
         }
       },
       "required": [
@@ -2688,85 +2817,150 @@
         "isComplete"
       ]
     },
-    "UsageInfo": {
+    "ChangesetSummary": {
       "type": "object",
+      "description": "Catalogue entry describing one changeset the server can produce for a\nsession.\n\nCatalogue entries are intentionally lightweight — just enough to render a\nchip or list row without subscribing. Full per-changeset detail\n({@link ChangesetState}) lives on the subscribable URI obtained by\nexpanding {@link uriTemplate}.",
       "properties": {
-        "inputTokens": {
-          "type": "number",
-          "description": "Input tokens consumed"
-        },
-        "outputTokens": {
-          "type": "number",
-          "description": "Output tokens generated"
-        },
-        "model": {
+        "label": {
           "type": "string",
-          "description": "Model used"
+          "description": "Human-readable label, e.g. `\"Uncommitted Changes\"`."
         },
-        "cacheReadTokens": {
+        "uriTemplate": {
+          "type": "string",
+          "description": "RFC 6570 URI template. Clients parse the variables directly out of the\ntemplate using the standard `{name}` syntax — they are not redeclared\nhere.\n\nOnly the following template shapes are defined by this protocol; any\nother variable name MUST be ignored by clients (there is no\nprotocol-defined way to obtain values for unknown variables):\n\n| Variables in template                       | Meaning                                                                              |\n| ------------------------------------------- | ------------------------------------------------------------------------------------ |\n| _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |\n| `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |\n| `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |\n\nFuture protocol versions MAY add new well-known variables."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer description."
+        },
+        "additions": {
           "type": "number",
-          "description": "Tokens read from cache"
+          "description": "Aggregate line additions across the changeset, when known."
+        },
+        "deletions": {
+          "type": "number",
+          "description": "Aggregate line deletions across the changeset, when known."
+        },
+        "files": {
+          "type": "number",
+          "description": "Number of files in the changeset, when known."
+        }
+      },
+      "required": [
+        "label",
+        "uriTemplate"
+      ]
+    },
+    "ChangesetState": {
+      "type": "object",
+      "description": "Full state for a single changeset, returned when a client subscribes to\nan expanded changeset URI.\n\nThe client already knows the URI it subscribed to, so this state does\nnot redundantly carry it (or the catalogue's `id`, `label`, etc.).\nAggregate counts (`additions`, `deletions`, `files`) are likewise\nomitted: clients trivially compute them from `files[].edit.diff`.",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/ChangesetStatus",
+          "description": "Computation lifecycle."
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Present iff `status === ChangesetStatus.Error`."
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetFile"
+          },
+          "description": "Files in this changeset, keyed by {@link ChangesetFile.id}."
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetOperation"
+          },
+          "description": "Operations the client may invoke against this changeset. Omit when no\noperations are available."
+        }
+      },
+      "required": [
+        "status",
+        "files"
+      ]
+    },
+    "ChangesetFile": {
+      "type": "object",
+      "description": "One file entry within a {@link ChangesetState}.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the changeset. Typically `after.uri`\n(or `before.uri` for deletions)."
+        },
+        "edit": {
+          "$ref": "#/$defs/FileEdit",
+          "description": "Reuses the existing {@link FileEdit} shape. Clients derive line\nadditions, deletions, and rename/create/delete semantics from this."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this usage report.\nClients MAY look for well-known optional keys here to provide enhanced UI."
+          "description": "Server-defined opaque metadata, surfaced to operations and tooling\nbut not interpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "edit"
+      ]
+    },
+    "ChangesetOperation": {
+      "type": "object",
+      "description": "A server-declared invokable verb the client can run against a\nchangeset, a file, or a range — `\"stage\"`, `\"revert\"`, `\"create-pr\"`,\nand so on.\n\nThe term \"operation\" is used deliberately to avoid colliding with the\nprotocol-level [Actions](/guide/actions) that mutate state.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier, unique within this changeset."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-readable button/menu label."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer description shown on hover or in tooltips."
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetOperationScope"
+          },
+          "description": "Where this operation can be invoked."
+        },
+        "confirmation": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Optional confirmation prompt to show before invoking. When present,\nthe client MUST display this message to the user (typically in a\nconfirmation dialog) and only invoke the operation after the user\naccepts. The presence of this field also signals that the operation\nis destructive — clients SHOULD style the affirmative button\naccordingly (e.g. with a warning colour)."
+        },
+        "icon": {
+          "type": "string",
+          "description": "Optional generic icon hint, e.g. `\"check\"`, `\"trash\"`."
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "scopes"
+      ]
+    },
+    "TelemetryCapabilities": {
+      "type": "object",
+      "description": "OTLP telemetry channels the agent host emits.\r\n\r\nEach field, when present, is either a literal channel URI or an\r\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\r\na client expands and then subscribes to. Absent fields indicate the host\r\ndoes not emit that signal.\r\n\r\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\r\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\r\ntype by URI alone; the host is free to choose any authority/path that\r\nmakes sense for its implementation. Clients MUST treat the URI as\r\nopaque (apart from expanding any well-known template variables defined\r\nbelow) and subscribe with the resulting concrete URI.\r\n\r\nPayloads delivered on these channels are OTLP/JSON values — see\r\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\r\nfor the wire shapes (`ExportLogsServiceRequest`,\r\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
+      "properties": {
+        "logs": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI (or RFC 6570 URI template) for OTLP log records\r\n(`otlp/exportLogs` notifications).\r\n\r\nThe following template variables are defined by this protocol; any\r\nother variable name MUST be ignored by clients (there is no\r\nprotocol-defined way to obtain values for unknown variables):\r\n\r\n| Variables in template | Meaning                                                                                                 |\r\n| --------------------- | ------------------------------------------------------------------------------------------------------- |\r\n| _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |\r\n| `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |\r\n\r\nHosts SHOULD honour the expanded `{level}`; clients MUST still filter\r\ndefensively in case a host ignores the parameter. Hosts that do not\r\nadvertise `{level}` deliver all severities.\r\n\r\nFuture protocol versions MAY add new well-known variables (e.g. scope\r\nor attribute filters)."
+        },
+        "traces": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI for OTLP spans (`otlp/exportTraces` notifications). No\r\ntemplate variables are defined by this protocol version."
+        },
+        "metrics": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\r\nnotifications). No template variables are defined by this protocol\r\nversion."
         }
       }
-    },
-    "ErrorInfo": {
-      "type": "object",
-      "properties": {
-        "errorType": {
-          "type": "string",
-          "description": "Error type identifier"
-        },
-        "message": {
-          "type": "string",
-          "description": "Human-readable error message"
-        },
-        "stack": {
-          "type": "string",
-          "description": "Stack trace"
-        }
-      },
-      "required": [
-        "errorType",
-        "message"
-      ]
-    },
-    "Snapshot": {
-      "type": "object",
-      "description": "A point-in-time snapshot of a subscribed resource's state, returned by\n`initialize`, `reconnect`, and `subscribe`.",
-      "properties": {
-        "resource": {
-          "$ref": "#/$defs/URI",
-          "description": "The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)"
-        },
-        "state": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/RootState"
-            },
-            {
-              "$ref": "#/$defs/SessionState"
-            },
-            {
-              "$ref": "#/$defs/TerminalState"
-            }
-          ],
-          "description": "The current state of the resource"
-        },
-        "fromSeq": {
-          "type": "number",
-          "description": "The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`."
-        }
-      },
-      "required": [
-        "resource",
-        "state",
-        "fromSeq"
-      ]
     },
     "StringOrMarkdown": {
       "oneOf": [

@@ -25,7 +25,16 @@ See [Versioning](/specification/versioning) for the full version strategy.
 
 ## Base Protocol
 
-AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message framing over the transport (WebSocket, MessagePort, etc.).
+AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message framing. The protocol is transport-agnostic — any reliable, ordered, bidirectional message stream can carry AHP messages. See [Transport](/specification/transport).
+
+### Channels are the routing key
+
+Every push-style interaction in AHP is scoped to a **channel** — a URI-identified subscribable resource (the root catalogue, a session, a terminal, a changeset, …). The wire protocol surfaces this consistently:
+
+- **Every command's `params` carries a top-level `channel: URI`**, declared on the `BaseParams` interface that every command params type extends. Channel-scoped commands (`createSession`, `disposeSession`, `fetchTurns`, `completions`, …) pass the target URI; connection-level commands (`initialize`, `ping`, `listSessions`, the `resource*` commands, `authenticate`) narrow `channel` to the literal `'ahp-root://'`.
+- **Every notification's `params` carries a top-level `channel: URI`**, including the `action` envelope, `dispatchAction`, `unsubscribe`, and every protocol notification (`root/sessionAdded`, `auth/required`, …).
+
+Implementations can therefore dispatch any incoming message by inspecting `(method, params.channel)` without per-method deserialisation. This invariant is verified at compile time in `types/version/message-checks.ts`. See [Channels & Subscriptions](/specification/subscriptions) for the URI scheme, the subscription mechanism, and the per-method table.
 
 ### Message Categories
 
@@ -33,7 +42,7 @@ AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message fr
 |---|---|---|
 | Client → Server (notification) | Fire-and-forget | `unsubscribe`, `dispatchAction` |
 | Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `resourceRead`, `resourceWrite`, `resourceList`, `resourceCopy`, `resourceDelete`, `resourceMove` |
-| Server → Client (notification) | Pushed | `action`, `notification` |
+| Server → Client (notification) | Pushed | `action`, `root/sessionAdded`, `root/sessionRemoved`, `root/sessionSummaryChanged`, `auth/required` |
 | Server → Client (response) | Correlated by `id` | Success result or JSON-RPC error |
 
 ### Requests
@@ -41,7 +50,7 @@ AHP uses [JSON-RPC 2.0](https://www.jsonrpc.org/specification) as its message fr
 A JSON-RPC request has an `id` and a `method`. The server MUST respond with exactly one response carrying the same `id`.
 
 ```json
-{ "jsonrpc": "2.0", "id": 1, "method": "subscribe", "params": { "resource": "agenthost:/root" } }
+{ "jsonrpc": "2.0", "id": 1, "method": "subscribe", "params": { "channel": "ahp-root://" } }
 ```
 
 ### Responses
@@ -49,7 +58,7 @@ A JSON-RPC request has an `id` and a `method`. The server MUST respond with exac
 A success response:
 
 ```json
-{ "jsonrpc": "2.0", "id": 1, "result": { "resource": "...", "state": { ... }, "fromSeq": 5 } }
+{ "jsonrpc": "2.0", "id": 1, "result": { "snapshot": { "resource": "...", "state": { ... }, "fromSeq": 5 } } }
 ```
 
 An error response:
@@ -63,22 +72,28 @@ An error response:
 A JSON-RPC notification has a `method` but no `id`. It MUST NOT receive a response.
 
 ```json
-{ "jsonrpc": "2.0", "method": "action", "params": { "envelope": { ... } } }
+{ "jsonrpc": "2.0", "method": "action", "params": { "channel": "ahp-session:/<uuid>", "action": { ... }, "serverSeq": 6 } }
 ```
 
 ## Structure
 
-The specification is organized into the following sections:
+The specification is organised around the **channels** that AHP exposes — each channel page describes its URI, state, lifecycle, actions, and notifications. Cross-cutting concerns (transport, authentication, versioning) have their own pages.
 
 - **[Transport](/specification/transport)** — How messages are delivered between client and server.
-- **[Lifecycle](/specification/lifecycle)** — How connections are established and sessions are managed.
-- **[Subscriptions](/specification/subscriptions)** — URI-based state subscription mechanism.
+- **[Lifecycle](/specification/lifecycle)** — Connection handshake, reconnection, and disconnection.
+- **[Channels & Subscriptions](/specification/subscriptions)** — The channel model, the universal `channel: URI` routing key, and the subscription mechanism shared by every channel type.
+- **[Authentication](/specification/authentication)** — RFC 9728 / RFC 6750 authentication flow.
+- **[Root Channel](/specification/root-channel)** — `ahp-root://` — agents, terminals catalogue, host config, session catalogue events.
+- **[Session Channel](/specification/session-channel)** — `ahp-session:/<uuid>` — per-session state, turns, tool calls, pending messages.
+- **[Terminal Channel](/specification/terminal-channel)** — per-terminal pty state, data flow, claims, command detection.
+- **[Telemetry Channel](/specification/telemetry-channel)** — `ahp-otlp:` — OpenTelemetry logs, traces, and metrics emitted by the agent host.
 - **[Versioning](/specification/versioning)** — Protocol version negotiation and compatibility.
-- **[State Types](/reference/state-types)** — Complete state type definitions.
-- **[Actions](/reference/actions)** — Complete action type definitions.
-- **[Commands](/reference/commands)** — Available RPC commands.
-- **[Messages](/reference/messages)** — Complete list of JSON-RPC methods.
-- **[Notifications](/reference/notifications)** — Ephemeral event broadcasts.
+- **[Common Types](/reference/common)** — Cross-cutting types, base command/notification shapes, and JSON-RPC wire types.
+- **[Root Channel Reference](/reference/root)** — `RootState`, root actions, root commands, and root notifications.
+- **[Session Channel Reference](/reference/session)** — `SessionState`, session actions, and session commands.
+- **[Terminal Channel Reference](/reference/terminal)** — `TerminalState`, terminal actions, and terminal commands.
+- **[Changeset Channel Reference](/reference/changeset)** — `ChangesetState`, changeset actions, and changeset commands.
+- **[Messages](/reference/messages)** — Index of every JSON-RPC method with links to the channel page that documents it.
 - **[Error Codes](/reference/error-codes)** — Application-specific error codes.
 
 ## JSON Schema

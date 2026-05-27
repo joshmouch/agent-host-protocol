@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
-use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};
+use crate::state::{
+    AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus,
+    SessionSummary,
+};
 
 // ─── Enums ────────────────────────────────────────────────────────────
 
@@ -27,46 +30,39 @@ pub enum AuthRequiredReason {
     Expired,
 }
 
-/// Discriminant values for all protocol notifications.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum NotificationType {
-    #[serde(rename = "notify/sessionAdded")]
-    SessionAdded,
-    #[serde(rename = "notify/sessionRemoved")]
-    SessionRemoved,
-    #[serde(rename = "notify/sessionSummaryChanged")]
-    SessionSummaryChanged,
-    #[serde(rename = "notify/authRequired")]
-    AuthRequired,
-}
-
 // ─── Notification Payloads ────────────────────────────────────────────
 
-/// Broadcast to all connected clients when a new session is created.
+/// Broadcast to all clients subscribed to the root channel when a new session
+/// is created.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionAddedNotification {
+pub struct SessionAddedParams {
+    /// Channel URI this notification belongs to (the root channel)
+    pub channel: Uri,
     /// Summary of the new session
     pub summary: SessionSummary,
 }
 
-/// Broadcast to all connected clients when a session is disposed.
+/// Broadcast to all clients subscribed to the root channel when a session is
+/// disposed.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionRemovedNotification {
+pub struct SessionRemovedParams {
+    /// Channel URI this notification belongs to (the root channel)
+    pub channel: Uri,
     /// URI of the removed session
     pub session: Uri,
 }
 
-/// Broadcast to all connected clients when an existing session's summary
-/// changes (title, status, `modifiedAt`, model, working directory, read/done
-/// state, or diff statistics).
+/// Broadcast to all clients subscribed to the root channel when an existing
+/// session's summary changes (title, status, `modifiedAt`, model, working
+/// directory, read/done state, or diff statistics).
 ///
 /// This notification lets clients that maintain a cached session list — for
 /// example, the result of a previous `listSessions()` call — stay in sync with
 /// in-flight sessions without having to subscribe to every session URI
 /// individually. It is complementary to, not a replacement for,
-/// `notify/sessionAdded` and `notify/sessionRemoved`: those signal lifecycle
+/// `root/sessionAdded` and `root/sessionRemoved`: those signal lifecycle
 /// (creation/disposal), while this signals summary-level mutations on an
 /// already-known session.
 ///
@@ -81,15 +77,17 @@ pub struct SessionRemovedNotification {
 ///   catalog via `listSessions()` as usual.
 /// - The server SHOULD emit this notification whenever any mutable field on
 ///   {@link SessionSummary | `SessionSummary`} changes for a session the
-///   server has surfaced via `listSessions()` or `notify/sessionAdded`.
+///   server has surfaced via `listSessions()` or `root/sessionAdded`.
 ///   Servers MAY coalesce or debounce updates for noisy fields (for example,
 ///   `modifiedAt` bumps while a turn is streaming, or rapidly changing
-///   `diffs`) at their discretion.
+///   `changesets`) at their discretion.
 /// - Clients that have no cached entry for `session` MAY ignore the
-///   notification; it is not a substitute for `notify/sessionAdded`.
+///   notification; it is not a substitute for `root/sessionAdded`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionSummaryChangedNotification {
+pub struct SessionSummaryChangedParams {
+    /// Channel URI this notification belongs to (the root channel)
+    pub channel: Uri,
     /// URI of the session whose summary changed
     pub session: Uri,
     /// Mutable summary fields that changed; omitted fields are unchanged.
@@ -101,18 +99,81 @@ pub struct SessionSummaryChangedNotification {
 
 /// Sent by the server when a protected resource requires (re-)authentication.
 ///
-/// This notification is sent when a previously valid token expires or is
-/// revoked, or when the server discovers a new authentication requirement.
+/// This notification MAY be associated with any channel — for example, an
+/// agent advertised on the root channel, or a per-session resource. The
+/// `channel` field identifies the subscription the auth requirement belongs
+/// to; the `resource` field carries the OAuth-protected resource identifier
+/// (per RFC 9728).
+///
 /// Clients should obtain a fresh token and push it via the `authenticate`
 /// command.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthRequiredNotification {
+pub struct AuthRequiredParams {
+    /// Channel URI this notification belongs to
+    pub channel: Uri,
     /// The protected resource identifier that requires authentication
     pub resource: String,
     /// Why authentication is required
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<AuthRequiredReason>,
+}
+
+/// Delivers a batch of OTLP log records to a client subscribed to the host's
+/// logs channel (advertised on `TelemetryCapabilities.logs`).
+///
+/// The `payload` field is an OTLP/JSON `ExportLogsServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceLogs: ResourceLogs[] }` as
+/// defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/logs/v1/logs_service.proto).
+/// AHP does not redeclare the OTLP type system; clients SHOULD use an
+/// OpenTelemetry SDK or schema to parse it.
+///
+/// Like all stateless-channel notifications, this is ephemeral: it is not
+/// replayed on reconnect. Subscribers receive only batches emitted after
+/// their `subscribe` succeeds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportLogsParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.logs`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportLogsServiceRequest` value. The top-level field is
+    /// `resourceLogs: ResourceLogs[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
+}
+
+/// Delivers a batch of OTLP spans to a client subscribed to the host's
+/// traces channel (advertised on `TelemetryCapabilities.traces`).
+///
+/// The `payload` field is an OTLP/JSON `ExportTraceServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceSpans: ResourceSpans[] }`
+/// as defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/trace/v1/trace_service.proto).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportTracesParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.traces`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportTraceServiceRequest` value. The top-level field is
+    /// `resourceSpans: ResourceSpans[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
+}
+
+/// Delivers a batch of OTLP metric data points to a client subscribed to
+/// the host's metrics channel (advertised on `TelemetryCapabilities.metrics`).
+///
+/// The `payload` field is an OTLP/JSON `ExportMetricsServiceRequest` value
+/// verbatim — i.e. an object of shape `{ resourceMetrics: ResourceMetrics[] }`
+/// as defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/metrics/v1/metrics_service.proto).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OtlpExportMetricsParams {
+    /// Channel URI this notification belongs to (an `ahp-otlp:` URI advertised on `TelemetryCapabilities.metrics`).
+    pub channel: Uri,
+    /// OTLP/JSON `ExportMetricsServiceRequest` value. The top-level field is
+    /// `resourceMetrics: ResourceMetrics[]`; nested shapes are defined by
+    /// opentelemetry-proto and are not redeclared here.
+    pub payload: JsonObject,
 }
 
 // ─── Partial Summaries ────────────────────────────────────────────────
@@ -148,26 +209,20 @@ pub struct PartialSessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent.
+    ///
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Files changed during this session with diff statistics
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diffs: Option<Vec<FileEdit>>,
-}
-
-// ─── ProtocolNotification Union ───────────────────────────────────────
-
-/// Discriminated union of all protocol notifications.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum ProtocolNotification {
-    #[serde(rename = "notify/sessionAdded")]
-    SessionAdded(SessionAddedNotification),
-    #[serde(rename = "notify/sessionRemoved")]
-    SessionRemoved(SessionRemovedNotification),
-    #[serde(rename = "notify/sessionSummaryChanged")]
-    SessionSummaryChanged(SessionSummaryChangedNotification),
-    #[serde(rename = "notify/authRequired")]
-    AuthRequired(AuthRequiredNotification),
+    pub changesets: Option<Vec<ChangesetSummary>>,
 }

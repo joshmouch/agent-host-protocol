@@ -3,19 +3,20 @@
 //
 // Wraps the existing pure reducers (`rootReducer`, `sessionReducer`) the
 // same way `AHPStateMirror` does, but keys state by `(hostId, uri)` so
-// URIs that collide across hosts (which is the normal case) don't
-// clobber each other. Drop-in for any multi-host consumer; can be fed
-// directly from `MultiHostClient.events(host:uri:)` or from a
+// channel URIs that collide across hosts (which is the normal case)
+// don't clobber each other. Drop-in for any multi-host consumer; can
+// be fed directly from `MultiHostClient.events(host:uri:)` or from a
 // `HostSubscriptionEvent` stream.
 
 import Foundation
 import AgentHostProtocol
 
-/// Compound key tagging a resource URI with the host that produced it.
+/// Compound key tagging a channel URI with the host that produced it.
 ///
 /// Session and terminal URIs aren't globally unique across hosts —
-/// `copilot:/s1` on Host A and `copilot:/s1` on Host B are different
-/// resources. Use this struct as the key in any multi-host state map.
+/// `ahp-session:/s1` on Host A and `ahp-session:/s1` on Host B are
+/// different resources. Use this struct as the key in any multi-host
+/// state map.
 public struct HostedResourceKey: Hashable, Sendable {
     public let hostId: HostId
     public let uri: String
@@ -26,7 +27,7 @@ public struct HostedResourceKey: Hashable, Sendable {
     }
 }
 
-/// In-memory mirror of root/session/terminal state, fed by
+/// In-memory mirror of root/session/terminal/changeset state, fed by
 /// `ActionEnvelope` and `Snapshot` values tagged with their host of
 /// origin.
 ///
@@ -36,7 +37,7 @@ public struct HostedResourceKey: Hashable, Sendable {
 /// individual envelopes/snapshots via `apply(host:envelope:)` /
 /// `applySnapshot(host:snapshot:)`.
 ///
-/// **Feed from the reliable per-resource stream.** Pump events into
+/// **Feed from the reliable per-channel stream.** Pump events into
 /// this mirror from `MultiHostClient.events(host:uri:)` (which is
 /// unbounded, delivers replayed envelopes, and survives reconnects) —
 /// **not** from `MultiHostClient.events()` (which is lossy by design).
@@ -45,47 +46,54 @@ public actor MultiHostStateMirror {
     public private(set) var rootStates: [HostId: RootState] = [:]
     public private(set) var sessions: [HostedResourceKey: SessionState] = [:]
     public private(set) var terminals: [HostedResourceKey: TerminalState] = [:]
+    public private(set) var changesets: [HostedResourceKey: ChangesetState] = [:]
 
     public init() {}
 
     /// Convenience: apply a `HostSubscriptionEvent` produced by
     /// `MultiHostClient.events()`. Action envelopes are routed through
-    /// the reducer; protocol notifications are dropped (they don't
-    /// affect reducer state).
+    /// the reducer; non-action events are dropped (they don't affect
+    /// reducer state).
     public func apply(event: HostSubscriptionEvent) {
         if case .action(let envelope) = event.event {
             apply(host: event.hostId, envelope: envelope)
         }
     }
 
-    /// Apply a single action envelope, scoped to `host`. Routing by
-    /// `action.session` / `action.terminal` (root state if neither is
-    /// present).
+    /// Apply a single action envelope, scoped to `host`. Routing uses
+    /// `envelope.channel`: `RootResourceURI` is the root channel, every
+    /// other channel is identified by the URI the server announces.
     public func apply(host: HostId, envelope: ActionEnvelope) {
+        let channel = envelope.channel
         let action = envelope.action
-        if let sessionURI = sessionURI(for: action) {
-            let key = HostedResourceKey(hostId: host, uri: sessionURI)
-            // If we have no session state for this `(host, uri)` yet,
-            // the reducer can't initialise one — only
-            // `applySnapshot(host:snapshot:)` can do that.
-            if var session = sessions[key] {
-                session = sessionReducer(state: session, action: action)
-                sessions[key] = session
-            }
+        if channel == RootResourceURI {
+            let current = rootStates[host, default: RootState(agents: [])]
+            rootStates[host] = rootReducer(state: current, action: action)
             return
         }
-        if terminalURI(for: action) != nil {
+        let key = HostedResourceKey(hostId: host, uri: channel)
+        if var session = sessions[key] {
+            session = sessionReducer(state: session, action: action)
+            sessions[key] = session
+            return
+        }
+        if terminals[key] != nil {
             // Terminals don't have a hand-written reducer in the Swift
             // package today; just leave the slot as the latest snapshot.
             return
         }
-        let current = rootStates[host, default: RootState(agents: [])]
-        rootStates[host] = rootReducer(state: current, action: action)
+        if changesets[key] != nil {
+            // Changesets are also seeded by `applySnapshot` and currently
+            // mutated only when fresh snapshots arrive.
+            return
+        }
+        // No state for this `(host, channel)` yet — the reducer can't
+        // initialise one; only `applySnapshot(host:snapshot:)` can.
     }
 
     /// Seed the mirror from a `Snapshot` scoped to `host` — root,
-    /// session, or terminal as the snapshot's `state` discriminator
-    /// dictates.
+    /// session, terminal, or changeset as the snapshot's `state`
+    /// discriminator dictates.
     public func applySnapshot(host: HostId, snapshot: Snapshot) {
         let key = HostedResourceKey(hostId: host, uri: snapshot.resource)
         switch snapshot.state {
@@ -95,15 +103,19 @@ public actor MultiHostStateMirror {
             sessions[key] = state
         case .terminal(let state):
             terminals[key] = state
+        case .changeset(let state):
+            changesets[key] = state
         }
     }
 
     /// Reset every slot for `host` — drops the root state, all sessions
-    /// keyed under that host, and all terminals keyed under that host.
+    /// keyed under that host, all terminals keyed under that host, and
+    /// all changesets keyed under that host.
     public func reset(host: HostId) {
         rootStates.removeValue(forKey: host)
         sessions = sessions.filter { $0.key.hostId != host }
         terminals = terminals.filter { $0.key.hostId != host }
+        changesets = changesets.filter { $0.key.hostId != host }
     }
 
     /// Reset every host's state.
@@ -111,21 +123,6 @@ public actor MultiHostStateMirror {
         rootStates.removeAll()
         sessions.removeAll()
         terminals.removeAll()
-    }
-
-    // MARK: - Helpers
-
-    private func sessionURI(for action: StateAction) -> String? {
-        guard let data = try? JSONEncoder().encode(action),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return object["session"] as? String
-    }
-
-    private func terminalURI(for action: StateAction) -> String? {
-        guard let data = try? JSONEncoder().encode(action),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return object["terminal"] as? String
+        changesets.removeAll()
     }
 }

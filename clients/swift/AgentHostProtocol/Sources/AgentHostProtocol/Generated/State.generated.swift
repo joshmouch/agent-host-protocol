@@ -206,6 +206,27 @@ public enum TerminalClaimKind: String, Codable, Sendable {
     case session = "session"
 }
 
+/// Computation lifecycle of a {@link ChangesetState}.
+public enum ChangesetStatus: String, Codable, Sendable {
+    /// The server is still computing the contents of this changeset.
+    case computing = "computing"
+    /// The changeset has been fully computed and is up-to-date.
+    case ready = "ready"
+    /// Computation failed. The cause is described by
+    /// {@link ChangesetState.error}.
+    case error = "error"
+}
+
+/// Where a {@link ChangesetOperation} can be invoked.
+public enum ChangesetOperationScope: String, Codable, Sendable {
+    /// Applies to the whole changeset.
+    case changeset = "changeset"
+    /// Applies to a single file within the changeset.
+    case resource = "resource"
+    /// Applies to a line range within a single file.
+    case range = "range"
+}
+
 // MARK: - State Types
 
 public struct Icon: Codable, Sendable {
@@ -478,6 +499,17 @@ public struct ModelSelection: Codable, Sendable {
     }
 }
 
+public struct AgentSelection: Codable, Sendable {
+    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    public var uri: String
+
+    public init(
+        uri: String
+    ) {
+        self.uri = uri
+    }
+}
+
 public final class ConfigPropertySchema: Codable, @unchecked Sendable {
     /// JSON Schema: property type
     public var type: String
@@ -701,10 +733,19 @@ public struct SessionSummary: Codable, Sendable {
     public var project: ProjectInfo?
     /// Currently selected model
     public var model: ModelSelection?
+    /// Currently selected custom agent.
+    /// 
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Files changed during this session with diff statistics
-    public var diffs: [FileEdit]?
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    public var changesets: [ChangesetSummary]?
 
     public init(
         resource: String,
@@ -716,8 +757,9 @@ public struct SessionSummary: Codable, Sendable {
         modifiedAt: Int,
         project: ProjectInfo? = nil,
         model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        diffs: [FileEdit]? = nil
+        changesets: [ChangesetSummary]? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -728,8 +770,9 @@ public struct SessionSummary: Codable, Sendable {
         self.modifiedAt = modifiedAt
         self.project = project
         self.model = model
+        self.agent = agent
         self.workingDirectory = workingDirectory
-        self.diffs = diffs
+        self.changesets = changesets
     }
 }
 
@@ -2304,6 +2347,25 @@ public struct CustomizationRef: Codable, Sendable {
     }
 }
 
+public struct CustomizationAgentRef: Codable, Sendable {
+    /// Stable agent URI
+    public var uri: String
+    /// Agent name (from frontmatter `name`, or file-derived)
+    public var name: String
+    /// Optional short description for UI preview (from frontmatter `description`)
+    public var description: String?
+
+    public init(
+        uri: String,
+        name: String,
+        description: String? = nil
+    ) {
+        self.uri = uri
+        self.name = name
+        self.description = description
+    }
+}
+
 public struct SessionCustomization: Codable, Sendable {
     /// The plugin this customization refers to
     public var customization: CustomizationRef
@@ -2316,19 +2378,31 @@ public struct SessionCustomization: Codable, Sendable {
     public var status: CustomizationStatus?
     /// Human-readable status detail (e.g. error message or degradation warning).
     public var statusMessage: String?
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host after parsing the customization.
+    /// 
+    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
+    /// not finished parsing the customization yet). An empty array means the
+    /// host parsed the customization and it contributes no agents.
+    /// 
+    /// Clients are not authoritative here: only the agent host populates
+    /// this field.
+    public var agents: [CustomizationAgentRef]?
 
     public init(
         customization: CustomizationRef,
         enabled: Bool,
         clientId: String? = nil,
         status: CustomizationStatus? = nil,
-        statusMessage: String? = nil
+        statusMessage: String? = nil,
+        agents: [CustomizationAgentRef]? = nil
     ) {
         self.customization = customization
         self.enabled = enabled
         self.clientId = clientId
         self.status = status
         self.statusMessage = statusMessage
+        self.agents = agents
     }
 }
 
@@ -2571,7 +2645,7 @@ public struct ErrorInfo: Codable, Sendable {
 }
 
 public struct Snapshot: Codable, Sendable {
-    /// The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)
+    /// The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)
     public var resource: String
     /// The current state of the resource
     public var state: SnapshotState
@@ -2586,6 +2660,178 @@ public struct Snapshot: Codable, Sendable {
         self.resource = resource
         self.state = state
         self.fromSeq = fromSeq
+    }
+}
+
+public struct ChangesetSummary: Codable, Sendable {
+    /// Human-readable label, e.g. `"Uncommitted Changes"`.
+    public var label: String
+    /// RFC 6570 URI template. Clients parse the variables directly out of the
+    /// template using the standard `{name}` syntax — they are not redeclared
+    /// here.
+    /// 
+    /// Only the following template shapes are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    /// 
+    /// | Variables in template                       | Meaning                                                                              |
+    /// | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+    /// | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
+    /// | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
+    /// | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
+    /// 
+    /// Future protocol versions MAY add new well-known variables.
+    public var uriTemplate: String
+    /// Optional longer description.
+    public var description: String?
+    /// Aggregate line additions across the changeset, when known.
+    public var additions: Int?
+    /// Aggregate line deletions across the changeset, when known.
+    public var deletions: Int?
+    /// Number of files in the changeset, when known.
+    public var files: Int?
+
+    public init(
+        label: String,
+        uriTemplate: String,
+        description: String? = nil,
+        additions: Int? = nil,
+        deletions: Int? = nil,
+        files: Int? = nil
+    ) {
+        self.label = label
+        self.uriTemplate = uriTemplate
+        self.description = description
+        self.additions = additions
+        self.deletions = deletions
+        self.files = files
+    }
+}
+
+public struct ChangesetState: Codable, Sendable {
+    /// Computation lifecycle.
+    public var status: ChangesetStatus
+    /// Present iff `status === ChangesetStatus.Error`.
+    public var error: ErrorInfo?
+    /// Files in this changeset, keyed by {@link ChangesetFile.id}.
+    public var files: [ChangesetFile]
+    /// Operations the client may invoke against this changeset. Omit when no
+    /// operations are available.
+    public var operations: [ChangesetOperation]?
+
+    public init(
+        status: ChangesetStatus,
+        error: ErrorInfo? = nil,
+        files: [ChangesetFile],
+        operations: [ChangesetOperation]? = nil
+    ) {
+        self.status = status
+        self.error = error
+        self.files = files
+        self.operations = operations
+    }
+}
+
+public struct ChangesetFile: Codable, Sendable {
+    /// Stable identifier within the changeset. Typically `after.uri`
+    /// (or `before.uri` for deletions).
+    public var id: String
+    /// Reuses the existing {@link FileEdit} shape. Clients derive line
+    /// additions, deletions, and rename/create/delete semantics from this.
+    public var edit: FileEdit
+    /// Server-defined opaque metadata, surfaced to operations and tooling
+    /// but not interpreted by the protocol.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case edit
+        case meta = "_meta"
+    }
+
+    public init(
+        id: String,
+        edit: FileEdit,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.edit = edit
+        self.meta = meta
+    }
+}
+
+public struct ChangesetOperation: Codable, Sendable {
+    /// Stable identifier, unique within this changeset.
+    public var id: String
+    /// Human-readable button/menu label.
+    public var label: String
+    /// Optional longer description shown on hover or in tooltips.
+    public var description: String?
+    /// Where this operation can be invoked.
+    public var scopes: [ChangesetOperationScope]
+    /// Optional confirmation prompt to show before invoking. When present,
+    /// the client MUST display this message to the user (typically in a
+    /// confirmation dialog) and only invoke the operation after the user
+    /// accepts. The presence of this field also signals that the operation
+    /// is destructive — clients SHOULD style the affirmative button
+    /// accordingly (e.g. with a warning colour).
+    public var confirmation: StringOrMarkdown?
+    /// Optional generic icon hint, e.g. `"check"`, `"trash"`.
+    public var icon: String?
+
+    public init(
+        id: String,
+        label: String,
+        description: String? = nil,
+        scopes: [ChangesetOperationScope],
+        confirmation: StringOrMarkdown? = nil,
+        icon: String? = nil
+    ) {
+        self.id = id
+        self.label = label
+        self.description = description
+        self.scopes = scopes
+        self.confirmation = confirmation
+        self.icon = icon
+    }
+}
+
+public struct TelemetryCapabilities: Codable, Sendable {
+    /// Channel URI (or RFC 6570 URI template) for OTLP log records
+    /// (`otlp/exportLogs` notifications).
+    /// 
+    /// The following template variables are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    /// 
+    /// | Variables in template | Meaning                                                                                                 |
+    /// | --------------------- | ------------------------------------------------------------------------------------------------------- |
+    /// | _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |
+    /// | `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |
+    /// 
+    /// Hosts SHOULD honour the expanded `{level}`; clients MUST still filter
+    /// defensively in case a host ignores the parameter. Hosts that do not
+    /// advertise `{level}` deliver all severities.
+    /// 
+    /// Future protocol versions MAY add new well-known variables (e.g. scope
+    /// or attribute filters).
+    public var logs: String?
+    /// Channel URI for OTLP spans (`otlp/exportTraces` notifications). No
+    /// template variables are defined by this protocol version.
+    public var traces: String?
+    /// Channel URI for OTLP metric data points (`otlp/exportMetrics`
+    /// notifications). No template variables are defined by this protocol
+    /// version.
+    public var metrics: String?
+
+    public init(
+        logs: String? = nil,
+        traces: String? = nil,
+        metrics: String? = nil
+    ) {
+        self.logs = logs
+        self.traces = traces
+        self.metrics = metrics
     }
 }
 
@@ -2941,11 +3187,12 @@ public enum ToolResultContent: Codable, Sendable {
     }
 }
 
-/// The state payload of a snapshot — root state, session state, or terminal state.
+/// The state payload of a snapshot — root, session, terminal, or changeset state.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
     case terminal(TerminalState)
+    case changeset(ChangesetState)
 
     public init(from decoder: Decoder) throws {
         // SessionState has required `summary` field, try it first
@@ -2953,6 +3200,8 @@ public enum SnapshotState: Codable, Sendable {
             self = .session(session)
         } else if let terminal = try? TerminalState(from: decoder) {
             self = .terminal(terminal)
+        } else if let changeset = try? ChangesetState(from: decoder) {
+            self = .changeset(changeset)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -2963,6 +3212,7 @@ public enum SnapshotState: Codable, Sendable {
         case .root(let state): try state.encode(to: encoder)
         case .session(let state): try state.encode(to: encoder)
         case .terminal(let state): try state.encode(to: encoder)
+        case .changeset(let state): try state.encode(to: encoder)
         }
     }
 }

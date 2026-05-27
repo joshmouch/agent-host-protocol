@@ -36,14 +36,14 @@ final class MultiHostStateMirrorTests: XCTestCase {
         let mirror = MultiHostStateMirror()
         let sessionA = SessionState(
             summary: SessionSummary(
-                resource: "copilot:/s1", provider: "x", title: "A title",
+                resource: "ahp-session:/s1", provider: "x", title: "A title",
                 status: .idle, createdAt: 1, modifiedAt: 1
             ),
             lifecycle: .ready, turns: []
         )
         let sessionB = SessionState(
             summary: SessionSummary(
-                resource: "copilot:/s1", provider: "x", title: "B title",
+                resource: "ahp-session:/s1", provider: "x", title: "B title",
                 status: .idle, createdAt: 1, modifiedAt: 1
             ),
             lifecycle: .ready, turns: []
@@ -51,16 +51,16 @@ final class MultiHostStateMirrorTests: XCTestCase {
 
         await mirror.applySnapshot(
             host: "alpha",
-            snapshot: Snapshot(resource: "copilot:/s1", state: .session(sessionA), fromSeq: 0)
+            snapshot: Snapshot(resource: "ahp-session:/s1", state: .session(sessionA), fromSeq: 0)
         )
         await mirror.applySnapshot(
             host: "beta",
-            snapshot: Snapshot(resource: "copilot:/s1", state: .session(sessionB), fromSeq: 0)
+            snapshot: Snapshot(resource: "ahp-session:/s1", state: .session(sessionB), fromSeq: 0)
         )
 
         let sessions = await mirror.sessions
-        XCTAssertEqual(sessions[HostedResourceKey(hostId: "alpha", uri: "copilot:/s1")]?.summary.title, "A title")
-        XCTAssertEqual(sessions[HostedResourceKey(hostId: "beta", uri: "copilot:/s1")]?.summary.title, "B title")
+        XCTAssertEqual(sessions[HostedResourceKey(hostId: "alpha", uri: "ahp-session:/s1")]?.summary.title, "A title")
+        XCTAssertEqual(sessions[HostedResourceKey(hostId: "beta", uri: "ahp-session:/s1")]?.summary.title, "B title")
     }
 
     // MARK: - apply_root_action_updates_only_the_target_host
@@ -77,6 +77,7 @@ final class MultiHostStateMirrorTests: XCTestCase {
         )
 
         let envelope = ActionEnvelope(
+            channel: RootResourceURI,
             action: .rootAgentsChanged(RootAgentsChangedAction(
                 type: .rootAgentsChanged,
                 agents: [AgentInfo(provider: "new", displayName: "New", description: "", models: [])]
@@ -97,24 +98,24 @@ final class MultiHostStateMirrorTests: XCTestCase {
         let mirror = MultiHostStateMirror()
         let initial = SessionState(
             summary: SessionSummary(
-                resource: "copilot:/s1", provider: "x", title: "Old",
+                resource: "ahp-session:/s1", provider: "x", title: "Old",
                 status: .idle, createdAt: 1, modifiedAt: 1
             ),
             lifecycle: .ready, turns: []
         )
         await mirror.applySnapshot(
             host: "alpha",
-            snapshot: Snapshot(resource: "copilot:/s1", state: .session(initial), fromSeq: 0)
+            snapshot: Snapshot(resource: "ahp-session:/s1", state: .session(initial), fromSeq: 0)
         )
         await mirror.applySnapshot(
             host: "beta",
-            snapshot: Snapshot(resource: "copilot:/s1", state: .session(initial), fromSeq: 0)
+            snapshot: Snapshot(resource: "ahp-session:/s1", state: .session(initial), fromSeq: 0)
         )
 
         let envelope = ActionEnvelope(
+            channel: "ahp-session:/s1",
             action: .sessionTitleChanged(SessionTitleChangedAction(
                 type: .sessionTitleChanged,
-                session: "copilot:/s1",
                 title: "New on alpha"
             )),
             serverSeq: 7
@@ -122,8 +123,8 @@ final class MultiHostStateMirrorTests: XCTestCase {
         await mirror.apply(host: "alpha", envelope: envelope)
 
         let sessions = await mirror.sessions
-        XCTAssertEqual(sessions[HostedResourceKey(hostId: "alpha", uri: "copilot:/s1")]?.summary.title, "New on alpha")
-        XCTAssertEqual(sessions[HostedResourceKey(hostId: "beta", uri: "copilot:/s1")]?.summary.title, "Old",
+        XCTAssertEqual(sessions[HostedResourceKey(hostId: "alpha", uri: "ahp-session:/s1")]?.summary.title, "New on alpha")
+        XCTAssertEqual(sessions[HostedResourceKey(hostId: "beta", uri: "ahp-session:/s1")]?.summary.title, "Old",
                        "session-scoped action on alpha must not touch beta's identically-named session")
     }
 
@@ -137,6 +138,7 @@ final class MultiHostStateMirrorTests: XCTestCase {
         )
 
         let envelope = ActionEnvelope(
+            channel: RootResourceURI,
             action: .rootAgentsChanged(RootAgentsChangedAction(
                 type: .rootAgentsChanged,
                 agents: [AgentInfo(provider: "via-event", displayName: "V", description: "", models: [])]

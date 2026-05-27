@@ -11,12 +11,13 @@ import {
 } from 'ts-morph';
 import fs from 'fs';
 import path from 'path';
+import { findProtocolSourceFiles } from './find-protocol-sources.js';
 
 const GENERATED_HEADER = `// Generated from types/actions.ts — do not edit
 // Run \`npm run generate\` to regenerate.
 `;
 
-type ActionScope = 'root' | 'session' | 'terminal';
+type ActionScope = 'root' | 'session' | 'terminal' | 'changeset';
 
 interface ActionInfo {
   /** The interface name (e.g. 'RootAgentsChangedAction') */
@@ -78,11 +79,43 @@ function resolveActionType(
 }
 
 export function generateActionOrigin(project: Project, outDir: string): void {
-  const actionsFile = project.getSourceFileOrThrow('actions.ts');
+  // After the channel-organized refactor, the `ActionType` enum and
+  // `StateAction` union live in `types/common/actions.ts`, while the
+  // individual action interfaces live in `types/channels-*/actions.ts`.
+  // Look up declarations across every canonical actions file.
+  const actionsFiles = findProtocolSourceFiles(project, 'actions.ts');
+  if (actionsFiles.length === 0) {
+    throw new Error('No canonical types/**/actions.ts files found in the project');
+  }
+
+  function findEnumAcross(name: string) {
+    for (const sf of actionsFiles) {
+      const e = sf.getEnum(name);
+      if (e) return e;
+    }
+    return undefined;
+  }
+  function findTypeAliasAcross(name: string) {
+    for (const sf of actionsFiles) {
+      const ta = sf.getTypeAlias(name);
+      if (ta) return ta;
+    }
+    return undefined;
+  }
+  function findInterfaceAcross(name: string) {
+    for (const sf of actionsFiles) {
+      const iface = sf.getInterface(name);
+      if (iface) return iface;
+    }
+    return undefined;
+  }
 
   // Parse ActionType enum values
   const enumValues = new Map<string, string>();
-  const actionTypeEnum = actionsFile.getEnumOrThrow('ActionType');
+  const actionTypeEnum = findEnumAcross('ActionType');
+  if (!actionTypeEnum) {
+    throw new Error('ActionType enum not found in any types/**/actions.ts');
+  }
   for (const member of actionTypeEnum.getMembers()) {
     const value = member.getValue();
     if (typeof value === 'string') {
@@ -91,7 +124,10 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   }
 
   // Find the StateAction union to know which types are in scope
-  const stateActionAlias = actionsFile.getTypeAliasOrThrow('StateAction');
+  const stateActionAlias = findTypeAliasAcross('StateAction');
+  if (!stateActionAlias) {
+    throw new Error('StateAction type alias not found in any types/**/actions.ts');
+  }
   const unionText = stateActionAlias.getTypeNodeOrThrow().getText();
 
   // Extract interface names from the union (e.g. "RootAgentsChangedAction")
@@ -104,17 +140,18 @@ export function generateActionOrigin(project: Project, outDir: string): void {
 
   for (const name of unionMembers) {
     // Could be an interface or a type alias (SessionToolCallConfirmedAction is a type alias)
-    const iface = actionsFile.getInterface(name);
-    const typeAlias = actionsFile.getTypeAlias(name);
+    const iface = findInterfaceAcross(name);
+    const typeAlias = findTypeAliasAcross(name);
     const node = iface || typeAlias;
 
     if (!node) {
-      throw new Error(`Could not find declaration for ${name} in actions.ts`);
+      throw new Error(`Could not find declaration for ${name} in any types/**/actions.ts`);
     }
 
     const category = getJsDocTag(node as any, 'category') || '';
     const scope: ActionScope = category === 'Root Actions' ? 'root'
       : category === 'Terminal Actions' ? 'terminal'
+      : category === 'Changeset Actions' ? 'changeset'
       : 'session';
     const isClientDispatchable = hasJsDocTag(node as any, 'clientDispatchable');
 
@@ -163,12 +200,15 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const rootActions = actions.filter(a => a.scope === 'root');
   const sessionActions = actions.filter(a => a.scope === 'session');
   const terminalActions = actions.filter(a => a.scope === 'terminal');
+  const changesetActions = actions.filter(a => a.scope === 'changeset');
   const clientRootActions = rootActions.filter(a => a.isClientDispatchable);
   const serverRootActions = rootActions.filter(a => !a.isClientDispatchable);
   const clientSessionActions = sessionActions.filter(a => a.isClientDispatchable);
   const serverSessionActions = sessionActions.filter(a => !a.isClientDispatchable);
   const clientTerminalActions = terminalActions.filter(a => a.isClientDispatchable);
   const serverTerminalActions = terminalActions.filter(a => !a.isClientDispatchable);
+  const clientChangesetActions = changesetActions.filter(a => a.isClientDispatchable);
+  const serverChangesetActions = changesetActions.filter(a => !a.isClientDispatchable);
 
   const lines: string[] = [GENERATED_HEADER];
 
@@ -184,7 +224,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   lines.push(``);
 
   // RootAction
-  lines.push(`// ─── Root vs Session vs Terminal Action Unions ───────────────────────────────`);
+  lines.push(`// ─── Root vs Session vs Terminal vs Changeset Action Unions ─────────────────`);
   lines.push(``);
   lines.push(`/** Union of all root-scoped actions. */`);
   lines.push(`export type RootAction =`);
@@ -262,6 +302,41 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   lines.push(`export type ServerTerminalAction =`);
   for (let i = 0; i < serverTerminalActions.length; i++) {
     lines.push(`  | ${serverTerminalActions[i].name}`);
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ChangesetAction
+  lines.push(`/** Union of all changeset-scoped actions. */`);
+  lines.push(`export type ChangesetAction =`);
+  for (let i = 0; i < changesetActions.length; i++) {
+    lines.push(`  | ${changesetActions[i].name}`);
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ClientChangesetAction
+  lines.push(`/** Union of changeset actions that clients may dispatch. */`);
+  lines.push(`export type ClientChangesetAction =`);
+  if (clientChangesetActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < clientChangesetActions.length; i++) {
+      lines.push(`  | ${clientChangesetActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ServerChangesetAction
+  lines.push(`/** Union of changeset actions that only the server may produce. */`);
+  lines.push(`export type ServerChangesetAction =`);
+  if (serverChangesetActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < serverChangesetActions.length; i++) {
+      lines.push(`  | ${serverChangesetActions[i].name}`);
+    }
   }
   lines.push(`;`);
   lines.push(``);

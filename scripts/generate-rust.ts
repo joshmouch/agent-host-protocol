@@ -20,6 +20,7 @@ import {
 import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { findProtocolSourceFiles } from './find-protocol-sources.js';
 
 const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
 
@@ -95,7 +96,7 @@ function rustFieldName(tsName: string): { rustName: string; wireName: string; re
 
 /** PascalCase enum variant from a string literal (for explicit-rename variants). */
 function toEnumVariant(value: string): string {
-  // notify/sessionAdded → NotifySessionAdded
+  // root/sessionAdded → RootSessionAdded
   // session/toolCallStart → SessionToolCallStart
   // pending-confirmation → PendingConfirmation
   // single-select → SingleSelect
@@ -140,7 +141,8 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   if (tsType === 'SessionStatus') return 'u32';
 
   if (tsType === 'IRootState | ISessionState' || tsType === 'IRootState | ISessionState | ITerminalState'
-    || tsType === 'RootState | SessionState' || tsType === 'RootState | SessionState | TerminalState') {
+    || tsType === 'RootState | SessionState' || tsType === 'RootState | SessionState | TerminalState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState') {
     return 'SnapshotState';
   }
 
@@ -519,6 +521,7 @@ const STATE_ENUMS = [
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
+  'ChangesetStatus', 'ChangesetOperationScope',
 ];
 
 /**
@@ -534,6 +537,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'AgentInfo' },
   { name: 'SessionModelInfo' },
   { name: 'ModelSelection' },
+  { name: 'AgentSelection' },
   { name: 'ConfigPropertySchema' },
   { name: 'ConfigSchema' },
   { name: 'PendingMessage' },
@@ -590,6 +594,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ToolResultTerminalContent', omitDiscriminants: true },
   { name: 'ToolResultSubagentContent', omitDiscriminants: true },
   { name: 'CustomizationRef' },
+  { name: 'CustomizationAgentRef' },
   { name: 'SessionCustomization' },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
@@ -601,6 +606,11 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'UsageInfo' },
   { name: 'ErrorInfo' },
   { name: 'Snapshot' },
+  { name: 'ChangesetSummary' },
+  { name: 'ChangesetState' },
+  { name: 'ChangesetFile' },
+  { name: 'ChangesetOperation' },
+  { name: 'TelemetryCapabilities' },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -723,26 +733,28 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 };
 
 function generateSnapshotState(): string {
-  return `/// The state payload of a snapshot — root, session, or terminal state.
+  return `/// The state payload of a snapshot — root, session, terminal, or
+/// changeset state.
 ///
 /// Deserialized by trying session first (has required \`summary\`), then
-/// terminal (has required \`content\`), then root.
+/// terminal (has required \`content\`), then changeset (has required
+/// \`status\` and \`files\`), then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
     Session(Box<SessionState>),
     Terminal(Box<TerminalState>),
+    Changeset(Box<ChangesetState>),
     Root(Box<RootState>),
 }`;
 }
 
 function generateStateFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName() === 'state.ts')!;
   const lines: string[] = [GENERATED_HEADER];
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
   for (const enumName of STATE_ENUMS) {
-    const decl = sf.getEnum(enumName);
+    const decl = findEnum(project, enumName);
     if (decl) {
       lines.push(generateRustEnum(decl));
       lines.push('');
@@ -816,9 +828,11 @@ const ACTION_VARIANTS: {
   { type: 'session/usage', variantName: 'SessionUsage', tsInterface: 'SessionUsageAction' },
   { type: 'session/reasoning', variantName: 'SessionReasoning', tsInterface: 'SessionReasoningAction' },
   { type: 'session/modelChanged', variantName: 'SessionModelChanged', tsInterface: 'SessionModelChangedAction' },
+  { type: 'session/agentChanged', variantName: 'SessionAgentChanged', tsInterface: 'SessionAgentChangedAction' },
   { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
+  { type: 'session/changesetsChanged', variantName: 'SessionChangesetsChanged', tsInterface: 'SessionChangesetsChangedAction' },
   { type: 'session/serverToolsChanged', variantName: 'SessionServerToolsChanged', tsInterface: 'SessionServerToolsChangedAction' },
   { type: 'session/activeClientChanged', variantName: 'SessionActiveClientChanged', tsInterface: 'SessionActiveClientChangedAction' },
   { type: 'session/activeClientToolsChanged', variantName: 'SessionActiveClientToolsChanged', tsInterface: 'SessionActiveClientToolsChangedAction' },
@@ -832,10 +846,14 @@ const ACTION_VARIANTS: {
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
-  { type: 'session/diffsChanged', variantName: 'SessionDiffsChanged', tsInterface: 'SessionDiffsChangedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
   { type: 'session/toolCallContentChanged', variantName: 'SessionToolCallContentChanged', tsInterface: 'SessionToolCallContentChangedAction' },
+  { type: 'changeset/statusChanged', variantName: 'ChangesetStatusChanged', tsInterface: 'ChangesetStatusChangedAction' },
+  { type: 'changeset/fileSet', variantName: 'ChangesetFileSet', tsInterface: 'ChangesetFileSetAction' },
+  { type: 'changeset/fileRemoved', variantName: 'ChangesetFileRemoved', tsInterface: 'ChangesetFileRemovedAction' },
+  { type: 'changeset/operationsChanged', variantName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
+  { type: 'changeset/cleared', variantName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
   { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },
   { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'TerminalInputAction' },
@@ -855,7 +873,6 @@ function generateMergedToolCallConfirmedStruct(): string {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolCallConfirmedAction {
-    pub session: Uri,
     pub turn_id: String,
     pub tool_call_id: String,
     /// Additional provider-specific metadata for this tool call.
@@ -885,14 +902,13 @@ pub struct SessionToolCallConfirmedAction {
 }
 
 function generateActionsFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName() === 'actions.ts')!;
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, ConfirmationOption, CustomizationRef, CustomizationStatus, ErrorInfo, FileEdit, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
   lines.push('');
 
   // ActionType enum
   lines.push('// ─── ActionType ──────────────────────────────────────────────────────\n');
-  const actionTypeEnum = sf.getEnum('ActionType');
+  const actionTypeEnum = findEnum(project, 'ActionType');
   if (actionTypeEnum) {
     lines.push(generateRustEnum(actionTypeEnum));
     lines.push('');
@@ -904,9 +920,17 @@ function generateActionsFile(project: Project): string {
   lines.push('');
   // ActionEnvelope has a field `action: IStateAction` — we need to replace IStateAction with StateAction
   lines.push(`/// Every action is wrapped in an \`ActionEnvelope\`.
+///
+/// The envelope identifies the channel the action belongs to (e.g.
+/// \`ahp-root://\` for root actions, the session URI for session actions, the
+/// terminal URI for terminal actions). Individual action payloads carry only
+/// fields that are intrinsic to the action; the channel comes from the
+/// envelope so that any subscribable resource can route its actions uniformly.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionEnvelope {
+    /// Channel URI this action belongs to.
+    pub channel: Uri,
     pub action: StateAction,
     pub server_seq: u64,
     pub origin: Option<ActionOrigin>,
@@ -982,6 +1006,8 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: s
   { name: 'SessionConfigCompletionsParams' }, { name: 'SessionConfigCompletionsResult' },
   { name: 'SessionConfigValueItem' },
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
+  { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
+  { name: 'ChangesetOperationFollowUp' },
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -995,17 +1021,16 @@ const RECONNECT_RESULT_UNION: UnionConfig = {
 };
 
 function generateCommandsFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName() === 'commands.ts')!;
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TerminalClaim, Turn};');
+  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
   for (const enumName of COMMAND_ENUMS) {
-    const decl = sf.getEnum(enumName);
+    const decl = findEnum(project, enumName);
     if (decl) {
       lines.push(generateRustEnum(decl));
       lines.push('');
@@ -1032,42 +1057,63 @@ function generateCommandsFile(project: Project): string {
   lines.push(generateDiscriminatedUnion(RECONNECT_RESULT_UNION));
   lines.push('');
 
+  lines.push('// ─── Changeset Operation Unions ───────────────────────────────────────\n');
+  lines.push(generateChangesetOperationTargetRust());
+  lines.push('');
+
   return lines.join('\n');
+}
+
+function generateChangesetOperationTargetRust(): string {
+  return `/// Identifies the file or range a \`ChangesetOperation\` should act on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum ChangesetOperationTarget {
+    #[serde(rename = "resource")]
+    Resource {
+        resource: Uri,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        side: Option<String>,
+    },
+    #[serde(rename = "range")]
+    Range {
+        resource: Uri,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        side: Option<String>,
+        range: ChangesetOperationTargetRange,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ChangesetOperationTargetRange {
+    pub start: i64,
+    pub end: i64,
+}`;
 }
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'NotificationType'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedNotification',
-  'SessionRemovedNotification',
-  'SessionSummaryChangedNotification',
-  'AuthRequiredNotification',
+  'SessionAddedParams',
+  'SessionRemovedParams',
+  'SessionSummaryChangedParams',
+  'AuthRequiredParams',
+  'OtlpExportLogsParams',
+  'OtlpExportTracesParams',
+  'OtlpExportMetricsParams',
 ];
 
-const PROTOCOL_NOTIFICATION_UNION: UnionConfig = {
-  name: 'ProtocolNotification',
-  discriminantField: 'type',
-  doc: 'Discriminated union of all protocol notifications.',
-  variants: [
-    { variantName: 'SessionAdded', innerType: 'SessionAddedNotification', wireValue: 'notify/sessionAdded' },
-    { variantName: 'SessionRemoved', innerType: 'SessionRemovedNotification', wireValue: 'notify/sessionRemoved' },
-    { variantName: 'SessionSummaryChanged', innerType: 'SessionSummaryChangedNotification', wireValue: 'notify/sessionSummaryChanged' },
-    { variantName: 'AuthRequired', innerType: 'AuthRequiredNotification', wireValue: 'notify/authRequired' },
-  ],
-};
-
 function generateNotificationsFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName() === 'notifications.ts')!;
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
   for (const enumName of NOTIFICATION_ENUMS) {
-    const decl = sf.getEnum(enumName);
+    const decl = findEnum(project, enumName);
     if (decl) {
       lines.push(generateRustEnum(decl));
       lines.push('');
@@ -1102,10 +1148,6 @@ function generateNotificationsFile(project: Project): string {
       }
     }
   }
-
-  lines.push('// ─── ProtocolNotification Union ───────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(PROTOCOL_NOTIFICATION_UNION));
-  lines.push('');
 
   return lines.join('\n');
 }
@@ -1202,7 +1244,6 @@ pub struct UnsupportedProtocolVersionErrorData {
 function generateMessagesFile(): string {
   return `${GENERATED_HEADER}
 use crate::actions::ActionEnvelope;
-use crate::notifications::ProtocolNotification;
 
 // ─── JSON-RPC Envelope ────────────────────────────────────────────────────
 
@@ -1272,12 +1313,6 @@ pub enum JsonRpcMessage {
     Notification(JsonRpcNotification),
 }
 
-/// Params for the server → client \`notification\` method.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NotificationMethodParams {
-    pub notification: ProtocolNotification,
-}
-
 /// Params for the server → client \`action\` method.
 pub type ActionNotificationParams = ActionEnvelope;
 `;
@@ -1308,16 +1343,16 @@ pub const PROTOCOL_VERSION: &str = ${JSON.stringify(protocolVersion)};
 // ─── Exhaustiveness ─────────────────────────────────────────────────────────
 
 function checkExhaustiveness(project: Project): void {
-  const v1 = project.getSourceFiles().find(f => f.getBaseName() === 'v1.ts');
-  if (!v1) return; // Optional — Swift generator throws but we just skip.
-
-  const protocolModules = new Set(['state', 'actions', 'commands', 'notifications', 'errors']);
+  const protocolModules = ['state.ts', 'actions.ts', 'commands.ts', 'notifications.ts', 'errors.ts'];
   const imported = new Set<string>();
-  for (const decl of v1.getImportDeclarations()) {
-    const mod = decl.getModuleSpecifierValue().replace(/^\.\.\//, '').replace(/\.js$/, '');
-    if (!protocolModules.has(mod)) continue;
-    for (const named of decl.getNamedImports()) {
-      imported.add(named.getName());
+  for (const baseName of protocolModules) {
+    for (const sf of findProtocolSourceFiles(project, baseName)) {
+      for (const decl of sf.getInterfaces()) {
+        if (decl.isExported()) imported.add(decl.getName());
+      }
+      for (const decl of sf.getTypeAliases()) {
+        if (decl.isExported()) imported.add(decl.getName());
+      }
     }
   }
 
@@ -1334,14 +1369,19 @@ function checkExhaustiveness(project: Project): void {
   ]);
 
   const knownSpecial = new Set<string>([
+    'URI',
+    'BaseParams',
     'StringOrMarkdown',
     'ToolCallState',
     'StateAction',
     'ActionEnvelope',
     'ActionOrigin',
+    'ResponsePart',
+    'ToolResultContent',
     'SessionToolCallApprovedAction',
     'SessionToolCallDeniedAction',
-    'ProtocolNotification',
+    'SessionToolCallConfirmedAction',
+    'PingParams',
     'TerminalClaim',
     'TerminalContentPart',
     'SessionInputQuestion',
@@ -1355,13 +1395,17 @@ function checkExhaustiveness(project: Project): void {
     'UnsupportedProtocolVersionErrorData',
     'AhpError',
     'AhpErrorDetailsMap',
+    'AhpErrorCode',
+    'AhpErrorCodeWithData',
+    'JsonRpcErrorCode',
+    'ChangesetOperationTarget',
   ]);
 
   const missing = [...imported].filter(n => !coveredByLists.has(n) && !knownSpecial.has(n));
   if (missing.length > 0) {
     console.warn(
-      `generate-rust.ts exhaustiveness: the following types are declared in v1.ts ` +
-      `but not covered by the Rust generator:\n` +
+      `generate-rust.ts exhaustiveness: the following types are exported from ` +
+      `the protocol source modules but not covered by the Rust generator:\n` +
       missing.map(n => `  - ${n}`).join('\n'),
     );
   }

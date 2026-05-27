@@ -3,7 +3,7 @@
 // Mirrors the Rust integration-test scaffolding (`crates/ahp/tests/hosts.rs`):
 // a small "fake host" actor that drives the server side of an
 // `InMemoryTransport.pair()` and responds to `initialize`/`reconnect`/
-// `listSessions`/`subscribe`. Optionally pushes a `notify/sessionAdded`
+// `listSessions`/`subscribe`. Optionally pushes a `root/sessionAdded`
 // after `initialize` to exercise the post-handshake notification path.
 
 import Foundation
@@ -25,7 +25,7 @@ struct FakeHostState: Sendable {
 struct FakeHost {
     /// Spin up a fake host driving `transport` (the *server* side of an
     /// `InMemoryTransport.pair()`). When `injectAfterInit` is non-nil, the
-    /// fake pushes a `notify/sessionAdded` for that summary shortly after
+    /// fake pushes a `root/sessionAdded` for that summary shortly after
     /// answering `initialize` (or `reconnect`).
     static func start(
         transport: InMemoryTransport,
@@ -84,12 +84,10 @@ struct FakeHost {
                     }
                     let notif: [String: Any] = [
                         "jsonrpc": "2.0",
-                        "method": "notification",
+                        "method": "root/sessionAdded",
                         "params": [
-                            "notification": [
-                                "type": "notify/sessionAdded",
-                                "summary": summaryAny,
-                            ] as [String: Any],
+                            "channel": RootResourceURI,
+                            "summary": summaryAny,
                         ] as [String: Any],
                     ]
                     if let notifData = try? JSONSerialization.data(withJSONObject: notif),
@@ -118,7 +116,7 @@ struct FakeHost {
                 "fromSeq": state.serverSeq,
             ]
             return [
-                "protocolVersion": "0.1.0",
+                "protocolVersion": "0.2.0",
                 "serverSeq": state.serverSeq,
                 "snapshots": [snapshot],
             ]
@@ -132,7 +130,7 @@ struct FakeHost {
             let items = sessionSummariesToJSON(state.sessions)
             return ["items": items]
         case "subscribe":
-            let resource = (params as? [String: Any])?["resource"] as? String ?? RootResourceURI
+            let resource = (params as? [String: Any])?["channel"] as? String ?? RootResourceURI
             let snap: [String: Any] = [
                 "resource": resource,
                 "state": [
@@ -159,7 +157,7 @@ private func sessionSummariesToJSON<T: Encodable>(_ values: [T]) -> [Any] {
 
 /// Build a transport factory that, on every call, opens a fresh
 /// `InMemoryTransport.pair()` and starts a `FakeHost` driving the server
-/// side. Optionally injects a `notify/sessionAdded` after init.
+/// side. Optionally injects a `root/sessionAdded` after init.
 func makeFakeHostFactory(
     state: FakeHostState,
     injectAfterInit: SessionSummary? = nil,
@@ -206,243 +204,6 @@ func makeAgent(
         description: "demo",
         models: []
     )
-}
-
-// MARK: - Reconnect scenario helpers
-
-/// Script describing what a `ReconnectFakeHost` should do across a series of
-/// connect attempts. The supervisor opens a fresh transport on every retry,
-/// so the same factory is invoked once per attempt; the script enumerates
-/// the per-attempt behaviour in order.
-struct ReconnectScript: Sendable {
-    /// Server response for each connect attempt's `initialize`/`reconnect`
-    /// request, in attempt order. Once exhausted, subsequent attempts fall
-    /// through to `defaultInitResponse`.
-    let perAttemptHandshake: [HandshakeResponse]
-    /// Fallback handshake response used after `perAttemptHandshake` is
-    /// exhausted. Defaults to a stock `initialize` reply.
-    let defaultInitResponse: HandshakeResponse
-    /// Whether to close the transport immediately after answering the
-    /// handshake on each attempt. `nil` (the default in any slot) means
-    /// keep the connection open and continue serving requests.
-    let dropAfterHandshake: [Bool]
-
-    init(
-        perAttemptHandshake: [HandshakeResponse],
-        defaultInitResponse: HandshakeResponse = .initOk(serverSeq: 0),
-        dropAfterHandshake: [Bool] = []
-    ) {
-        self.perAttemptHandshake = perAttemptHandshake
-        self.defaultInitResponse = defaultInitResponse
-        self.dropAfterHandshake = dropAfterHandshake
-    }
-}
-
-/// What the fake host should return as the `result` for a single handshake
-/// request. Selects between `initialize` and `reconnect`-shaped payloads.
-enum HandshakeResponse: Sendable {
-    /// Reply to `initialize` with the given `serverSeq` and an optional
-    /// root-state snapshot.
-    case initOk(serverSeq: Int, agents: [AgentInfo] = [], activeSessions: Int = 0)
-    /// Reply to `reconnect` with a `replay`-arm result carrying the given
-    /// actions and missing URIs.
-    case reconnectReplay(actions: [ActionEnvelope], missing: [String] = [])
-    /// Reply to `reconnect` with a `snapshot`-arm result carrying the given
-    /// snapshots.
-    case reconnectSnapshot(snapshots: [Snapshot])
-    /// Reply to `reconnect` with a JSON-RPC error so the supervisor falls
-    /// back to `initialize` on the same connection.
-    case reconnectError(code: Int, message: String)
-}
-
-/// Scripted fake host: handles a sequence of connect attempts with
-/// per-attempt handshake responses pulled from `ReconnectScript`. Each
-/// invocation of the transport factory consumes one attempt slot.
-final class ScriptedFakeHost: @unchecked Sendable {
-    let script: ReconnectScript
-    private let lock = NSLock()
-    private var attemptIndex: Int = 0
-    /// Optional list of session summaries to return from `listSessions`.
-    let sessions: [SessionSummary]
-
-    init(script: ReconnectScript, sessions: [SessionSummary] = []) {
-        self.script = script
-        self.sessions = sessions
-    }
-
-    /// Bump the attempt counter and return the index of the just-started
-    /// attempt (0-based).
-    func nextAttemptIndex() -> Int {
-        lock.lock(); defer { lock.unlock() }
-        let i = attemptIndex
-        attemptIndex += 1
-        return i
-    }
-
-    /// Build a transport factory backed by this scripted host. Every call
-    /// opens a fresh `InMemoryTransport.pair()` and drives the server side.
-    func factory() -> HostTransportFactory {
-        return { [self] _ in
-            let (clientSide, serverSide) = InMemoryTransport.pair()
-            let attempt = self.nextAttemptIndex()
-            let handshake = self.script.perAttemptHandshake.indices.contains(attempt)
-                ? self.script.perAttemptHandshake[attempt]
-                : self.script.defaultInitResponse
-            let drop = self.script.dropAfterHandshake.indices.contains(attempt)
-                ? self.script.dropAfterHandshake[attempt]
-                : false
-            Task {
-                await Self.drive(
-                    transport: serverSide,
-                    handshake: handshake,
-                    sessions: self.sessions,
-                    dropAfterHandshake: drop
-                )
-            }
-            return clientSide
-        }
-    }
-
-    private static func drive(
-        transport: InMemoryTransport,
-        handshake: HandshakeResponse,
-        sessions: [SessionSummary],
-        dropAfterHandshake: Bool
-    ) async {
-        while !Task.isCancelled {
-            let frame: TransportMessage?
-            do {
-                frame = try await transport.recv()
-            } catch {
-                return
-            }
-            guard let frame else { return }
-            guard case .text(let text) = frame,
-                  let data = text.data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { continue }
-            guard let id = object["id"] as? Int,
-                  let method = object["method"] as? String
-            else { continue }
-
-            // Build the response payload. Errors are sent under the `error`
-            // key; everything else under `result`.
-            var responseDict: [String: Any] = [
-                "jsonrpc": "2.0",
-                "id": id,
-            ]
-
-            switch method {
-            case "initialize":
-                switch handshake {
-                case .initOk(let seq, let agents, let active):
-                    responseDict["result"] = makeInitResult(
-                        serverSeq: seq, agents: agents, activeSessions: active
-                    )
-                default:
-                    // Fallback: still answer initialize with stock data
-                    // even if the script slot was reconnect-shaped — the
-                    // supervisor only takes the reconnect branch when it
-                    // already has prior state.
-                    responseDict["result"] = makeInitResult(
-                        serverSeq: 0, agents: [], activeSessions: 0
-                    )
-                }
-            case "reconnect":
-                switch handshake {
-                case .reconnectReplay(let actions, let missing):
-                    responseDict["result"] = makeReplayResult(actions: actions, missing: missing)
-                case .reconnectSnapshot(let snapshots):
-                    responseDict["result"] = makeSnapshotResult(snapshots: snapshots)
-                case .reconnectError(let code, let msg):
-                    responseDict["error"] = [
-                        "code": code,
-                        "message": msg,
-                    ] as [String: Any]
-                case .initOk:
-                    // Default empty replay if the slot was init-shaped.
-                    responseDict["result"] = [
-                        "type": "replay",
-                        "actions": [],
-                        "missing": [],
-                    ] as [String: Any]
-                }
-            case "listSessions":
-                responseDict["result"] = ["items": encodeArray(sessions)]
-            case "subscribe":
-                let resource = (object["params"] as? [String: Any])?["resource"] as? String ?? RootResourceURI
-                responseDict["result"] = [
-                    "snapshot": [
-                        "resource": resource,
-                        "state": ["agents": []] as [String: Any],
-                        "fromSeq": 0,
-                    ] as [String: Any],
-                ] as [String: Any]
-            default:
-                responseDict["result"] = [:] as [String: Any]
-            }
-
-            if let respData = try? JSONSerialization.data(withJSONObject: responseDict),
-               let respText = String(data: respData, encoding: .utf8) {
-                try? await transport.send(.text(respText))
-            }
-
-            // If the script asks for it, drop the transport right after
-            // the handshake to force the supervisor into a reconnect.
-            if dropAfterHandshake && (method == "initialize" || method == "reconnect") {
-                try? await transport.close()
-                return
-            }
-        }
-    }
-
-    private static func makeInitResult(
-        serverSeq: Int,
-        agents: [AgentInfo],
-        activeSessions: Int
-    ) -> [String: Any] {
-        let snapshot: [String: Any] = [
-            "resource": RootResourceURI,
-            "state": [
-                "agents": encodeArray(agents),
-                "activeSessions": activeSessions,
-            ] as [String: Any],
-            "fromSeq": serverSeq,
-        ]
-        return [
-            "protocolVersion": "0.1.0",
-            "serverSeq": serverSeq,
-            "snapshots": [snapshot],
-        ]
-    }
-
-    private static func makeReplayResult(
-        actions: [ActionEnvelope],
-        missing: [String]
-    ) -> [String: Any] {
-        return [
-            "type": "replay",
-            "actions": encodeArray(actions),
-            "missing": missing,
-        ]
-    }
-
-    private static func makeSnapshotResult(snapshots: [Snapshot]) -> [String: Any] {
-        return [
-            "type": "snapshot",
-            "snapshots": encodeArray(snapshots),
-        ]
-    }
-
-    private static func encodeArray<T: Encodable>(_ values: [T]) -> [Any] {
-        let encoder = JSONEncoder()
-        return values.compactMap { value -> Any? in
-            guard let bytes = try? encoder.encode(value),
-                  let obj = try? JSONSerialization.jsonObject(with: bytes)
-            else { return nil }
-            return obj
-        }
-    }
 }
 
 /// Poll `condition` every 10 ms until it returns true or the timeout

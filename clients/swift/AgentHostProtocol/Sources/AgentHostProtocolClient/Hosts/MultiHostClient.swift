@@ -265,14 +265,26 @@ public actor MultiHostClient {
         try await runtime.unsubscribe(uri)
     }
 
-    /// Dispatch an action on `host`. Returns the resulting `DispatchHandle`
-    /// (carrying `clientSeq`) for optimistic-update correlation.
+    /// Dispatch an action on `host` for `channel`. Returns the resulting
+    /// `DispatchHandle` (carrying `clientSeq`) for optimistic-update
+    /// correlation.
     @discardableResult
-    public func dispatch(host: HostId, action: StateAction) async throws -> DispatchHandle {
+    public func dispatch(host: HostId, action: StateAction, channel: String) async throws -> DispatchHandle {
         guard let runtime = hosts[host] else {
             throw HostError.unknownHost(host)
         }
-        return try await runtime.dispatch(action)
+        return try await runtime.dispatch(action, channel: channel)
+    }
+
+    /// Dispatch an action on `host` for `channel` with a caller-owned
+    /// `clientSeq`. Use this when an app-level outbox needs stable sequence
+    /// numbers across reconnect/replay.
+    @discardableResult
+    public func dispatch(host: HostId, action: StateAction, channel: String, clientSeq: Int) async throws -> DispatchHandle {
+        guard let runtime = hosts[host] else {
+            throw HostError.unknownHost(host)
+        }
+        return try await runtime.dispatch(action, channel: channel, clientSeq: clientSeq)
     }
 
     // MARK: - Event multicast
@@ -289,9 +301,9 @@ public actor MultiHostClient {
     /// **Use this for advisory / notification-style consumption only.** It
     /// is **not safe for reducer-critical `ActionEnvelope`s** because
     /// dropped envelopes desync downstream state mirrors. For
-    /// guaranteed-delivery per-URI action streams, use
-    /// `events(host:uri:)` instead — that surface uses unbounded buffering
-    /// per URI and survives reconnects.
+    /// guaranteed-delivery per-channel action streams, use
+    /// `events(host:uri:)` instead — that surface uses unbounded
+    /// buffering per channel and survives reconnects.
     ///
     /// **Ordering** is per-host only. Different hosts run independently;
     /// there is no cross-host total order.
@@ -312,7 +324,7 @@ public actor MultiHostClient {
         }
     }
 
-    /// Per-`(host, uri)` event stream — **the reliable channel for
+    /// Per-`(host, channel)` event stream — **the reliable channel for
     /// reducer-critical action envelopes**.
     ///
     /// Returns a fresh `AsyncStream<SubscriptionEvent>` that delivers
@@ -321,13 +333,17 @@ public actor MultiHostClient {
     /// (no buffer drop) because losing an action envelope would desync
     /// downstream state mirrors.
     ///
-    /// Unlike the per-URI streams returned by `AHPClient.subscribe(_:)`,
+    /// Unlike the per-channel streams returned by `AHPClient.subscribe(_:)`,
     /// **these listeners survive reconnects**: they're owned by
     /// `MultiHostClient`, not by any single `AHPClient` instance, so
     /// replayed envelopes that the supervisor fans out on reconnect
-    /// reach them too. Protocol-level notifications (auth required,
-    /// session added/removed/changed) are also fanned to every active
-    /// per-URI listener for that host — they're cross-resource by design.
+    /// reach them too.
+    ///
+    /// Every event carries the channel it was delivered on, so
+    /// session/auth-style notifications surface on the channel the
+    /// server scoped them to (typically `RootResourceURI` for
+    /// `root/sessionAdded`/`Removed`/`SummaryChanged`). Listen on the
+    /// channel that matches the events you care about.
     ///
     /// **Subscription is independent from registration.** Calling
     /// `events(host:uri:)` does NOT send a `subscribe` request to the
@@ -430,6 +446,7 @@ public actor MultiHostClient {
                             switch event {
                             case .stateChanged(let id, _, _),
                                  .connected(let id, _),
+                                 .reconnectResult(let id, _),
                                  .added(let id):
                                 guard id == host else { continue }
                                 if let snap = await self.host(host) {
@@ -510,7 +527,12 @@ public actor MultiHostClient {
                                     // exactly once.
                                     return
                                 }
-                            case .added, .stateChanged:
+                            case .added, .stateChanged, .reconnectResult:
+                                // Session summaries are refreshed via
+                                // `listSessions` during `.connected` and
+                                // by the per-summary notifications below;
+                                // these events don't independently move
+                                // the summary cache.
                                 continue
                             }
                         }
@@ -518,16 +540,15 @@ public actor MultiHostClient {
                     group.addTask {
                         for await event in subStream {
                             guard event.hostId == host else { continue }
-                            // Only re-yield on session-summary-shaped
+                            // Re-yield only on session-summary-shaped
                             // notifications; ignore action envelopes and
                             // unrelated notifications.
-                            guard case .notification(let n) = event.event else { continue }
-                            switch n {
+                            switch event.event {
                             case .sessionAdded, .sessionRemoved, .sessionSummaryChanged:
                                 if let snap = await self.host(host) {
                                     cont.yield(snap.sessionSummaries)
                                 }
-                            case .authRequired:
+                            case .action, .authRequired:
                                 continue
                             }
                         }
@@ -547,10 +568,12 @@ public actor MultiHostClient {
         for cont in subscriptionListeners.values {
             cont.yield(event)
         }
-        // Per-URI fan-out. Action envelopes route by resource; protocol
-        // notifications (resource == nil) fan to every per-URI listener
-        // for the host because they're cross-resource by design (auth
-        // required, session added/removed/changed all apply globally).
+        // Per-channel fan-out. Every event carries a channel (action
+        // envelopes plus session/auth notifications all surface as
+        // `event.resource`), so listeners only receive events for the
+        // channel they subscribed to. The `resource == nil` fallback is
+        // retained for forward compatibility with any future event
+        // variant that intentionally targets every listener.
         guard let bucket = perResourceListeners[event.hostId] else { return }
         for listener in bucket.values {
             if let resource = event.resource {

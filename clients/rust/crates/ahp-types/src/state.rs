@@ -257,6 +257,35 @@ pub enum TerminalClaimKind {
     Session,
 }
 
+/// Computation lifecycle of a {@link ChangesetState}.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ChangesetStatus {
+    /// The server is still computing the contents of this changeset.
+    #[serde(rename = "computing")]
+    Computing,
+    /// The changeset has been fully computed and is up-to-date.
+    #[serde(rename = "ready")]
+    Ready,
+    /// Computation failed. The cause is described by
+    /// {@link ChangesetState.error}.
+    #[serde(rename = "error")]
+    Error,
+}
+
+/// Where a {@link ChangesetOperation} can be invoked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ChangesetOperationScope {
+    /// Applies to the whole changeset.
+    #[serde(rename = "changeset")]
+    Changeset,
+    /// Applies to a single file within the changeset.
+    #[serde(rename = "resource")]
+    Resource,
+    /// Applies to a line range within a single file.
+    #[serde(rename = "range")]
+    Range,
+}
+
 // ─── Structs ──────────────────────────────────────────────────────────
 
 /// An optionally-sized icon that can be displayed in a user interface.
@@ -388,7 +417,7 @@ pub struct ProtectedResourceMetadata {
     pub required: Option<bool>,
 }
 
-/// Global state shared with every client subscribed to `agenthost:/root`.
+/// Global state shared with every client subscribed to `ahp-root://`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RootState {
@@ -488,6 +517,22 @@ pub struct ModelSelection {
     /// Model-specific configuration values
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<std::collections::HashMap<String, String>>,
+}
+
+/// A selected custom agent for a session.
+///
+/// The `uri` identifies a specific custom agent (matching a
+/// {@link CustomizationAgentRef.uri | `CustomizationAgentRef.uri`} exposed
+/// via the session's effective customizations). Consumers resolve the
+/// agent's display name by looking up `uri` in
+/// {@link SessionCustomization.agents | `SessionCustomization.agents`}.
+///
+/// A session with no `agent` selected uses the provider's default behavior.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSelection {
+    /// Stable agent URI (matches a {@link CustomizationAgentRef.uri})
+    pub uri: Uri,
 }
 
 /// A JSON Schema-compatible property descriptor with display extensions.
@@ -657,12 +702,22 @@ pub struct SessionSummary {
     /// Currently selected model
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Currently selected custom agent.
+    ///
+    /// Absent (`undefined`) means no custom agent is selected for this session
+    /// — the session uses the provider's default behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Files changed during this session with diff statistics
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub diffs: Option<Vec<FileEdit>>,
+    pub changesets: Option<Vec<ChangesetSummary>>,
 }
 
 /// Server-owned project metadata for a session.
@@ -1743,6 +1798,23 @@ pub struct CustomizationRef {
     pub nonce: Option<String>,
 }
 
+/// A lightweight reference to a custom agent contributed by a customization.
+///
+/// Custom agents have a single `name` (sourced from the agent file's YAML
+/// frontmatter, or derived from the file name); they do not have a separate
+/// display name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomizationAgentRef {
+    /// Stable agent URI
+    pub uri: Uri,
+    /// Agent name (from frontmatter `name`, or file-derived)
+    pub name: String,
+    /// Optional short description for UI preview (from frontmatter `description`)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// A customization active in a session.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1761,6 +1833,17 @@ pub struct SessionCustomization {
     /// Human-readable status detail (e.g. error message or degradation warning).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status_message: Option<String>,
+    /// Custom agents contributed by this customization, as resolved by the
+    /// agent host after parsing the customization.
+    ///
+    /// Consumers MUST treat an absent field as "unknown" (e.g. the host has
+    /// not finished parsing the customization yet). An empty array means the
+    /// host parsed the customization and it contributes no agents.
+    ///
+    /// Clients are not authoritative here: only the agent host populates
+    /// this field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agents: Option<Vec<CustomizationAgentRef>>,
 }
 
 /// Describes a file modification with before/after state and diff metadata.
@@ -1930,12 +2013,176 @@ pub struct ErrorInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
-    /// The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`)
+    /// The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`)
     pub resource: Uri,
     /// The current state of the resource
     pub state: SnapshotState,
     /// The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`.
     pub from_seq: i64,
+}
+
+/// Catalogue entry describing one changeset the server can produce for a
+/// session.
+///
+/// Catalogue entries are intentionally lightweight — just enough to render a
+/// chip or list row without subscribing. Full per-changeset detail
+/// ({@link ChangesetState}) lives on the subscribable URI obtained by
+/// expanding {@link uriTemplate}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetSummary {
+    /// Human-readable label, e.g. `"Uncommitted Changes"`.
+    pub label: String,
+    /// RFC 6570 URI template. Clients parse the variables directly out of the
+    /// template using the standard `{name}` syntax — they are not redeclared
+    /// here.
+    ///
+    /// Only the following template shapes are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    ///
+    /// | Variables in template                       | Meaning                                                                              |
+    /// | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+    /// | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
+    /// | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
+    /// | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
+    ///
+    /// Future protocol versions MAY add new well-known variables.
+    pub uri_template: String,
+    /// Optional longer description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Aggregate line additions across the changeset, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additions: Option<i64>,
+    /// Aggregate line deletions across the changeset, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletions: Option<i64>,
+    /// Number of files in the changeset, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files: Option<i64>,
+}
+
+/// Full state for a single changeset, returned when a client subscribes to
+/// an expanded changeset URI.
+///
+/// The client already knows the URI it subscribed to, so this state does
+/// not redundantly carry it (or the catalogue's `id`, `label`, etc.).
+/// Aggregate counts (`additions`, `deletions`, `files`) are likewise
+/// omitted: clients trivially compute them from `files[].edit.diff`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetState {
+    /// Computation lifecycle.
+    pub status: ChangesetStatus,
+    /// Present iff `status === ChangesetStatus.Error`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorInfo>,
+    /// Files in this changeset, keyed by {@link ChangesetFile.id}.
+    pub files: Vec<ChangesetFile>,
+    /// Operations the client may invoke against this changeset. Omit when no
+    /// operations are available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Vec<ChangesetOperation>>,
+}
+
+/// One file entry within a {@link ChangesetState}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetFile {
+    /// Stable identifier within the changeset. Typically `after.uri`
+    /// (or `before.uri` for deletions).
+    pub id: String,
+    /// Reuses the existing {@link FileEdit} shape. Clients derive line
+    /// additions, deletions, and rename/create/delete semantics from this.
+    pub edit: FileEdit,
+    /// Server-defined opaque metadata, surfaced to operations and tooling
+    /// but not interpreted by the protocol.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// A server-declared invokable verb the client can run against a
+/// changeset, a file, or a range — `"stage"`, `"revert"`, `"create-pr"`,
+/// and so on.
+///
+/// The term "operation" is used deliberately to avoid colliding with the
+/// protocol-level [Actions](/guide/actions) that mutate state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetOperation {
+    /// Stable identifier, unique within this changeset.
+    pub id: String,
+    /// Human-readable button/menu label.
+    pub label: String,
+    /// Optional longer description shown on hover or in tooltips.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Where this operation can be invoked.
+    pub scopes: Vec<ChangesetOperationScope>,
+    /// Optional confirmation prompt to show before invoking. When present,
+    /// the client MUST display this message to the user (typically in a
+    /// confirmation dialog) and only invoke the operation after the user
+    /// accepts. The presence of this field also signals that the operation
+    /// is destructive — clients SHOULD style the affirmative button
+    /// accordingly (e.g. with a warning colour).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirmation: Option<StringOrMarkdown>,
+    /// Optional generic icon hint, e.g. `"check"`, `"trash"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+}
+
+/// OTLP telemetry channels the agent host emits.
+///
+/// Each field, when present, is either a literal channel URI or an
+/// [RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template
+/// a client expands and then subscribes to. Absent fields indicate the host
+/// does not emit that signal.
+///
+/// Channel URIs use the `ahp-otlp:` scheme. The scheme identifies the
+/// protocol (OpenTelemetry over AHP) so clients can recognise the channel
+/// type by URI alone; the host is free to choose any authority/path that
+/// makes sense for its implementation. Clients MUST treat the URI as
+/// opaque (apart from expanding any well-known template variables defined
+/// below) and subscribe with the resulting concrete URI.
+///
+/// Payloads delivered on these channels are OTLP/JSON values — see
+/// [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)
+/// for the wire shapes (`ExportLogsServiceRequest`,
+/// `ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TelemetryCapabilities {
+    /// Channel URI (or RFC 6570 URI template) for OTLP log records
+    /// (`otlp/exportLogs` notifications).
+    ///
+    /// The following template variables are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    ///
+    /// | Variables in template | Meaning                                                                                                 |
+    /// | --------------------- | ------------------------------------------------------------------------------------------------------- |
+    /// | _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |
+    /// | `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |
+    ///
+    /// Hosts SHOULD honour the expanded `{level}`; clients MUST still filter
+    /// defensively in case a host ignores the parameter. Hosts that do not
+    /// advertise `{level}` deliver all severities.
+    ///
+    /// Future protocol versions MAY add new well-known variables (e.g. scope
+    /// or attribute filters).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logs: Option<Uri>,
+    /// Channel URI for OTLP spans (`otlp/exportTraces` notifications). No
+    /// template variables are defined by this protocol version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traces: Option<Uri>,
+    /// Channel URI for OTLP metric data points (`otlp/exportMetrics`
+    /// notifications). No template variables are defined by this protocol
+    /// version.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metrics: Option<Uri>,
 }
 
 // ─── Discriminated Unions ─────────────────────────────────────────────
@@ -2106,14 +2353,17 @@ pub enum MessageAttachment {
     Unknown(serde_json::Value),
 }
 
-/// The state payload of a snapshot — root, session, or terminal state.
+/// The state payload of a snapshot — root, session, terminal, or
+/// changeset state.
 ///
 /// Deserialized by trying session first (has required `summary`), then
-/// terminal (has required `content`), then root.
+/// terminal (has required `content`), then changeset (has required
+/// `status` and `files`), then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
     Session(Box<SessionState>),
     Terminal(Box<TerminalState>),
+    Changeset(Box<ChangesetState>),
     Root(Box<RootState>),
 }

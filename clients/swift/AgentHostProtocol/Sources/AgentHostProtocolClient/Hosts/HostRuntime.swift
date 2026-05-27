@@ -142,12 +142,22 @@ internal final class HostRuntime: Sendable {
         }
     }
 
-    /// Dispatch an action through the current connection. Throws
-    /// `HostError.hostShutDown` if the host is disconnected.
+    /// Dispatch an action through the current connection on `channel`.
+    /// Throws `HostError.hostShutDown` if the host is disconnected.
     @discardableResult
-    func dispatch(_ action: StateAction) async throws -> DispatchHandle {
+    func dispatch(_ action: StateAction, channel: String) async throws -> DispatchHandle {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
-            cmdContinuation.yield(.dispatch(action: action, reply: continuation))
+            cmdContinuation.yield(.dispatch(action: action, channel: channel, clientSeq: nil, reply: continuation))
+        }
+    }
+
+    /// Dispatch an action through the current connection on `channel` with a
+    /// caller-owned `clientSeq`. Throws `HostError.hostShutDown` if the host
+    /// is disconnected.
+    @discardableResult
+    func dispatch(_ action: StateAction, channel: String, clientSeq: Int) async throws -> DispatchHandle {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DispatchHandle, Error>) in
+            cmdContinuation.yield(.dispatch(action: action, channel: channel, clientSeq: clientSeq, reply: continuation))
         }
     }
 
@@ -200,11 +210,13 @@ internal final class HostRuntime: Sendable {
                     // through the backoff sleep. `attempt` here is either
                     // the count of consecutive failures since last success
                     // (no reset) or 0 (just reset by `resetOnSuccess`); the
-                    // displayed attempt is clamped to ≥ 1 per the
-                    // 1-based contract on `HostState.reconnecting`.
+                    // next reconnect attempt and displayed attempt are both
+                    // clamped to ≥ 1 per the 1-based contract on
+                    // `HostState.reconnecting`.
+                    attempt = max(1, attempt)
                     let lastErr = await shared.lastError()
                     await transition(
-                        to: .reconnecting(attempt: max(1, attempt)),
+                        to: .reconnecting(attempt: attempt),
                         error: lastErr
                     )
                 }
@@ -294,14 +306,6 @@ internal final class HostRuntime: Sendable {
     /// `listSessions` seed, and atomically install the new client in
     /// `HostShared`. Called inside `withClientShutdownOnThrow` so a throw
     /// from any of these steps tears the client down before bubbling up.
-    ///
-    /// Ordering after success:
-    ///   1. Install the new `AHPClient` + bump `generation` + advance
-    ///      `serverSeq` (using `max` so we never regress).
-    ///   2. Apply the `ReconnectResult` to the per-host mirror and fan out
-    ///      any replayed envelopes (so any consumer that wakes up on
-    ///      `HostEvent.connected` already sees the post-reconnect state).
-    ///   3. Transition to `.connected` and emit `HostEvent.connected`.
     private func completeHandshake(
         client: AHPClient,
         events: AsyncStream<ClientEvent>,
@@ -332,7 +336,7 @@ internal final class HostRuntime: Sendable {
                         initialSubscriptions: priorSubscriptions
                     )
                     initResult = init1
-                    newSeq = max(newSeq, init1.serverSeq)
+                    newSeq = init1.serverSeq
                 } else {
                     throw error
                 }
@@ -344,22 +348,18 @@ internal final class HostRuntime: Sendable {
                 initialSubscriptions: priorSubscriptions
             )
             initResult = init1
-            newSeq = max(newSeq, init1.serverSeq)
+            newSeq = init1.serverSeq
         }
 
         // Refresh session summaries from `listSessions`. Cheap on first
         // connect; kept in sync by notifications afterward. Failures are
         // non-fatal: the cache stays as-is.
-        let summaries: ListSessionsResult? = try? await client.request(
-            method: "listSessions",
-            params: ListSessionsParams()
-        )
+        let summaries: ListSessionsResult? = if config.refreshSessionSummariesOnConnect {
+            try? await client.request(method: "listSessions", params: ListSessionsParams(channel: RootResourceURI))
+        } else {
+            nil
+        }
 
-        // Step 1: install the new client + bump generation. After this point
-        // the client is "current" and any inbound event the new connection
-        // delivers will be tagged with this generation. The `serverSeq`
-        // advance uses `max` so we never regress even if the server
-        // returned a stale value.
         let newGeneration: UInt64 = await {
             var generation: UInt64 = 0
             await shared.update { state in
@@ -367,7 +367,7 @@ internal final class HostRuntime: Sendable {
                 state.currentClient = client
                 state.lastConnectedAt = Date()
                 state.lastError = nil
-                state.serverSeq = max(state.serverSeq, newSeq)
+                state.serverSeq = newSeq
                 if let init1 = initResult {
                     state.protocolVersion = init1.protocolVersion
                     state.defaultDirectory = init1.defaultDirectory
@@ -389,92 +389,59 @@ internal final class HostRuntime: Sendable {
             return generation
         }()
 
-        // Step 2: apply the reconnect result (if any). For replay, this
-        // fans out replayed envelopes through the same path live envelopes
-        // take so consumers' downstream state mirrors stay correct. For
-        // snapshot, it refreshes the per-host root mirror and prunes
-        // subscriptions the server didn't respond to. Done before the
-        // `.connected` transition / `HostEvent.connected` so consumers
-        // observing the connected edge see the post-reconnect state.
-        if let result = reconnectResult {
-            await applyReconnectResult(result, priorSubscriptions: priorSubscriptions)
+        if let reconnectResult {
+            await applyReconnectResult(reconnectResult, priorSubscriptions: priorSubscriptions)
+            await hostEventSink(.reconnectResult(config.id, reconnectResult))
         }
 
-        // Step 3: announce the new connection.
         await transition(to: .connected, error: nil)
         await hostEventSink(.connected(config.id, generation: newGeneration))
         return ConnectionStreams(events: events, stateChanges: stateChanges)
     }
 
-    /// Apply the result of a `reconnect` call.
+    /// Apply the result of a successful `reconnect` call.
     ///
-    /// For `ReconnectResult.replay`: fans the missed action envelopes
-    /// through the per-host event tap and the per-host state mirror so
-    /// consumers see them in `serverSeq` order, then drops any
-    /// `missing` URIs from the local subscription set so the next
-    /// reconnect doesn't re-ask for them.
-    ///
-    /// For `ReconnectResult.snapshot`: refreshes the per-host root
-    /// state mirror and records the snapshot's `fromSeq` in the
-    /// supervisor's `serverSeq`. Subscriptions present in
-    /// `priorSubscriptions` that the server didn't return a snapshot
-    /// for are dropped from the local subscription set (the snapshot
-    /// arm doesn't carry an explicit `missing` list).
-    ///
-    /// Mirrors `apply_reconnect_result` in
-    /// `clients/rust/crates/ahp/src/hosts/runtime.rs`.
+    /// Replay envelopes use the same reducer path as live action frames so
+    /// host snapshots advance before consumers see fanned-out replay events.
+    /// Snapshot results refresh root mirror state and prune subscriptions the
+    /// server could not resume.
     private func applyReconnectResult(
         _ result: ReconnectResult,
         priorSubscriptions: [String]
     ) async {
         switch result {
         case .replay(let replay):
-            // Replay envelopes one at a time so applyAction's monotonic
-            // serverSeq guard naturally drops any out-of-order or already-
-            // observed entries. We fan AFTER applyAction so consumer
-            // mirrors mutating in the same actor see the post-update
-            // state if they re-read the host snapshot.
             for envelope in replay.actions {
-                let resource = actionResource(for: envelope.action)
                 await applyAction(envelope)
-                let hostEvent = HostSubscriptionEvent(
-                    hostId: config.id,
-                    resource: resource,
-                    event: .action(envelope)
-                )
-                await fanOut(hostEvent)
-            }
-            if !replay.missing.isEmpty {
-                let missingSet = Set(replay.missing)
-                await shared.update { state in
-                    state.subscriptions.removeAll { missingSet.contains($0) }
+                if config.fanOutReconnectReplayActions {
+                    await fanOut(HostSubscriptionEvent(
+                        hostId: config.id,
+                        resource: envelope.channel,
+                        event: .action(envelope)
+                    ))
                 }
             }
-        case .snapshot(let snap):
-            var surviving: [String] = []
-            surviving.reserveCapacity(snap.snapshots.count)
+            if !replay.missing.isEmpty {
+                await shared.update { state in
+                    state.subscriptions.removeAll { replay.missing.contains($0) }
+                }
+            }
+        case .snapshot(let snapshotResult):
             await shared.update { state in
-                for snapshot in snap.snapshots {
+                var surviving: [String] = []
+                surviving.reserveCapacity(snapshotResult.snapshots.count)
+                for snapshot in snapshotResult.snapshots {
                     if snapshot.fromSeq > state.serverSeq {
                         state.serverSeq = snapshot.fromSeq
                     }
-                    if snapshot.resource == RootResourceURI {
-                        if case .root(let root) = snapshot.state {
-                            state.rootState = root
-                        }
+                    if snapshot.resource == RootResourceURI,
+                       case .root(let root) = snapshot.state {
+                        state.rootState = root
                     }
                     surviving.append(snapshot.resource)
                 }
-                // Drop subscriptions the server didn't return a snapshot
-                // for — they're effectively "missing" even though the
-                // snapshot arm doesn't carry an explicit list. Subscriptions
-                // added after `priorSubscriptions` was captured (e.g. by a
-                // racing `subscribe` command during the handshake) are
-                // preserved.
-                let survivingSet = Set(surviving)
-                let priorSet = Set(priorSubscriptions)
                 state.subscriptions.removeAll { uri in
-                    priorSet.contains(uri) && !survivingSet.contains(uri)
+                    priorSubscriptions.contains(uri) && !surviving.contains(uri)
                 }
             }
         }
@@ -538,8 +505,8 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 let result = await handleUnsubscribe(uri)
                 resumeCommand(reply: reply, with: result)
-            case .dispatch(let action, let reply):
-                let result = await handleDispatch(action)
+            case .dispatch(let action, let channel, let clientSeq, let reply):
+                let result = await handleDispatch(action, channel: channel, clientSeq: clientSeq)
                 resumeCommand(reply: reply, with: result)
             }
         }
@@ -566,7 +533,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, let reply):
+            case .dispatch(_, _, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -609,7 +576,7 @@ internal final class HostRuntime: Sendable {
             case .unsubscribe(let uri, let reply):
                 await shared.removeSubscription(uri)
                 reply.resume(returning: ())
-            case .dispatch(_, let reply):
+            case .dispatch(_, _, _, let reply):
                 reply.resume(throwing: HostError.hostShutDown(config.id))
             }
         }
@@ -624,8 +591,23 @@ internal final class HostRuntime: Sendable {
         switch event.event {
         case .action(let envelope):
             await applyAction(envelope)
-        case .notification(let notification):
-            await applyNotification(notification)
+        case .sessionAdded(let n):
+            await shared.update { state in
+                state.sessionSummaries[n.summary.resource] = n.summary
+            }
+        case .sessionRemoved(let n):
+            await shared.update { state in
+                state.sessionSummaries.removeValue(forKey: n.session)
+            }
+        case .sessionSummaryChanged(let n):
+            await shared.update { state in
+                if var existing = state.sessionSummaries[n.session] {
+                    applySummaryChanges(&existing, changes: n.changes)
+                    state.sessionSummaries[n.session] = existing
+                }
+            }
+        case .authRequired:
+            break
         }
         let hostEvent = HostSubscriptionEvent(
             hostId: config.id,
@@ -641,29 +623,10 @@ internal final class HostRuntime: Sendable {
                 state.serverSeq = envelope.serverSeq
             }
             // Best-effort root state mirror update via the existing pure
-            // reducer. Non-root actions slip through without effect — that's
+            // reducer. Non-root channels slip through without effect — that's
             // the same posture as the Rust SDK.
-            let resource = actionResource(for: envelope.action)
-            if resource == RootResourceURI {
+            if envelope.channel == RootResourceURI {
                 state.rootState = rootReducer(state: state.rootState, action: envelope.action)
-            }
-        }
-    }
-
-    private func applyNotification(_ notification: ProtocolNotification) async {
-        await shared.update { state in
-            switch notification {
-            case .sessionAdded(let n):
-                state.sessionSummaries[n.summary.resource] = n.summary
-            case .sessionRemoved(let n):
-                state.sessionSummaries.removeValue(forKey: n.session)
-            case .sessionSummaryChanged(let n):
-                if var existing = state.sessionSummaries[n.session] {
-                    applySummaryChanges(&existing, changes: n.changes)
-                    state.sessionSummaries[n.session] = existing
-                }
-            case .authRequired:
-                break
             }
         }
     }
@@ -700,12 +663,17 @@ internal final class HostRuntime: Sendable {
         return .success(())
     }
 
-    private func handleDispatch(_ action: StateAction) async -> Result<DispatchHandle, HostError> {
+    private func handleDispatch(_ action: StateAction, channel: String, clientSeq: Int?) async -> Result<DispatchHandle, HostError> {
         guard let client = await shared.currentClient() else {
             return .failure(.hostShutDown(config.id))
         }
         do {
-            let handle = try await client.dispatch(action)
+            let handle: DispatchHandle
+            if let clientSeq {
+                handle = try await client.dispatch(action, channel: channel, clientSeq: clientSeq)
+            } else {
+                handle = try await client.dispatch(action, channel: channel)
+            }
             return .success(handle)
         } catch let error as AHPClientError {
             return .failure(.client(error))
@@ -761,7 +729,7 @@ internal enum HostCommand: Sendable {
     case manualReconnect(reply: CheckedContinuation<Void, Error>)
     case subscribe(uri: String, reply: CheckedContinuation<SubscribeResult, Error>)
     case unsubscribe(uri: String, reply: CheckedContinuation<Void, Error>)
-    case dispatch(action: StateAction, reply: CheckedContinuation<DispatchHandle, Error>)
+    case dispatch(action: StateAction, channel: String, clientSeq: Int?, reply: CheckedContinuation<DispatchHandle, Error>)
 }
 
 /// Outcome of one of the supervisor's drain loops.
@@ -848,19 +816,6 @@ private func generateClientId() -> String {
     UUID().uuidString.lowercased()
 }
 
-/// Mirror the resource-routing logic in `AHPClient.actionResource(for:)`.
-private func actionResource(for action: StateAction) -> String? {
-    let encoder = JSONEncoder()
-    guard let data = try? encoder.encode(action),
-          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    else {
-        return RootResourceURI
-    }
-    if let session = object["session"] as? String { return session }
-    if let terminal = object["terminal"] as? String { return terminal }
-    return RootResourceURI
-}
-
 /// Apply a `PartialSessionSummary` patch in-place. Identity fields are
 /// ignored per spec.
 private func applySummaryChanges(
@@ -874,11 +829,11 @@ private func applySummaryChanges(
     if let v = changes.project { existing.project = v }
     if let v = changes.model { existing.model = v }
     if let v = changes.workingDirectory { existing.workingDirectory = v }
-    if let v = changes.diffs { existing.diffs = v }
+    if let v = changes.changesets { existing.changesets = v }
 }
 
 /// Protocol version offered on `initialize`. Mirrors the Rust SDK's use of
 /// the canonical `PROTOCOL_VERSION` constant; the Swift types library
 /// doesn't ship one yet, so this is a constant string co-located with the
 /// rest of the multi-host code. TODO(codegen): source from generated types.
-private let supportedProtocolVersion = "0.1.0"
+private let supportedProtocolVersion = "0.2.0"

@@ -14,9 +14,9 @@ export default withMermaid(defineConfig({
     logo: '/logo.svg',
 
     nav: [
-      { text: 'Guide', link: '/guide/what-is-ahp' },
-      { text: 'Specification', link: '/specification/overview' },
-      { text: 'Reference', link: '/reference/state-types' },
+      { text: 'Guide', link: '/guide/what-is-ahp', activeMatch: '^/guide/' },
+      { text: 'Specification', link: '/specification/overview', activeMatch: '^/specification/' },
+      { text: 'Reference', link: '/reference/common', activeMatch: '^/reference/' },
     ],
 
     sidebar: {
@@ -26,7 +26,6 @@ export default withMermaid(defineConfig({
           items: [
             { text: 'What is AHP?', link: '/guide/what-is-ahp' },
             { text: 'Getting Started', link: '/guide/getting-started' },
-            { text: 'Architecture', link: '/guide/architecture' },
           ],
         },
         {
@@ -41,16 +40,10 @@ export default withMermaid(defineConfig({
           ],
         },
         {
-          text: 'Design',
+          text: 'More',
           items: [
-            { text: 'Design Decisions', link: '/guide/design' },
             { text: 'AHP and ACP', link: '/guide/ahp-and-acp' },
-          ],
-        },
-        {
-          text: 'Clients',
-          items: [
-            { text: 'Multiple Hosts', link: '/guide/clients-multi-host' },
+            { text: 'Implementations', link: '/guide/implementations' },
           ],
         },
       ],
@@ -61,9 +54,18 @@ export default withMermaid(defineConfig({
             { text: 'Overview', link: '/specification/overview' },
             { text: 'Transport', link: '/specification/transport' },
             { text: 'Lifecycle', link: '/specification/lifecycle' },
+            { text: 'Channels & Subscriptions', link: '/specification/subscriptions' },
             { text: 'Authentication', link: '/specification/authentication' },
-            { text: 'Subscriptions', link: '/specification/subscriptions' },
             { text: 'Versioning', link: '/specification/versioning' },
+          ],
+        },
+        {
+          text: 'Channels',
+          items: [
+            { text: 'Root Channel', link: '/specification/root-channel' },
+            { text: 'Session Channel', link: '/specification/session-channel' },
+            { text: 'Terminal Channel', link: '/specification/terminal-channel' },
+            { text: 'Telemetry Channel', link: '/specification/telemetry-channel' },
           ],
         },
       ],
@@ -71,10 +73,19 @@ export default withMermaid(defineConfig({
         {
           text: 'Reference',
           items: [
-            { text: 'State Types', link: '/reference/state-types' },
-            { text: 'Actions', link: '/reference/actions' },
-            { text: 'Commands', link: '/reference/commands' },
-            { text: 'Notifications', link: '/reference/notifications' },
+            { text: 'Common', link: '/reference/common' },
+            { text: 'Messages', link: '/reference/messages' },
+            { text: 'Error Codes', link: '/reference/error-codes' },
+          ],
+        },
+        {
+          text: 'Channels',
+          items: [
+            { text: 'Root Channel', link: '/reference/root' },
+            { text: 'Session Channel', link: '/reference/session' },
+            { text: 'Terminal Channel', link: '/reference/terminal' },
+            { text: 'Changeset Channel', link: '/reference/changeset' },
+            { text: 'Telemetry Channel', link: '/reference/otlp' },
           ],
         },
       ],
