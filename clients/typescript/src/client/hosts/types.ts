@@ -333,8 +333,11 @@ export class HostReconnectedError extends HostMultiError {
 }
 
 /**
- * The host's runtime has been torn down — the host was removed, or the
- * {@link MultiHostClient} was shut down.
+ * The host's runtime has been torn down — the host was removed via
+ * {@link MultiHostClient.removeHost} or the entire {@link MultiHostClient}
+ * was shut down. This is a **permanent** failure; the host is not
+ * coming back. Use {@link HostNotConnectedError} to distinguish the
+ * transient "registered but currently disconnected/reconnecting" case.
  */
 export class HostShutDownError extends HostMultiError {
   readonly hostId: HostId;
@@ -342,6 +345,27 @@ export class HostShutDownError extends HostMultiError {
   constructor(hostId: HostId) {
     super(`host "${hostId}" runtime is no longer active`);
     this.name = 'HostShutDownError';
+    this.hostId = hostId;
+  }
+}
+
+/**
+ * The host is registered but has no active client connection right now
+ * (the supervisor is `connecting`, `reconnecting`, `disconnected`, or
+ * `failed`). This is **recoverable**: the supervisor will keep retrying
+ * per its {@link ReconnectPolicy}, or the caller can force a fresh
+ * attempt via {@link MultiHostClient.reconnectHost}. Subscriptions
+ * issued in this state are still tracked locally and replayed on the
+ * next successful connect.
+ *
+ * Use {@link HostShutDownError} to distinguish permanent teardown.
+ */
+export class HostNotConnectedError extends HostMultiError {
+  readonly hostId: HostId;
+
+  constructor(hostId: HostId) {
+    super(`host "${hostId}" is not currently connected`);
+    this.name = 'HostNotConnectedError';
     this.hostId = hostId;
   }
 }

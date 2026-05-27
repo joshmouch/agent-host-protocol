@@ -25,6 +25,7 @@ export {
   ClientIdStoreError,
   DuplicateHostError,
   HostMultiError,
+  HostNotConnectedError,
   HostReconnectedError,
   HostShutDownError,
   UnknownHostError,

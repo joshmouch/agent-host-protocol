@@ -37,6 +37,7 @@ import { rootReducer } from '../../types/channels-root/reducer.js';
 import type { RootAction } from '../../types/action-origin.generated.js';
 import type { StateAction } from '../../types/common/actions.js';
 import {
+  HostNotConnectedError,
   HostShutDownError,
   ROOT_RESOURCE_URI,
   tagClientEvent,
@@ -227,28 +228,41 @@ function waitForAbort(...signals: AbortSignal[]): Promise<void> {
 
 /**
  * Return an {@link AbortSignal} that aborts whenever any of the supplied
- * input signals aborts. Used to thread a single composite signal through
- * the connect/handshake path so the operation bails on either shutdown
- * or manual reconnect.
+ * input signals aborts, plus a {@link dispose} function that detaches
+ * the listeners added to the inputs. Used to thread a single composite
+ * signal through the connect/handshake path so the operation bails on
+ * either shutdown or manual reconnect.
+ *
+ * Callers MUST call `dispose()` once the composite signal is no longer
+ * needed (typically in a `finally`) — otherwise the listeners attached
+ * to long-lived input signals (e.g. a per-runtime `shutdownController`)
+ * accumulate across connect cycles.
  *
  * @internal
  */
-function linkAbortSignals(...signals: AbortSignal[]): AbortSignal {
+function linkAbortSignals(...signals: AbortSignal[]): { signal: AbortSignal; dispose: () => void } {
   const controller = new AbortController();
   if (signals.some(s => s.aborted)) {
     controller.abort();
-    return controller.signal;
+    return { signal: controller.signal, dispose: () => undefined };
   }
   const cleanup: Array<() => void> = [];
   const onAbort = (): void => {
     for (const fn of cleanup) fn();
+    cleanup.length = 0;
     controller.abort();
   };
   for (const signal of signals) {
     signal.addEventListener('abort', onAbort, { once: true });
     cleanup.push(() => signal.removeEventListener('abort', onAbort));
   }
-  return controller.signal;
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      for (const fn of cleanup) fn();
+      cleanup.length = 0;
+    },
+  };
 }
 
 // ─── Runtime ─────────────────────────────────────────────────────────────────
@@ -355,10 +369,14 @@ export class HostRuntime {
    * Subscribe to `uri`, tracking it for re-subscription across
    * reconnects.
    *
-   * Throws {@link HostShutDownError} when the host is not currently
-   * connected — but appends the URI to the local subscription list
-   * first, so the next successful (re)connect will subscribe to it
-   * automatically.
+   * Throws {@link HostShutDownError} if the host has been permanently
+   * torn down (removed or the multi-host client was shut down).
+   *
+   * Throws {@link HostNotConnectedError} if the host is registered but
+   * has no active client connection right now (connecting, reconnecting,
+   * disconnected, or failed). The URI is still appended to the local
+   * subscription list first, so the next successful (re)connect will
+   * subscribe to it automatically.
    */
   async subscribe(uri: URI): Promise<SubscribeResult> {
     if (this.shared.shutdownReason !== null) {
@@ -367,7 +385,7 @@ export class HostRuntime {
     const client = this.shared.currentClient;
     if (!client) {
       this.trackSubscription(uri);
-      throw new HostShutDownError(this.shared.id);
+      throw new HostNotConnectedError(this.shared.id);
     }
     const { result } = await client.subscribe(uri);
     this.trackSubscription(uri);
@@ -388,7 +406,13 @@ export class HostRuntime {
     if (client) await client.unsubscribe(uri);
   }
 
-  /** Helper: dispatch on the current client (no generation check). */
+  /**
+   * Helper: dispatch on the current client (no generation check).
+   *
+   * Throws {@link HostShutDownError} if the host has been permanently
+   * torn down, or {@link HostNotConnectedError} if it's currently
+   * disconnected/reconnecting.
+   */
   dispatch(
     channel: URI,
     action: StateAction,
@@ -398,7 +422,7 @@ export class HostRuntime {
       throw new HostShutDownError(this.shared.id);
     }
     const client = this.shared.currentClient;
-    if (!client) throw new HostShutDownError(this.shared.id);
+    if (!client) throw new HostNotConnectedError(this.shared.id);
     return client.dispatch(channel, action, clientSeq);
   }
 
@@ -504,64 +528,84 @@ export class HostRuntime {
    * shutdown OR manual reconnect, so an in-flight factory or handshake
    * doesn't block teardown or a user-initiated reconnect. The factory
    * receives the same combined signal so it can bail out internally
-   * (matching the {@link HostTransportFactory} contract).
+   * (matching the {@link HostTransportFactory} contract). The combined
+   * signal's listeners are detached in a `finally` so successful
+   * connects don't leak listeners on the long-lived shutdown signal.
    */
   private async connectOnce(): Promise<{ client: AhpClient; events: AsyncIterableIterator<ClientEvent> }> {
     const shutdownSignal = this.shutdownController.signal;
     const manualSignal = this.manualReconnectController.signal;
-    const cancelSignal = linkAbortSignals(shutdownSignal, manualSignal);
+    const link = linkAbortSignals(shutdownSignal, manualSignal);
+    const cancelSignal = link.signal;
 
-    const transportResult = await raceWithAbort(
-      this.config.transportFactory(this.shared.id, cancelSignal),
-      cancelSignal,
-    );
-    if (transportResult === ABORTED) {
-      throw new Error('connect aborted');
-    }
-    const transport = transportResult;
-
-    const client = new AhpClient(transport, this.config.clientConfig);
-    client.connect();
-    // Attach the events stream BEFORE the handshake so any
-    // notifications the server pushes between the handshake response
-    // and `runConnection` are captured rather than dropped by the
-    // broadcast queue's no-replay-for-late-readers behaviour.
-    const events = client.events();
-
-    let success = false;
     try {
-      const prior = {
-        serverSeq: this.shared.serverSeq,
-        subscriptions: [...this.shared.subscriptions],
-      };
-      const canReconnect = prior.serverSeq > 0 && prior.subscriptions.length > 0;
+      const transportResult = await raceWithAbort(
+        this.config.transportFactory(this.shared.id, cancelSignal),
+        cancelSignal,
+      );
+      if (transportResult === ABORTED) {
+        throw new Error('connect aborted');
+      }
+      const transport = transportResult;
 
-      let reconnectResult: ReconnectResult | null = null;
-      let initSnapshots: Snapshot[] | null = null;
-      let initServerSeq = prior.serverSeq;
-      let initProtocolVersion: string | null = null;
-      let initDefaultDirectory: string | null = null;
-      let initCompletionTriggers: string[] = [];
+      const client = new AhpClient(transport, this.config.clientConfig);
+      client.connect();
+      // Attach the events stream BEFORE the handshake so any
+      // notifications the server pushes between the handshake response
+      // and `runConnection` are captured rather than dropped by the
+      // broadcast queue's no-replay-for-late-readers behaviour.
+      const events = client.events();
 
-      if (canReconnect) {
-        try {
-          const reconnectRes = await raceWithAbort(
-            client.reconnect({
-              clientId: this.shared.clientId,
-              lastSeenServerSeq: prior.serverSeq,
-              subscriptions: prior.subscriptions,
-            }),
-            cancelSignal,
-          );
-          if (reconnectRes === ABORTED) throw new Error('reconnect aborted');
-          reconnectResult = reconnectRes;
-        } catch (err) {
-          if (this.shared.shutdownReason !== null) throw err;
-          if (cancelSignal.aborted) throw err;
-          // Server refused reconnect (likely too much state has
-          // elapsed); fall back to initialize. Only RPC-level errors
-          // are eligible — transport errors propagate.
-          if (!(err instanceof RpcError)) throw err;
+      let success = false;
+      try {
+        const prior = {
+          serverSeq: this.shared.serverSeq,
+          subscriptions: [...this.shared.subscriptions],
+        };
+        const canReconnect = prior.serverSeq > 0 && prior.subscriptions.length > 0;
+
+        let reconnectResult: ReconnectResult | null = null;
+        let initSnapshots: Snapshot[] | null = null;
+        let initServerSeq = prior.serverSeq;
+        let initProtocolVersion: string | null = null;
+        let initDefaultDirectory: string | null = null;
+        let initCompletionTriggers: string[] = [];
+
+        if (canReconnect) {
+          try {
+            const reconnectRes = await raceWithAbort(
+              client.reconnect({
+                clientId: this.shared.clientId,
+                lastSeenServerSeq: prior.serverSeq,
+                subscriptions: prior.subscriptions,
+              }),
+              cancelSignal,
+            );
+            if (reconnectRes === ABORTED) throw new Error('reconnect aborted');
+            reconnectResult = reconnectRes;
+          } catch (err) {
+            if (this.shared.shutdownReason !== null) throw err;
+            if (cancelSignal.aborted) throw err;
+            // Server refused reconnect (likely too much state has
+            // elapsed); fall back to initialize. Only RPC-level errors
+            // are eligible — transport errors propagate.
+            if (!(err instanceof RpcError)) throw err;
+            const initResult = await raceWithAbort(
+              client.initialize({
+                clientId: this.shared.clientId,
+                protocolVersions: [PROTOCOL_VERSION],
+                initialSubscriptions: prior.subscriptions,
+              }),
+              cancelSignal,
+            );
+            if (initResult === ABORTED) throw new Error('initialize aborted');
+            initSnapshots = initResult.snapshots;
+            initServerSeq = initResult.serverSeq;
+            initProtocolVersion = initResult.protocolVersion;
+            initDefaultDirectory = initResult.defaultDirectory ?? null;
+            initCompletionTriggers = initResult.completionTriggerCharacters ?? [];
+          }
+        } else {
           const initResult = await raceWithAbort(
             client.initialize({
               clientId: this.shared.clientId,
@@ -577,132 +621,122 @@ export class HostRuntime {
           initDefaultDirectory = initResult.defaultDirectory ?? null;
           initCompletionTriggers = initResult.completionTriggerCharacters ?? [];
         }
-      } else {
-        const initResult = await raceWithAbort(
-          client.initialize({
-            clientId: this.shared.clientId,
-            protocolVersions: [PROTOCOL_VERSION],
-            initialSubscriptions: prior.subscriptions,
-          }),
-          cancelSignal,
-        );
-        if (initResult === ABORTED) throw new Error('initialize aborted');
-        initSnapshots = initResult.snapshots;
-        initServerSeq = initResult.serverSeq;
-        initProtocolVersion = initResult.protocolVersion;
-        initDefaultDirectory = initResult.defaultDirectory ?? null;
-        initCompletionTriggers = initResult.completionTriggerCharacters ?? [];
-      }
 
-      // Refresh session summaries. Failures are non-fatal — we keep the
-      // cache as-is and the next snapshot/notification will catch up.
-      let summaries: ListSessionsResult | null = null;
-      try {
-        const res = await raceWithAbort(
-          client.request('listSessions', {
-            channel: ROOT_RESOURCE_URI as 'ahp-root://',
-            filter: undefined,
-          }),
-          cancelSignal,
-        );
-        if (res !== ABORTED) summaries = res;
-      } catch {
-        // Tolerate; the connect itself still succeeded.
-      }
-
-      if (cancelSignal.aborted) throw new Error('connect aborted');
-
-      // Apply replay envelopes BEFORE transitioning to `connected` so
-      // consumers observing the `connected` host event already see the
-      // catch-up applied to state and event streams.
-      let postReplaySubscriptions: string[] | null = null;
-      const replayEnvelopes: ActionEnvelope[] = [];
-      let snapshotPrunedSubscriptions: string[] | null = null;
-
-      if (reconnectResult !== null) {
-        if (reconnectResult.type === ReconnectResultType.Replay) {
-          for (const env of reconnectResult.actions) replayEnvelopes.push(env);
-          if (reconnectResult.missing.length > 0) {
-            const missing = new Set<string>(reconnectResult.missing);
-            postReplaySubscriptions = this.shared.subscriptions.filter(u => !missing.has(u));
-          }
-        } else {
-          // Snapshot variant: refresh root state from the matching
-          // snapshot, then drop subscriptions that were in prior set
-          // but are absent from the returned snapshot list.
-          const surviving = new Set<string>(reconnectResult.snapshots.map(s => s.resource));
-          const priorSet = new Set<string>(prior.subscriptions);
-          snapshotPrunedSubscriptions = this.shared.subscriptions.filter(
-            u => surviving.has(u) || !priorSet.has(u),
+        // Refresh session summaries. Failures are non-fatal — we keep the
+        // cache as-is and the next snapshot/notification will catch up.
+        let summaries: ListSessionsResult | null = null;
+        try {
+          const res = await raceWithAbort(
+            client.request('listSessions', {
+              channel: ROOT_RESOURCE_URI as 'ahp-root://',
+              filter: undefined,
+            }),
+            cancelSignal,
           );
-          for (const snap of reconnectResult.snapshots) {
-            if (snap.fromSeq > initServerSeq) initServerSeq = snap.fromSeq;
-            if (snap.resource === ROOT_RESOURCE_URI) {
-              this.shared.rootState = (snap.state as RootState) ?? EMPTY_ROOT_STATE;
+          if (res !== ABORTED) summaries = res;
+        } catch {
+          // Tolerate; the connect itself still succeeded.
+        }
+
+        if (cancelSignal.aborted) throw new Error('connect aborted');
+
+        // Apply replay envelopes BEFORE transitioning to `connected` so
+        // consumers observing the `connected` host event already see the
+        // catch-up applied to state and event streams.
+        let postReplaySubscriptions: string[] | null = null;
+        const replayEnvelopes: ActionEnvelope[] = [];
+        let snapshotPrunedSubscriptions: string[] | null = null;
+
+        if (reconnectResult !== null) {
+          if (reconnectResult.type === ReconnectResultType.Replay) {
+            for (const env of reconnectResult.actions) replayEnvelopes.push(env);
+            if (reconnectResult.missing.length > 0) {
+              const missing = new Set<string>(reconnectResult.missing);
+              postReplaySubscriptions = this.shared.subscriptions.filter(u => !missing.has(u));
+            }
+          } else {
+            // Snapshot variant: refresh root state from the matching
+            // snapshot, then drop subscriptions that were in prior set
+            // but are absent from the returned snapshot list.
+            const surviving = new Set<string>(reconnectResult.snapshots.map(s => s.resource));
+            const priorSet = new Set<string>(prior.subscriptions);
+            snapshotPrunedSubscriptions = this.shared.subscriptions.filter(
+              u => surviving.has(u) || !priorSet.has(u),
+            );
+            for (const snap of reconnectResult.snapshots) {
+              if (snap.fromSeq > initServerSeq) initServerSeq = snap.fromSeq;
+              if (snap.resource === ROOT_RESOURCE_URI) {
+                this.shared.rootState = (snap.state as RootState) ?? EMPTY_ROOT_STATE;
+              }
             }
           }
         }
-      }
 
-      // Commit shared state.
-      this.shared.generation += 1;
-      this.shared.currentClient = client;
-      this.shared.lastConnectedAt = Date.now();
-      this.shared.lastError = null;
-      if (this.shared.serverSeq < initServerSeq) {
-        this.shared.serverSeq = initServerSeq;
-      }
-      if (initSnapshots !== null) {
-        const rootSnap = initSnapshots.find(s => s.resource === ROOT_RESOURCE_URI);
-        if (rootSnap) this.shared.rootState = (rootSnap.state as RootState) ?? EMPTY_ROOT_STATE;
-        if (initProtocolVersion) this.shared.protocolVersion = initProtocolVersion;
-        this.shared.defaultDirectory = initDefaultDirectory;
-        this.shared.completionTriggerCharacters = [...initCompletionTriggers];
-      }
-      if (summaries !== null) {
-        this.shared.sessionSummaries.clear();
-        for (const s of summaries.items) this.shared.sessionSummaries.set(s.resource, s);
-      }
-      if (postReplaySubscriptions !== null) {
-        this.shared.subscriptions = postReplaySubscriptions;
-      } else if (snapshotPrunedSubscriptions !== null) {
-        this.shared.subscriptions = snapshotPrunedSubscriptions;
-      }
+        // Commit shared state.
+        this.shared.generation += 1;
+        this.shared.currentClient = client;
+        this.shared.lastConnectedAt = Date.now();
+        this.shared.lastError = null;
+        if (this.shared.serverSeq < initServerSeq) {
+          this.shared.serverSeq = initServerSeq;
+        }
+        if (initSnapshots !== null) {
+          const rootSnap = initSnapshots.find(s => s.resource === ROOT_RESOURCE_URI);
+          if (rootSnap) this.shared.rootState = (rootSnap.state as RootState) ?? EMPTY_ROOT_STATE;
+          if (initProtocolVersion) this.shared.protocolVersion = initProtocolVersion;
+          this.shared.defaultDirectory = initDefaultDirectory;
+          this.shared.completionTriggerCharacters = [...initCompletionTriggers];
+        }
+        if (summaries !== null) {
+          this.shared.sessionSummaries.clear();
+          for (const s of summaries.items) this.shared.sessionSummaries.set(s.resource, s);
+        }
+        if (postReplaySubscriptions !== null) {
+          this.shared.subscriptions = postReplaySubscriptions;
+        } else if (snapshotPrunedSubscriptions !== null) {
+          this.shared.subscriptions = snapshotPrunedSubscriptions;
+        }
 
-      // Mirror the new generation + client into the shared handle source.
-      this.handleSource.generation = this.shared.generation;
-      this.handleSource.currentClient = client;
+        // Mirror the new generation + client into the shared handle source.
+        this.handleSource.generation = this.shared.generation;
+        this.handleSource.currentClient = client;
 
-      // Replay missed envelopes through state mirror and fan-out.
-      for (const env of replayEnvelopes) {
-        this.applyEnvelopeLocally(env);
-        this.fanOut.publish({
+        // Replay missed envelopes through state mirror and fan-out.
+        for (const env of replayEnvelopes) {
+          this.applyEnvelopeLocally(env);
+          this.fanOut.publish({
+            hostId: this.shared.id,
+            channel: env.channel,
+            event: { type: 'action', params: env },
+          });
+        }
+
+        // Now transition to connected and emit the connected host event.
+        this.transitionTo({ status: 'connected' }, null);
+        this.hostEvents.publish({
+          type: 'connected',
           hostId: this.shared.id,
-          channel: env.channel,
-          event: { type: 'action', params: env },
+          generation: this.shared.generation,
         });
-      }
 
-      // Now transition to connected and emit the connected host event.
-      this.transitionTo({ status: 'connected' }, null);
-      this.hostEvents.publish({
-        type: 'connected',
-        hostId: this.shared.id,
-        generation: this.shared.generation,
-      });
-
-      success = true;
-      return { client, events };
-    } finally {
-      if (!success) {
-        // Connect failed mid-flight — shut the half-built client down so
-        // we don't leak the transport.
-        try {
-          await client.shutdown();
-        } catch {
-          // best-effort
+        success = true;
+        return { client, events };
+      } finally {
+        if (!success) {
+          // Connect failed mid-flight — shut the half-built client down so
+          // we don't leak the transport.
+          try {
+            await client.shutdown();
+          } catch {
+            // best-effort
+          }
         }
       }
+    } finally {
+      // Detach the abort listeners we attached to the long-lived
+      // shutdown / manual-reconnect signals so successful connects
+      // don't accumulate listeners across reconnect cycles.
+      link.dispose();
     }
   }
 

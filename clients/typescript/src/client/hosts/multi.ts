@@ -60,6 +60,13 @@ export class MultiHostClient {
   private readonly fanOut: AsyncBroadcastQueue<HostSubscriptionEvent>;
   private readonly hostEventsQueue: AsyncBroadcastQueue<HostEvent>;
   private readonly clientIdStore: ClientIdStore;
+  /**
+   * Aborted by {@link shutdown}. Passed into {@link ClientIdStore.load}
+   * / {@link ClientIdStore.store} so slow store implementations can
+   * bail out on shutdown — honouring the cancellation contract
+   * documented on {@link ClientIdStore}.
+   */
+  private readonly shutdownController = new AbortController();
   private shutDown = false;
 
   /**
@@ -340,6 +347,10 @@ export class MultiHostClient {
   async shutdown(): Promise<void> {
     if (this.shutDown) return;
     this.shutDown = true;
+    // Abort the shutdown signal first so any in-flight ClientIdStore
+    // operations (started from `addHost` / `resolveClientId`) bail out
+    // before we wait on the host supervisors.
+    this.shutdownController.abort();
     const runtimes = Array.from(this.hosts.values());
     this.hosts.clear();
     await Promise.all(runtimes.map(r => r.shutdown('shutdown')));
@@ -352,9 +363,10 @@ export class MultiHostClient {
   }
 
   private async resolveClientId(hostId: HostId, explicit: string | null): Promise<string> {
+    const signal = this.shutdownController.signal;
     if (explicit !== null) {
       try {
-        await this.clientIdStore.store(hostId, explicit);
+        await this.clientIdStore.store(hostId, explicit, signal);
       } catch (err) {
         throw new ClientIdStoreError(hostId, (err as Error).message ?? String(err), { cause: err });
       }
@@ -362,13 +374,13 @@ export class MultiHostClient {
     }
     let stored: string | null;
     try {
-      stored = await this.clientIdStore.load(hostId);
+      stored = await this.clientIdStore.load(hostId, signal);
     } catch (err) {
       throw new ClientIdStoreError(hostId, (err as Error).message ?? String(err), { cause: err });
     }
     const resolved = stored ?? generateClientId();
     try {
-      await this.clientIdStore.store(hostId, resolved);
+      await this.clientIdStore.store(hostId, resolved, signal);
     } catch (err) {
       throw new ClientIdStoreError(hostId, (err as Error).message ?? String(err), { cause: err });
     }

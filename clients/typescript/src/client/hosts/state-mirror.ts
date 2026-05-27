@@ -53,17 +53,34 @@ const INITIAL_ROOT: RootState = { agents: [] };
  *
  * Session, terminal, and changeset URIs aren't globally unique across
  * hosts — `ahp-session:/s1` on Host A and `ahp-session:/s1` on Host B
- * are different resources. Compose into the string `${hostId}\0${uri}`
- * for Map keys so we don't depend on reference identity.
+ * are different resources. Compose into a string for Map keys so we
+ * don't depend on reference identity.
+ *
+ * The encoding is length-prefixed (`${hostId.length}\0${hostId}${uri}`)
+ * rather than a plain separator-joined string so that any character
+ * (including `\0`) inside a {@link HostId} or {@link URI} is
+ * unambiguous. Two different (`hostId`, `uri`) pairs always produce
+ * distinct keys.
  */
 export interface HostedResourceKey {
   readonly hostId: HostId;
   readonly uri: URI;
 }
 
-/** Build a Map-stable key string from a {@link HostedResourceKey}. */
+/**
+ * Build a Map-stable key string from a {@link HostedResourceKey}.
+ *
+ * The encoding is length-prefixed so it stays unambiguous even when
+ * a {@link HostId} contains `\0` or other characters that would
+ * otherwise collide with the separator.
+ */
 export function hostedResourceKey(hostId: HostId, uri: URI): string {
-  return `${hostId}\x00${uri}`;
+  return `${hostId.length}\x00${hostId}${uri}`;
+}
+
+/** @internal Length-prefixed `hostId` prefix shared by all of a host's resource keys. */
+function hostedResourceKeyPrefix(hostId: HostId): string {
+  return `${hostId.length}\x00${hostId}`;
 }
 
 /**
@@ -199,7 +216,7 @@ export class MultiHostStateMirror {
   /** Drop every slot keyed under `hostId` — root, sessions, terminals, changesets. */
   resetHost(hostId: HostId): void {
     this.rootStatesMap.delete(hostId);
-    const prefix = `${hostId}\x00`;
+    const prefix = hostedResourceKeyPrefix(hostId);
     for (const key of this.sessionsMap.keys()) {
       if (key.startsWith(prefix)) this.sessionsMap.delete(key);
     }

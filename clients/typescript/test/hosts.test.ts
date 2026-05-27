@@ -33,6 +33,7 @@ import type { ReconnectResult } from '../src/types/common/commands.js';
 import {
   ClientIdStoreError,
   DuplicateHostError,
+  HostNotConnectedError,
   HostReconnectedError,
   HostShutDownError,
   InMemoryClientIdStore,
@@ -246,6 +247,25 @@ test('InMemoryClientIdStore round-trips and overwrites', async () => {
 test('hostedResourceKey distinguishes hosts with the same URI', () => {
   const a = hostedResourceKey('host-a', 'ahp-session:/s1');
   const b = hostedResourceKey('host-b', 'ahp-session:/s1');
+  assert.notEqual(a, b);
+});
+
+test('hostedResourceKey is collision-safe across awkward hostId / uri pairs', () => {
+  // Length-prefix encoding must keep these distinct even though a naïve
+  // `${hostId}\0${uri}` join would collide on the first pair and a
+  // simpler `${hostId}${uri}` join would collide on the second.
+  assert.notEqual(
+    hostedResourceKey('host\x00a', 'b:/s'),
+    hostedResourceKey('host', '\x00ab:/s'),
+  );
+  assert.notEqual(
+    hostedResourceKey('host', 'a:/s'),
+    hostedResourceKey('hosta', ':/s'),
+  );
+  // And a hostId containing the literal `\0` byte still round-trips
+  // distinctly when only the URI changes.
+  const a = hostedResourceKey('h\x00ost', 'ahp-session:/s1');
+  const b = hostedResourceKey('h\x00ost', 'ahp-session:/s2');
   assert.notEqual(a, b);
 });
 
@@ -847,6 +867,151 @@ test('subscribe/unsubscribe/dispatch on an unknown host throws UnknownHostError'
   } finally {
     await multi.shutdown();
   }
+});
+
+// ─── HostNotConnectedError ──────────────────────────────────────────────────
+
+test('subscribe on a registered-but-not-yet-connected host throws HostNotConnectedError', async () => {
+  // A factory that hangs forever so the supervisor stays in `connecting`.
+  const factory: HostTransportFactory = async (_id, signal) =>
+    new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    });
+
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({ id: 'pending', label: 'pending', transportFactory: factory });
+    // No `await waitUntil` for connected — by design the host is still
+    // connecting. `subscribe` should distinguish "not connected yet"
+    // from "permanently shut down".
+    await assert.rejects(
+      multi.subscribe('pending', 'ahp-session:/s1'),
+      (err: unknown) =>
+        err instanceof HostNotConnectedError &&
+        err.hostId === 'pending' &&
+        !(err instanceof HostShutDownError),
+    );
+    // The URI should have been tracked for replay on the next connect
+    // (alongside the implicit `ahp-root://` subscription every host
+    // starts with).
+    const handle = multi.host('pending');
+    assert.ok(handle);
+    assert.ok(handle.subscriptions.includes('ahp-session:/s1'));
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('dispatch on a registered-but-not-yet-connected host throws HostNotConnectedError', async () => {
+  const factory: HostTransportFactory = async (_id, signal) =>
+    new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+    });
+
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({ id: 'pending', label: 'pending', transportFactory: factory });
+    assert.throws(
+      () =>
+        multi.dispatch(
+          'pending',
+          ROOT,
+          { type: 'noop' } as unknown as Parameters<typeof multi.dispatch>[2],
+        ),
+      (err: unknown) =>
+        err instanceof HostNotConnectedError &&
+        err.hostId === 'pending' &&
+        !(err instanceof HostShutDownError),
+    );
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+// ─── ClientIdStore signal ───────────────────────────────────────────────────
+
+test('ClientIdStore.load / store receive the multi-host shutdown signal', async () => {
+  const observed: { load: AbortSignal | null; store: AbortSignal | null } = {
+    load: null,
+    store: null,
+  };
+  const recordingStore: ClientIdStore = {
+    async load(_id, signal) {
+      observed.load = signal ?? null;
+      return null;
+    },
+    async store(_id, _clientId, signal) {
+      observed.store = signal ?? null;
+    },
+  };
+  const multi = new MultiHostClient({ clientIdStore: recordingStore });
+  try {
+    await multi.addHost({
+      id: 'sig',
+      label: 'sig',
+      transportFactory: makeBasicFactory(makeFakeState()),
+    });
+  } finally {
+    await multi.shutdown();
+  }
+  assert.ok(observed.load instanceof AbortSignal, 'load should receive an AbortSignal');
+  assert.ok(observed.store instanceof AbortSignal, 'store should receive an AbortSignal');
+  // After shutdown the captured signal must reflect the aborted state.
+  assert.equal(observed.load?.aborted, true);
+  assert.equal(observed.store?.aborted, true);
+});
+
+// ─── Reconnect listener bookkeeping ─────────────────────────────────────────
+
+test('repeated reconnect cycles do not accumulate abort listeners on the shutdown signal', async () => {
+  // Drive a host through many disconnect/reconnect cycles by closing
+  // the transport from the server side after init. If the per-connect
+  // `linkAbortSignals` listeners weren't released on successful
+  // connects, the per-runtime `shutdownController.signal` would
+  // accumulate them (Node emits a `MaxListenersExceededWarning` after
+  // 10 listeners on a target — we capture it).
+  const warnings: string[] = [];
+  const onWarning = (w: Error): void => {
+    if (w.name === 'MaxListenersExceededWarning') warnings.push(w.message);
+  };
+  process.on('warning', onWarning);
+
+  let attempt = 0;
+  const factory: HostTransportFactory = async () => {
+    attempt += 1;
+    const [c, s] = InMemoryTransport.pair();
+    const state: FakeHostState = makeFakeState({
+      injectAfterInit: async server => {
+        // Yield once so the supervisor enters `runConnection` before we
+        // tear down. Then close the socket to force a reconnect.
+        await new Promise(r => setTimeout(r, 1));
+        server.close();
+      },
+    });
+    void driveFakeHost(s, state);
+    return c;
+  };
+
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'churn',
+      label: 'churn',
+      // Effectively no backoff so cycles complete quickly.
+      reconnectPolicy: immediateForeverPolicy(),
+      transportFactory: factory,
+    });
+    // Wait until we've completed at least 20 cycles.
+    await waitUntil(() => attempt >= 20, 5000);
+  } finally {
+    await multi.shutdown();
+    process.removeListener('warning', onWarning);
+  }
+  assert.equal(
+    warnings.length,
+    0,
+    `expected no MaxListenersExceededWarning; got: ${warnings.join(' / ')}`,
+  );
 });
 
 // Reference the imported HostId type to avoid 'unused' warnings.
