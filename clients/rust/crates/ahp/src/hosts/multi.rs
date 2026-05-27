@@ -304,28 +304,37 @@ impl MultiHostClient {
             return HashMap::new();
         }
 
-        let mut set = tokio::task::JoinSet::new();
+        // Keep parallel `(HostId, JoinHandle)` pairs so a panicked /
+        // cancelled task can still be attributed back to its host
+        // instead of being silently swallowed.
+        let mut handles: Vec<(HostId, tokio::task::JoinHandle<Result<(), HostError>>)> =
+            Vec::with_capacity(targets.len());
         for id in targets {
             let multi = self.clone();
-            set.spawn(async move {
-                let result = multi.reconnect_host(&id).await;
-                (id, result)
-            });
+            let task_id = id.clone();
+            handles.push((
+                id,
+                tokio::spawn(async move { multi.reconnect_host(&task_id).await }),
+            ));
         }
 
         let mut errors = HashMap::new();
-        while let Some(joined) = set.join_next().await {
-            match joined {
-                Ok((id, Err(err))) => {
+        for (id, handle) in handles {
+            match handle.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
                     errors.insert(id, err);
                 }
-                Ok((_, Ok(()))) => {}
                 Err(join_err) => {
-                    // A panicked or cancelled reconnect task — surface
-                    // as a `HostShutDown` against an unknown host since
-                    // we lost the id in the join error. Practically
-                    // unreachable given how the task is spawned.
-                    tracing::error!(error = ?join_err, "reconnect task failed to join");
+                    // Panicked or cancelled reconnect task — surface it
+                    // as `HostShutDown` against the correct host id so
+                    // callers don't lose the failure.
+                    tracing::error!(
+                        host_id = %id,
+                        error = ?join_err,
+                        "reconnect task failed to join"
+                    );
+                    errors.insert(id.clone(), HostError::HostShutDown(id));
                 }
             }
         }

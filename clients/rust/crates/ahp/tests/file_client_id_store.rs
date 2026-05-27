@@ -82,6 +82,38 @@ async fn store_overwrites_previous_value() {
 }
 
 #[tokio::test]
+async fn store_preserves_whitespace_in_client_id() {
+    // The trait contract is "round-trip the exact bytes you wrote".
+    // Trimming on `load` would silently corrupt ids that happen to
+    // contain leading/trailing whitespace.
+    let dir = TempDir::new("ahp-cidstore");
+    let store = FileClientIdStore::new(dir.path());
+    let raw = "  spaced-id\n";
+    store.store(HostId::new("h"), raw.into()).await.unwrap();
+    assert_eq!(
+        store.load(HostId::new("h")).await.unwrap().as_deref(),
+        Some(raw)
+    );
+}
+
+#[tokio::test]
+async fn store_returns_clear_error_when_directory_path_is_a_file() {
+    // Pointing the store at a path that exists but isn't a directory
+    // should fail fast with a recognizable error instead of letting
+    // later syscalls surface a less-obvious `NotADirectory`.
+    let parent = TempDir::new("ahp-cidstore");
+    let bogus = parent.path().join("not-a-dir");
+    std::fs::write(&bogus, b"placeholder").unwrap();
+
+    let store = FileClientIdStore::new(&bogus);
+    let err = store
+        .store(HostId::new("h"), "value".into())
+        .await
+        .expect_err("store should fail when its directory path is a regular file");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+}
+
+#[tokio::test]
 async fn url_unsafe_host_id_round_trips() {
     let dir = TempDir::new("ahp-cidstore");
     let store = FileClientIdStore::new(dir.path());

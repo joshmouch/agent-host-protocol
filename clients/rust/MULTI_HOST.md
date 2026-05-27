@@ -187,7 +187,7 @@ let session = mirror
 # }
 ```
 
-⚠ Feeding the mirror from `MultiHostClient::events()` is fine for advisory / debug views, but that stream is a `tokio::sync::broadcast` fan-in shared across hosts and consumers — slow consumers drop envelopes once the buffer fills, and **a dropped envelope permanently desyncs the mirror** for the affected `(host, channel)` since there's no per-channel replay path in the Rust SDK today. For correctness-critical UI state, attach a per-channel `SessionSubscription` directly to the underlying `Client` for each host and pump those envelopes through `MultiHostStateMirror::apply_envelope`.
+⚠ Both event sources in the Rust SDK today are `tokio::sync::broadcast`-backed and **drop envelopes on slow consumers** once their buffer fills — `MultiHostClient::events()` and the per-channel `SessionSubscription` from `Client::subscribe` / `attach_subscription`. Neither survives a reconnect's replayed envelopes the way the Swift SDK's per-channel `events(host:uri:)` does. A dropped (or missed-because-reconnected) envelope permanently desyncs the mirror for that `(host, channel)` until it's re-seeded from a fresh snapshot via `apply_snapshot`. Consume with that in mind — the mirror is the right shape for multi-host UI state, but the Rust SDK doesn't yet ship a lossless feeder.
 
 ## Choosing single-host vs multi-host
 

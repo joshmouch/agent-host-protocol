@@ -8,22 +8,29 @@
 //! `(host_id, uri)` so resource URIs that legitimately collide across
 //! hosts (the normal case for session URIs) don't clobber each other.
 //!
-//! # When to feed it from `MultiHostClient::events()`
+//! # Event sources are lossy today
 //!
-//! [`crate::hosts::MultiHostClient::events`] is intentionally lossy —
-//! it's a `tokio::sync::broadcast` fan-in shared across every host
-//! and every consumer, so a slow consumer can drop envelopes once the
-//! buffer fills. Feeding a [`MultiHostStateMirror`] from that stream
-//! is fine for advisory / debug views, but **a dropped envelope will
-//! permanently desync the mirror** for that host/channel: there is no
-//! per-channel replay path in the Rust SDK today.
+//! Both event surfaces the Rust SDK exposes are
+//! [`tokio::sync::broadcast`]-backed and **drop envelopes on slow
+//! consumers** once their buffer fills:
 //!
-//! For correctness-critical UI state, attach a per-channel
-//! [`crate::SessionSubscription`] directly to the underlying
-//! [`crate::Client`] for each host you care about and pump those
-//! envelopes through [`MultiHostStateMirror::apply_envelope`]
-//! instead — that channel is unbounded and survives reconnects via
-//! the per-host supervisor's resubscription.
+//! - [`crate::hosts::MultiHostClient::events`] — the cross-host fan-in.
+//! - [`crate::Client::subscribe`] /
+//!   [`crate::Client::attach_subscription`] — the per-channel
+//!   [`crate::SessionSubscription`] (lag is reported via
+//!   [`crate::SubscriptionEvent`] but envelopes are still dropped).
+//!
+//! Neither survives a reconnect's replayed envelopes the way the Swift
+//! SDK's per-channel `events(host:uri:)` does. A dropped envelope (or
+//! a missed-because-reconnected envelope) will permanently desync the
+//! mirror for that `(host, channel)` until you re-seed it from a fresh
+//! snapshot — either via a new `subscribe` call or by applying a
+//! `Snapshot` from `ReconnectResult::Snapshot` through
+//! [`MultiHostStateMirror::apply_snapshot`].
+//!
+//! Consume from this mirror with that understanding: it's the right
+//! shape for multi-host UI state, but the Rust SDK doesn't yet ship a
+//! lossless feeder.
 
 use std::collections::HashMap;
 

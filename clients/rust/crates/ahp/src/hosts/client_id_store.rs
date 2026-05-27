@@ -161,18 +161,27 @@ impl ClientIdStore for FileClientIdStore {
         Box::pin(async move {
             let _guard = self.guard.lock().await;
             let path = self.file_path(&host_id);
-            match std::fs::read_to_string(&path) {
+            // Offload the blocking read so we don't tie up the async
+            // executor thread on slow/distributed filesystems.
+            tokio::task::spawn_blocking(move || match std::fs::read_to_string(&path) {
                 Ok(contents) => {
-                    let trimmed = contents.trim();
-                    if trimmed.is_empty() {
+                    // Preserve the exact bytes we wrote. `store` writes
+                    // raw bytes with no newline, so any leading/trailing
+                    // whitespace is intentional. Treat only a fully
+                    // empty file as "no value".
+                    if contents.is_empty() {
                         Ok(None)
                     } else {
-                        Ok(Some(trimmed.to_owned()))
+                        Ok(Some(contents))
                     }
                 }
                 Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
                 Err(err) => Err(err),
-            }
+            })
+            .await
+            .map_err(|join_err| {
+                io::Error::other(format!("client id store load join error: {join_err}"))
+            })?
         })
     }
 
@@ -183,9 +192,18 @@ impl ClientIdStore for FileClientIdStore {
     ) -> Pin<Box<dyn Future<Output = io::Result<()>> + Send + '_>> {
         Box::pin(async move {
             let _guard = self.guard.lock().await;
-            ensure_directory(&self.directory)?;
+            let directory = self.directory.clone();
             let final_path = self.file_path(&host_id);
-            atomic_write(&final_path, client_id.as_bytes())
+            // Same rationale as `load`: keep slow filesystem syscalls
+            // off the async executor thread.
+            tokio::task::spawn_blocking(move || {
+                ensure_directory(&directory)?;
+                atomic_write(&final_path, client_id.as_bytes())
+            })
+            .await
+            .map_err(|join_err| {
+                io::Error::other(format!("client id store store join error: {join_err}"))
+            })?
         })
     }
 }
@@ -212,8 +230,22 @@ fn encode_host_id(id: &str) -> String {
 }
 
 fn ensure_directory(dir: &Path) -> io::Result<()> {
-    if dir.exists() {
-        return Ok(());
+    match std::fs::metadata(dir) {
+        Ok(meta) if meta.is_dir() => return Ok(()),
+        Ok(_) => {
+            // Path exists but isn't a directory — bail out early with a
+            // clear error rather than letting later `create_new`/rename
+            // fail with a harder-to-diagnose `NotADirectory`.
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "client id store path {} exists but is not a directory",
+                    dir.display()
+                ),
+            ));
+        }
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err),
     }
     std::fs::create_dir_all(dir)?;
     // Best-effort restrict the directory to owner-only on Unix.
@@ -228,12 +260,14 @@ fn ensure_directory(dir: &Path) -> io::Result<()> {
 /// Atomically write `content` to `final_path` via a unique-per-call
 /// temp file in the same directory, opened with `0o600` mode from the
 /// start on Unix so there's no permissions window.
+///
+/// Retries on `AlreadyExists` so a stale temp file left behind by a
+/// crashed process with the same PID can't permanently break writes.
 fn atomic_write(final_path: &Path, content: &[u8]) -> io::Result<()> {
     use std::io::Write;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
     let parent = final_path
         .parent()
@@ -242,27 +276,51 @@ fn atomic_write(final_path: &Path, content: &[u8]) -> io::Result<()> {
         .file_name()
         .and_then(|n| n.to_str())
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "store path is not utf-8"))?;
-    let temp_path = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
 
-    let mut opts = std::fs::OpenOptions::new();
-    opts.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    {
-        let mut file = opts.open(&temp_path)?;
-        file.write_all(content)?;
-        file.flush()?;
-    }
-    match std::fs::rename(&temp_path, final_path) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            let _ = std::fs::remove_file(&temp_path);
-            Err(err)
+    // Try a handful of unique temp-name candidates so a crashed peer
+    // process that reused our PID can't poison this slot forever.
+    const MAX_TEMP_RETRIES: u32 = 8;
+    let mut last_err: Option<io::Error> = None;
+    for _ in 0..MAX_TEMP_RETRIES {
+        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let temp_path = parent.join(format!(".{file_name}.{pid}.{counter}.tmp"));
+
+        let mut opts = std::fs::OpenOptions::new();
+        opts.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            opts.mode(0o600);
+        }
+        match opts.open(&temp_path) {
+            Ok(mut file) => {
+                if let Err(err) = file.write_all(content).and_then(|_| file.flush()) {
+                    drop(file);
+                    let _ = std::fs::remove_file(&temp_path);
+                    return Err(err);
+                }
+                drop(file);
+                return match std::fs::rename(&temp_path, final_path) {
+                    Ok(()) => Ok(()),
+                    Err(err) => {
+                        let _ = std::fs::remove_file(&temp_path);
+                        Err(err)
+                    }
+                };
+            }
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+                last_err = Some(err);
+                continue;
+            }
+            Err(err) => return Err(err),
         }
     }
+    Err(last_err.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "exhausted temp-file candidates while atomically writing client id",
+        )
+    }))
 }
 
 #[cfg(test)]
