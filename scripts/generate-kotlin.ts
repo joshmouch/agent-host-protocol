@@ -1123,9 +1123,11 @@ function generateActionsFile(project: Project): string {
   lines.push('/**');
   lines.push(' * Discriminated union of all state actions.');
   lines.push(' *');
-  lines.push(' * Unknown wire types decode to [StateActionUnknown] and reducers should treat');
-  lines.push(' * them as no-ops; this is critical for forward compatibility across protocol');
-  lines.push(' * versions.');
+  lines.push(' * Unknown wire types decode to [StateActionUnknown], which captures the full');
+  lines.push(' * raw JSON object (mirrors the state-channel `XUnknown` variants and Rust\'s');
+  lines.push(' * `Unknown(serde_json::Value)`). Reducers should treat unknown actions as');
+  lines.push(' * no-ops; the captured payload is re-emitted unchanged on encode so unknown');
+  lines.push(' * actions can round-trip across protocol versions.');
   lines.push(' */');
   lines.push('@Serializable(with = StateActionSerializer::class)');
   lines.push('sealed interface StateAction');
@@ -1134,7 +1136,7 @@ function generateActionsFile(project: Project): string {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`@JvmInline value class StateAction${v.caseName}(val value: ${dataClass}) : StateAction`);
   }
-  lines.push('@JvmInline value class StateActionUnknown(val type: String) : StateAction');
+  lines.push('@JvmInline value class StateActionUnknown(val raw: JsonObject) : StateAction');
   lines.push('');
 
   lines.push('internal object StateActionSerializer : KSerializer<StateAction> {');
@@ -1154,7 +1156,7 @@ function generateActionsFile(project: Project): string {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`            ${JSON.stringify(v.type)} -> StateAction${v.caseName}(input.json.decodeFromJsonElement(${dataClass}.serializer(), element))`);
   }
-  lines.push('            else -> StateActionUnknown(type)');
+  lines.push('            else -> StateActionUnknown(obj)');
   lines.push('        }');
   lines.push('    }');
   lines.push('');
@@ -1166,9 +1168,7 @@ function generateActionsFile(project: Project): string {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`            is StateAction${v.caseName} -> output.json.encodeToJsonElement(${dataClass}.serializer(), value.value)`);
   }
-  lines.push('            is StateActionUnknown -> buildJsonObject {');
-  lines.push('                put("type", JsonPrimitive(value.type))');
-  lines.push('            }');
+  lines.push('            is StateActionUnknown -> value.raw');
   lines.push('        }');
   lines.push('        output.encodeJsonElement(element)');
   lines.push('    }');

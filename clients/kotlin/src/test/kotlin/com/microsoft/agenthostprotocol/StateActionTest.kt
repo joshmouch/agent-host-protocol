@@ -50,11 +50,19 @@ class StateActionTest {
     fun `unknown action type decodes to StateActionUnknown without throwing`() {
         // A future server may emit an action whose `type` is unknown to
         // this client. The reducer must be able to no-op it; that requires
-        // the deserializer to never throw on unknown types.
-        val futureWire = """{"type":"session/futureUnknownAction","payload":{}}"""
+        // the deserializer to never throw on unknown types. The raw JSON
+        // object is captured so the action round-trips back across the
+        // wire with its full payload intact.
+        val futureWire = """{"type":"session/futureUnknownAction","payload":{"foo":42}}"""
         val decoded = json.decodeFromString(StateAction.serializer(), futureWire)
         val unknown = assertIs<StateActionUnknown>(decoded)
-        assertEquals("session/futureUnknownAction", unknown.type)
+        assertEquals(JsonPrimitive("session/futureUnknownAction"), unknown.raw["type"])
+        assertEquals(JsonPrimitive(42), unknown.raw["payload"]?.jsonObject?.get("foo"))
+
+        // Re-encoded JSON tree matches the original (semantic round-trip).
+        val reEncoded = json.encodeToString(StateAction.serializer(), decoded)
+        val reTree = json.parseToJsonElement(reEncoded).jsonObject
+        assertEquals(json.parseToJsonElement(futureWire).jsonObject, reTree)
     }
 
     @Test

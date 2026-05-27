@@ -151,7 +151,7 @@ public object ChangesetReducer : Reducer<ChangesetState, StateAction>
 
 Each reducer dispatches on the [`StateAction`] sealed interface and handles the action variants that belong to its channel. Actions belonging to other channels (or unknown `StateActionUnknown` variants returned by the wire-types decoder when the server sends a newer action type than this version of the client knows about) fall through to an `else -> state` no-op — this matches the forward-compatibility semantics of the canonical TypeScript and Swift reducers.
 
-State-channel unions decoded inside actions follow the same principle: when the server emits a discriminator this client doesn't recognise (e.g. a future `ResponsePart` kind, `ToolCallState`, `Customization` type, etc.) the decoder lifts the raw JSON into an `XUnknown` variant rather than throwing. The reducer treats those variants conservatively — `customizationId` returns `null` so an unknown container can't false-match a real id, `SessionCustomizationUpdated` short-circuits to NoOp when the payload is Unknown, and cancellation collapses unknown tool calls to empty cancelled state. These behaviours mirror the Rust reducer exactly.
+State-channel unions decoded inside actions follow the same principle: when the server emits a discriminator this client doesn't recognise (e.g. a future `ResponsePart` kind, `ToolCallState`, `Customization` type, etc.) the decoder lifts the raw JSON into an `XUnknown` variant rather than throwing. `StateActionUnknown` uses the same shape for unknown action types. Reducers treat these variants conservatively — `customizationId` returns `null` so an unknown container can't false-match a real id, `SessionCustomizationUpdated` short-circuits to NoOp when the payload is Unknown, and cancellation collapses unknown tool calls to empty cancelled state. These behaviours mirror the Rust reducer exactly.
 
 ### Hand-port from TypeScript
 
@@ -170,7 +170,7 @@ The Kotlin port preserves Swift parity caveats already documented in PR #115:
 
 1. **`T | null` vs `T?`** — both collapse to nullable Kotlin fields. With `explicitNulls = false`, both encode as absent.
 2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift. For forward-compat unions, an *unrecognised* discriminator decodes to the `XUnknown(val raw: JsonObject)` variant (mirrors Rust's `Unknown(serde_json::Value)`) and round-trips its raw payload on re-encode.
-3. **`StateActionUnknown`** — only the wire `type` string is preserved; the rest of an unknown action's payload is dropped. The reducer treats it as a no-op. The newer state-channel `XUnknown` variants (`ResponsePartUnknown`, `ToolCallStateUnknown`, `CustomizationUnknown`, etc.) are not lossy — they capture the full raw JSON object.
+3. **`StateActionUnknown`** — captures the full raw JSON object of an unknown action (same shape as the state-channel `XUnknown` variants). The reducer treats it as a no-op. Re-encoding round-trips the original payload back to the wire.
 
 ### Injectable timestamp
 
