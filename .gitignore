@@ -24,3 +24,9 @@ DerivedData
 coverage
 
 clients/rust/target
+
+# Gradle / Kotlin
+clients/kotlin/.gradle/
+clients/kotlin/build/
+clients/kotlin/.kotlin/
+clients/kotlin/local.properties

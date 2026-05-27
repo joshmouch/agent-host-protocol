@@ -73,6 +73,50 @@ jobs:
       - name: Test Swift package
         run: swift test
 
+  kotlin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Sanity-check the committed gradle-wrapper.jar against Gradle's
+      # published checksums so a poisoned wrapper can't run arbitrary code
+      # in CI. This is the standard Gradle hardening step recommended for
+      # all public repos.
+      - uses: gradle/actions/wrapper-validation@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - run: npm ci
+
+      # Verify the committed Kotlin sources are in sync with the TypeScript
+      # protocol definitions. If `npm run generate:kotlin` produces any
+      # diff (or new files), the committed generated files are stale.
+      # We use `git status --porcelain` rather than `git diff` so a
+      # newly-emitted file (untracked) also fails the check.
+      - name: Verify generated Kotlin is up to date
+        run: |
+          npm run generate:kotlin
+          if [ -n "$(git status --porcelain -- clients/kotlin)" ]; then
+            echo "::error::Generated Kotlin sources are out of date. Run 'npm run generate:kotlin' and commit the result."
+            git status --porcelain -- clients/kotlin
+            git --no-pager diff -- clients/kotlin
+            exit 1
+          fi
+
+      - name: Build Kotlin package
+        working-directory: clients/kotlin
+        run: ./gradlew build --stacktrace
+
   typescript:
     runs-on: ubuntu-latest
     steps:

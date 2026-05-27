@@ -1,0 +1,1199 @@
+// Generated from types/*.ts — do not edit
+
+package com.microsoft.agenthostprotocol.generated
+
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+
+// ─── ActionType ─────────────────────────────────────────────────────────────
+
+/**
+ * Discriminant values for all state actions.
+ */
+@Serializable
+enum class ActionType {
+    @SerialName("root/agentsChanged")
+    ROOT_AGENTS_CHANGED,
+    @SerialName("root/activeSessionsChanged")
+    ROOT_ACTIVE_SESSIONS_CHANGED,
+    @SerialName("session/ready")
+    SESSION_READY,
+    @SerialName("session/creationFailed")
+    SESSION_CREATION_FAILED,
+    @SerialName("session/turnStarted")
+    SESSION_TURN_STARTED,
+    @SerialName("session/delta")
+    SESSION_DELTA,
+    @SerialName("session/responsePart")
+    SESSION_RESPONSE_PART,
+    @SerialName("session/toolCallStart")
+    SESSION_TOOL_CALL_START,
+    @SerialName("session/toolCallDelta")
+    SESSION_TOOL_CALL_DELTA,
+    @SerialName("session/toolCallReady")
+    SESSION_TOOL_CALL_READY,
+    @SerialName("session/toolCallConfirmed")
+    SESSION_TOOL_CALL_CONFIRMED,
+    @SerialName("session/toolCallComplete")
+    SESSION_TOOL_CALL_COMPLETE,
+    @SerialName("session/toolCallResultConfirmed")
+    SESSION_TOOL_CALL_RESULT_CONFIRMED,
+    @SerialName("session/toolCallContentChanged")
+    SESSION_TOOL_CALL_CONTENT_CHANGED,
+    @SerialName("session/turnComplete")
+    SESSION_TURN_COMPLETE,
+    @SerialName("session/turnCancelled")
+    SESSION_TURN_CANCELLED,
+    @SerialName("session/error")
+    SESSION_ERROR,
+    @SerialName("session/titleChanged")
+    SESSION_TITLE_CHANGED,
+    @SerialName("session/usage")
+    SESSION_USAGE,
+    @SerialName("session/reasoning")
+    SESSION_REASONING,
+    @SerialName("session/modelChanged")
+    SESSION_MODEL_CHANGED,
+    @SerialName("session/agentChanged")
+    SESSION_AGENT_CHANGED,
+    @SerialName("session/serverToolsChanged")
+    SESSION_SERVER_TOOLS_CHANGED,
+    @SerialName("session/activeClientChanged")
+    SESSION_ACTIVE_CLIENT_CHANGED,
+    @SerialName("session/activeClientToolsChanged")
+    SESSION_ACTIVE_CLIENT_TOOLS_CHANGED,
+    @SerialName("session/pendingMessageSet")
+    SESSION_PENDING_MESSAGE_SET,
+    @SerialName("session/pendingMessageRemoved")
+    SESSION_PENDING_MESSAGE_REMOVED,
+    @SerialName("session/queuedMessagesReordered")
+    SESSION_QUEUED_MESSAGES_REORDERED,
+    @SerialName("session/inputRequested")
+    SESSION_INPUT_REQUESTED,
+    @SerialName("session/inputAnswerChanged")
+    SESSION_INPUT_ANSWER_CHANGED,
+    @SerialName("session/inputCompleted")
+    SESSION_INPUT_COMPLETED,
+    @SerialName("session/customizationsChanged")
+    SESSION_CUSTOMIZATIONS_CHANGED,
+    @SerialName("session/customizationToggled")
+    SESSION_CUSTOMIZATION_TOGGLED,
+    @SerialName("session/customizationUpdated")
+    SESSION_CUSTOMIZATION_UPDATED,
+    @SerialName("session/truncated")
+    SESSION_TRUNCATED,
+    @SerialName("session/isReadChanged")
+    SESSION_IS_READ_CHANGED,
+    @SerialName("session/isArchivedChanged")
+    SESSION_IS_ARCHIVED_CHANGED,
+    @SerialName("session/activityChanged")
+    SESSION_ACTIVITY_CHANGED,
+    @SerialName("session/changesetsChanged")
+    SESSION_CHANGESETS_CHANGED,
+    @SerialName("session/configChanged")
+    SESSION_CONFIG_CHANGED,
+    @SerialName("session/metaChanged")
+    SESSION_META_CHANGED,
+    @SerialName("changeset/statusChanged")
+    CHANGESET_STATUS_CHANGED,
+    @SerialName("changeset/fileSet")
+    CHANGESET_FILE_SET,
+    @SerialName("changeset/fileRemoved")
+    CHANGESET_FILE_REMOVED,
+    @SerialName("changeset/operationsChanged")
+    CHANGESET_OPERATIONS_CHANGED,
+    @SerialName("changeset/cleared")
+    CHANGESET_CLEARED,
+    @SerialName("root/terminalsChanged")
+    ROOT_TERMINALS_CHANGED,
+    @SerialName("root/configChanged")
+    ROOT_CONFIG_CHANGED,
+    @SerialName("terminal/data")
+    TERMINAL_DATA,
+    @SerialName("terminal/input")
+    TERMINAL_INPUT,
+    @SerialName("terminal/resized")
+    TERMINAL_RESIZED,
+    @SerialName("terminal/claimed")
+    TERMINAL_CLAIMED,
+    @SerialName("terminal/titleChanged")
+    TERMINAL_TITLE_CHANGED,
+    @SerialName("terminal/cwdChanged")
+    TERMINAL_CWD_CHANGED,
+    @SerialName("terminal/exited")
+    TERMINAL_EXITED,
+    @SerialName("terminal/cleared")
+    TERMINAL_CLEARED,
+    @SerialName("terminal/commandDetectionAvailable")
+    TERMINAL_COMMAND_DETECTION_AVAILABLE,
+    @SerialName("terminal/commandExecuted")
+    TERMINAL_COMMAND_EXECUTED,
+    @SerialName("terminal/commandFinished")
+    TERMINAL_COMMAND_FINISHED
+}
+
+// ─── Action Infrastructure ──────────────────────────────────────────────────
+
+@Serializable
+data class ActionOrigin(
+    val clientId: String,
+    val clientSeq: Long
+)
+
+@Serializable
+data class ActionEnvelope(
+    /**
+     * Channel URI this action belongs to.
+     */
+    val channel: String,
+    val action: StateAction,
+    val serverSeq: Long,
+    val origin: ActionOrigin? = null,
+    val rejectionReason: String? = null
+)
+
+// ─── Action Types ───────────────────────────────────────────────────────────
+
+@Serializable
+data class RootAgentsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated agent list
+     */
+    val agents: List<AgentInfo>
+)
+
+@Serializable
+data class RootActiveSessionsChangedAction(
+    val type: ActionType,
+    /**
+     * Current count of active sessions
+     */
+    val activeSessions: Long
+)
+
+@Serializable
+data class SessionReadyAction(
+    val type: ActionType
+)
+
+@Serializable
+data class SessionCreationFailedAction(
+    val type: ActionType,
+    /**
+     * Error details
+     */
+    val error: ErrorInfo
+)
+
+@Serializable
+data class SessionTurnStartedAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * User's message
+     */
+    val userMessage: UserMessage,
+    /**
+     * If this turn was auto-started from a queued message, the ID of that message
+     */
+    val queuedMessageId: String? = null
+)
+
+@Serializable
+data class SessionDeltaAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Identifier of the response part to append to
+     */
+    val partId: String,
+    /**
+     * Text chunk
+     */
+    val content: String
+)
+
+@Serializable
+data class SessionResponsePartAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Response part (markdown or content ref)
+     */
+    val part: ResponsePart
+)
+
+@Serializable
+data class SessionToolCallStartAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * Internal tool name (for debugging/logging)
+     */
+    val toolName: String,
+    /**
+     * Human-readable tool name
+     */
+    val displayName: String,
+    /**
+     * If this tool is provided by a client, the `clientId` of the owning client.
+     * Absent for server-side tools.
+     */
+    val toolClientId: String? = null
+)
+
+@Serializable
+data class SessionToolCallDeltaAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * Partial parameter content to append
+     */
+    val content: String,
+    /**
+     * Updated progress message
+     */
+    val invocationMessage: StringOrMarkdown? = null
+)
+
+@Serializable
+data class SessionToolCallReadyAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * Message describing what the tool will do or what confirmation is needed
+     */
+    val invocationMessage: StringOrMarkdown,
+    /**
+     * Raw tool input
+     */
+    val toolInput: String? = null,
+    /**
+     * Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`)
+     */
+    val confirmationTitle: StringOrMarkdown? = null,
+    /**
+     * File edits that this tool call will perform, for preview before confirmation
+     */
+    val edits: JsonElement? = null,
+    /**
+     * Whether the agent host allows the client to edit the tool's input parameters before confirming
+     */
+    val editable: Boolean? = null,
+    /**
+     * If set, the tool was auto-confirmed and transitions directly to `running`
+     */
+    val confirmed: ToolCallConfirmationReason? = null,
+    /**
+     * Options the server offers for this confirmation. When present, the client
+     * SHOULD render these instead of a plain approve/deny UI. Each option
+     * belongs to a {@link ConfirmationOptionGroup} so the client can still
+     * categorise the choices.
+     */
+    val options: List<ConfirmationOption>? = null
+)
+
+/**
+ * Client approves or denies a pending tool call (merged approved + denied variants).
+ */
+@Serializable
+data class SessionToolCallConfirmedAction(
+    /** Action type discriminant */
+    val type: ActionType = ActionType.SESSION_TOOL_CALL_CONFIRMED,
+    /** Turn identifier */
+    val turnId: String,
+    /** Tool call identifier */
+    val toolCallId: String,
+    /** Whether the tool call was approved */
+    val approved: Boolean,
+    /** How the tool was confirmed (present when approved) */
+    val confirmed: ToolCallConfirmationReason? = null,
+    /** Edited tool input parameters, if the client modified them before confirming */
+    val editedToolInput: String? = null,
+    /** Why the tool was cancelled (present when denied) */
+    val reason: ToolCallCancellationReason? = null,
+    /** What the user suggested instead (present when denied) */
+    val userSuggestion: UserMessage? = null,
+    /** Explanation for the denial */
+    val reasonMessage: StringOrMarkdown? = null,
+    /** ID of the selected confirmation option, if the server provided options */
+    val selectedOptionId: String? = null,
+    /** Additional provider-specific metadata */
+    @SerialName("_meta") val meta: Map<String, JsonElement>? = null,
+)
+
+@Serializable
+data class SessionToolCallCompleteAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * Execution result
+     */
+    val result: ToolCallResult,
+    /**
+     * If true, the result requires client approval before finalizing
+     */
+    val requiresResultConfirmation: Boolean? = null
+)
+
+@Serializable
+data class SessionToolCallResultConfirmedAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * Whether the result was approved
+     */
+    val approved: Boolean
+)
+
+@Serializable
+data class SessionTurnCompleteAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String
+)
+
+@Serializable
+data class SessionTurnCancelledAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String
+)
+
+@Serializable
+data class SessionErrorAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Error details
+     */
+    val error: ErrorInfo
+)
+
+@Serializable
+data class SessionTitleChangedAction(
+    val type: ActionType,
+    /**
+     * New title
+     */
+    val title: String
+)
+
+@Serializable
+data class SessionUsageAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Token usage data
+     */
+    val usage: UsageInfo
+)
+
+@Serializable
+data class SessionReasoningAction(
+    val type: ActionType,
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Identifier of the reasoning response part to append to
+     */
+    val partId: String,
+    /**
+     * Reasoning text chunk
+     */
+    val content: String
+)
+
+@Serializable
+data class SessionModelChangedAction(
+    val type: ActionType,
+    /**
+     * New model selection
+     */
+    val model: ModelSelection
+)
+
+@Serializable
+data class SessionAgentChangedAction(
+    val type: ActionType,
+    /**
+     * New agent selection, or `undefined` to clear the selection and reset the
+     * session to no selected custom agent.
+     */
+    val agent: AgentSelection? = null
+)
+
+@Serializable
+data class SessionIsReadChangedAction(
+    val type: ActionType,
+    /**
+     * Whether the session has been read
+     */
+    val isRead: Boolean
+)
+
+@Serializable
+data class SessionIsArchivedChangedAction(
+    val type: ActionType,
+    /**
+     * Whether the session is archived
+     */
+    val isArchived: Boolean
+)
+
+@Serializable
+data class SessionActivityChangedAction(
+    val type: ActionType,
+    /**
+     * Human-readable description of current activity, or `undefined` to clear
+     */
+    val activity: String? = null
+)
+
+@Serializable
+data class SessionChangesetsChangedAction(
+    val type: ActionType,
+    /**
+     * New catalogue, or `undefined` to clear it
+     */
+    val changesets: List<ChangesetSummary>? = null
+)
+
+@Serializable
+data class SessionServerToolsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated server tools list (full replacement)
+     */
+    val tools: List<ToolDefinition>
+)
+
+@Serializable
+data class SessionActiveClientChangedAction(
+    val type: ActionType,
+    /**
+     * The new active client, or `null` to unset
+     */
+    val activeClient: SessionActiveClient? = null
+)
+
+@Serializable
+data class SessionActiveClientToolsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated client tools list (full replacement)
+     */
+    val tools: List<ToolDefinition>
+)
+
+@Serializable
+data class SessionPendingMessageSetAction(
+    val type: ActionType,
+    /**
+     * Whether this is a steering or queued message
+     */
+    val kind: PendingMessageKind,
+    /**
+     * Unique identifier for this pending message
+     */
+    val id: String,
+    /**
+     * The message content
+     */
+    val userMessage: UserMessage
+)
+
+@Serializable
+data class SessionPendingMessageRemovedAction(
+    val type: ActionType,
+    /**
+     * Whether this is a steering or queued message
+     */
+    val kind: PendingMessageKind,
+    /**
+     * Identifier of the pending message to remove
+     */
+    val id: String
+)
+
+@Serializable
+data class SessionQueuedMessagesReorderedAction(
+    val type: ActionType,
+    /**
+     * Queued message IDs in the desired order
+     */
+    val order: List<String>
+)
+
+@Serializable
+data class SessionInputRequestedAction(
+    val type: ActionType,
+    /**
+     * Input request to create or replace
+     */
+    val request: SessionInputRequest
+)
+
+@Serializable
+data class SessionInputAnswerChangedAction(
+    val type: ActionType,
+    /**
+     * Input request identifier
+     */
+    val requestId: String,
+    /**
+     * Question identifier within the input request
+     */
+    val questionId: String,
+    /**
+     * Updated answer, or `undefined` to clear an answer draft
+     */
+    val answer: SessionInputAnswer? = null
+)
+
+@Serializable
+data class SessionInputCompletedAction(
+    val type: ActionType,
+    /**
+     * Input request identifier
+     */
+    val requestId: String,
+    /**
+     * Completion outcome
+     */
+    val response: SessionInputResponseKind,
+    /**
+     * Optional final answer replacement, keyed by question ID
+     */
+    val answers: Map<String, SessionInputAnswer>? = null
+)
+
+@Serializable
+data class SessionCustomizationsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated customization list (full replacement)
+     */
+    val customizations: List<SessionCustomization>
+)
+
+@Serializable
+data class SessionCustomizationToggledAction(
+    val type: ActionType,
+    /**
+     * The URI of the customization to toggle
+     */
+    val uri: String,
+    /**
+     * Whether to enable or disable the customization
+     */
+    val enabled: Boolean
+)
+
+@Serializable
+data class SessionCustomizationUpdatedAction(
+    val type: ActionType,
+    /**
+     * The customization to update or insert (matched by `customization.uri`)
+     */
+    val customization: CustomizationRef,
+    /**
+     * New enabled state (defaults to `false` on insert)
+     */
+    val enabled: Boolean? = null,
+    /**
+     * New loading status
+     */
+    val status: CustomizationStatus? = null,
+    /**
+     * New human-readable status detail
+     */
+    val statusMessage: String? = null,
+    /**
+     * Custom agents contributed by this customization, as resolved by the
+     * agent host. Populated only by the agent host. See
+     * {@link SessionCustomization.agents} for absent-vs-empty semantics.
+     */
+    val agents: List<CustomizationAgentRef>? = null
+)
+
+@Serializable
+data class SessionTruncatedAction(
+    val type: ActionType,
+    /**
+     * Keep turns up to and including this turn. Omit to clear all turns.
+     */
+    val turnId: String? = null
+)
+
+@Serializable
+data class SessionConfigChangedAction(
+    val type: ActionType,
+    /**
+     * Updated config values
+     */
+    val config: Map<String, JsonElement>,
+    /**
+     * When `true`, replaces all config values instead of merging
+     */
+    val replace: Boolean? = null
+)
+
+@Serializable
+data class SessionMetaChangedAction(
+    val type: ActionType,
+    /**
+     * New `_meta` payload, or `undefined` to clear it
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class SessionToolCallContentChangedAction(
+    /**
+     * Turn identifier
+     */
+    val turnId: String,
+    /**
+     * Tool call identifier
+     */
+    val toolCallId: String,
+    /**
+     * Additional provider-specific metadata for this tool call.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
+     * indicates the tool operated on a terminal (both `input` and `output` may
+     * contain escape sequences).
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    val type: ActionType,
+    /**
+     * The current partial content for the running tool call
+     */
+    val content: List<ToolResultContent>
+)
+
+@Serializable
+data class ChangesetStatusChangedAction(
+    val type: ActionType,
+    /**
+     * New computation lifecycle status.
+     */
+    val status: ChangesetStatus,
+    /**
+     * Cause when `status === ChangesetStatus.Error`; otherwise omitted.
+     */
+    val error: ErrorInfo? = null
+)
+
+@Serializable
+data class ChangesetFileSetAction(
+    val type: ActionType,
+    /**
+     * The new or replacement file entry.
+     */
+    val file: ChangesetFile
+)
+
+@Serializable
+data class ChangesetFileRemovedAction(
+    val type: ActionType,
+    /**
+     * The {@link ChangesetFile.id} of the file to remove.
+     */
+    val fileId: String
+)
+
+@Serializable
+data class ChangesetOperationsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated operation list. Pass `undefined` to clear all operations.
+     */
+    val operations: List<ChangesetOperation>? = null
+)
+
+@Serializable
+data class ChangesetClearedAction(
+    val type: ActionType
+)
+
+@Serializable
+data class RootTerminalsChangedAction(
+    val type: ActionType,
+    /**
+     * Updated terminal list (full replacement)
+     */
+    val terminals: List<TerminalInfo>
+)
+
+@Serializable
+data class RootConfigChangedAction(
+    val type: ActionType,
+    /**
+     * Updated config values
+     */
+    val config: Map<String, JsonElement>,
+    /**
+     * When `true`, replaces all config values instead of merging
+     */
+    val replace: Boolean? = null
+)
+
+@Serializable
+data class TerminalDataAction(
+    val type: ActionType,
+    /**
+     * Output data (may contain ANSI escape sequences)
+     */
+    val data: String
+)
+
+@Serializable
+data class TerminalInputAction(
+    val type: ActionType,
+    /**
+     * Input data to send to the pty
+     */
+    val data: String
+)
+
+@Serializable
+data class TerminalResizedAction(
+    val type: ActionType,
+    /**
+     * Terminal width in columns
+     */
+    val cols: Long,
+    /**
+     * Terminal height in rows
+     */
+    val rows: Long
+)
+
+@Serializable
+data class TerminalClaimedAction(
+    val type: ActionType,
+    /**
+     * The new claim
+     */
+    val claim: TerminalClaim
+)
+
+@Serializable
+data class TerminalTitleChangedAction(
+    val type: ActionType,
+    /**
+     * New terminal title
+     */
+    val title: String
+)
+
+@Serializable
+data class TerminalCwdChangedAction(
+    val type: ActionType,
+    /**
+     * New working directory
+     */
+    val cwd: String
+)
+
+@Serializable
+data class TerminalExitedAction(
+    val type: ActionType,
+    /**
+     * Process exit code. `undefined` if the process was killed without an exit code.
+     */
+    val exitCode: Long? = null
+)
+
+@Serializable
+data class TerminalClearedAction(
+    val type: ActionType
+)
+
+@Serializable
+data class TerminalCommandDetectionAvailableAction(
+    val type: ActionType
+)
+
+@Serializable
+data class TerminalCommandExecutedAction(
+    val type: ActionType,
+    /**
+     * Stable identifier for this command, scoped to the terminal URI.
+     * Allows correlating `commandExecuted` → `commandFinished` pairs.
+     */
+    val commandId: String,
+    /**
+     * The command line text that was submitted
+     */
+    val commandLine: String,
+    /**
+     * Unix timestamp (ms) of when the command started executing, as measured
+     * on the server.
+     */
+    val timestamp: Long
+)
+
+@Serializable
+data class TerminalCommandFinishedAction(
+    val type: ActionType,
+    /**
+     * Matches the `commandId` from the corresponding `commandExecuted`
+     */
+    val commandId: String,
+    /**
+     * Shell exit code. `undefined` if the shell did not report one.
+     */
+    val exitCode: Long? = null,
+    /**
+     * Wall-clock duration of the command in milliseconds, as measured by the
+     * shell integration script on the server side.
+     */
+    val durationMs: Long? = null
+)
+
+// ─── StateAction Union ──────────────────────────────────────────────────────
+
+/**
+ * Discriminated union of all state actions.
+ *
+ * Unknown wire types decode to [StateActionUnknown] and reducers should treat
+ * them as no-ops; this is critical for forward compatibility across protocol
+ * versions.
+ */
+@Serializable(with = StateActionSerializer::class)
+sealed interface StateAction
+
+@JvmInline value class StateActionRootAgentsChanged(val value: RootAgentsChangedAction) : StateAction
+@JvmInline value class StateActionRootActiveSessionsChanged(val value: RootActiveSessionsChangedAction) : StateAction
+@JvmInline value class StateActionSessionReady(val value: SessionReadyAction) : StateAction
+@JvmInline value class StateActionSessionCreationFailed(val value: SessionCreationFailedAction) : StateAction
+@JvmInline value class StateActionSessionTurnStarted(val value: SessionTurnStartedAction) : StateAction
+@JvmInline value class StateActionSessionDelta(val value: SessionDeltaAction) : StateAction
+@JvmInline value class StateActionSessionResponsePart(val value: SessionResponsePartAction) : StateAction
+@JvmInline value class StateActionSessionToolCallStart(val value: SessionToolCallStartAction) : StateAction
+@JvmInline value class StateActionSessionToolCallDelta(val value: SessionToolCallDeltaAction) : StateAction
+@JvmInline value class StateActionSessionToolCallReady(val value: SessionToolCallReadyAction) : StateAction
+@JvmInline value class StateActionSessionToolCallConfirmed(val value: SessionToolCallConfirmedAction) : StateAction
+@JvmInline value class StateActionSessionToolCallComplete(val value: SessionToolCallCompleteAction) : StateAction
+@JvmInline value class StateActionSessionToolCallResultConfirmed(val value: SessionToolCallResultConfirmedAction) : StateAction
+@JvmInline value class StateActionSessionTurnComplete(val value: SessionTurnCompleteAction) : StateAction
+@JvmInline value class StateActionSessionTurnCancelled(val value: SessionTurnCancelledAction) : StateAction
+@JvmInline value class StateActionSessionError(val value: SessionErrorAction) : StateAction
+@JvmInline value class StateActionSessionTitleChanged(val value: SessionTitleChangedAction) : StateAction
+@JvmInline value class StateActionSessionUsage(val value: SessionUsageAction) : StateAction
+@JvmInline value class StateActionSessionReasoning(val value: SessionReasoningAction) : StateAction
+@JvmInline value class StateActionSessionModelChanged(val value: SessionModelChangedAction) : StateAction
+@JvmInline value class StateActionSessionAgentChanged(val value: SessionAgentChangedAction) : StateAction
+@JvmInline value class StateActionSessionIsReadChanged(val value: SessionIsReadChangedAction) : StateAction
+@JvmInline value class StateActionSessionIsArchivedChanged(val value: SessionIsArchivedChangedAction) : StateAction
+@JvmInline value class StateActionSessionActivityChanged(val value: SessionActivityChangedAction) : StateAction
+@JvmInline value class StateActionSessionChangesetsChanged(val value: SessionChangesetsChangedAction) : StateAction
+@JvmInline value class StateActionSessionServerToolsChanged(val value: SessionServerToolsChangedAction) : StateAction
+@JvmInline value class StateActionSessionActiveClientChanged(val value: SessionActiveClientChangedAction) : StateAction
+@JvmInline value class StateActionSessionActiveClientToolsChanged(val value: SessionActiveClientToolsChangedAction) : StateAction
+@JvmInline value class StateActionSessionPendingMessageSet(val value: SessionPendingMessageSetAction) : StateAction
+@JvmInline value class StateActionSessionPendingMessageRemoved(val value: SessionPendingMessageRemovedAction) : StateAction
+@JvmInline value class StateActionSessionQueuedMessagesReordered(val value: SessionQueuedMessagesReorderedAction) : StateAction
+@JvmInline value class StateActionSessionInputRequested(val value: SessionInputRequestedAction) : StateAction
+@JvmInline value class StateActionSessionInputAnswerChanged(val value: SessionInputAnswerChangedAction) : StateAction
+@JvmInline value class StateActionSessionInputCompleted(val value: SessionInputCompletedAction) : StateAction
+@JvmInline value class StateActionSessionCustomizationsChanged(val value: SessionCustomizationsChangedAction) : StateAction
+@JvmInline value class StateActionSessionCustomizationToggled(val value: SessionCustomizationToggledAction) : StateAction
+@JvmInline value class StateActionSessionCustomizationUpdated(val value: SessionCustomizationUpdatedAction) : StateAction
+@JvmInline value class StateActionSessionTruncated(val value: SessionTruncatedAction) : StateAction
+@JvmInline value class StateActionSessionConfigChanged(val value: SessionConfigChangedAction) : StateAction
+@JvmInline value class StateActionSessionMetaChanged(val value: SessionMetaChangedAction) : StateAction
+@JvmInline value class StateActionSessionToolCallContentChanged(val value: SessionToolCallContentChangedAction) : StateAction
+@JvmInline value class StateActionChangesetStatusChanged(val value: ChangesetStatusChangedAction) : StateAction
+@JvmInline value class StateActionChangesetFileSet(val value: ChangesetFileSetAction) : StateAction
+@JvmInline value class StateActionChangesetFileRemoved(val value: ChangesetFileRemovedAction) : StateAction
+@JvmInline value class StateActionChangesetOperationsChanged(val value: ChangesetOperationsChangedAction) : StateAction
+@JvmInline value class StateActionChangesetCleared(val value: ChangesetClearedAction) : StateAction
+@JvmInline value class StateActionRootTerminalsChanged(val value: RootTerminalsChangedAction) : StateAction
+@JvmInline value class StateActionRootConfigChanged(val value: RootConfigChangedAction) : StateAction
+@JvmInline value class StateActionTerminalData(val value: TerminalDataAction) : StateAction
+@JvmInline value class StateActionTerminalInput(val value: TerminalInputAction) : StateAction
+@JvmInline value class StateActionTerminalResized(val value: TerminalResizedAction) : StateAction
+@JvmInline value class StateActionTerminalClaimed(val value: TerminalClaimedAction) : StateAction
+@JvmInline value class StateActionTerminalTitleChanged(val value: TerminalTitleChangedAction) : StateAction
+@JvmInline value class StateActionTerminalCwdChanged(val value: TerminalCwdChangedAction) : StateAction
+@JvmInline value class StateActionTerminalExited(val value: TerminalExitedAction) : StateAction
+@JvmInline value class StateActionTerminalCleared(val value: TerminalClearedAction) : StateAction
+@JvmInline value class StateActionTerminalCommandDetectionAvailable(val value: TerminalCommandDetectionAvailableAction) : StateAction
+@JvmInline value class StateActionTerminalCommandExecuted(val value: TerminalCommandExecutedAction) : StateAction
+@JvmInline value class StateActionTerminalCommandFinished(val value: TerminalCommandFinishedAction) : StateAction
+@JvmInline value class StateActionUnknown(val type: String) : StateAction
+
+internal object StateActionSerializer : KSerializer<StateAction> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("StateAction")
+
+    override fun deserialize(decoder: Decoder): StateAction {
+        val input = decoder as? JsonDecoder
+            ?: error("StateAction can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for StateAction")
+        val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
+            ?: error("Missing \"type\" discriminator on StateAction")
+        return when (type) {
+            "root/agentsChanged" -> StateActionRootAgentsChanged(input.json.decodeFromJsonElement(RootAgentsChangedAction.serializer(), element))
+            "root/activeSessionsChanged" -> StateActionRootActiveSessionsChanged(input.json.decodeFromJsonElement(RootActiveSessionsChangedAction.serializer(), element))
+            "session/ready" -> StateActionSessionReady(input.json.decodeFromJsonElement(SessionReadyAction.serializer(), element))
+            "session/creationFailed" -> StateActionSessionCreationFailed(input.json.decodeFromJsonElement(SessionCreationFailedAction.serializer(), element))
+            "session/turnStarted" -> StateActionSessionTurnStarted(input.json.decodeFromJsonElement(SessionTurnStartedAction.serializer(), element))
+            "session/delta" -> StateActionSessionDelta(input.json.decodeFromJsonElement(SessionDeltaAction.serializer(), element))
+            "session/responsePart" -> StateActionSessionResponsePart(input.json.decodeFromJsonElement(SessionResponsePartAction.serializer(), element))
+            "session/toolCallStart" -> StateActionSessionToolCallStart(input.json.decodeFromJsonElement(SessionToolCallStartAction.serializer(), element))
+            "session/toolCallDelta" -> StateActionSessionToolCallDelta(input.json.decodeFromJsonElement(SessionToolCallDeltaAction.serializer(), element))
+            "session/toolCallReady" -> StateActionSessionToolCallReady(input.json.decodeFromJsonElement(SessionToolCallReadyAction.serializer(), element))
+            "session/toolCallConfirmed" -> StateActionSessionToolCallConfirmed(input.json.decodeFromJsonElement(SessionToolCallConfirmedAction.serializer(), element))
+            "session/toolCallComplete" -> StateActionSessionToolCallComplete(input.json.decodeFromJsonElement(SessionToolCallCompleteAction.serializer(), element))
+            "session/toolCallResultConfirmed" -> StateActionSessionToolCallResultConfirmed(input.json.decodeFromJsonElement(SessionToolCallResultConfirmedAction.serializer(), element))
+            "session/turnComplete" -> StateActionSessionTurnComplete(input.json.decodeFromJsonElement(SessionTurnCompleteAction.serializer(), element))
+            "session/turnCancelled" -> StateActionSessionTurnCancelled(input.json.decodeFromJsonElement(SessionTurnCancelledAction.serializer(), element))
+            "session/error" -> StateActionSessionError(input.json.decodeFromJsonElement(SessionErrorAction.serializer(), element))
+            "session/titleChanged" -> StateActionSessionTitleChanged(input.json.decodeFromJsonElement(SessionTitleChangedAction.serializer(), element))
+            "session/usage" -> StateActionSessionUsage(input.json.decodeFromJsonElement(SessionUsageAction.serializer(), element))
+            "session/reasoning" -> StateActionSessionReasoning(input.json.decodeFromJsonElement(SessionReasoningAction.serializer(), element))
+            "session/modelChanged" -> StateActionSessionModelChanged(input.json.decodeFromJsonElement(SessionModelChangedAction.serializer(), element))
+            "session/agentChanged" -> StateActionSessionAgentChanged(input.json.decodeFromJsonElement(SessionAgentChangedAction.serializer(), element))
+            "session/isReadChanged" -> StateActionSessionIsReadChanged(input.json.decodeFromJsonElement(SessionIsReadChangedAction.serializer(), element))
+            "session/isArchivedChanged" -> StateActionSessionIsArchivedChanged(input.json.decodeFromJsonElement(SessionIsArchivedChangedAction.serializer(), element))
+            "session/activityChanged" -> StateActionSessionActivityChanged(input.json.decodeFromJsonElement(SessionActivityChangedAction.serializer(), element))
+            "session/changesetsChanged" -> StateActionSessionChangesetsChanged(input.json.decodeFromJsonElement(SessionChangesetsChangedAction.serializer(), element))
+            "session/serverToolsChanged" -> StateActionSessionServerToolsChanged(input.json.decodeFromJsonElement(SessionServerToolsChangedAction.serializer(), element))
+            "session/activeClientChanged" -> StateActionSessionActiveClientChanged(input.json.decodeFromJsonElement(SessionActiveClientChangedAction.serializer(), element))
+            "session/activeClientToolsChanged" -> StateActionSessionActiveClientToolsChanged(input.json.decodeFromJsonElement(SessionActiveClientToolsChangedAction.serializer(), element))
+            "session/pendingMessageSet" -> StateActionSessionPendingMessageSet(input.json.decodeFromJsonElement(SessionPendingMessageSetAction.serializer(), element))
+            "session/pendingMessageRemoved" -> StateActionSessionPendingMessageRemoved(input.json.decodeFromJsonElement(SessionPendingMessageRemovedAction.serializer(), element))
+            "session/queuedMessagesReordered" -> StateActionSessionQueuedMessagesReordered(input.json.decodeFromJsonElement(SessionQueuedMessagesReorderedAction.serializer(), element))
+            "session/inputRequested" -> StateActionSessionInputRequested(input.json.decodeFromJsonElement(SessionInputRequestedAction.serializer(), element))
+            "session/inputAnswerChanged" -> StateActionSessionInputAnswerChanged(input.json.decodeFromJsonElement(SessionInputAnswerChangedAction.serializer(), element))
+            "session/inputCompleted" -> StateActionSessionInputCompleted(input.json.decodeFromJsonElement(SessionInputCompletedAction.serializer(), element))
+            "session/customizationsChanged" -> StateActionSessionCustomizationsChanged(input.json.decodeFromJsonElement(SessionCustomizationsChangedAction.serializer(), element))
+            "session/customizationToggled" -> StateActionSessionCustomizationToggled(input.json.decodeFromJsonElement(SessionCustomizationToggledAction.serializer(), element))
+            "session/customizationUpdated" -> StateActionSessionCustomizationUpdated(input.json.decodeFromJsonElement(SessionCustomizationUpdatedAction.serializer(), element))
+            "session/truncated" -> StateActionSessionTruncated(input.json.decodeFromJsonElement(SessionTruncatedAction.serializer(), element))
+            "session/configChanged" -> StateActionSessionConfigChanged(input.json.decodeFromJsonElement(SessionConfigChangedAction.serializer(), element))
+            "session/metaChanged" -> StateActionSessionMetaChanged(input.json.decodeFromJsonElement(SessionMetaChangedAction.serializer(), element))
+            "session/toolCallContentChanged" -> StateActionSessionToolCallContentChanged(input.json.decodeFromJsonElement(SessionToolCallContentChangedAction.serializer(), element))
+            "changeset/statusChanged" -> StateActionChangesetStatusChanged(input.json.decodeFromJsonElement(ChangesetStatusChangedAction.serializer(), element))
+            "changeset/fileSet" -> StateActionChangesetFileSet(input.json.decodeFromJsonElement(ChangesetFileSetAction.serializer(), element))
+            "changeset/fileRemoved" -> StateActionChangesetFileRemoved(input.json.decodeFromJsonElement(ChangesetFileRemovedAction.serializer(), element))
+            "changeset/operationsChanged" -> StateActionChangesetOperationsChanged(input.json.decodeFromJsonElement(ChangesetOperationsChangedAction.serializer(), element))
+            "changeset/cleared" -> StateActionChangesetCleared(input.json.decodeFromJsonElement(ChangesetClearedAction.serializer(), element))
+            "root/terminalsChanged" -> StateActionRootTerminalsChanged(input.json.decodeFromJsonElement(RootTerminalsChangedAction.serializer(), element))
+            "root/configChanged" -> StateActionRootConfigChanged(input.json.decodeFromJsonElement(RootConfigChangedAction.serializer(), element))
+            "terminal/data" -> StateActionTerminalData(input.json.decodeFromJsonElement(TerminalDataAction.serializer(), element))
+            "terminal/input" -> StateActionTerminalInput(input.json.decodeFromJsonElement(TerminalInputAction.serializer(), element))
+            "terminal/resized" -> StateActionTerminalResized(input.json.decodeFromJsonElement(TerminalResizedAction.serializer(), element))
+            "terminal/claimed" -> StateActionTerminalClaimed(input.json.decodeFromJsonElement(TerminalClaimedAction.serializer(), element))
+            "terminal/titleChanged" -> StateActionTerminalTitleChanged(input.json.decodeFromJsonElement(TerminalTitleChangedAction.serializer(), element))
+            "terminal/cwdChanged" -> StateActionTerminalCwdChanged(input.json.decodeFromJsonElement(TerminalCwdChangedAction.serializer(), element))
+            "terminal/exited" -> StateActionTerminalExited(input.json.decodeFromJsonElement(TerminalExitedAction.serializer(), element))
+            "terminal/cleared" -> StateActionTerminalCleared(input.json.decodeFromJsonElement(TerminalClearedAction.serializer(), element))
+            "terminal/commandDetectionAvailable" -> StateActionTerminalCommandDetectionAvailable(input.json.decodeFromJsonElement(TerminalCommandDetectionAvailableAction.serializer(), element))
+            "terminal/commandExecuted" -> StateActionTerminalCommandExecuted(input.json.decodeFromJsonElement(TerminalCommandExecutedAction.serializer(), element))
+            "terminal/commandFinished" -> StateActionTerminalCommandFinished(input.json.decodeFromJsonElement(TerminalCommandFinishedAction.serializer(), element))
+            else -> StateActionUnknown(type)
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: StateAction) {
+        val output = encoder as? JsonEncoder
+            ?: error("StateAction can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is StateActionRootAgentsChanged -> output.json.encodeToJsonElement(RootAgentsChangedAction.serializer(), value.value)
+            is StateActionRootActiveSessionsChanged -> output.json.encodeToJsonElement(RootActiveSessionsChangedAction.serializer(), value.value)
+            is StateActionSessionReady -> output.json.encodeToJsonElement(SessionReadyAction.serializer(), value.value)
+            is StateActionSessionCreationFailed -> output.json.encodeToJsonElement(SessionCreationFailedAction.serializer(), value.value)
+            is StateActionSessionTurnStarted -> output.json.encodeToJsonElement(SessionTurnStartedAction.serializer(), value.value)
+            is StateActionSessionDelta -> output.json.encodeToJsonElement(SessionDeltaAction.serializer(), value.value)
+            is StateActionSessionResponsePart -> output.json.encodeToJsonElement(SessionResponsePartAction.serializer(), value.value)
+            is StateActionSessionToolCallStart -> output.json.encodeToJsonElement(SessionToolCallStartAction.serializer(), value.value)
+            is StateActionSessionToolCallDelta -> output.json.encodeToJsonElement(SessionToolCallDeltaAction.serializer(), value.value)
+            is StateActionSessionToolCallReady -> output.json.encodeToJsonElement(SessionToolCallReadyAction.serializer(), value.value)
+            is StateActionSessionToolCallConfirmed -> output.json.encodeToJsonElement(SessionToolCallConfirmedAction.serializer(), value.value)
+            is StateActionSessionToolCallComplete -> output.json.encodeToJsonElement(SessionToolCallCompleteAction.serializer(), value.value)
+            is StateActionSessionToolCallResultConfirmed -> output.json.encodeToJsonElement(SessionToolCallResultConfirmedAction.serializer(), value.value)
+            is StateActionSessionTurnComplete -> output.json.encodeToJsonElement(SessionTurnCompleteAction.serializer(), value.value)
+            is StateActionSessionTurnCancelled -> output.json.encodeToJsonElement(SessionTurnCancelledAction.serializer(), value.value)
+            is StateActionSessionError -> output.json.encodeToJsonElement(SessionErrorAction.serializer(), value.value)
+            is StateActionSessionTitleChanged -> output.json.encodeToJsonElement(SessionTitleChangedAction.serializer(), value.value)
+            is StateActionSessionUsage -> output.json.encodeToJsonElement(SessionUsageAction.serializer(), value.value)
+            is StateActionSessionReasoning -> output.json.encodeToJsonElement(SessionReasoningAction.serializer(), value.value)
+            is StateActionSessionModelChanged -> output.json.encodeToJsonElement(SessionModelChangedAction.serializer(), value.value)
+            is StateActionSessionAgentChanged -> output.json.encodeToJsonElement(SessionAgentChangedAction.serializer(), value.value)
+            is StateActionSessionIsReadChanged -> output.json.encodeToJsonElement(SessionIsReadChangedAction.serializer(), value.value)
+            is StateActionSessionIsArchivedChanged -> output.json.encodeToJsonElement(SessionIsArchivedChangedAction.serializer(), value.value)
+            is StateActionSessionActivityChanged -> output.json.encodeToJsonElement(SessionActivityChangedAction.serializer(), value.value)
+            is StateActionSessionChangesetsChanged -> output.json.encodeToJsonElement(SessionChangesetsChangedAction.serializer(), value.value)
+            is StateActionSessionServerToolsChanged -> output.json.encodeToJsonElement(SessionServerToolsChangedAction.serializer(), value.value)
+            is StateActionSessionActiveClientChanged -> output.json.encodeToJsonElement(SessionActiveClientChangedAction.serializer(), value.value)
+            is StateActionSessionActiveClientToolsChanged -> output.json.encodeToJsonElement(SessionActiveClientToolsChangedAction.serializer(), value.value)
+            is StateActionSessionPendingMessageSet -> output.json.encodeToJsonElement(SessionPendingMessageSetAction.serializer(), value.value)
+            is StateActionSessionPendingMessageRemoved -> output.json.encodeToJsonElement(SessionPendingMessageRemovedAction.serializer(), value.value)
+            is StateActionSessionQueuedMessagesReordered -> output.json.encodeToJsonElement(SessionQueuedMessagesReorderedAction.serializer(), value.value)
+            is StateActionSessionInputRequested -> output.json.encodeToJsonElement(SessionInputRequestedAction.serializer(), value.value)
+            is StateActionSessionInputAnswerChanged -> output.json.encodeToJsonElement(SessionInputAnswerChangedAction.serializer(), value.value)
+            is StateActionSessionInputCompleted -> output.json.encodeToJsonElement(SessionInputCompletedAction.serializer(), value.value)
+            is StateActionSessionCustomizationsChanged -> output.json.encodeToJsonElement(SessionCustomizationsChangedAction.serializer(), value.value)
+            is StateActionSessionCustomizationToggled -> output.json.encodeToJsonElement(SessionCustomizationToggledAction.serializer(), value.value)
+            is StateActionSessionCustomizationUpdated -> output.json.encodeToJsonElement(SessionCustomizationUpdatedAction.serializer(), value.value)
+            is StateActionSessionTruncated -> output.json.encodeToJsonElement(SessionTruncatedAction.serializer(), value.value)
+            is StateActionSessionConfigChanged -> output.json.encodeToJsonElement(SessionConfigChangedAction.serializer(), value.value)
+            is StateActionSessionMetaChanged -> output.json.encodeToJsonElement(SessionMetaChangedAction.serializer(), value.value)
+            is StateActionSessionToolCallContentChanged -> output.json.encodeToJsonElement(SessionToolCallContentChangedAction.serializer(), value.value)
+            is StateActionChangesetStatusChanged -> output.json.encodeToJsonElement(ChangesetStatusChangedAction.serializer(), value.value)
+            is StateActionChangesetFileSet -> output.json.encodeToJsonElement(ChangesetFileSetAction.serializer(), value.value)
+            is StateActionChangesetFileRemoved -> output.json.encodeToJsonElement(ChangesetFileRemovedAction.serializer(), value.value)
+            is StateActionChangesetOperationsChanged -> output.json.encodeToJsonElement(ChangesetOperationsChangedAction.serializer(), value.value)
+            is StateActionChangesetCleared -> output.json.encodeToJsonElement(ChangesetClearedAction.serializer(), value.value)
+            is StateActionRootTerminalsChanged -> output.json.encodeToJsonElement(RootTerminalsChangedAction.serializer(), value.value)
+            is StateActionRootConfigChanged -> output.json.encodeToJsonElement(RootConfigChangedAction.serializer(), value.value)
+            is StateActionTerminalData -> output.json.encodeToJsonElement(TerminalDataAction.serializer(), value.value)
+            is StateActionTerminalInput -> output.json.encodeToJsonElement(TerminalInputAction.serializer(), value.value)
+            is StateActionTerminalResized -> output.json.encodeToJsonElement(TerminalResizedAction.serializer(), value.value)
+            is StateActionTerminalClaimed -> output.json.encodeToJsonElement(TerminalClaimedAction.serializer(), value.value)
+            is StateActionTerminalTitleChanged -> output.json.encodeToJsonElement(TerminalTitleChangedAction.serializer(), value.value)
+            is StateActionTerminalCwdChanged -> output.json.encodeToJsonElement(TerminalCwdChangedAction.serializer(), value.value)
+            is StateActionTerminalExited -> output.json.encodeToJsonElement(TerminalExitedAction.serializer(), value.value)
+            is StateActionTerminalCleared -> output.json.encodeToJsonElement(TerminalClearedAction.serializer(), value.value)
+            is StateActionTerminalCommandDetectionAvailable -> output.json.encodeToJsonElement(TerminalCommandDetectionAvailableAction.serializer(), value.value)
+            is StateActionTerminalCommandExecuted -> output.json.encodeToJsonElement(TerminalCommandExecutedAction.serializer(), value.value)
+            is StateActionTerminalCommandFinished -> output.json.encodeToJsonElement(TerminalCommandFinishedAction.serializer(), value.value)
+            is StateActionUnknown -> buildJsonObject {
+                put("type", JsonPrimitive(value.type))
+            }
+        }
+        output.encodeJsonElement(element)
+    }
+}

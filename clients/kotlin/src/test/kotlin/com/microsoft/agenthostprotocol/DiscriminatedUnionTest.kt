@@ -1,0 +1,180 @@
+package com.microsoft.agenthostprotocol
+
+import com.microsoft.agenthostprotocol.generated.ChangesetOperationRangeTarget
+import com.microsoft.agenthostprotocol.generated.ChangesetOperationResourceTarget
+import com.microsoft.agenthostprotocol.generated.ChangesetOperationTarget
+import com.microsoft.agenthostprotocol.generated.ChangesetOperationTargetRange
+import com.microsoft.agenthostprotocol.generated.MarkdownResponsePart
+import com.microsoft.agenthostprotocol.generated.ReasoningResponsePart
+import com.microsoft.agenthostprotocol.generated.ResponsePart
+import com.microsoft.agenthostprotocol.generated.ResponsePartKind
+import com.microsoft.agenthostprotocol.generated.ResponsePartMarkdown
+import com.microsoft.agenthostprotocol.generated.ResponsePartReasoning
+import com.microsoft.agenthostprotocol.generated.SessionInputNumberQuestion
+import com.microsoft.agenthostprotocol.generated.SessionInputQuestion
+import com.microsoft.agenthostprotocol.generated.SessionInputQuestionNumber
+import com.microsoft.agenthostprotocol.generated.SessionInputQuestionKind
+import com.microsoft.agenthostprotocol.generated.StringOrMarkdown
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+
+/**
+ * Tests for discriminated unions emitted as sealed interfaces with custom
+ * `KSerializer`s. Verifies the wire-format dispatch matches the Swift /
+ * TypeScript clients, including the multi-discriminator case where two wire
+ * `kind` values map to the same data class.
+ */
+class DiscriminatedUnionTest {
+    private val json = Ahp.json
+
+    @Test
+    fun `ResponsePart markdown variant round-trips`() {
+        val part: ResponsePart = ResponsePartMarkdown(
+            MarkdownResponsePart(
+                kind = ResponsePartKind.MARKDOWN,
+                id = "p1",
+                content = "Hello **world**",
+            ),
+        )
+
+        val encoded = json.encodeToString(ResponsePart.serializer(), part)
+        val obj = json.parseToJsonElement(encoded).jsonObject
+        assertEquals(JsonPrimitive("markdown"), obj["kind"])
+        assertEquals(JsonPrimitive("Hello **world**"), obj["content"])
+
+        val decoded = json.decodeFromString(ResponsePart.serializer(), encoded)
+        val asMarkdown = assertIs<ResponsePartMarkdown>(decoded)
+        assertEquals("Hello **world**", asMarkdown.value.content)
+    }
+
+    @Test
+    fun `ResponsePart reasoning variant round-trips`() {
+        val part: ResponsePart = ResponsePartReasoning(
+            ReasoningResponsePart(
+                kind = ResponsePartKind.REASONING,
+                id = "r1",
+                content = "thinking out loud",
+            ),
+        )
+        val encoded = json.encodeToString(ResponsePart.serializer(), part)
+        val obj = json.parseToJsonElement(encoded).jsonObject
+        assertEquals(JsonPrimitive("reasoning"), obj["kind"])
+
+        val decoded = json.decodeFromString(ResponsePart.serializer(), encoded)
+        assertIs<ResponsePartReasoning>(decoded)
+    }
+
+    @Test
+    fun `SessionInputQuestion accepts both number and integer wire kinds`() {
+        // Both "number" and "integer" wire values map to the same Kotlin
+        // data class (SessionInputNumberQuestion); the union serializer
+        // must dispatch on either.
+        val numberWire = """{
+            "kind": "number",
+            "id": "q1",
+            "message": "Pick a number"
+        }""".trimIndent()
+        val integerWire = """{
+            "kind": "integer",
+            "id": "q2",
+            "message": "Pick an integer"
+        }""".trimIndent()
+
+        val asNumber = json.decodeFromString(SessionInputQuestion.serializer(), numberWire)
+        val asInteger = json.decodeFromString(SessionInputQuestion.serializer(), integerWire)
+
+        val numberVariant = assertIs<SessionInputQuestionNumber>(asNumber)
+        val integerVariant = assertIs<SessionInputQuestionNumber>(asInteger)
+        assertEquals("q1", numberVariant.value.id)
+        assertEquals("q2", integerVariant.value.id)
+        assertEquals(SessionInputQuestionKind.NUMBER, numberVariant.value.kind)
+        assertEquals(SessionInputQuestionKind.INTEGER, integerVariant.value.kind)
+
+        // Encode preserves whichever discriminator was originally set on
+        // the data class.
+        val reEncodedInteger = json.encodeToString(
+            SessionInputQuestion.serializer(),
+            SessionInputQuestionNumber(
+                SessionInputNumberQuestion(
+                    kind = SessionInputQuestionKind.INTEGER,
+                    id = "q3",
+                    message = "Yet another integer",
+                ),
+            ),
+        )
+        val reObj = json.parseToJsonElement(reEncodedInteger).jsonObject
+        assertEquals(JsonPrimitive("integer"), reObj["kind"])
+    }
+
+    @Test
+    fun `StringOrMarkdown decodes plain string form`() {
+        val plain = json.decodeFromString(StringOrMarkdown.serializer(), "\"hi there\"")
+        val asPlain = assertIs<StringOrMarkdown.Plain>(plain)
+        assertEquals("hi there", asPlain.value)
+    }
+
+    @Test
+    fun `StringOrMarkdown decodes object form`() {
+        val md = json.decodeFromString(StringOrMarkdown.serializer(), "{\"markdown\":\"**hi**\"}")
+        val asMd = assertIs<StringOrMarkdown.Markdown>(md)
+        assertEquals("**hi**", asMd.value)
+    }
+
+    @Test
+    fun `StringOrMarkdown encodes plain as primitive`() {
+        val plainEncoded = json.encodeToString(
+            StringOrMarkdown.serializer(),
+            StringOrMarkdown.Plain("hello"),
+        )
+        assertEquals("\"hello\"", plainEncoded)
+    }
+
+    @Test
+    fun `StringOrMarkdown encodes markdown as object`() {
+        val mdEncoded = json.encodeToString(
+            StringOrMarkdown.serializer(),
+            StringOrMarkdown.Markdown("**bold**"),
+        )
+        val obj = json.parseToJsonElement(mdEncoded) as JsonObject
+        assertEquals(JsonPrimitive("**bold**"), obj["markdown"])
+        assertTrue(obj.size == 1)
+    }
+
+    @Test
+    fun `ChangesetOperationTarget dispatches on the kind discriminator`() {
+        // ChangesetOperationTarget is hand-rolled by the generator (the TS
+        // shape uses inline variants that aren't exported as their own
+        // interfaces). Verifies both variants round-trip.
+        val resourceWire = """{"kind":"resource","resource":"file:///a.ts"}"""
+        val rangeWire = """{
+            "kind": "range",
+            "resource": "file:///a.ts",
+            "side": "after",
+            "range": { "start": 10, "end": 42 }
+        }""".trimIndent()
+
+        val res = json.decodeFromString(ChangesetOperationTarget.serializer(), resourceWire)
+        val resVariant = assertIs<ChangesetOperationTarget.Resource>(res)
+        assertEquals("file:///a.ts", resVariant.value.resource)
+        assertEquals("resource", resVariant.value.kind)
+
+        val rng = json.decodeFromString(ChangesetOperationTarget.serializer(), rangeWire)
+        val rngVariant = assertIs<ChangesetOperationTarget.Range>(rng)
+        assertEquals(ChangesetOperationTargetRange(start = 10, end = 42), rngVariant.value.range)
+
+        // Encoding emits the correct discriminator wire value.
+        val encoded = json.encodeToString(
+            ChangesetOperationTarget.serializer(),
+            ChangesetOperationTarget.Resource(
+                ChangesetOperationResourceTarget(resource = "file:///b.ts"),
+            ),
+        )
+        val obj = json.parseToJsonElement(encoded) as JsonObject
+        assertEquals(JsonPrimitive("resource"), obj["kind"])
+    }
+}
