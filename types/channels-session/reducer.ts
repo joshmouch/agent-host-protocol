@@ -143,7 +143,7 @@ function endTurn(
   const turn: Turn = {
     id: active.id,
     userMessage: active.userMessage,
-    systemInitiatedLabel: active.systemInitiatedLabel,
+    ...(active.systemInitiatedLabel !== undefined ? { systemInitiatedLabel: active.systemInitiatedLabel } : {}),
     responseParts,
     usage: active.usage,
     state: turnState,
@@ -291,7 +291,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         activeTurn: {
           id: action.turnId,
           userMessage: action.userMessage,
-          systemInitiatedLabel: action.systemInitiatedLabel,
+          ...(action.systemInitiatedLabel !== undefined ? { systemInitiatedLabel: action.systemInitiatedLabel } : {}),
           responseParts: [],
           usage: undefined,
         },
