@@ -408,6 +408,191 @@ final class AHPClientTests: XCTestCase {
     }
 
 
+    // MARK: - request_throws_cancellation_when_task_is_cancelled
+
+    /// When the surrounding `Task` is cancelled while a
+    /// `request` is in flight (server hasn't responded yet), the call
+    /// throws `CancellationError()` and the pending entry is removed.
+    func testRequestThrowsCancellationWhenTaskIsCancelled() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        // Server: drain the request frame but never respond.
+        let serverDrain = Task {
+            _ = try? await serverSide.recv()
+        }
+
+        // Start a child Task issuing the request, then cancel it.
+        let requestTask = Task {
+            do {
+                let _: InitializeResult = try await client.request(
+                    method: "initialize",
+                    params: InitializeParams(
+                        channel: RootResourceURI,
+                        protocolVersions: ["0.1.0"],
+                        clientId: "test"
+                    )
+                )
+                return Result<Void, Error>.success(())
+            } catch {
+                return Result<Void, Error>.failure(error)
+            }
+        }
+
+        // Give the request a moment to register the pending entry and
+        // push the wire bytes.
+        try await Task.sleep(for: .milliseconds(50))
+        let pendingBefore = await client._pendingCount()
+        XCTAssertEqual(pendingBefore, 1, "request should be in flight before cancel")
+
+        requestTask.cancel()
+        let outcome = await requestTask.value
+        switch outcome {
+        case .success:
+            XCTFail("expected cancellation to surface, got success")
+        case .failure(let error):
+            XCTAssertTrue(error is CancellationError,
+                          "expected CancellationError, got \(type(of: error)): \(error)")
+        }
+        let pendingAfter = await client._pendingCount()
+        XCTAssertEqual(pendingAfter, 0,
+                       "cancellation should clean up the pending entry")
+
+        await client.shutdown()
+        _ = await serverDrain.value
+    }
+
+    // MARK: - request_fast_fails_when_task_already_cancelled
+
+    /// If the surrounding `Task` is already cancelled before
+    /// `request` is awaited, the method fast-fails with
+    /// `CancellationError()` without minting a request id or pushing
+    /// wire bytes.
+    func testRequestFastFailsWhenTaskAlreadyCancelled() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        // Drain anything on the server side just in case.
+        let serverDrain = Task {
+            while let _ = try? await serverSide.recv() {}
+        }
+
+        let outerTask = Task {
+            // Sleep so we have time to externally cancel the task before
+            // the request call is reached.
+            try? await Task.sleep(for: .milliseconds(100))
+            do {
+                let _: InitializeResult = try await client.request(
+                    method: "initialize",
+                    params: InitializeParams(
+                        channel: RootResourceURI,
+                        protocolVersions: ["0.1.0"],
+                        clientId: "test"
+                    )
+                )
+                return Result<Void, Error>.success(())
+            } catch {
+                return Result<Void, Error>.failure(error)
+            }
+        }
+
+        // Cancel the task BEFORE its sleep completes.
+        try await Task.sleep(for: .milliseconds(20))
+        outerTask.cancel()
+
+        let outcome = await outerTask.value
+        switch outcome {
+        case .success:
+            XCTFail("expected cancellation to surface, got success")
+        case .failure(let error):
+            XCTAssertTrue(error is CancellationError,
+                          "expected CancellationError, got \(type(of: error)): \(error)")
+        }
+        let pendingCount = await client._pendingCount()
+        XCTAssertEqual(pendingCount, 0,
+                       "fast-fail path should not register a pending entry")
+
+        await client.shutdown()
+        serverDrain.cancel()
+        _ = await serverDrain.value
+    }
+
+    // MARK: - request_completes_normally_when_not_cancelled
+
+    /// Regression: cancellation support must not break the happy-path
+    /// where the server responds before any cancellation.
+    func testRequestCompletesNormallyWhenNotCancelled() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        let serverTask = Task {
+            let request = try await readRequest(from: serverSide, expectedMethod: "initialize")
+            let result = InitializeResult(
+                protocolVersion: "0.1.0",
+                serverSeq: 0,
+                snapshots: []
+            )
+            try await respond(to: request.id, with: result, on: serverSide)
+        }
+
+        let result: InitializeResult = try await client.request(
+            method: "initialize",
+            params: InitializeParams(
+                channel: RootResourceURI,
+                protocolVersions: ["0.1.0"],
+                clientId: "test"
+            )
+        )
+        XCTAssertEqual(result.serverSeq, 0)
+        try await serverTask.value
+        let pendingCount = await client._pendingCount()
+        XCTAssertEqual(pendingCount, 0)
+
+        await client.shutdown()
+    }
+
+    // MARK: - request_raw_round_trips_json
+
+    /// `requestRaw` accepts and returns raw JSON `Data`, useful
+    /// as an escape hatch for extension RPCs whose params types can't
+    /// satisfy `Sendable` (e.g. Swift 6 default-isolation interaction).
+    func testRequestRawRoundTripsJSON() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        try await client.connect()
+
+        let serverTask = Task {
+            let request = try await readRequest(from: serverSide, expectedMethod: "extensions/echo")
+            // Echo a static JSON blob back as the result.
+            let resultJSON: [String: Any] = ["echoed": true, "n": 7]
+            let respDict: [String: Any] = [
+                "jsonrpc": "2.0",
+                "id": request.id,
+                "result": resultJSON,
+            ]
+            let bytes = try JSONSerialization.data(withJSONObject: respDict)
+            try await serverSide.send(.text(String(data: bytes, encoding: .utf8)!))
+        }
+
+        let paramsBytes = try JSONSerialization.data(
+            withJSONObject: ["greeting": "hi"] as [String: Any]
+        )
+        let resultBytes = try await client.requestRaw(
+            method: "extensions/echo",
+            paramsData: paramsBytes
+        )
+        let resultObj = try JSONSerialization.jsonObject(with: resultBytes) as? [String: Any]
+        XCTAssertEqual(resultObj?["echoed"] as? Bool, true)
+        XCTAssertEqual(resultObj?["n"] as? Int, 7)
+
+        try await serverTask.value
+        await client.shutdown()
+    }
+
+
     private struct ParsedRequest { let id: Int; let method: String; let params: AnyCodable? }
 
     private func readRequest(

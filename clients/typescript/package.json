@@ -1,0 +1,56 @@
+{
+  "name": "@microsoft/agent-host-protocol",
+  "version": "0.2.0",
+  "description": "TypeScript client for the Agent Host Protocol (AHP).",
+  "type": "module",
+  "license": "MIT",
+  "author": "Microsoft Corporation",
+  "homepage": "https://microsoft.github.io/agent-host-protocol/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/microsoft/agent-host-protocol.git",
+    "directory": "clients/typescript"
+  },
+  "bugs": {
+    "url": "https://github.com/microsoft/agent-host-protocol/issues"
+  },
+  "keywords": [
+    "ahp",
+    "agent",
+    "protocol",
+    "json-rpc",
+    "websocket"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "main": "./dist/types/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client/index.js",
+      "types": "./dist/client/index.d.ts"
+    },
+    "./ws": {
+      "import": "./dist/ws/index.js",
+      "types": "./dist/ws/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx test/*.test.ts",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

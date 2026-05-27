@@ -406,6 +406,16 @@ public actor AHPClient {
     // MARK: - Generic request
 
     /// Send a JSON-RPC request and await its decoded result.
+    ///
+    /// **Cancellation:** observes `Task.isCancelled`. If the surrounding
+    /// `Task` is cancelled while the request is in flight, the call
+    /// throws `CancellationError()` and the local pending entry is
+    /// removed (so a late server response is harmlessly dropped).
+    /// **Cancellation only cancels the local wait** — it does not abort
+    /// the server's execution of the request. Consumers writing
+    /// typeahead / debounce flows can rely on this to surface
+    /// cancellation as a normal `Task` interaction without bespoke
+    /// request-key bookkeeping.
     public func request<P: Encodable & Sendable, R: Decodable & Sendable>(
         method: String,
         params: P
@@ -414,6 +424,10 @@ public actor AHPClient {
         guard let cont = outboundContinuation else {
             throw AHPClientError.shutdown
         }
+        // Fast-fail when the surrounding Task is already cancelled.
+        // Avoids minting a request id and pushing wire bytes for a
+        // request whose result will be thrown away immediately.
+        try Task.checkCancellation()
 
         // Order matters: register the pending entry BEFORE pushing the
         // outbound message, so an immediate response (which a fast in-memory
@@ -422,31 +436,41 @@ public actor AHPClient {
         let id = nextRequestId
         nextRequestId += 1
 
-        let resultData: Data = try await withCheckedThrowingContinuation { continuation in
-            let entry = PendingEntry(continuation: continuation)
-            pending[id] = entry
+        let resultData: Data = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+                let entry = PendingEntry(continuation: continuation)
+                pending[id] = entry
 
-            let wireData: Data
-            do {
-                wireData = try buildRequestWire(id: id, method: method, params: params)
-            } catch {
-                pending.removeValue(forKey: id)
-                continuation.resume(throwing: AHPClientError.decoding(
-                    "failed to encode params for \(method): \(error)"
-                ))
-                return
+                let wireData: Data
+                do {
+                    wireData = try buildRequestWire(id: id, method: method, params: params)
+                } catch {
+                    pending.removeValue(forKey: id)
+                    continuation.resume(throwing: AHPClientError.decoding(
+                        "failed to encode params for \(method): \(error)"
+                    ))
+                    return
+                }
+                cont.yield(wireData)
+
+                // Schedule a timeout. The timeout task races against the response;
+                // whichever resolves first wins. The task is tracked on the entry
+                // so a successful response can cancel the sleep instead of letting
+                // it accumulate at high request rates.
+                let timeoutDuration = config.requestTimeout
+                entry.timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(for: timeoutDuration)
+                    if Task.isCancelled { return }
+                    await self?.timeoutPending(id: id)
+                }
             }
-            cont.yield(wireData)
-
-            // Schedule a timeout. The timeout task races against the response;
-            // whichever resolves first wins. The task is tracked on the entry
-            // so a successful response can cancel the sleep instead of letting
-            // it accumulate at high request rates.
-            let timeoutDuration = config.requestTimeout
-            entry.timeoutTask = Task { [weak self] in
-                try? await Task.sleep(for: timeoutDuration)
-                if Task.isCancelled { return }
-                await self?.timeoutPending(id: id)
+        } onCancel: { [weak self] in
+            // Hop back to actor isolation to safely race against the
+            // response/timeout paths. If the entry has already been
+            // removed (response delivered or timed out), `cancelPending`
+            // is a no-op.
+            Task { [weak self, id] in
+                await self?.cancelPending(id: id)
             }
         }
 
@@ -456,6 +480,76 @@ public actor AHPClient {
             throw AHPClientError.decoding(
                 "failed to decode result for \(method): \(error)"
             )
+        }
+    }
+
+    /// Send a raw JSON-RPC request without going through `Codable` for
+    /// the params or result.
+    ///
+    /// `paramsData` must be a JSON value (object, array, number, string,
+    /// bool, or null) — it's spliced into the request frame's `params`
+    /// slot as-is. The decoded `result` JSON is returned as raw `Data`.
+    /// Both shapes give consumers an escape hatch for request shapes
+    /// the SDK doesn't model (e.g., host-specific extension RPCs) and
+    /// avoids forcing them to define `Codable & Sendable` types whose
+    /// synthesised conformance can inherit Swift 6's default actor
+    /// isolation (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`) — which
+    /// then gets rejected by `request(_:params:)`'s `Sendable`
+    /// constraint when called from an actor-isolated context.
+    ///
+    /// Observes `Task` cancellation in the same way `request(_:params:)`
+    /// does.
+    public func requestRaw(method: String, paramsData: Data) async throws -> Data {
+        if didShutdown { throw AHPClientError.shutdown }
+        guard let cont = outboundContinuation else {
+            throw AHPClientError.shutdown
+        }
+        try Task.checkCancellation()
+
+        let id = nextRequestId
+        nextRequestId += 1
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
+                let entry = PendingEntry(continuation: continuation)
+                pending[id] = entry
+
+                let wireData: Data
+                do {
+                    wireData = try buildRawRequestWire(id: id, method: method, paramsData: paramsData)
+                } catch {
+                    pending.removeValue(forKey: id)
+                    continuation.resume(throwing: AHPClientError.decoding(
+                        "failed to splice raw params for \(method): \(error)"
+                    ))
+                    return
+                }
+                cont.yield(wireData)
+
+                let timeoutDuration = config.requestTimeout
+                entry.timeoutTask = Task { [weak self] in
+                    try? await Task.sleep(for: timeoutDuration)
+                    if Task.isCancelled { return }
+                    await self?.timeoutPending(id: id)
+                }
+            }
+        } onCancel: { [weak self] in
+            Task { [weak self, id] in
+                await self?.cancelPending(id: id)
+            }
+        }
+    }
+
+    /// Actor-isolated cancellation helper for `request`'s cancel handler.
+    /// Removes the pending entry (if still present), cancels the timeout
+    /// task, and resumes the continuation with `CancellationError()`. A
+    /// no-op when the entry has already been removed by the response or
+    /// timeout path — only the first of those three to find the entry
+    /// wins, so the continuation is never double-resumed.
+    private func cancelPending(id: Int) {
+        if let entry = pending.removeValue(forKey: id) {
+            entry.timeoutTask?.cancel()
+            entry.continuation.resume(throwing: CancellationError())
         }
     }
 
@@ -483,6 +577,24 @@ public actor AHPClient {
         id: Int, method: String, params: P
     ) throws -> Data {
         let paramsData = try encoder.encode(params)
+        let paramsAny = try JSONSerialization.jsonObject(
+            with: paramsData, options: [.fragmentsAllowed]
+        )
+        let dict: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "method": method,
+            "params": paramsAny,
+        ]
+        return try JSONSerialization.data(withJSONObject: dict)
+    }
+
+    /// Build a JSON-RPC request frame from raw params bytes. Used by
+    /// `requestRaw` to skip Codable encoding when the consumer already
+    /// has JSON-shaped data.
+    private func buildRawRequestWire(
+        id: Int, method: String, paramsData: Data
+    ) throws -> Data {
         let paramsAny = try JSONSerialization.jsonObject(
             with: paramsData, options: [.fragmentsAllowed]
         )

@@ -14,6 +14,8 @@ The Agent Host Protocol (AHP) defines how a portable, standalone sessions server
 
 - **Swift** — Add `https://github.com/microsoft/agent-host-protocol` as a Swift Package Manager dependency to use the `AgentHostProtocol` types/reducers library or the `AgentHostProtocolClient` single-host and multi-host client library. See the [Swift package README](clients/swift/AgentHostProtocol/README.md) and [`clients/swift/`](clients/swift/) for the example iOS client. The `Package.swift` manifest lives at the repository root because SwiftPM only resolves manifests at the root of a remote git repo; the actual Swift sources live under `clients/swift/AgentHostProtocol/`.
 - **Rust** — See [`clients/rust/`](clients/rust/) for the `ahp`, `ahp-types`, and `ahp-ws` crates.
+- **Kotlin** — Add `com.microsoft.agenthostprotocol:agent-host-protocol` from Maven Central to use from Android or any JVM project. See [`clients/kotlin/`](clients/kotlin/) for the source and release pipeline.
+- **TypeScript** — Install `@microsoft/agent-host-protocol` to use the wire types, reducers, `AhpClient`, and the `WebSocketTransport`. See [`clients/typescript/`](clients/typescript/).
 - **[AHPX](https://github.com/TylerLeonhardt/ahpx)** — A command-line and Node.js client for connecting to AHP servers, managing sessions, and sending prompts.
 - **[VS Code](https://github.com/microsoft/vscode)** — VS Code includes Agent Sessions client code for working with AHP hosts.
 
