@@ -12,12 +12,14 @@
     "generate:rust": "tsx scripts/generate.ts --rust",
     "generate:kotlin": "tsx scripts/generate.ts --kotlin",
     "generate:typescript": "tsx scripts/generate.ts --typescript",
+    "generate:metadata": "tsx scripts/generate.ts --metadata",
+    "verify:release-metadata": "tsx scripts/verify-release-metadata.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "npm run generate && vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "typecheck": "tsc --noEmit -p types/tsconfig.json",
     "lint": "eslint",
-    "test": "npm run typecheck && npm run lint && npx c8 --include types/reducers.ts --check-coverage --branches 100 tsx --test types/*.test.ts"
+    "test": "npm run typecheck && npm run lint && npm run verify:release-metadata && npx c8 --include types/reducers.ts --check-coverage --branches 100 tsx --test types/*.test.ts types/version/*.test.ts"
   },
   "repository": {
     "type": "git",

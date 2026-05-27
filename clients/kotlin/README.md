@@ -114,6 +114,22 @@ when (val action = envelope.action) {
 - An example Android client — see the Swift `AHPClient` example for the architecture
   pattern; a Kotlin/Android equivalent is planned for a follow-up release.
 
+## Protocol version mapping
+
+Two constants in `com.microsoft.agenthostprotocol.generated` track which
+protocol version this library implements:
+
+- `PROTOCOL_VERSION` — SemVer string for the version this library's
+  source tree implements.
+- `SUPPORTED_PROTOCOL_VERSIONS` — every version this library is willing
+  to negotiate (most-preferred-first). Pass it as `protocolVersions` on
+  `InitializeParams`.
+
+The same information is mirrored, in machine-readable form, in
+[`release-metadata.json`](release-metadata.json) and, in human-readable
+form, in [`CHANGELOG.md`](CHANGELOG.md). CI verifies all three sources
+agree on every PR.
+
 ## Building from source
 
 Requires JDK 17+ on `JAVA_HOME`. Gradle wrapper handles everything else.

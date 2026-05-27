@@ -1,0 +1,152 @@
+name: Publish Spec
+
+# Triggered when a maintainer pushes a `spec/vX.Y.Z` git tag. The workflow
+# verifies the tag matches `PROTOCOL_VERSION` in `types/version/registry.ts`,
+# verifies a matching CHANGELOG entry exists, regenerates the JSON schemas
+# from the canonical TypeScript source, and publishes a GitHub Release with
+# the schema files as assets and a small `registry-snapshot.json` describing
+# the per-symbol introduced-in maps as of this commit.
+#
+# This release intentionally does NOT publish a registry package (npm,
+# Maven, crates.io). See `CONTRIBUTING.md` for rationale: the canonical
+# TypeScript types ship as part of the per-client TS package, and polyglot
+# consumers can `curl` the schema assets from this release directly.
+
+on:
+  push:
+    tags:
+      - 'spec/v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+# Only one spec publish per tag may run at a time. A re-pushed tag (or a
+# manual re-trigger) cancels the in-flight run before publishing.
+concurrency:
+  group: publish-spec-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # Promote to write only on the publish job so the validate steps can't
+    # accidentally mutate repo state via the GH token before the tag is
+    # confirmed correct.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Strict tag → PROTOCOL_VERSION cross-check. Mirrors the
+      # equivalent validation in `publish-rust.yml` / `publish-kotlin.yml`.
+      - name: Verify tag matches PROTOCOL_VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#spec/v}"
+          REGISTRY_VERSION=$(node --input-type=module -e "
+            import { PROTOCOL_VERSION } from './types/version/registry.ts';
+            process.stdout.write(PROTOCOL_VERSION);
+          " 2>/dev/null || true)
+
+          # Fallback to a regex read if node's --input-type=module ESM-from-stdin
+          # can't load a .ts file directly (depends on node version + loader).
+          if [ -z "$REGISTRY_VERSION" ]; then
+            REGISTRY_VERSION=$(grep -oE "PROTOCOL_VERSION\s*=\s*'[^']+'" types/version/registry.ts \
+              | head -n1 | sed -E "s/.*'([^']+)'.*/\1/")
+          fi
+
+          if [ -z "$REGISTRY_VERSION" ]; then
+            echo "::error::Could not read PROTOCOL_VERSION from types/version/registry.ts"
+            exit 1
+          fi
+
+          if [ "$TAG_VERSION" != "$REGISTRY_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match PROTOCOL_VERSION ($REGISTRY_VERSION) in types/version/registry.ts. Bump PROTOCOL_VERSION (and re-run npm run generate) before tagging."
+            exit 1
+          fi
+
+          echo "Publishing spec version $REGISTRY_VERSION"
+          echo "SPEC_VERSION=$REGISTRY_VERSION" >> "$GITHUB_ENV"
+
+      # CHANGELOG must have a `## [X.Y.Z]` heading for the version being
+      # released. The check is intentionally lenient about the rest of the
+      # line (date / "Unreleased" status / etc.) so editorial freedom is
+      # preserved.
+      - name: Verify CHANGELOG entry exists
+        run: |
+          if ! grep -qE "^## \[$SPEC_VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md is missing a '## [$SPEC_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
+
+      # Regenerate from source so the published artifacts always match the
+      # tagged commit's TypeScript types, regardless of whether the
+      # committed schema files were stale.
+      - name: Regenerate JSON schemas
+        run: npm run generate:schema
+
+      # Bundle the schema files as release assets. Polyglot consumers
+      # (validators, third-party clients, conformance suites) can curl the
+      # assets directly from the release.
+      - name: Package schema archive
+        run: |
+          mkdir -p release-staging
+          cp schema/*.schema.json release-staging/
+          (cd schema && zip -r "../release-staging/ahp-schemas-${SPEC_VERSION}.zip" *.schema.json)
+
+      # Capture the per-symbol introduced-in maps as a machine-readable
+      # snapshot of the version registry. Future tooling can diff two
+      # snapshots to derive "what's new between spec X and spec Y" without
+      # parsing TypeScript. We intentionally do NOT compute the diff here
+      # (a v2 feature) — just snapshot the current state.
+      - name: Generate registry snapshot
+        run: |
+          npx tsx --eval "
+            import { readFileSync, writeFileSync } from 'node:fs';
+            import {
+              PROTOCOL_VERSION,
+              SUPPORTED_PROTOCOL_VERSIONS,
+              ACTION_INTRODUCED_IN,
+              NOTIFICATION_INTRODUCED_IN,
+            } from './types/version/registry.ts';
+            const snapshot = {
+              specVersion: PROTOCOL_VERSION,
+              supportedProtocolVersions: SUPPORTED_PROTOCOL_VERSIONS,
+              actionIntroducedIn: ACTION_INTRODUCED_IN,
+              notificationIntroducedIn: NOTIFICATION_INTRODUCED_IN,
+              generatedAt: new Date().toISOString(),
+              commit: process.env.GITHUB_SHA,
+            };
+            writeFileSync('release-staging/registry-snapshot.json', JSON.stringify(snapshot, null, 2) + '\n');
+          "
+
+      - name: Extract release notes for this version
+        run: |
+          # awk extracts the body between `## [X.Y.Z]` and the next `## ` heading.
+          awk -v ver="$SPEC_VERSION" '
+            BEGIN { in_section = 0 }
+            /^## \[/ {
+              if (in_section) exit
+              if ($0 ~ "^## \\[" ver "\\]") { in_section = 1; print; next }
+            }
+            in_section { print }
+          ' CHANGELOG.md > release-staging/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "AHP Spec v$SPEC_VERSION" \
+            --notes-file release-staging/release-notes.md \
+            release-staging/*.schema.json \
+            "release-staging/ahp-schemas-${SPEC_VERSION}.zip" \
+            release-staging/registry-snapshot.json

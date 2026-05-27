@@ -14,6 +14,7 @@ import { generateSwiftPackage } from './generate-swift.js';
 import { generateRustCrate } from './generate-rust.js';
 import { generateKotlinPackage } from './generate-kotlin.js';
 import { generateTypeScriptClient } from './generate-typescript.js';
+import { generateReleaseMetadata } from './generate-release-metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -34,7 +35,16 @@ const swiftOnly = args.includes('--swift');
 const rustOnly = args.includes('--rust');
 const kotlinOnly = args.includes('--kotlin');
 const typescriptOnly = args.includes('--typescript');
-const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly && !swiftOnly && !rustOnly && !kotlinOnly && !typescriptOnly;
+const metadataOnly = args.includes('--metadata');
+const generateAll =
+  !docsOnly &&
+  !schemaOnly &&
+  !actionOriginOnly &&
+  !swiftOnly &&
+  !rustOnly &&
+  !kotlinOnly &&
+  !typescriptOnly &&
+  !metadataOnly;
 
 // Load the TypeScript project
 const project = new Project({
@@ -88,6 +98,12 @@ if (generateAll || typescriptOnly) {
   console.log('Generating TypeScript client sources...');
   generateTypeScriptClient(project, TYPES_DIR, TYPESCRIPT_TYPES_DIR);
   console.log(`  → TypeScript sources written to ${path.relative(ROOT, TYPESCRIPT_TYPES_DIR)}/`);
+}
+
+if (generateAll || metadataOnly) {
+  console.log('Generating release metadata...');
+  generateReleaseMetadata(project, ROOT);
+  console.log('  → release-metadata.json written for every client');
 }
 
 console.log('Done.');

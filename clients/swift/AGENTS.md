@@ -23,6 +23,19 @@ Generated files: `State`, `Commands`, `Actions`, `Errors`, `Messages`, `Notifica
 
 CI verifies that the committed generated files match the output of `npm run generate:swift` and fails on drift.
 
+## Releasing
+
+The Swift package is consumed via SwiftPM by git-tag resolution against this repository. **Bare `vX.Y.Z` tags at the repo root are reserved for Swift releases** because SwiftPM cannot resolve path-prefixed tags like `swift/v0.2.0`; see [`CONTRIBUTING.md`](../../CONTRIBUTING.md) for the tag-namespace rationale and the full release flow.
+
+Summary, scoped to Swift:
+
+1. Update `clients/swift/VERSION` to the new bare semver string.
+2. Run `npm run generate:metadata` and commit the regenerated `clients/swift/release-metadata.json`.
+3. Rotate the `## [Unreleased]` section of `clients/swift/CHANGELOG.md`. The publish workflow fails if no `## [X.Y.Z]` heading exists for the tag version.
+4. Merge to `main`.
+5. Tag: `git tag v0.X.Y && git push origin v0.X.Y` (note: bare semver, no prefix).
+6. `.github/workflows/publish-swift.yml` validates the tag against `clients/swift/VERSION`, re-runs the Swift generator drift check, builds and tests the Swift package on macOS, then publishes a GitHub Release.
+
 ## AgentHostProtocol Library
 
 ### Installing via Swift Package Manager

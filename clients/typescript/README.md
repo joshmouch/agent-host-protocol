@@ -150,6 +150,34 @@ Generated files carry a banner; do not edit them by hand. The
 `generate:typescript` script is also part of `npm run generate`, which
 regenerates every language's client output.
 
+## Protocol version mapping
+
+This package exports two protocol-version constants from its default
+entry point:
+
+```ts
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@microsoft/agent-host-protocol';
+```
+
+- `PROTOCOL_VERSION` — SemVer string for the version this package's
+  source tree implements.
+- `SUPPORTED_PROTOCOL_VERSIONS` — every version this package is willing
+  to negotiate (most-preferred-first). Pass it as `protocolVersions` on
+  `InitializeParams`:
+
+  ```ts
+  await client.initialize({
+    clientId: 'my-client',
+    protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+    initialSubscriptions: ['ahp-root://'],
+  });
+  ```
+
+The same information is mirrored, in machine-readable form, in
+[`release-metadata.json`](release-metadata.json) and, in human-readable
+form, in [`CHANGELOG.md`](CHANGELOG.md). CI verifies all three sources
+agree on every PR.
+
 ## Development
 
 From a fresh checkout:

@@ -52,6 +52,20 @@ pub trait Transport: Send + 'static {
 See `crates/ahp/tests/client_roundtrip.rs` for a working in-memory
 transport used by the integration test.
 
+## Protocol version mapping
+
+This crate exposes two protocol-version constants:
+
+- `ahp_types::PROTOCOL_VERSION` — the SemVer string for the version the
+  crate's `0.x.y` source tree implements.
+- `ahp_types::SUPPORTED_PROTOCOL_VERSIONS` — every version this crate is
+  willing to negotiate, most-preferred-first. Pass the slice (or a
+  derived `Vec<String>`) as `InitializeParams.protocol_versions`.
+
+The same information is mirrored, in machine-readable form, in
+[`clients/rust/release-metadata.json`](release-metadata.json) and, in
+human-readable form, in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Regenerating types
 
 ```sh

@@ -113,6 +113,21 @@ for hosted in sessions {
 
 Single-host consumers can use the same shape with `MultiHostClient.single(...)` and never manage a registry directly.
 
+## Protocol version mapping
+
+The `AgentHostProtocol` module exposes two protocol-version constants:
+
+- `PROTOCOL_VERSION` — SemVer string for the version this package's
+  source tree implements.
+- `SUPPORTED_PROTOCOL_VERSIONS` — every version this package is willing
+  to negotiate (most-preferred-first). Pass it as `protocolVersions` on
+  `InitializeParams`.
+
+The same information is mirrored, in machine-readable form, in
+[`clients/swift/release-metadata.json`](../release-metadata.json) and,
+in human-readable form, in [`clients/swift/CHANGELOG.md`](../CHANGELOG.md).
+CI verifies all three sources agree on every PR.
+
 ## Reconnect Layering
 
 `AHPClient.reconnect(...)` sends the typed AHP `reconnect` request on an already-open transport. It does not decide when to reconnect, how often to retry, whether to fall back to `initialize`, whether authentication errors are terminal, or how to update UI while reconnecting.

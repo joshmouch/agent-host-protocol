@@ -34,6 +34,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_HEADER =
   '// Generated from types/*.ts — do not edit\n\n' +
@@ -1662,6 +1663,32 @@ function checkExhaustiveness(project: Project): void {
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
+function generateVersionFile(project: Project): string {
+  const { current, supported } = readProtocolVersions(project);
+
+  const items = supported.map((v) => `    ${JSON.stringify(v)},`).join('\n');
+
+  return (
+    '// Generated from types/*.ts — do not edit\n\n' +
+    `package ${PACKAGE}\n\n` +
+    '/**\n' +
+    ' * Current protocol version (SemVer `MAJOR.MINOR.PATCH`).\n' +
+    ' */\n' +
+    `public const val PROTOCOL_VERSION: String = ${JSON.stringify(current)}\n\n` +
+    '/**\n' +
+    ' * Every protocol version this library is willing to negotiate, ordered\n' +
+    ' * most-preferred-first. The first entry equals [PROTOCOL_VERSION].\n' +
+    ' *\n' +
+    ' * Pass this list (or a derived `List<String>`) as `protocolVersions` on\n' +
+    ' * `InitializeParams` so the same client binary can fall back to older\n' +
+    " * protocol versions if the host doesn't accept the newest one.\n" +
+    ' */\n' +
+    'public val SUPPORTED_PROTOCOL_VERSIONS: List<String> = listOf(\n' +
+    items +
+    '\n)\n'
+  );
+}
+
 export function generateKotlinPackage(project: Project, outputDir: string): void {
   // Reset generator state so back-to-back invocations are deterministic.
   requiredPartialStructs.clear();
@@ -1681,4 +1708,5 @@ export function generateKotlinPackage(project: Project, outputDir: string): void
   fs.writeFileSync(path.join(generatedDir, 'Notifications.generated.kt'), generateNotificationsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.kt'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.kt'), generateMessagesFile());
+  fs.writeFileSync(path.join(generatedDir, 'Version.generated.kt'), generateVersionFile(project));
 }
