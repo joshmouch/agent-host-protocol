@@ -171,6 +171,23 @@ CI runs the generate step automatically before the install/typecheck/test/build
 sequence, so contributors only need to remember step 1 locally after pulling
 protocol changes.
 
+## Releasing
+
+Releases are cut by pushing a `typescript/v<semver>` tag whose version matches
+`clients/typescript/package.json`. The `Publish TypeScript Package` workflow
+(`.github/workflows/publish-typescript.yml`) re-runs the validate pipeline,
+rebuilds, and publishes `@microsoft/agent-host-protocol` to npm with
+[provenance attestations](https://docs.npmjs.com/generating-provenance-statements).
+
+```bash
+# After bumping clients/typescript/package.json:
+git tag typescript/v0.3.0
+git push origin typescript/v0.3.0
+```
+
+Semver prereleases (e.g. `typescript/v0.3.0-beta.1`) are published under the
+`next` dist-tag so they don't claim `@latest`. Stable versions take `@latest`.
+
 ## License
 
 MIT

@@ -1,0 +1,128 @@
+name: Publish TypeScript Package
+
+on:
+  push:
+    tags:
+      - "typescript/v*"
+
+permissions:
+  contents: read
+
+jobs:
+  # Run the full validation pipeline (generate, install, typecheck, test,
+  # build) before any artifact is published. Mirrors the publish-rust and
+  # publish-kotlin workflows.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            clients/typescript/package-lock.json
+
+      - run: npm ci
+
+      # The wire types under clients/typescript/src/types/ are generated
+      # from the canonical types/ at the repo root and intentionally not
+      # committed. Generate them before installing/typechecking/testing
+      # the TS client.
+      - name: Generate TypeScript client sources
+        run: npm run generate:typescript
+
+      - name: Install TypeScript client dependencies
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: Typecheck TypeScript client
+        working-directory: clients/typescript
+        run: npm run typecheck
+
+      - name: Test TypeScript client
+        working-directory: clients/typescript
+        run: npm test
+
+      - name: Build TypeScript client
+        working-directory: clients/typescript
+        run: npm run build
+
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: npm
+    # id-token: write is required for npm provenance attestations
+    # (https://docs.npmjs.com/generating-provenance-statements). The
+    # workflow runs on a GitHub-hosted runner with OIDC enabled, so the
+    # token is minted at job start with no long-lived secret.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            clients/typescript/package-lock.json
+          registry-url: "https://registry.npmjs.org"
+
+      # Source-of-truth version lives in clients/typescript/package.json.
+      # Any mismatch between the git tag and the package version means
+      # the published artifact would not match the tag — fail loud.
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#typescript/v}"
+          PKG_VERSION=$(node -p "require('./clients/typescript/package.json').version")
+
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+          echo "PKG_VERSION=$PKG_VERSION" >> "$GITHUB_ENV"
+          echo "Publishing version $PKG_VERSION"
+
+      - run: npm ci
+
+      - name: Generate TypeScript client sources
+        run: npm run generate:typescript
+
+      - name: Install TypeScript client dependencies
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: Build TypeScript client
+        working-directory: clients/typescript
+        run: npm run build
+
+      # Confirm the tarball that would be published contains the
+      # generated wire types (src/types/) and built outputs (dist/).
+      # `src/types/` is .gitignored, so this guards against shipping a
+      # tarball whose declaration maps point at missing source files.
+      - name: Verify npm package contents
+        working-directory: clients/typescript
+        run: npm pack --dry-run
+
+      # Semver prereleases (e.g. 0.3.0-beta.1, 1.0.0-rc.1) publish under
+      # the `next` dist-tag so `npm install @microsoft/agent-host-protocol`
+      # (which resolves to @latest) keeps pointing at the most recent
+      # stable release. Build metadata uses `+`, so the `*-*` glob only
+      # matches prerelease identifiers.
+      - name: Publish to npm
+        working-directory: clients/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          DIST_TAG="latest"
+          case "$PKG_VERSION" in
+            *-*) DIST_TAG="next" ;;
+          esac
+          echo "Publishing $PKG_VERSION to npm dist-tag '$DIST_TAG'"
+          npm publish --provenance --access public --tag "$DIST_TAG"
