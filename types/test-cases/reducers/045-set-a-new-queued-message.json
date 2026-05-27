@@ -19,6 +19,7 @@
       "kind": "queued",
       "id": "pm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Do something"
       }
     }
@@ -38,6 +39,7 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Do something"
         }
       }

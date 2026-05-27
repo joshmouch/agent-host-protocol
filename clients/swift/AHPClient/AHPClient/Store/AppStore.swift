@@ -939,7 +939,7 @@ final class AppStore {
             action = .sessionTurnStarted(SessionTurnStartedAction(
                 type: .sessionTurnStarted,
                 turnId: UUID().uuidString,
-                input: .userMessage(UserMessageTurnInput(kind: .userMessage, userMessage: userMessage))
+                input: .userMessage(userMessage)
             ))
         }
 

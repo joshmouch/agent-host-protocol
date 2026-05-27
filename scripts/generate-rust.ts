@@ -460,6 +460,9 @@ interface UnionConfig {
   variants: UnionVariant[];
   /** Extra variant for unknown/future values. */
   unknown?: boolean;
+  /** Emit `#[serde(untagged)]` instead of `#[serde(tag = ...)]`. Used when the
+   * variant structs themselves carry the discriminant field. */
+  untagged?: boolean;
 }
 
 function generateDiscriminatedUnion(cfg: UnionConfig): string {
@@ -468,14 +471,20 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
     for (const d of cfg.doc.split('\n')) lines.push(`/// ${d.trimEnd()}`);
   }
   lines.push('#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]');
-  lines.push(`#[serde(tag = ${JSON.stringify(cfg.discriminantField)})]`);
+  if (cfg.untagged) {
+    lines.push('#[serde(untagged)]');
+  } else {
+    lines.push(`#[serde(tag = ${JSON.stringify(cfg.discriminantField)})]`);
+  }
   lines.push(`pub enum ${cfg.name} {`);
 
   for (const v of cfg.variants) {
     if (v.doc) {
       for (const d of v.doc.split('\n')) lines.push(`    /// ${d.trimEnd()}`);
     }
-    lines.push(`    #[serde(rename = ${JSON.stringify(v.wireValue)})]`);
+    if (!cfg.untagged) {
+      lines.push(`    #[serde(rename = ${JSON.stringify(v.wireValue)})]`);
+    }
     if (v.isUnit) {
       lines.push(`    ${v.variantName},`);
     } else {
@@ -517,7 +526,7 @@ const STATE_ENUMS = [
   'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
   'SessionInputAnswerState', 'SessionInputAnswerValueKind', 'SessionInputQuestionKind',
   'SessionInputResponseKind',
-  'TurnState', 'TurnInputKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
+  'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationStatus', 'TerminalClaimKind',
@@ -552,8 +561,6 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ActiveTurn' },
   { name: 'UserMessage' },
   { name: 'SystemNotification' },
-  { name: 'UserMessageTurnInput', omitDiscriminants: true },
-  { name: 'SystemNotificationTurnInput', omitDiscriminants: true },
   { name: 'SessionInputOption' },
   { name: 'SessionInputTextAnswerValue', omitDiscriminants: true },
   { name: 'SessionInputNumberAnswerValue', omitDiscriminants: true },
@@ -735,15 +742,15 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
   unknown: true,
 };
 
-const TURN_INPUT_UNION: UnionConfig = {
-  name: 'TurnInput',
+const MESSAGE_UNION: UnionConfig = {
+  name: 'Message',
   discriminantField: 'kind',
   doc: 'What started a turn — a user message or a system notification.',
+  untagged: true,
   variants: [
-    { variantName: 'UserMessage', innerType: 'UserMessageTurnInput', wireValue: 'userMessage' },
-    { variantName: 'SystemNotification', innerType: 'SystemNotificationTurnInput', wireValue: 'systemNotification' },
+    { variantName: 'UserMessage', innerType: 'UserMessage', wireValue: 'userMessage' },
+    { variantName: 'SystemNotification', innerType: 'SystemNotification', wireValue: 'systemNotification' },
   ],
-  unknown: true,
 };
 
 function generateSnapshotState(): string {
@@ -807,7 +814,7 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TURN_INPUT_UNION));
+  lines.push(generateDiscriminatedUnion(MESSAGE_UNION));
   lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
@@ -919,7 +926,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, TurnInput, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, CustomizationAgentRef, CustomizationRef, CustomizationStatus, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, Message, UsageInfo, UserMessage, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetSummary};');
   lines.push('');
 
   // ActionType enum
@@ -1405,7 +1412,7 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputAnswer',
     'MessageAttachment',
     'MessageAttachmentBase',
-    'TurnInput',
+    'Message',
     'ReconnectResult',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',

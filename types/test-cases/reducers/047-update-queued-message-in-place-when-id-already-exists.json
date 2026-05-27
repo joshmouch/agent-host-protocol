@@ -16,12 +16,14 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "First"
         }
       },
       {
         "id": "pm-2",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Second"
         }
       }
@@ -33,6 +35,7 @@
       "kind": "queued",
       "id": "pm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Updated first"
       }
     }
@@ -52,12 +55,14 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Updated first"
         }
       },
       {
         "id": "pm-2",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Second"
         }
       }

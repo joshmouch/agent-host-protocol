@@ -19,9 +19,7 @@
       "turnId": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Hello"
-        }
+        "text": "Hello"
       }
     },
     {
@@ -98,9 +96,7 @@
       "id": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Hello"
-        }
+        "text": "Hello"
       },
       "responseParts": [],
       "usage": null

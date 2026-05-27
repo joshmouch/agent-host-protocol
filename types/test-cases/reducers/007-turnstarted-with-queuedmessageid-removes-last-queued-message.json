@@ -16,6 +16,7 @@
       {
         "id": "q-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Only"
         }
       }
@@ -27,9 +28,7 @@
       "turnId": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Only"
-        }
+        "text": "Only"
       },
       "queuedMessageId": "q-1"
     }
@@ -50,9 +49,7 @@
       "id": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Only"
-        }
+        "text": "Only"
       },
       "responseParts": [],
       "usage": null

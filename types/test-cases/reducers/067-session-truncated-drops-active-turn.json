@@ -16,9 +16,7 @@
         "id": "t1",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "First"
-          }
+          "text": "First"
         },
         "responseParts": [],
         "usage": null,
@@ -28,9 +26,7 @@
         "id": "t2",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Second"
-          }
+          "text": "Second"
         },
         "responseParts": [],
         "usage": null,
@@ -41,9 +37,7 @@
       "id": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Hello"
-        }
+        "text": "Hello"
       },
       "responseParts": [],
       "usage": null
@@ -70,9 +64,7 @@
         "id": "t1",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "First"
-          }
+          "text": "First"
         },
         "responseParts": [],
         "usage": null,

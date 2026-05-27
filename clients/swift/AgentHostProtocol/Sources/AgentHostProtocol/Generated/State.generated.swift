@@ -125,8 +125,8 @@ public enum TurnState: String, Codable, Sendable {
     case error = "error"
 }
 
-/// Discriminant for {@link TurnInput} variants — what started a turn.
-public enum TurnInputKind: String, Codable, Sendable {
+/// Discriminant for {@link Message} variants — what started a turn.
+public enum MessageKind: String, Codable, Sendable {
     /// Turn was started by a user-authored message.
     case userMessage = "userMessage"
     /// Turn was started by a system notification that woke the agent
@@ -819,7 +819,7 @@ public struct Turn: Codable, Sendable {
     /// Turn identifier
     public var id: String
     /// What started this turn
-    public var input: TurnInput
+    public var input: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Consumers should derive display text by concatenating markdown parts,
@@ -834,7 +834,7 @@ public struct Turn: Codable, Sendable {
 
     public init(
         id: String,
-        input: TurnInput,
+        input: Message,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil,
         state: TurnState,
@@ -853,7 +853,7 @@ public struct ActiveTurn: Codable, Sendable {
     /// Turn identifier
     public var id: String
     /// What started this turn
-    public var input: TurnInput
+    public var input: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     /// 
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -863,7 +863,7 @@ public struct ActiveTurn: Codable, Sendable {
 
     public init(
         id: String,
-        input: TurnInput,
+        input: Message,
         responseParts: [ResponsePart],
         usage: UsageInfo? = nil
     ) {
@@ -875,72 +875,36 @@ public struct ActiveTurn: Codable, Sendable {
 }
 
 public struct UserMessage: Codable, Sendable {
+    /// Discriminant
+    public var kind: MessageKind
     /// Message text
     public var text: String
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
 
     public init(
+        kind: MessageKind,
         text: String,
         attachments: [MessageAttachment]? = nil
     ) {
+        self.kind = kind
         self.text = text
         self.attachments = attachments
     }
 }
 
 public struct SystemNotification: Codable, Sendable {
+    /// Discriminant
+    public var kind: MessageKind
     /// The content of the system notification
     public var content: StringOrMarkdown
-    /// Additional provider-specific metadata describing what produced this
-    /// notification.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `terminal` key may reference the terminal whose
-    /// background task completion triggered the notification.
-    public var meta: [String: AnyCodable]?
-
-    enum CodingKeys: String, CodingKey {
-        case content
-        case meta = "_meta"
-    }
 
     public init(
-        content: StringOrMarkdown,
-        meta: [String: AnyCodable]? = nil
+        kind: MessageKind,
+        content: StringOrMarkdown
     ) {
+        self.kind = kind
         self.content = content
-        self.meta = meta
-    }
-}
-
-public struct UserMessageTurnInput: Codable, Sendable {
-    /// Discriminant
-    public var kind: TurnInputKind
-    /// The user's input
-    public var userMessage: UserMessage
-
-    public init(
-        kind: TurnInputKind,
-        userMessage: UserMessage
-    ) {
-        self.kind = kind
-        self.userMessage = userMessage
-    }
-}
-
-public struct SystemNotificationTurnInput: Codable, Sendable {
-    /// Discriminant
-    public var kind: TurnInputKind
-    /// The system notification that woke the agent
-    public var notification: SystemNotification
-
-    public init(
-        kind: TurnInputKind,
-        notification: SystemNotification
-    ) {
-        self.kind = kind
-        self.notification = notification
     }
 }
 
@@ -3197,9 +3161,9 @@ public enum MessageAttachment: Codable, Sendable {
     }
 }
 
-public enum TurnInput: Codable, Sendable {
-    case userMessage(UserMessageTurnInput)
-    case systemNotification(SystemNotificationTurnInput)
+public enum Message: Codable, Sendable {
+    case userMessage(UserMessage)
+    case systemNotification(SystemNotification)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "kind"
@@ -3210,11 +3174,11 @@ public enum TurnInput: Codable, Sendable {
         let discriminant = try container.decode(String.self, forKey: .discriminant)
         switch discriminant {
         case "userMessage":
-            self = .userMessage(try UserMessageTurnInput(from: decoder))
+            self = .userMessage(try UserMessage(from: decoder))
         case "systemNotification":
-            self = .systemNotification(try SystemNotificationTurnInput(from: decoder))
+            self = .systemNotification(try SystemNotification(from: decoder))
         default:
-            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown TurnInput discriminant: \(discriminant)")
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown Message discriminant: \(discriminant)")
         }
     }
 

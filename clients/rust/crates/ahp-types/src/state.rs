@@ -133,9 +133,9 @@ pub enum TurnState {
     Error,
 }
 
-/// Discriminant for {@link TurnInput} variants — what started a turn.
+/// Discriminant for {@link Message} variants — what started a turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum TurnInputKind {
+pub enum MessageKind {
     /// Turn was started by a user-authored message.
     #[serde(rename = "userMessage")]
     UserMessage,
@@ -824,7 +824,7 @@ pub struct Turn {
     /// Turn identifier
     pub id: String,
     /// What started this turn
-    pub input: TurnInput,
+    pub input: Message,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Consumers should derive display text by concatenating markdown parts,
@@ -847,7 +847,7 @@ pub struct ActiveTurn {
     /// Turn identifier
     pub id: String,
     /// What started this turn
-    pub input: TurnInput,
+    pub input: Message,
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
     ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
@@ -866,6 +866,8 @@ pub struct ActiveTurn {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserMessage {
+    /// Discriminant
+    pub kind: MessageKind,
     /// Message text
     pub text: String,
     /// File/selection attachments
@@ -887,32 +889,10 @@ pub struct UserMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemNotification {
+    /// Discriminant
+    pub kind: MessageKind,
     /// The content of the system notification
     pub content: StringOrMarkdown,
-    /// Additional provider-specific metadata describing what produced this
-    /// notification.
-    ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `terminal` key may reference the terminal whose
-    /// background task completion triggered the notification.
-    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
-    pub meta: Option<JsonObject>,
-}
-
-/// A turn input wrapping a {@link UserMessage}.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserMessageTurnInput {
-    /// The user's input
-    pub user_message: UserMessage,
-}
-
-/// A turn input wrapping a {@link SystemNotification}.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SystemNotificationTurnInput {
-    /// The system notification that woke the agent
-    pub notification: SystemNotification,
 }
 
 /// A choice in a select-style question.
@@ -2409,16 +2389,10 @@ pub enum MessageAttachment {
 
 /// What started a turn — a user message or a system notification.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind")]
-pub enum TurnInput {
-    #[serde(rename = "userMessage")]
-    UserMessage(UserMessageTurnInput),
-    #[serde(rename = "systemNotification")]
-    SystemNotification(SystemNotificationTurnInput),
-    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
-    /// Reducers treat this as a no-op.
-    #[serde(untagged)]
-    Unknown(serde_json::Value),
+#[serde(untagged)]
+pub enum Message {
+    UserMessage(UserMessage),
+    SystemNotification(SystemNotification),
 }
 
 /// The state payload of a snapshot — root, session, terminal, or

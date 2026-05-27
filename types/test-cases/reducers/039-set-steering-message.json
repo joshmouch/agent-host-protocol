@@ -19,6 +19,7 @@
       "kind": "steering",
       "id": "sm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Focus on tests"
       }
     }
@@ -37,6 +38,7 @@
     "steeringMessage": {
       "id": "sm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Focus on tests"
       }
     }

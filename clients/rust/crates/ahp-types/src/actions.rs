@@ -14,11 +14,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use crate::state::{
     AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
     ChangesetSummary, ConfirmationOption, CustomizationAgentRef, CustomizationRef,
-    CustomizationStatus, ErrorInfo, ModelSelection, PendingMessageKind, ResponsePart,
+    CustomizationStatus, ErrorInfo, Message, ModelSelection, PendingMessageKind, ResponsePart,
     SessionActiveClient, SessionCustomization, SessionInputAnswer, SessionInputRequest,
     SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
-    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, TurnInput,
-    UsageInfo, UserMessage,
+    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
+    UserMessage,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ pub struct SessionTurnStartedAction {
     /// Turn identifier
     pub turn_id: String,
     /// What started this turn (user message or system notification)
-    pub input: TurnInput,
+    pub input: Message,
     /// If this turn was auto-started from a queued message, the ID of that message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queued_message_id: Option<String>,

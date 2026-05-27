@@ -1136,7 +1136,7 @@ pub fn apply_action_to_terminal(state: &mut TerminalState, action: &StateAction)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ahp_types::state::{MarkdownResponsePart, SessionSummary, TurnInput, UserMessage, UserMessageTurnInput};
+    use ahp_types::state::{MarkdownResponsePart, Message, MessageKind, SessionSummary, UserMessage};
 
     fn empty_session(resource: &str) -> SessionState {
         SessionState {
@@ -1174,12 +1174,10 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         let action = StateAction::SessionTurnStarted(SessionTurnStartedAction {
             turn_id: "t1".into(),
-            input: TurnInput::UserMessage(UserMessageTurnInput {
-
-                user_message: UserMessage {
-                    text: "hi".into(),
-                    attachments: None,
-                },
+            input: Message::UserMessage(UserMessage {
+                kind: MessageKind::UserMessage,
+                text: "hi".into(),
+                attachments: None,
             }),
             queued_message_id: None,
         });
@@ -1196,12 +1194,10 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            input: TurnInput::UserMessage(UserMessageTurnInput {
-
-                user_message: UserMessage {
-                    text: "hi".into(),
-                    attachments: None,
-                },
+            input: Message::UserMessage(UserMessage {
+                kind: MessageKind::UserMessage,
+                text: "hi".into(),
+                attachments: None,
             }),
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
@@ -1226,12 +1222,10 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            input: TurnInput::UserMessage(UserMessageTurnInput {
-
-                user_message: UserMessage {
-                    text: "hi".into(),
-                    attachments: None,
-                },
+            input: Message::UserMessage(UserMessage {
+                kind: MessageKind::UserMessage,
+                text: "hi".into(),
+                attachments: None,
             }),
             response_parts: Vec::new(),
             usage: None,

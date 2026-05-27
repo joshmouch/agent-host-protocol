@@ -16,12 +16,14 @@
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       },
       {
         "id": "b",
         "userMessage": {
+          "kind": "userMessage",
           "text": "B"
         }
       }
@@ -53,12 +55,14 @@
       {
         "id": "b",
         "userMessage": {
+          "kind": "userMessage",
           "text": "B"
         }
       },
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       }

@@ -550,7 +550,7 @@ export interface Turn {
   /** Turn identifier */
   id: string;
   /** What started this turn */
-  input: TurnInput;
+  input: Message;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -575,7 +575,7 @@ export interface ActiveTurn {
   /** Turn identifier */
   id: string;
   /** What started this turn */
-  input: TurnInput;
+  input: Message;
   /**
    * All response content in stream order: text, tool calls, reasoning, and content refs.
    *
@@ -587,11 +587,11 @@ export interface ActiveTurn {
 }
 
 /**
- * Discriminant for {@link TurnInput} variants — what started a turn.
+ * Discriminant for {@link Message} variants — what started a turn.
  *
  * @category Turn Types
  */
-export const enum TurnInputKind {
+export const enum MessageKind {
   /** Turn was started by a user-authored message. */
   UserMessage = 'userMessage',
   /**
@@ -602,30 +602,6 @@ export const enum TurnInputKind {
 }
 
 /**
- * A turn input wrapping a {@link UserMessage}.
- *
- * @category Turn Types
- */
-export interface UserMessageTurnInput {
-  /** Discriminant */
-  kind: TurnInputKind.UserMessage;
-  /** The user's input */
-  userMessage: UserMessage;
-}
-
-/**
- * A turn input wrapping a {@link SystemNotification}.
- *
- * @category Turn Types
- */
-export interface SystemNotificationTurnInput {
-  /** Discriminant */
-  kind: TurnInputKind.SystemNotification;
-  /** The system notification that woke the agent */
-  notification: SystemNotification;
-}
-
-/**
  * What started a turn. A turn is normally initiated by a user-authored
  * {@link UserMessage}, but MAY also be initiated by a {@link SystemNotification}
  * — for example, when a background terminal task completes and the agent
@@ -633,7 +609,7 @@ export interface SystemNotificationTurnInput {
  *
  * @category Turn Types
  */
-export type TurnInput = UserMessageTurnInput | SystemNotificationTurnInput;
+export type Message = UserMessage | SystemNotification;
 
 /**
  * A system notification surfaced as the input that initiates a turn.
@@ -651,17 +627,10 @@ export type TurnInput = UserMessageTurnInput | SystemNotificationTurnInput;
  * @category Turn Types
  */
 export interface SystemNotification {
+  /** Discriminant */
+  kind: MessageKind.SystemNotification;
   /** The content of the system notification */
   content: StringOrMarkdown;
-  /**
-   * Additional provider-specific metadata describing what produced this
-   * notification.
-   *
-   * Clients MAY look for well-known keys here to provide enhanced UI.
-   * For example, a `terminal` key may reference the terminal whose
-   * background task completion triggered the notification.
-   */
-  _meta?: Record<string, unknown>;
 }
 
 /**
@@ -675,6 +644,8 @@ export interface SystemNotification {
  * @category Turn Types
  */
 export interface UserMessage {
+  /** Discriminant */
+  kind: MessageKind.UserMessage;
   /** Message text */
   text: string;
   /** File/selection attachments */

@@ -103,7 +103,7 @@ To start a turn, the client dispatches a `session/turnStarted` action. This is a
       "turnId": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": { "text": "Explain this code" }
+        "text": "Explain this code"
       }
     }
   }

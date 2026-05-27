@@ -16,6 +16,7 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Only one"
         }
       }

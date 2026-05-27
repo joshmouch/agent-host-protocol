@@ -16,9 +16,7 @@
         "id": "t1",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "First"
-          }
+          "text": "First"
         },
         "responseParts": [],
         "usage": null,
@@ -28,9 +26,7 @@
         "id": "t2",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Second"
-          }
+          "text": "Second"
         },
         "responseParts": [],
         "usage": null,
@@ -40,9 +36,7 @@
         "id": "t3",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Third"
-          }
+          "text": "Third"
         },
         "responseParts": [],
         "usage": null,
@@ -71,9 +65,7 @@
         "id": "t1",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "First"
-          }
+          "text": "First"
         },
         "responseParts": [],
         "usage": null,

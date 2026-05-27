@@ -1480,7 +1480,7 @@
           "description": "Turn identifier"
         },
         "input": {
-          "$ref": "#/$defs/TurnInput",
+          "$ref": "#/$defs/Message",
           "description": "What started this turn"
         },
         "responseParts": {
@@ -1520,7 +1520,7 @@
           "description": "Turn identifier"
         },
         "input": {
-          "$ref": "#/$defs/TurnInput",
+          "$ref": "#/$defs/Message",
           "description": "What started this turn"
         },
         "responseParts": {
@@ -1542,57 +1542,21 @@
         "usage"
       ]
     },
-    "UserMessageTurnInput": {
-      "type": "object",
-      "description": "A turn input wrapping a {@link UserMessage}.",
-      "properties": {
-        "kind": {
-          "$ref": "#/$defs/TurnInputKind.UserMessage",
-          "description": "Discriminant"
-        },
-        "userMessage": {
-          "$ref": "#/$defs/UserMessage",
-          "description": "The user's input"
-        }
-      },
-      "required": [
-        "kind",
-        "userMessage"
-      ]
-    },
-    "SystemNotificationTurnInput": {
-      "type": "object",
-      "description": "A turn input wrapping a {@link SystemNotification}.",
-      "properties": {
-        "kind": {
-          "$ref": "#/$defs/TurnInputKind.SystemNotification",
-          "description": "Discriminant"
-        },
-        "notification": {
-          "$ref": "#/$defs/SystemNotification",
-          "description": "The system notification that woke the agent"
-        }
-      },
-      "required": [
-        "kind",
-        "notification"
-      ]
-    },
     "SystemNotification": {
       "type": "object",
       "description": "A system notification surfaced as the input that initiates a turn.\n\nWhereas a {@link UserMessage} represents content authored by the user,\na system notification represents an event authored by the agent host\nor its environment that needs the agent to wake up and react. Examples\ninclude \"background terminal task X completed\" or \"scheduled job Y is\nready for review.\"\n\nSee also {@link SystemNotificationResponsePart}, which surfaces a similar\nnotification *within* an existing turn's response stream rather than as\nthe input that starts a new turn.",
       "properties": {
+        "kind": {
+          "$ref": "#/$defs/MessageKind.SystemNotification",
+          "description": "Discriminant"
+        },
         "content": {
           "$ref": "#/$defs/StringOrMarkdown",
           "description": "The content of the system notification"
-        },
-        "_meta": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "Additional provider-specific metadata describing what produced this\nnotification.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `terminal` key may reference the terminal whose\nbackground task completion triggered the notification."
         }
       },
       "required": [
+        "kind",
         "content"
       ]
     },
@@ -1600,6 +1564,10 @@
       "type": "object",
       "description": "A user message and its associated attachments.\n\nAttachments MAY be referenced inside {@link UserMessage.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
       "properties": {
+        "kind": {
+          "$ref": "#/$defs/MessageKind.UserMessage",
+          "description": "Discriminant"
+        },
         "text": {
           "type": "string",
           "description": "Message text"
@@ -1613,6 +1581,7 @@
         }
       },
       "required": [
+        "kind",
         "text"
       ]
     },

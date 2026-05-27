@@ -16,12 +16,14 @@
       {
         "id": "q-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "First"
         }
       },
       {
         "id": "q-2",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Second"
         }
       }
@@ -33,9 +35,7 @@
       "turnId": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "First"
-        }
+        "text": "First"
       },
       "queuedMessageId": "q-1"
     }
@@ -55,6 +55,7 @@
       {
         "id": "q-2",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Second"
         }
       }
@@ -63,9 +64,7 @@
       "id": "turn-1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "First"
-        }
+        "text": "First"
       },
       "responseParts": [],
       "usage": null

@@ -19,9 +19,7 @@
       "turnId": "t1",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Fix the bug"
-        }
+        "text": "Fix the bug"
       }
     },
     {
@@ -160,9 +158,7 @@
         "id": "t1",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Fix the bug"
-          }
+          "text": "Fix the bug"
         },
         "responseParts": [
           {

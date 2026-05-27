@@ -16,6 +16,7 @@
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       }
@@ -42,6 +43,7 @@
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       }

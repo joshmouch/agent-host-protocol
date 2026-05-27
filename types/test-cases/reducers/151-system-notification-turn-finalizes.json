@@ -16,9 +16,7 @@
       "id": "turn-1",
       "input": {
         "kind": "systemNotification",
-        "notification": {
-          "content": "Background terminal task `build` completed."
-        }
+        "content": "Background terminal task `build` completed."
       },
       "responseParts": [
         {
@@ -51,9 +49,7 @@
         "id": "turn-1",
         "input": {
           "kind": "systemNotification",
-          "notification": {
-            "content": "Background terminal task `build` completed."
-          }
+          "content": "Background terminal task `build` completed."
         },
         "responseParts": [
           {

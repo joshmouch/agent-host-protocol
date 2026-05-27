@@ -19,6 +19,7 @@
       "kind": "steering",
       "id": "s-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Steer"
       }
     },
@@ -27,6 +28,7 @@
       "kind": "queued",
       "id": "q-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Queue"
       }
     }
@@ -45,6 +47,7 @@
     "steeringMessage": {
       "id": "s-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Steer"
       }
     },
@@ -52,6 +55,7 @@
       {
         "id": "q-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Queue"
         }
       }

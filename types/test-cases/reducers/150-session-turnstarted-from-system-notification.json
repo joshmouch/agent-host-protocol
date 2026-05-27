@@ -19,12 +19,7 @@
       "turnId": "turn-1",
       "input": {
         "kind": "systemNotification",
-        "notification": {
-          "content": "Background terminal task `build` completed successfully.",
-          "_meta": {
-            "terminal": "term-42"
-          }
-        }
+        "content": "Background terminal task `build` completed successfully."
       }
     }
   ],
@@ -43,12 +38,7 @@
       "id": "turn-1",
       "input": {
         "kind": "systemNotification",
-        "notification": {
-          "content": "Background terminal task `build` completed successfully.",
-          "_meta": {
-            "terminal": "term-42"
-          }
-        }
+        "content": "Background terminal task `build` completed successfully."
       },
       "responseParts": [],
       "usage": null

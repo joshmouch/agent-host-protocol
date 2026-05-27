@@ -16,6 +16,7 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Hello"
         }
       }
@@ -43,6 +44,7 @@
       {
         "id": "pm-1",
         "userMessage": {
+          "kind": "userMessage",
           "text": "Hello"
         }
       }

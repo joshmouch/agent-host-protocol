@@ -15,6 +15,7 @@
     "steeringMessage": {
       "id": "sm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Hello"
       }
     }
@@ -40,6 +41,7 @@
     "steeringMessage": {
       "id": "sm-1",
       "userMessage": {
+        "kind": "userMessage",
         "text": "Hello"
       }
     }

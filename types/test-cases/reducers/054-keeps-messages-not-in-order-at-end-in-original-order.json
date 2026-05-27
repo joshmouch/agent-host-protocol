@@ -16,18 +16,21 @@
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       },
       {
         "id": "b",
         "userMessage": {
+          "kind": "userMessage",
           "text": "B"
         }
       },
       {
         "id": "c",
         "userMessage": {
+          "kind": "userMessage",
           "text": "C"
         }
       }
@@ -56,18 +59,21 @@
       {
         "id": "c",
         "userMessage": {
+          "kind": "userMessage",
           "text": "C"
         }
       },
       {
         "id": "a",
         "userMessage": {
+          "kind": "userMessage",
           "text": "A"
         }
       },
       {
         "id": "b",
         "userMessage": {
+          "kind": "userMessage",
           "text": "B"
         }
       }

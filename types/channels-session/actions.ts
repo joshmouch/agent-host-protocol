@@ -22,7 +22,7 @@ import type {
   ConfirmationOption,
   CustomizationStatus,
   AgentSelection,
-  TurnInput,
+  Message,
 } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import {
@@ -97,7 +97,7 @@ export interface SessionTurnStartedAction {
   /** Turn identifier */
   turnId: string;
   /** What started this turn (user message or system notification) */
-  input: TurnInput;
+  input: Message;
   /** If this turn was auto-started from a queued message, the ID of that message */
   queuedMessageId?: string;
 }

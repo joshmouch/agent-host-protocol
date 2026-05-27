@@ -16,9 +16,7 @@
         "id": "kept",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Kept"
-          }
+          "text": "Kept"
         },
         "responseParts": [],
         "usage": null,
@@ -28,9 +26,7 @@
         "id": "dropped",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Dropped"
-          }
+          "text": "Dropped"
         },
         "responseParts": [],
         "usage": null,
@@ -41,9 +37,7 @@
       "id": "active",
       "input": {
         "kind": "userMessage",
-        "userMessage": {
-          "text": "Active"
-        }
+        "text": "Active"
       },
       "responseParts": [],
       "usage": null
@@ -86,9 +80,7 @@
         "id": "kept",
         "input": {
           "kind": "userMessage",
-          "userMessage": {
-            "text": "Kept"
-          }
+          "text": "Kept"
         },
         "responseParts": [],
         "usage": null,
