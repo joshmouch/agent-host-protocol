@@ -11,6 +11,7 @@
     "generate:swift": "tsx scripts/generate.ts --swift",
     "generate:rust": "tsx scripts/generate.ts --rust",
     "generate:kotlin": "tsx scripts/generate.ts --kotlin",
+    "generate:typescript": "tsx scripts/generate.ts --typescript",
     "docs:dev": "vitepress dev docs",
     "docs:build": "npm run generate && vitepress build docs",
     "docs:preview": "vitepress preview docs",

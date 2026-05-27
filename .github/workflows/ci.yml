@@ -117,4 +117,38 @@ jobs:
         working-directory: clients/kotlin
         run: ./gradlew build --stacktrace
 
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # The wire types under clients/typescript/src/types/ are generated
+      # from the canonical types/ at the repo root and intentionally not
+      # committed (avoids byte-for-byte duplication). Generate them
+      # before installing/typechecking/testing the TS client.
+      - name: Generate TypeScript client sources
+        run: npm run generate:typescript
+
+      - name: Install TypeScript client dependencies
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: Typecheck TypeScript client
+        working-directory: clients/typescript
+        run: npm run typecheck
+
+      - name: Test TypeScript client
+        working-directory: clients/typescript
+        run: npm test
+
+      - name: Build TypeScript client
+        working-directory: clients/typescript
+        run: npm run build
 
