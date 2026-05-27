@@ -23,8 +23,9 @@ CI verifies the committed generated files match the output of `npm run generate:
 ## Library structure
 
 - `src/main/kotlin/com/microsoft/agenthostprotocol/Ahp.kt` — Hand-maintained entry point. Exposes the configured `kotlinx.serialization.json.Json` instance (`Ahp.json`) that consumers MUST use to encode/decode protocol messages. The custom `KSerializer`s for discriminated unions require a JSON-aware encoder/decoder, so generic `Json` instances may not work.
+- `src/main/kotlin/com/microsoft/agenthostprotocol/Reducers.kt` — Hand-written pure reducers (`rootReducer`, `sessionReducer`, `terminalReducer`, `changesetReducer`) ported from `types/channels-*/reducer.ts`, plus a small `Reducer<S, A>` fun-interface and per-channel `object` wrappers. See [Reducers](#reducers) below.
 - `src/main/kotlin/com/microsoft/agenthostprotocol/generated/` — Auto-generated wire types.
-- `build.gradle.kts` — Gradle build config. Sets `jvmTarget = JVM_1_8` (Android-friendly) with a JDK 17 toolchain. Configures the Vanniktech `maven-publish` plugin for Sonatype Central Portal publishing.
+- `build.gradle.kts` — Gradle build config. Sets `jvmTarget = JVM_1_8` (Android-friendly) with a JDK 17 toolchain. Configures the Vanniktech `maven-publish` plugin for Sonatype Central Portal publishing. Also wires the absolute path of `types/test-cases/reducers/` into the test JVM as the `ahp.reducerFixturesDir` system property so `FixtureDrivenReducerTest` can load fixtures regardless of cwd.
 - `gradle.properties` — Source of truth for the artifact's Maven coordinates (`GROUP`, `VERSION_NAME`) and POM metadata.
 - `gradle/libs.versions.toml` — Version catalog (Kotlin, kotlinx.serialization, JUnit, Vanniktech plugin).
 
@@ -130,9 +131,72 @@ Requires a JDK 17+ on `JAVA_HOME`. Gradle wrapper handles everything else.
 
 ## Out of scope (intentional)
 
-This package currently ships **wire types only**. The following are deferred to follow-up PRs:
+This package currently ships **wire types and pure reducers**. The following are deferred to follow-up PRs:
 
-- Reducer logic (analog of Swift's `AHPRootReducer` / `AHPSessionReducer`)
 - Example Android app (analog of Swift's `AHPClient`)
 - WebSocket transport / async client
 - Kotlin Multiplatform (KMP) build — JVM target is sufficient for current Android consumers
+
+## Reducers
+
+`Reducers.kt` exposes pure reducer functions and their `object`-wrapped equivalents that conform to the `Reducer<S, A>` fun-interface:
+
+```kotlin
+public fun rootReducer(state: RootState, action: StateAction): RootState
+public fun sessionReducer(state: SessionState, action: StateAction): SessionState
+public fun terminalReducer(state: TerminalState, action: StateAction): TerminalState
+public fun changesetReducer(state: ChangesetState, action: StateAction): ChangesetState
+
+public fun interface Reducer<S, A> { public fun reduce(state: S, action: A): S }
+public object RootReducer : Reducer<RootState, StateAction>      // delegates to rootReducer
+public object SessionReducer : Reducer<SessionState, StateAction>
+public object TerminalReducer : Reducer<TerminalState, StateAction>
+public object ChangesetReducer : Reducer<ChangesetState, StateAction>
+```
+
+Each reducer dispatches on the [`StateAction`] sealed interface and handles the action variants that belong to its channel. Actions belonging to other channels (or unknown `StateActionUnknown` variants returned by the wire-types decoder when the server sends a newer action type than this version of the client knows about) fall through to an `else -> state` no-op — this matches the forward-compatibility semantics of the canonical TypeScript and Swift reducers.
+
+### Hand-port from TypeScript
+
+Each reducer is a direct hand-port of the corresponding file in `types/channels-*/reducer.ts`. Notable mechanical translations:
+
+| TypeScript                                                  | Kotlin                                                                              |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `{ ...state, foo: bar }`                                    | `state.copy(foo = bar)`                                                             |
+| `delete next.inputRequests`                                 | `next.copy(inputRequests = null)` (collapses to absent on the wire via `explicitNulls = false`) |
+| `arr.findIndex(...)` + splice in place                      | `arr.indexOfFirst { ... }` + `toMutableList().also { it[idx] = ... }`               |
+| spread of conditional object: `...(opt ? { selectedOption: opt } : {})` | nullable field assignment: `selectedOption = opt`                       |
+| `status & ~STATUS_ACTIVITY_MASK | activity`                 | `SessionStatus((status.rawValue and STATUS_ACTIVITY_MASK.inv()) or activity.rawValue)` |
+| `if (action.confirmed)` (truthy check on optional enum)     | `if (action.confirmed != null)`                                                     |
+
+The Kotlin port preserves Swift parity caveats already documented in PR #115:
+
+1. **`T | null` vs `T?`** — both collapse to nullable Kotlin fields. With `explicitNulls = false`, both encode as absent.
+2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift.
+3. **`StateActionUnknown`** — only the wire `type` string is preserved; the rest of an unknown action's payload is dropped. The reducer treats it as a no-op, which is the documented behavior.
+
+### Injectable timestamp
+
+The session reducer stamps `summary.modifiedAt` whenever it mutates fields that semantically advance the session's modification time (turn lifecycle, title change, agent change, customization update, input request changes, etc.). The stamp comes from a top-level `var`:
+
+```kotlin
+public var currentTimestampProvider: () -> Long = { System.currentTimeMillis() }
+```
+
+Tests override this with a constant to produce deterministic output, then restore the default in `@AfterEach`. The provider is global mutable state; if you parallelize tests across JVM threads, snap a value into a `ThreadLocal` first.
+
+### Cross-language parity tests
+
+`FixtureDrivenReducerTest` loads every fixture under `types/test-cases/reducers/*.json` and verifies that the Kotlin reducer's output matches the fixture's `expected` state. Fixtures are shared with the TypeScript, Swift, and Rust reducer impls, so this test is the primary cross-language parity gate.
+
+The fixture path is wired into the test JVM via the `ahp.reducerFixturesDir` system property in `build.gradle.kts`, so the test works under `./gradlew test`, IDE runs that delegate to Gradle (the IntelliJ default), or CI without depending on the current working directory. When neither Gradle nor a delegating runner sets the property, the test falls back to walking upward from `user.dir` looking for `types/test-cases/reducers/`, so direct IDE JUnit runs from inside the repo still work.
+
+A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped because they exercise wire-type decoding behaviour this package doesn't yet support (e.g. unknown `ResponsePart` discriminators). The `coverageReport().decodable-fixture-budget` assertion bounds the skip set size so regressions surface in CI. As of the initial port, exactly one fixture is skipped:
+
+| Fixture | Why skipped |
+| --- | --- |
+| `103-delta-skips-parts-without-id.json` | Initial state contains a `ResponsePart` with `kind: "unknownFuturePart"`. The generated `ResponsePartSerializer` throws on unknown discriminators (no `ResponsePartUnknown` variant analogous to `StateActionUnknown`). Fixing this is a generator-side wire-types change outside the reducer-port scope. |
+
+### `ReducersTest`
+
+`ReducersTest` covers a handful of behaviors that benefit from explicit local coverage: the `Reducer<S, A>` `object` wrappers delegating to the free functions, `terminal/input` being a no-op (returns the same instance), the queued message reorder algorithm (preserves messages not mentioned in `order`; ignores duplicates and unknown ids), pending steering vs. queued message upsert semantics, and the `currentTimestampProvider` override flowing through.
