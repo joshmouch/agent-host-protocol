@@ -99,7 +99,7 @@ jobs:
 
       - name: Install TypeScript client dependencies
         working-directory: clients/typescript
-        run: npm install
+        run: npm ci
 
       - name: Typecheck TypeScript client
         working-directory: clients/typescript
