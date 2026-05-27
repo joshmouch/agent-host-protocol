@@ -4,17 +4,21 @@ import com.microsoft.agenthostprotocol.generated.ChangesetOperationRangeTarget
 import com.microsoft.agenthostprotocol.generated.ChangesetOperationResourceTarget
 import com.microsoft.agenthostprotocol.generated.ChangesetOperationTarget
 import com.microsoft.agenthostprotocol.generated.ChangesetOperationTargetRange
+import com.microsoft.agenthostprotocol.generated.Customization
+import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.MarkdownResponsePart
 import com.microsoft.agenthostprotocol.generated.ReasoningResponsePart
 import com.microsoft.agenthostprotocol.generated.ResponsePart
 import com.microsoft.agenthostprotocol.generated.ResponsePartKind
 import com.microsoft.agenthostprotocol.generated.ResponsePartMarkdown
 import com.microsoft.agenthostprotocol.generated.ResponsePartReasoning
+import com.microsoft.agenthostprotocol.generated.ResponsePartUnknown
 import com.microsoft.agenthostprotocol.generated.SessionInputNumberQuestion
 import com.microsoft.agenthostprotocol.generated.SessionInputQuestion
 import com.microsoft.agenthostprotocol.generated.SessionInputQuestionNumber
 import com.microsoft.agenthostprotocol.generated.SessionInputQuestionKind
 import com.microsoft.agenthostprotocol.generated.StringOrMarkdown
+import com.microsoft.agenthostprotocol.generated.ToolResultContent
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -176,5 +180,68 @@ class DiscriminatedUnionTest {
         )
         val obj = json.parseToJsonElement(encoded) as JsonObject
         assertEquals(JsonPrimitive("resource"), obj["kind"])
+    }
+
+    @Test
+    fun `ResponsePart unknown kind decodes to ResponsePartUnknown and round-trips`() {
+        // A newer server may emit response part kinds this client has not yet
+        // learned about. The decoder must capture the raw payload in a
+        // forward-compat Unknown variant instead of throwing.
+        val wire = """{"kind":"unknownFuturePart","id":"x1","payload":{"foo":42}}"""
+
+        val decoded = json.decodeFromString(ResponsePart.serializer(), wire)
+        val asUnknown = assertIs<ResponsePartUnknown>(decoded)
+        assertEquals(JsonPrimitive("unknownFuturePart"), asUnknown.raw["kind"])
+        assertEquals(JsonPrimitive("x1"), asUnknown.raw["id"])
+
+        // Re-encoding produces the same JSON tree (semantic round-trip — key
+        // order and whitespace aren't guaranteed but the parsed tree matches).
+        val reEncoded = json.encodeToString(ResponsePart.serializer(), decoded)
+        val reTree = json.parseToJsonElement(reEncoded).jsonObject
+        assertEquals(json.parseToJsonElement(wire).jsonObject, reTree)
+    }
+
+    @Test
+    fun `ToolResultContent unknown type decodes to Unknown and round-trips`() {
+        val wire = """{"type":"futureBlob","payload":{"bytes":"AAEC"}}"""
+
+        val decoded = json.decodeFromString(ToolResultContent.serializer(), wire)
+        val asUnknown = assertIs<ToolResultContent.Unknown>(decoded)
+        assertEquals(JsonPrimitive("futureBlob"), asUnknown.raw["type"])
+
+        val reEncoded = json.encodeToString(ToolResultContent.serializer(), decoded)
+        val reTree = json.parseToJsonElement(reEncoded).jsonObject
+        assertEquals(json.parseToJsonElement(wire).jsonObject, reTree)
+    }
+
+    @Test
+    fun `Customization unknown type decodes to CustomizationUnknown without throwing`() {
+        val wire = """{"type":"futurePlugin","id":"c1","enabled":true}"""
+
+        val decoded = json.decodeFromString(Customization.serializer(), wire)
+        val asUnknown = assertIs<CustomizationUnknown>(decoded)
+        assertEquals(JsonPrimitive("futurePlugin"), asUnknown.raw["type"])
+        assertEquals(JsonPrimitive("c1"), asUnknown.raw["id"])
+
+        val reEncoded = json.encodeToString(Customization.serializer(), decoded)
+        val reTree = json.parseToJsonElement(reEncoded).jsonObject
+        assertEquals(json.parseToJsonElement(wire).jsonObject, reTree)
+    }
+
+    @Test
+    fun `ResponsePart with missing kind decodes to ResponsePartUnknown`() {
+        // A payload missing its discriminator entirely is also routed to the
+        // Unknown variant for forward-compat unions. This matches Rust's
+        // `#[serde(untagged)]` Unknown arm — anything we can't dispatch on
+        // becomes Unknown rather than throwing.
+        val wire = """{"id":"x1","payload":{"foo":42}}"""
+
+        val decoded = json.decodeFromString(ResponsePart.serializer(), wire)
+        val asUnknown = assertIs<ResponsePartUnknown>(decoded)
+        assertEquals(JsonPrimitive("x1"), asUnknown.raw["id"])
+
+        val reEncoded = json.encodeToString(ResponsePart.serializer(), decoded)
+        val reTree = json.parseToJsonElement(reEncoded).jsonObject
+        assertEquals(json.parseToJsonElement(wire).jsonObject, reTree)
     }
 }

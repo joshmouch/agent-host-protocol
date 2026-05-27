@@ -151,6 +151,8 @@ public object ChangesetReducer : Reducer<ChangesetState, StateAction>
 
 Each reducer dispatches on the [`StateAction`] sealed interface and handles the action variants that belong to its channel. Actions belonging to other channels (or unknown `StateActionUnknown` variants returned by the wire-types decoder when the server sends a newer action type than this version of the client knows about) fall through to an `else -> state` no-op — this matches the forward-compatibility semantics of the canonical TypeScript and Swift reducers.
 
+State-channel unions decoded inside actions follow the same principle: when the server emits a discriminator this client doesn't recognise (e.g. a future `ResponsePart` kind, `ToolCallState`, `Customization` type, etc.) the decoder lifts the raw JSON into an `XUnknown` variant rather than throwing. The reducer treats those variants conservatively — `customizationId` returns `null` so an unknown container can't false-match a real id, `SessionCustomizationUpdated` short-circuits to NoOp when the payload is Unknown, and cancellation collapses unknown tool calls to empty cancelled state. These behaviours mirror the Rust reducer exactly.
+
 ### Hand-port from TypeScript
 
 Each reducer is a direct hand-port of the corresponding file in `types/channels-*/reducer.ts`. Notable mechanical translations:
@@ -167,8 +169,8 @@ Each reducer is a direct hand-port of the corresponding file in `types/channels-
 The Kotlin port preserves Swift parity caveats already documented in PR #115:
 
 1. **`T | null` vs `T?`** — both collapse to nullable Kotlin fields. With `explicitNulls = false`, both encode as absent.
-2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift.
-3. **`StateActionUnknown`** — only the wire `type` string is preserved; the rest of an unknown action's payload is dropped. The reducer treats it as a no-op, which is the documented behavior.
+2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift. For forward-compat unions, an *unrecognised* discriminator decodes to the `XUnknown(val raw: JsonObject)` variant (mirrors Rust's `Unknown(serde_json::Value)`) and round-trips its raw payload on re-encode.
+3. **`StateActionUnknown`** — only the wire `type` string is preserved; the rest of an unknown action's payload is dropped. The reducer treats it as a no-op. The newer state-channel `XUnknown` variants (`ResponsePartUnknown`, `ToolCallStateUnknown`, `CustomizationUnknown`, etc.) are not lossy — they capture the full raw JSON object.
 
 ### Injectable timestamp
 
@@ -186,11 +188,7 @@ Tests override this with a constant to produce deterministic output, then restor
 
 The fixture path is wired into the test JVM via the `ahp.reducerFixturesDir` system property in `build.gradle.kts`, so the test works under `./gradlew test`, IDE runs that delegate to Gradle (the IntelliJ default), or CI without depending on the current working directory. When neither Gradle nor a delegating runner sets the property, the test falls back to walking upward from `user.dir` looking for `types/test-cases/reducers/`, so direct IDE JUnit runs from inside the repo still work.
 
-A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped because they exercise wire-type decoding behaviour this package doesn't yet support (e.g. unknown `ResponsePart` discriminators). The `coverageReport().decodable-fixture-budget` assertion bounds the skip set size so regressions surface in CI. As of the initial port, exactly one fixture is skipped:
-
-| Fixture | Why skipped |
-| --- | --- |
-| `103-delta-skips-parts-without-id.json` | Initial state contains a `ResponsePart` with `kind: "unknownFuturePart"`. The generated `ResponsePartSerializer` throws on unknown discriminators (no `ResponsePartUnknown` variant analogous to `StateActionUnknown`). Fixing this is a generator-side wire-types change outside the reducer-port scope. |
+A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped because they exercise wire-type decoding behaviour this package doesn't yet support. The `coverageReport().decodable-fixture-budget` assertion bounds the skip set size so regressions surface in CI. The full reducer fixture corpus is currently covered (`SKIPPED_FIXTURES` is empty and `MAX_SKIPPED_FIXTURES = 0`). Forward-compat coverage for unknown discriminators on state-channel unions (`ResponsePart`, `ToolCallState`, `Customization`, …) is exercised by `103-delta-skips-parts-without-id.json` and the dedicated round-trip tests in `DiscriminatedUnionTest`.
 
 ### `ReducersTest`
 
