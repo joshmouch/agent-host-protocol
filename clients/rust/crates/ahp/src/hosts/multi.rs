@@ -1,14 +1,16 @@
 //! `MultiHostClient` facade.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex as StdMutex};
 
 use tokio::sync::{broadcast, RwLock};
 
+use super::client_id_store::{ClientIdStore, InMemoryClientIdStore};
 use super::runtime::{spawn, HostHandleTx};
 use super::types::{
-    HostClientHandle, HostConfig, HostError, HostEvent, HostEventStream, HostHandle, HostId,
-    HostState, HostSubscriptionEvent, HostSubscriptionStream, HostedAgent, HostedSessionSummary,
+    generate_client_id, HostClientHandle, HostConfig, HostError, HostEvent, HostEventStream,
+    HostHandle, HostId, HostState, HostSubscriptionEvent, HostSubscriptionStream, HostedAgent,
+    HostedSessionSummary,
 };
 
 /// Buffer size for the cross-host fan-in broadcasts.
@@ -27,6 +29,7 @@ const DEFAULT_EVENT_BUFFER: usize = 1024;
 /// - [`MultiHostClient::events`] / [`MultiHostClient::host_events`].
 /// - [`MultiHostClient::aggregated_sessions`] /
 ///   [`MultiHostClient::aggregated_agents`].
+/// - [`MultiHostClient::reconnect_all_unavailable`].
 #[derive(Clone)]
 pub struct MultiHostClient {
     inner: Arc<MultiInner>,
@@ -34,20 +37,48 @@ pub struct MultiHostClient {
 
 struct MultiInner {
     hosts: RwLock<HashMap<HostId, HostHandleTx>>,
+    /// Host ids that are currently mid-`add_host` (between the
+    /// duplicate check and the supervisor spawn). Used to keep
+    /// concurrent `add_host` calls for the same id from both slipping
+    /// past the duplicate check while one of them is awaiting on the
+    /// [`ClientIdStore`].
+    ///
+    /// Held as a [`std::sync::Mutex`] (not a tokio mutex) so the
+    /// [`PendingHostGuard`] RAII drop path can clear cancelled
+    /// reservations synchronously without needing to await — otherwise
+    /// a cancelled `add_host` future would permanently poison the
+    /// registry for that host id.
+    pending_host_ids: StdMutex<HashSet<HostId>>,
     fan_out: broadcast::Sender<HostSubscriptionEvent>,
     host_events: broadcast::Sender<HostEvent>,
+    client_id_store: Arc<dyn ClientIdStore>,
 }
 
 impl MultiHostClient {
-    /// Build an empty multi-host client.
+    /// Build an empty multi-host client using the default
+    /// [`InMemoryClientIdStore`].
     pub fn new() -> Self {
+        Self::with_client_id_store(Arc::new(InMemoryClientIdStore::new()))
+    }
+
+    /// Build an empty multi-host client backed by a caller-supplied
+    /// [`ClientIdStore`].
+    ///
+    /// Use this when you want `clientId`s to persist across launches
+    /// (e.g. plug in [`super::FileClientIdStore`] or your own
+    /// keychain-backed implementation). With the default
+    /// [`InMemoryClientIdStore`], ids are stable within a single
+    /// process but reset on restart.
+    pub fn with_client_id_store(client_id_store: Arc<dyn ClientIdStore>) -> Self {
         let (fan_out, _) = broadcast::channel(DEFAULT_EVENT_BUFFER);
         let (host_events, _) = broadcast::channel(DEFAULT_EVENT_BUFFER);
         Self {
             inner: Arc::new(MultiInner {
                 hosts: RwLock::new(HashMap::new()),
+                pending_host_ids: StdMutex::new(HashSet::new()),
                 fan_out,
                 host_events,
+                client_id_store,
             }),
         }
     }
@@ -80,39 +111,114 @@ impl MultiHostClient {
     /// `Connecting`, or already `Reconnecting` if the first attempt
     /// failed.
     ///
-    /// This call is non-blocking with respect to the host's own
-    /// supervisor: the snapshot is read directly from per-host shared
-    /// state, never via the supervisor's command channel. A slow or
-    /// hung transport factory therefore cannot block other registry
+    /// `clientId` is resolved here, before the supervisor is spawned:
+    /// `HostConfig::client_id == Some(explicit)` wins outright,
+    /// otherwise the configured [`ClientIdStore`] is consulted; if it
+    /// returns no value a fresh UUID is generated. The resolved id is
+    /// always written back into the store.
+    ///
+    /// The actual snapshot read uses per-host shared state directly,
+    /// never the supervisor's command channel — a slow or hung
+    /// transport factory therefore cannot block other registry
     /// operations.
     ///
-    /// Returns [`HostError::DuplicateHost`] if the host id is already in
-    /// use; remove the existing host first.
+    /// Returns [`HostError::DuplicateHost`] if the host id is already
+    /// in use (or is currently being added by a concurrent caller);
+    /// remove the existing host first. Returns
+    /// [`HostError::ClientIdStore`] if the configured store fails to
+    /// load or persist the host's `clientId`.
     pub async fn add_host(&self, config: HostConfig) -> Result<HostHandle, HostError> {
         let id = config.id.clone();
+
+        // Reserve the id under both locks before any await. The
+        // pending-id lock is a `std::sync::Mutex` so a cancelled
+        // `add_host` future drops the `PendingHostGuard` and the
+        // reservation is cleared synchronously — without it, a
+        // cancellation between here and the install path would
+        // permanently poison the registry for this id.
+        let mut pending_guard = {
+            let hosts = self.inner.hosts.read().await;
+            let mut pending = self
+                .inner
+                .pending_host_ids
+                .lock()
+                .expect("pending_host_ids mutex poisoned");
+            if hosts.contains_key(&id) || pending.contains(&id) {
+                return Err(HostError::DuplicateHost(id));
+            }
+            pending.insert(id.clone());
+            PendingHostGuard {
+                inner: self.inner.clone(),
+                id: id.clone(),
+                armed: true,
+            }
+        };
+
+        // Resolve clientId. The guard's `Drop` cleans up the
+        // reservation if this await is cancelled or returns an error.
+        let resolved = self
+            .resolve_client_id(&id, config.client_id.as_deref())
+            .await?;
+
+        // Install the supervisor.
         let shared = {
-            // Reserve the id atomically — release the write lock before
-            // awaiting anything so a slow connect path can't block other
-            // registry operations behind us.
             let mut hosts = self.inner.hosts.write().await;
+            // Defensive: a `remove_host` could have re-added the id
+            // while we were resolving the client id. Treat that as a
+            // duplicate too. The guard still clears `pending` on drop.
             if hosts.contains_key(&id) {
                 return Err(HostError::DuplicateHost(id));
             }
             let tx = spawn(
                 config,
+                resolved,
                 self.inner.fan_out.clone(),
                 self.inner.host_events.clone(),
             );
             let shared = tx.shared.clone();
-            hosts.insert(id, tx);
+            hosts.insert(id.clone(), tx);
             shared
         };
-        // Snapshot directly from per-host shared state. Doing this via
-        // the supervisor's command channel would block here when the
-        // supervisor is busy in `connect_once` (e.g. a hung transport
-        // factory) — see Copilot review on #121 for the bug this avoids.
+
+        // Host is fully installed — clear the reservation explicitly
+        // and disarm so `Drop` is a no-op.
+        pending_guard.commit();
+
         let snapshot = shared.lock().await.snapshot();
         Ok(snapshot)
+    }
+
+    /// Resolve a host's `clientId` per the rules described on
+    /// [`HostConfig::client_id`]. Explicit values always win and are
+    /// persisted; otherwise the store wins; otherwise a fresh UUID is
+    /// generated and persisted.
+    async fn resolve_client_id(
+        &self,
+        host_id: &HostId,
+        explicit: Option<&str>,
+    ) -> Result<String, HostError> {
+        let store = &self.inner.client_id_store;
+        let resolved = if let Some(value) = explicit {
+            value.to_owned()
+        } else {
+            match store.load(host_id.clone()).await {
+                Ok(Some(stored)) => stored,
+                Ok(None) => generate_client_id(),
+                Err(error) => {
+                    return Err(HostError::ClientIdStore {
+                        host: host_id.clone(),
+                        error,
+                    })
+                }
+            }
+        };
+        if let Err(error) = store.store(host_id.clone(), resolved.clone()).await {
+            return Err(HostError::ClientIdStore {
+                host: host_id.clone(),
+                error,
+            });
+        }
+        Ok(resolved)
     }
 
     /// Remove a host, cancelling its supervisor task and dropping its
@@ -158,6 +264,90 @@ impl MultiHostClient {
             .await
             .map_err(|_| HostError::HostShutDown(id.clone()))?;
         Ok(())
+    }
+
+    /// Trigger a manual reconnect on every registered host that is
+    /// **not** currently [`HostState::Connected`] or
+    /// [`HostState::Connecting`] — i.e. hosts in
+    /// [`HostState::Disconnected`], [`HostState::Reconnecting`], or
+    /// [`HostState::Failed`]. Hosts already connected (or actively
+    /// connecting) are skipped.
+    ///
+    /// Designed for the mobile scene-phase pattern: when the app
+    /// returns from background, call this to wake every host the user
+    /// has been away from instead of writing the loop in every
+    /// consumer. Useful in particular for [`HostState::Failed`] hosts
+    /// whose reconnect policy is exhausted — a manual reconnect
+    /// bypasses the policy and starts a fresh attempt.
+    ///
+    /// Reconnect requests are dispatched concurrently; this method
+    /// returns once every targeted supervisor has either acknowledged
+    /// its request or failed. Per-host errors are collected into the
+    /// returned map; the call itself never errors.
+    pub async fn reconnect_all_unavailable(&self) -> HashMap<HostId, HostError> {
+        // Snapshot the registry first so the actual reconnect requests
+        // run without holding the registry lock.
+        let snapshots: Vec<(HostId, Arc<super::types::HostShared>)> = {
+            let hosts = self.inner.hosts.read().await;
+            let mut out = Vec::with_capacity(hosts.len());
+            for (id, entry) in hosts.iter() {
+                out.push((id.clone(), entry.shared.clone()));
+            }
+            out
+        };
+
+        let mut targets: Vec<HostId> = Vec::new();
+        for (id, shared) in snapshots {
+            let state = shared.lock().await.state.clone();
+            match state {
+                HostState::Connected | HostState::Connecting => continue,
+                HostState::Disconnected
+                | HostState::Reconnecting { .. }
+                | HostState::Failed { .. } => {
+                    targets.push(id);
+                }
+            }
+        }
+
+        if targets.is_empty() {
+            return HashMap::new();
+        }
+
+        // Keep parallel `(HostId, JoinHandle)` pairs so a panicked /
+        // cancelled task can still be attributed back to its host
+        // instead of being silently swallowed.
+        let mut handles: Vec<(HostId, tokio::task::JoinHandle<Result<(), HostError>>)> =
+            Vec::with_capacity(targets.len());
+        for id in targets {
+            let multi = self.clone();
+            let task_id = id.clone();
+            handles.push((
+                id,
+                tokio::spawn(async move { multi.reconnect_host(&task_id).await }),
+            ));
+        }
+
+        let mut errors = HashMap::new();
+        for (id, handle) in handles {
+            match handle.await {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    errors.insert(id, err);
+                }
+                Err(join_err) => {
+                    // Panicked or cancelled reconnect task — surface it
+                    // as `HostShutDown` against the correct host id so
+                    // callers don't lose the failure.
+                    tracing::error!(
+                        host_id = %id,
+                        error = ?join_err,
+                        "reconnect task failed to join"
+                    );
+                    errors.insert(id.clone(), HostError::HostShutDown(id));
+                }
+            }
+        }
+        errors
     }
 
     /// Snapshot the current state of `id`.
@@ -328,6 +518,56 @@ impl Default for MultiHostClient {
 impl std::fmt::Debug for MultiHostClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MultiHostClient").finish_non_exhaustive()
+    }
+}
+
+/// RAII reservation for a host id in `MultiInner::pending_host_ids`.
+///
+/// Inserted by [`MultiHostClient::add_host`] just before the
+/// `ClientIdStore` await; cleared either explicitly via
+/// [`PendingHostGuard::commit`] on success, or synchronously from
+/// [`Drop`] on any error / cancellation path. Without this guard, a
+/// future cancellation between the reservation and the install path
+/// would permanently poison the registry for that host id (all later
+/// `add_host` calls would return `DuplicateHost`).
+///
+/// Cancellation safety relies on `pending_host_ids` being a
+/// [`std::sync::Mutex`] (not a tokio mutex), so `Drop` can acquire it
+/// synchronously without an await.
+struct PendingHostGuard {
+    inner: Arc<MultiInner>,
+    id: HostId,
+    armed: bool,
+}
+
+impl PendingHostGuard {
+    /// Successfully installed the host — clear the reservation now and
+    /// disarm so `Drop` is a no-op.
+    fn commit(&mut self) {
+        if self.armed {
+            self.remove_pending();
+            self.armed = false;
+        }
+    }
+
+    fn remove_pending(&self) {
+        // `expect` on the std mutex matches `add_host` itself —
+        // poisoning indicates a panic while holding the lock, which is
+        // already a hard error.
+        let mut pending = self
+            .inner
+            .pending_host_ids
+            .lock()
+            .expect("pending_host_ids mutex poisoned");
+        pending.remove(&self.id);
+    }
+}
+
+impl Drop for PendingHostGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            self.remove_pending();
+        }
     }
 }
 

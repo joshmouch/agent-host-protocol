@@ -103,17 +103,28 @@ impl PartialEq for HostState {
 /// # `client_id`
 ///
 /// Each host needs a stable `clientId` so the AHP `reconnect` flow
-/// works across launches. By default [`HostConfig::new`] generates a
-/// session-stable UUID; pass [`HostConfig::with_client_id`] (typically
-/// loaded from your app's keychain or settings store) for a value that
-/// survives restarts.
+/// works across launches. The field is intentionally optional:
+///
+/// - [`HostConfig::with_client_id`] sets `Some(explicit)` — explicit
+///   values always win over any [`super::ClientIdStore`] entry, and
+///   the explicit value is also persisted into the store on the first
+///   `add_host`.
+/// - `None` (the default) defers resolution to `add_host`: it consults
+///   the configured store, returns the stored id if any, otherwise
+///   generates a fresh UUID and persists it.
+///
+/// Single-process apps that just want session-stable ids can stick
+/// with the default ([`super::InMemoryClientIdStore`]). Apps that need
+/// cross-launch identity should plug in [`super::FileClientIdStore`]
+/// via [`super::MultiHostClient::with_client_id_store`].
 pub struct HostConfig {
     /// Stable host identifier.
     pub id: HostId,
     /// Human-readable label. Surfaced through [`HostHandle::label`].
     pub label: String,
-    /// `clientId` sent to this host on `initialize` / `reconnect`.
-    pub client_id: String,
+    /// Optional explicit `clientId` to send on `initialize` /
+    /// `reconnect`. See the type-level docs for resolution semantics.
+    pub client_id: Option<String>,
     /// URIs to include in the `initialize` handshake. Defaults to
     /// `["ahp-root://"]` so root state is always tracked.
     pub initial_subscriptions: Vec<String>,
@@ -128,10 +139,10 @@ pub struct HostConfig {
 impl HostConfig {
     /// Build a [`HostConfig`] with sensible defaults.
     ///
-    /// Generates a fresh, session-stable `clientId`. If you want
-    /// reconnect identity to survive process restarts, persist the id
-    /// you supply here yourself and pass it via
-    /// [`HostConfig::with_client_id`] on subsequent launches.
+    /// Leaves `client_id` as `None` so the multi-host client resolves
+    /// it against the configured [`super::ClientIdStore`] (or generates
+    /// a fresh UUID if the store is empty for this host). Call
+    /// [`HostConfig::with_client_id`] to force a specific value.
     pub fn new(
         id: impl Into<HostId>,
         label: impl Into<String>,
@@ -140,7 +151,7 @@ impl HostConfig {
         Self {
             id: id.into(),
             label: label.into(),
-            client_id: generate_client_id(),
+            client_id: None,
             initial_subscriptions: vec![ahp_types::ROOT_RESOURCE_URI.to_string()],
             client_config: ClientConfig::default(),
             transport_factory: Arc::new(transport_factory),
@@ -148,9 +159,12 @@ impl HostConfig {
         }
     }
 
-    /// Override the `clientId` for this host.
+    /// Force a specific `clientId` for this host. The supplied value
+    /// always wins over any stored id and is also written back into
+    /// the configured store on the first `add_host` so subsequent
+    /// launches reuse it transparently.
     pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
-        self.client_id = client_id.into();
+        self.client_id = Some(client_id.into());
         self
     }
 
@@ -274,6 +288,19 @@ pub enum HostError {
     /// removed, or the multi-host client was dropped).
     #[error("host {0} runtime is no longer active")]
     HostShutDown(HostId),
+
+    /// The configured [`super::ClientIdStore`] failed to load or persist
+    /// a host's `clientId`. Surfaced from
+    /// [`super::MultiHostClient::add_host`] when the underlying I/O
+    /// fails (e.g. `FileClientIdStore` can't read its directory).
+    #[error("client id store error for host {host}: {error}")]
+    ClientIdStore {
+        /// The host whose id couldn't be loaded or persisted.
+        host: HostId,
+        /// Underlying I/O error from the store.
+        #[source]
+        error: std::io::Error,
+    },
 
     /// A request bubbled up an error from the underlying [`Client`].
     #[error(transparent)]
