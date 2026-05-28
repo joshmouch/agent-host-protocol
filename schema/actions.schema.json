@@ -4288,7 +4288,7 @@
     },
     "DirectoryCustomization": {
       "type": "object",
-      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/commands#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
+      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/common#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
       "properties": {
         "id": {
           "type": "string",

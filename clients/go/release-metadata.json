@@ -1,0 +1,7 @@
+{
+  "client": "go",
+  "packageVersion": "0.1.0",
+  "supportedProtocolVersions": [
+    "0.2.0"
+  ]
+}

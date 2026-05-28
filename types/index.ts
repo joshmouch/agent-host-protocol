@@ -335,6 +335,7 @@ export type {
 // Version registry
 export {
   PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
   ACTION_INTRODUCED_IN,
   NOTIFICATION_INTRODUCED_IN,
   isActionKnownToVersion,

@@ -21,6 +21,7 @@ import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
 
@@ -1386,22 +1387,25 @@ pub type ActionNotificationParams = ActionEnvelope;
 // ─── Version File Generator ──────────────────────────────────────────────────
 
 function generateVersionFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName().endsWith('registry.ts'));
-  let protocolVersion = '0.1.0';
-  if (sf) {
-    for (const decl of sf.getVariableDeclarations()) {
-      const init = decl.getInitializer()?.getText() ?? '';
-      // Initializers are TS source text, e.g. `'0.1.0'`. Strip surrounding quotes.
-      const literal = init.replace(/^['"`]|['"`]$/g, '');
-      if (decl.getName() === 'PROTOCOL_VERSION' && literal) {
-        protocolVersion = literal;
-      }
-    }
-  }
+  const { current, supported } = readProtocolVersions(project);
+
+  const supportedLiteral = supported
+    .map((v) => `    ${JSON.stringify(v)},`)
+    .join('\n');
 
   return `${GENERATED_BANNER}
 /// Current protocol version (SemVer \`MAJOR.MINOR.PATCH\`).
-pub const PROTOCOL_VERSION: &str = ${JSON.stringify(protocolVersion)};
+pub const PROTOCOL_VERSION: &str = ${JSON.stringify(current)};
+
+/// Every protocol version this crate is willing to negotiate, ordered
+/// most-preferred-first. The first entry equals [\`PROTOCOL_VERSION\`].
+///
+/// Consumers building \`InitializeParams\` should pass this slice (or a
+/// derived \`Vec<String>\`) so the same client binary can fall back to
+/// older protocol versions if the host doesn't accept the newest one.
+pub const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &[
+${supportedLiteral}
+];
 `;
 }
 

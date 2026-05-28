@@ -1,0 +1,142 @@
+name: Publish Go Module
+
+on:
+  push:
+    tags:
+      # Go module proxy requires the tag prefix to match the module's
+      # directory inside the repo for nested-module resolution to work.
+      # https://go.dev/ref/mod#vcs-version
+      - "clients/go/v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-go-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: clients/go
+
+jobs:
+  # Re-run every gate the per-PR CI runs, plus tag ↔ VERSION cross-check,
+  # before announcing the release.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: clients/go/go.sum
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # The Go module proxy will index whatever commit the tag points
+      # at, so the source must already match what `generate:go` would
+      # emit at this moment.
+      - name: Verify generated Go is up to date
+        working-directory: .
+        run: |
+          npm run generate:go
+          if [ -n "$(git status --porcelain -- clients/go)" ]; then
+            echo "::error::Generated Go sources are out of date. Run 'npm run generate:go' and commit the result before tagging."
+            git status --porcelain -- clients/go
+            git --no-pager diff -- clients/go
+            exit 1
+          fi
+
+      - name: Verify release metadata
+        working-directory: .
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entry exists
+        working-directory: .
+        run: npm run verify:changelog
+
+      # Belt and suspenders: also check the tag's exact version, which
+      # may differ from the in-tree VERSION on a racy commit. Catches
+      # "tagged a version that isn't in the checked-out source's
+      # CHANGELOG."
+      - name: Verify CHANGELOG entry exists for tag version
+        working-directory: .
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#clients/go/v}"
+          if ! grep -qE "^## \[$TAG_VERSION\]" clients/go/CHANGELOG.md; then
+            echo "::error::clients/go/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
+
+      - name: Verify tag matches clients/go/VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#clients/go/v}"
+          FILE_VERSION="$(cat VERSION | tr -d '[:space:]')"
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match clients/go/VERSION ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "Releasing Go module version $FILE_VERSION"
+
+      - name: Check formatting
+        run: |
+          OUT=$(gofmt -l .)
+          if [ -n "$OUT" ]; then
+            echo "::error::gofmt -l reported uncommitted formatting changes:"
+            echo "$OUT"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  # Notify the Go module proxy by warming the URL Go developers will hit
+  # to fetch the new version, then publish a GitHub Release with the
+  # CHANGELOG section for the tag as the body.
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Warm the Go module proxy
+        working-directory: .
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#clients/go/v}"
+          go env -w GOPROXY=https://proxy.golang.org,direct
+          # Trigger the proxy to fetch the new version. The first GET
+          # request causes the proxy to index the tag.
+          GOFLAGS=-mod=mod go list -m "github.com/microsoft/agent-host-protocol/clients/go@v${TAG_VERSION}" || true
+
+      - name: Create GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#clients/go/v}"
+          # Pull the matching ## [X.Y.Z] section out of the CHANGELOG
+          # for the release body. awk prints lines between the header
+          # we want and the next "## " header.
+          NOTES=$(awk "/^## \\[$TAG_VERSION\\]/{flag=1;print;next} /^## /{flag=0} flag" clients/go/CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release notes: see clients/go/CHANGELOG.md"
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "Go module v${TAG_VERSION}" \
+            --notes "$NOTES"

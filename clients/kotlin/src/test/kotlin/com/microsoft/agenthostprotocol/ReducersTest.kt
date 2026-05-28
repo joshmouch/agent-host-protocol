@@ -1,0 +1,358 @@
+package com.microsoft.agenthostprotocol
+
+import com.microsoft.agenthostprotocol.generated.AgentInfo
+import com.microsoft.agenthostprotocol.generated.ChangesetFile
+import com.microsoft.agenthostprotocol.generated.ChangesetState
+import com.microsoft.agenthostprotocol.generated.ChangesetStatus
+import com.microsoft.agenthostprotocol.generated.ChangesetStatusChangedAction
+import com.microsoft.agenthostprotocol.generated.ActionType
+import com.microsoft.agenthostprotocol.generated.ChangesetClearedAction
+import com.microsoft.agenthostprotocol.generated.ChangesetFileSetAction
+import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
+import com.microsoft.agenthostprotocol.generated.ErrorInfo
+import com.microsoft.agenthostprotocol.generated.FileEdit
+import com.microsoft.agenthostprotocol.generated.PendingMessage
+import com.microsoft.agenthostprotocol.generated.PendingMessageKind
+import com.microsoft.agenthostprotocol.generated.RootAgentsChangedAction
+import com.microsoft.agenthostprotocol.generated.RootState
+import com.microsoft.agenthostprotocol.generated.SessionCustomizationUpdatedAction
+import com.microsoft.agenthostprotocol.generated.SessionLifecycle
+import com.microsoft.agenthostprotocol.generated.SessionPendingMessageSetAction
+import com.microsoft.agenthostprotocol.generated.SessionQueuedMessagesReorderedAction
+import com.microsoft.agenthostprotocol.generated.SessionState
+import com.microsoft.agenthostprotocol.generated.SessionStatus
+import com.microsoft.agenthostprotocol.generated.SessionSummary
+import com.microsoft.agenthostprotocol.generated.SessionTitleChangedAction
+import com.microsoft.agenthostprotocol.generated.StateActionChangesetCleared
+import com.microsoft.agenthostprotocol.generated.StateActionChangesetFileSet
+import com.microsoft.agenthostprotocol.generated.StateActionChangesetStatusChanged
+import com.microsoft.agenthostprotocol.generated.StateActionRootAgentsChanged
+import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationUpdated
+import com.microsoft.agenthostprotocol.generated.StateActionSessionPendingMessageSet
+import com.microsoft.agenthostprotocol.generated.StateActionSessionQueuedMessagesReordered
+import com.microsoft.agenthostprotocol.generated.StateActionSessionTitleChanged
+import com.microsoft.agenthostprotocol.generated.StateActionTerminalData
+import com.microsoft.agenthostprotocol.generated.StateActionTerminalInput
+import com.microsoft.agenthostprotocol.generated.TerminalClientClaim
+import com.microsoft.agenthostprotocol.generated.TerminalClaimClient
+import com.microsoft.agenthostprotocol.generated.TerminalClaimKind
+import com.microsoft.agenthostprotocol.generated.TerminalContentPartUnclassified
+import com.microsoft.agenthostprotocol.generated.TerminalDataAction
+import com.microsoft.agenthostprotocol.generated.TerminalInputAction
+import com.microsoft.agenthostprotocol.generated.TerminalState
+import com.microsoft.agenthostprotocol.generated.UserMessage
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertSame
+import kotlin.test.assertTrue
+
+/**
+ * Focused unit tests covering the reducer module's public surface, the
+ * `Reducer<S, A>` fun-interface wrapper, and a handful of tricky behaviors
+ * (queued message reorder algorithm, timestamp provider override). Broad
+ * behavior parity is verified by [FixtureDrivenReducerTest] against the
+ * shared cross-language fixtures.
+ */
+class ReducersTest {
+
+    private var originalProvider: (() -> Long)? = null
+
+    @BeforeEach
+    fun mockTimestamp() {
+        originalProvider = currentTimestampProvider
+        currentTimestampProvider = { MOCK_NOW }
+    }
+
+    @AfterEach
+    fun restoreTimestamp() {
+        originalProvider?.let { currentTimestampProvider = it }
+        originalProvider = null
+    }
+
+    @Test
+    fun `Reducer object wrappers delegate to free functions`() {
+        // RootReducer
+        val rootBefore = RootState(agents = emptyList())
+        val agents = listOf(
+            AgentInfo(
+                provider = "copilot",
+                displayName = "Copilot",
+                description = "AI",
+                models = emptyList(),
+            ),
+        )
+        val rootAction = StateActionRootAgentsChanged(
+            RootAgentsChangedAction(type = ActionType.ROOT_AGENTS_CHANGED, agents = agents),
+        )
+        val rootViaFn = rootReducer(rootBefore, rootAction)
+        val rootViaObj = RootReducer.reduce(rootBefore, rootAction)
+        assertEquals(rootViaFn, rootViaObj)
+        assertEquals(agents, rootViaObj.agents)
+
+        // SessionReducer
+        val session = newSession()
+        val titleAction = StateActionSessionTitleChanged(
+            SessionTitleChangedAction(type = ActionType.SESSION_TITLE_CHANGED, title = "New Title"),
+        )
+        val viaFn = sessionReducer(session, titleAction)
+        val viaObj = SessionReducer.reduce(session, titleAction)
+        assertEquals(viaFn, viaObj)
+        assertEquals("New Title", viaObj.summary.title)
+        assertEquals(MOCK_NOW, viaObj.summary.modifiedAt)
+
+        // ChangesetReducer
+        val cs = ChangesetState(status = ChangesetStatus.READY, files = emptyList())
+        val statusAction = StateActionChangesetStatusChanged(
+            ChangesetStatusChangedAction(
+                type = ActionType.CHANGESET_STATUS_CHANGED,
+                status = ChangesetStatus.ERROR,
+                error = ErrorInfo(errorType = "X", message = "boom"),
+            ),
+        )
+        val csFn = changesetReducer(cs, statusAction)
+        val csObj = ChangesetReducer.reduce(cs, statusAction)
+        assertEquals(csFn, csObj)
+        assertEquals(ChangesetStatus.ERROR, csObj.status)
+        assertEquals("boom", csObj.error?.message)
+
+        // TerminalReducer
+        val term = TerminalState(
+            title = "term",
+            content = emptyList(),
+            claim = TerminalClaimClient(
+                TerminalClientClaim(kind = TerminalClaimKind.CLIENT, clientId = "c-1"),
+            ),
+        )
+        val dataAction = StateActionTerminalData(
+            TerminalDataAction(type = ActionType.TERMINAL_DATA, data = "hello"),
+        )
+        val termFn = terminalReducer(term, dataAction)
+        val termObj = TerminalReducer.reduce(term, dataAction)
+        assertEquals(termFn, termObj)
+        val part = termObj.content.single()
+        assertIs<TerminalContentPartUnclassified>(part)
+        assertEquals("hello", part.value.value)
+    }
+
+    @Test
+    fun `terminal_input is a no-op`() {
+        val term = TerminalState(
+            title = "term",
+            content = listOf(
+                TerminalContentPartUnclassified(
+                    com.microsoft.agenthostprotocol.generated.TerminalUnclassifiedPart(
+                        type = "unclassified",
+                        value = "before",
+                    ),
+                ),
+            ),
+            claim = TerminalClaimClient(
+                TerminalClientClaim(kind = TerminalClaimKind.CLIENT, clientId = "c-1"),
+            ),
+        )
+        val input = StateActionTerminalInput(
+            TerminalInputAction(type = ActionType.TERMINAL_INPUT, data = "ls"),
+        )
+        // Identity equality (===) verifies the reducer returned the exact
+        // same instance rather than producing a new equal value.
+        assertSame(term, terminalReducer(term, input))
+    }
+
+    @Test
+    fun `queued message reorder preserves messages not mentioned in order`() {
+        val original = listOf(
+            PendingMessage(id = "m1", userMessage = UserMessage(text = "1")),
+            PendingMessage(id = "m2", userMessage = UserMessage(text = "2")),
+            PendingMessage(id = "m3", userMessage = UserMessage(text = "3")),
+        )
+        val session = newSession().copy(queuedMessages = original)
+        val reorder = StateActionSessionQueuedMessagesReordered(
+            SessionQueuedMessagesReorderedAction(
+                type = ActionType.SESSION_QUEUED_MESSAGES_REORDERED,
+                order = listOf("m3", "m1"),
+            ),
+        )
+        val result = sessionReducer(session, reorder)
+        assertEquals(listOf("m3", "m1", "m2"), result.queuedMessages?.map { it.id })
+    }
+
+    @Test
+    fun `queued message reorder ignores duplicate and unknown ids`() {
+        val original = listOf(
+            PendingMessage(id = "m1", userMessage = UserMessage(text = "1")),
+            PendingMessage(id = "m2", userMessage = UserMessage(text = "2")),
+        )
+        val session = newSession().copy(queuedMessages = original)
+        val reorder = StateActionSessionQueuedMessagesReordered(
+            SessionQueuedMessagesReorderedAction(
+                type = ActionType.SESSION_QUEUED_MESSAGES_REORDERED,
+                order = listOf("m2", "m999", "m2", "m1"),
+            ),
+        )
+        val result = sessionReducer(session, reorder)
+        assertEquals(listOf("m2", "m1"), result.queuedMessages?.map { it.id })
+    }
+
+    @Test
+    fun `pendingMessageSet upserts steering and queued messages distinctly`() {
+        val session = newSession()
+        val setSteering = StateActionSessionPendingMessageSet(
+            SessionPendingMessageSetAction(
+                type = ActionType.SESSION_PENDING_MESSAGE_SET,
+                kind = PendingMessageKind.STEERING,
+                id = "s1",
+                userMessage = UserMessage(text = "steer"),
+            ),
+        )
+        val withSteering = sessionReducer(session, setSteering)
+        assertEquals("s1", withSteering.steeringMessage?.id)
+        assertNull(withSteering.queuedMessages)
+
+        val setQueued1 = StateActionSessionPendingMessageSet(
+            SessionPendingMessageSetAction(
+                type = ActionType.SESSION_PENDING_MESSAGE_SET,
+                kind = PendingMessageKind.QUEUED,
+                id = "q1",
+                userMessage = UserMessage(text = "q-1"),
+            ),
+        )
+        val setQueued2 = StateActionSessionPendingMessageSet(
+            SessionPendingMessageSetAction(
+                type = ActionType.SESSION_PENDING_MESSAGE_SET,
+                kind = PendingMessageKind.QUEUED,
+                id = "q2",
+                userMessage = UserMessage(text = "q-2"),
+            ),
+        )
+        val withTwo = sessionReducer(sessionReducer(withSteering, setQueued1), setQueued2)
+        assertEquals(listOf("q1", "q2"), withTwo.queuedMessages?.map { it.id })
+
+        // Re-setting q1 with a new body should replace in place rather than append.
+        val replaceQueued1 = StateActionSessionPendingMessageSet(
+            SessionPendingMessageSetAction(
+                type = ActionType.SESSION_PENDING_MESSAGE_SET,
+                kind = PendingMessageKind.QUEUED,
+                id = "q1",
+                userMessage = UserMessage(text = "q-1-revised"),
+            ),
+        )
+        val withReplacement = sessionReducer(withTwo, replaceQueued1)
+        assertEquals(listOf("q1", "q2"), withReplacement.queuedMessages?.map { it.id })
+        assertEquals("q-1-revised", withReplacement.queuedMessages?.first()?.userMessage?.text)
+    }
+
+    @Test
+    fun `currentTimestampProvider override flows through to reducer outputs`() {
+        currentTimestampProvider = { 12345L }
+        val session = newSession()
+        val titleAction = StateActionSessionTitleChanged(
+            SessionTitleChangedAction(type = ActionType.SESSION_TITLE_CHANGED, title = "X"),
+        )
+        val result = sessionReducer(session, titleAction)
+        assertEquals(12345L, result.summary.modifiedAt)
+    }
+
+    @Test
+    fun `actions from other channels are no-ops`() {
+        // A root reducer should ignore session actions, and vice versa.
+        val session = newSession().copy(summary = newSession().summary.copy(title = "before"))
+        val rootAction = StateActionRootAgentsChanged(
+            RootAgentsChangedAction(type = ActionType.ROOT_AGENTS_CHANGED, agents = emptyList()),
+        )
+        // Session reducer should leave session state unchanged when handed a root action.
+        assertSame(session, sessionReducer(session, rootAction))
+
+        val rootBefore = RootState(agents = emptyList())
+        val sessionAction = StateActionSessionTitleChanged(
+            SessionTitleChangedAction(type = ActionType.SESSION_TITLE_CHANGED, title = "X"),
+        )
+        // Root reducer should leave root state unchanged when handed a session action.
+        assertSame(rootBefore, rootReducer(rootBefore, sessionAction))
+    }
+
+    @Test
+    fun `changeset reducer cleared returns identity on already-empty state`() {
+        val cs = ChangesetState(status = ChangesetStatus.READY, files = emptyList())
+        val cleared = StateActionChangesetCleared(
+            com.microsoft.agenthostprotocol.generated.ChangesetClearedAction(
+                type = ActionType.CHANGESET_CLEARED,
+            ),
+        )
+        // Same instance returned because the reducer short-circuits when
+        // there's nothing to clear.
+        assertSame(cs, changesetReducer(cs, cleared))
+    }
+
+    @Test
+    fun `changeset reducer fileSet appends new and replaces existing in place`() {
+        val cs = ChangesetState(
+            status = ChangesetStatus.READY,
+            files = listOf(
+                ChangesetFile(id = "a", edit = FileEdit()),
+                ChangesetFile(id = "b", edit = FileEdit()),
+            ),
+        )
+        val newC = ChangesetFile(id = "c", edit = FileEdit())
+        val appended = changesetReducer(
+            cs,
+            StateActionChangesetFileSet(
+                ChangesetFileSetAction(type = ActionType.CHANGESET_FILE_SET, file = newC),
+            ),
+        )
+        assertEquals(listOf("a", "b", "c"), appended.files.map { it.id })
+
+        val replaceA = ChangesetFile(id = "a", edit = FileEdit())
+        val replaced = changesetReducer(
+            cs,
+            StateActionChangesetFileSet(
+                ChangesetFileSetAction(type = ActionType.CHANGESET_FILE_SET, file = replaceA),
+            ),
+        )
+        assertEquals(listOf("a", "b"), replaced.files.map { it.id })
+        assertSame(replaceA, replaced.files.first())
+    }
+
+    private fun newSession(): SessionState = SessionState(
+        summary = SessionSummary(
+            resource = "copilot:/test",
+            provider = "copilot",
+            title = "Test",
+            status = SessionStatus.IDLE,
+            createdAt = 1000L,
+            modifiedAt = 1000L,
+        ),
+        lifecycle = SessionLifecycle.READY,
+        turns = emptyList(),
+    )
+
+    @Test
+    fun `SessionCustomizationUpdated with CustomizationUnknown is a no-op`() {
+        // An unknown customization has no extractable id, so the reducer
+        // cannot upsert it sensibly. Match Rust: NoOp the action entirely,
+        // leaving the existing customization list untouched.
+        val baseline = newSession()
+        val raw: JsonObject = buildJsonObject {
+            put("type", JsonPrimitive("futurePluginVariant"))
+            put("payload", buildJsonObject { put("foo", JsonPrimitive(1)) })
+        }
+        val action = StateActionSessionCustomizationUpdated(
+            SessionCustomizationUpdatedAction(
+                type = ActionType.SESSION_CUSTOMIZATION_UPDATED,
+                customization = CustomizationUnknown(raw),
+            ),
+        )
+        val after = sessionReducer(baseline, action)
+        assertSame(baseline, after)
+    }
+
+    private companion object {
+        private const val MOCK_NOW: Long = 9999L
+    }
+}

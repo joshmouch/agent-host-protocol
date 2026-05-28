@@ -1,0 +1,131 @@
+name: Publish Swift Package
+
+# Triggered when a maintainer pushes a bare `vX.Y.Z` git tag at the repo root.
+# Bare semver tags are reserved for the Swift release pipeline because
+# SwiftPM only resolves packages by matching plain `vX.Y.Z` / `X.Y.Z` tags
+# at the repository root (path-prefixed tags like `swift/v0.2.0` are
+# invisible to SwiftPM). See `RELEASING.md` for the tag-namespace
+# convention.
+#
+# Unlike publish-rust.yml / publish-kotlin.yml / publish-typescript.yml,
+# there's no registry push step: SwiftPM consumers resolve the tag
+# directly from this git repository. The workflow's role is to validate
+# the tag, verify the CHANGELOG, run the same build + test pipeline CI
+# would, and create a GitHub Release for visibility.
+
+on:
+  push:
+    tags:
+      # Strict glob: only triggers on tags that look like `vMAJOR.MINOR.PATCH`.
+      # The workflow re-validates this with a regex once it starts, so an
+      # off-pattern tag (e.g. `v-test` slipping past the glob) still fails
+      # loudly instead of silently publishing.
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-swift-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Re-validate the tag shape now that we control the regex (the
+      # GitHub Actions glob above is intentionally narrow but doesn't
+      # support full regex). Anchored MAJOR.MINOR.PATCH only.
+      - name: Verify tag is well-formed semver
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $TAG is not a bare semver vX.Y.Z. The Swift publish pipeline only accepts strict MAJOR.MINOR.PATCH tags."
+            exit 1
+          fi
+          echo "SWIFT_VERSION=${TAG#v}" >> "$GITHUB_ENV"
+
+      # The single in-repo source-of-truth for the Swift package version.
+      # SwiftPM has no manifest version field, so the publish workflow
+      # reads `clients/swift/VERSION` to verify the tag matches what the
+      # repo claims its current Swift version should be.
+      - name: Verify tag matches clients/swift/VERSION
+        run: |
+          FILE_VERSION=$(tr -d '[:space:]' < clients/swift/VERSION)
+          if [ "$FILE_VERSION" != "$SWIFT_VERSION" ]; then
+            echo "::error::Tag version ($SWIFT_VERSION) does not match clients/swift/VERSION ($FILE_VERSION). Bump VERSION before tagging."
+            exit 1
+          fi
+
+      - name: Verify CHANGELOG entry exists
+        run: |
+          if ! grep -qE "^## \[$SWIFT_VERSION\]" clients/swift/CHANGELOG.md; then
+            echo "::error::clients/swift/CHANGELOG.md is missing a '## [$SWIFT_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
+
+      - name: Verify release metadata is consistent
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entry exists
+        run: npm run verify:changelog
+
+      # Verify the committed Swift sources match what `generate:swift`
+      # would emit — same check ci.yml runs on every PR. Pre-release
+      # safety net in case someone tagged without re-running the
+      # generator after a registry change.
+      - name: Verify generated Swift is up to date
+        run: |
+          npm run generate:swift
+          if ! git diff --quiet -- clients/swift/AgentHostProtocol; then
+            echo "::error::Generated Swift sources are out of date. Run 'npm run generate:swift' and commit the result before tagging."
+            git --no-pager diff -- clients/swift/AgentHostProtocol
+            exit 1
+          fi
+
+      - name: Build Swift package
+        run: swift build
+
+      - name: Test Swift package
+        run: swift test
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        run: echo "SWIFT_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Extract release notes for this version
+        run: |
+          awk -v ver="$SWIFT_VERSION" '
+            BEGIN { in_section = 0 }
+            /^## \[/ {
+              if (in_section) exit
+              if ($0 ~ "^## \\[" ver "\\]") { in_section = 1; print; next }
+            }
+            in_section { print }
+          ' clients/swift/CHANGELOG.md > release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "AHP Swift Package v$SWIFT_VERSION" \
+            --notes-file release-notes.md

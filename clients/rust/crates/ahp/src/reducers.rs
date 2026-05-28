@@ -1509,6 +1509,11 @@ mod tests {
                     skipped += 1;
                     continue;
                 }
+                "resourceWatch" => {
+                    // resourceWatch reducer not yet implemented in Rust; skip.
+                    skipped += 1;
+                    continue;
+                }
                 other => {
                     panic!("{file_name}: unknown reducer type '{other}'");
                 }

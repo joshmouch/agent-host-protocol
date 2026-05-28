@@ -23,6 +23,16 @@ jobs:
 
       - run: npm test
 
+      # The check job covers the cross-cutting verifications that don't
+      # belong to a single language. `npm test` already runs these, but
+      # surface them as named steps so a failure has a clear job-step
+      # name rather than being buried in the test output.
+      - name: Verify release metadata
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entries
+        run: npm run verify:changelog
+
   rust:
     runs-on: ubuntu-latest
     defaults:
@@ -31,6 +41,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -38,6 +53,24 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: clients/rust
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed Rust sources match what `generate:rust`
+      # would emit. Mirrors the equivalent step in the swift / kotlin /
+      # typescript CI jobs. Catches "edited a .ts type but forgot to
+      # regenerate the Rust crate" before the PR ships.
+      - name: Verify generated Rust is up to date
+        working-directory: .
+        run: |
+          npm run generate:rust
+          if ! git diff --quiet -- clients/rust; then
+            echo "::error::Generated Rust sources are out of date. Run 'npm run generate:rust' and commit the result."
+            git --no-pager diff -- clients/rust
+            exit 1
+          fi
 
       - run: cargo clippy --workspace -- -D warnings
 
@@ -151,4 +184,50 @@ jobs:
       - name: Build TypeScript client
         working-directory: clients/typescript
         run: npm run build
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/go
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: clients/go/go.sum
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed Go sources are in sync with the TypeScript
+      # protocol definitions. We use `git status --porcelain` (like the
+      # Kotlin job) so a newly-emitted file also fails the check.
+      - name: Verify generated Go is up to date
+        working-directory: .
+        run: |
+          npm run generate:go
+          if [ -n "$(git status --porcelain -- clients/go)" ]; then
+            echo "::error::Generated Go sources are out of date. Run 'npm run generate:go' and commit the result."
+            git status --porcelain -- clients/go
+            git --no-pager diff -- clients/go
+            exit 1
+          fi
+
+      - name: Build Go module
+        run: go build ./...
+
+      - name: Vet Go module
+        run: go vet ./...
+
+      - name: Test Go module
+        run: go test ./...
 

@@ -14,6 +14,8 @@ import { generateSwiftPackage } from './generate-swift.js';
 import { generateRustCrate } from './generate-rust.js';
 import { generateKotlinPackage } from './generate-kotlin.js';
 import { generateTypeScriptClient } from './generate-typescript.js';
+import { generateGoModule } from './generate-go.js';
+import { generateReleaseMetadata } from './generate-release-metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -25,6 +27,7 @@ const SWIFT_DIR = path.join(ROOT, 'clients', 'swift', 'AgentHostProtocol');
 const RUST_DIR = path.join(ROOT, 'clients', 'rust');
 const KOTLIN_DIR = path.join(ROOT, 'clients', 'kotlin');
 const TYPESCRIPT_TYPES_DIR = path.join(ROOT, 'clients', 'typescript', 'src', 'types');
+const GO_DIR = path.join(ROOT, 'clients', 'go');
 
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
@@ -34,7 +37,18 @@ const swiftOnly = args.includes('--swift');
 const rustOnly = args.includes('--rust');
 const kotlinOnly = args.includes('--kotlin');
 const typescriptOnly = args.includes('--typescript');
-const generateAll = !docsOnly && !schemaOnly && !actionOriginOnly && !swiftOnly && !rustOnly && !kotlinOnly && !typescriptOnly;
+const goOnly = args.includes('--go');
+const metadataOnly = args.includes('--metadata');
+const generateAll =
+  !docsOnly &&
+  !schemaOnly &&
+  !actionOriginOnly &&
+  !swiftOnly &&
+  !rustOnly &&
+  !kotlinOnly &&
+  !typescriptOnly &&
+  !goOnly &&
+  !metadataOnly;
 
 // Load the TypeScript project
 const project = new Project({
@@ -88,6 +102,18 @@ if (generateAll || typescriptOnly) {
   console.log('Generating TypeScript client sources...');
   generateTypeScriptClient(project, TYPES_DIR, TYPESCRIPT_TYPES_DIR);
   console.log(`  → TypeScript sources written to ${path.relative(ROOT, TYPESCRIPT_TYPES_DIR)}/`);
+}
+
+if (generateAll || goOnly) {
+  console.log('Generating Go module...');
+  generateGoModule(project, GO_DIR);
+  console.log(`  → Go module written to ${path.relative(ROOT, GO_DIR)}/`);
+}
+
+if (generateAll || metadataOnly) {
+  console.log('Generating release metadata...');
+  generateReleaseMetadata(project, ROOT);
+  console.log('  → release-metadata.json written for every client');
 }
 
 console.log('Done.');

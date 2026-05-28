@@ -21,6 +21,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_HEADER = '// Generated from types/*.ts — do not edit\n\nimport Foundation\n';
 
@@ -1631,6 +1632,29 @@ function checkExhaustiveness(project: Project): void {
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
+function generateVersionFile(project: Project): string {
+  const { current, supported } = readProtocolVersions(project);
+
+  const items = supported.map((v) => `    ${JSON.stringify(v)},`).join('\n');
+
+  return (
+    '// Generated from types/*.ts — do not edit\n\n' +
+    'import Foundation\n\n' +
+    '/// Current protocol version (SemVer `MAJOR.MINOR.PATCH`).\n' +
+    `public let PROTOCOL_VERSION: String = ${JSON.stringify(current)}\n\n` +
+    '/// Every protocol version this package is willing to negotiate,\n' +
+    '/// ordered most-preferred-first. The first entry equals\n' +
+    '/// ``PROTOCOL_VERSION``.\n' +
+    '///\n' +
+    '/// Pass this list (or a derived `[String]`) as `protocolVersions` on\n' +
+    '/// `InitializeParams` so the same client binary can fall back to older\n' +
+    "/// protocol versions if the host doesn't accept the newest one.\n" +
+    'public let SUPPORTED_PROTOCOL_VERSIONS: [String] = [\n' +
+    items +
+    '\n]\n'
+  );
+}
+
 export function generateSwiftPackage(project: Project, outputDir: string): void {
   checkExhaustiveness(project);
 
@@ -1655,4 +1679,5 @@ export function generateSwiftPackage(project: Project, outputDir: string): void 
   fs.writeFileSync(path.join(generatedDir, 'Notifications.generated.swift'), generateNotificationsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.swift'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.swift'), generateMessagesFile());
+  fs.writeFileSync(path.join(generatedDir, 'Version.generated.swift'), generateVersionFile(project));
 }

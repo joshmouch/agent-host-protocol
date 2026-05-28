@@ -36,6 +36,17 @@ extends:
           - script: npm ci
             displayName: 📦 Install root dependencies
 
+          # Defense-in-depth checks before producing the publish artifact.
+          # These also run on every commit via the GitHub Actions `ci.yml`
+          # workflow, but re-running them here means the npm package can't
+          # ship from a branch state that would have failed the GHA check.
+          # See RELEASING.md for the release model.
+          - script: npm run verify:release-metadata
+            displayName: ✅ Verify release metadata
+
+          - script: npm run verify:changelog
+            displayName: ✅ Verify CHANGELOG entry exists
+
           - script: npm run generate:typescript
             displayName: 🛠 Generate TypeScript wire types
 
@@ -56,6 +67,12 @@ extends:
         testSteps:
           - script: npm ci
             displayName: 📦 Install root dependencies
+
+          - script: npm run verify:release-metadata
+            displayName: ✅ Verify release metadata
+
+          - script: npm run verify:changelog
+            displayName: ✅ Verify CHANGELOG entry exists
 
           - script: npm run generate:typescript
             displayName: 🛠 Generate TypeScript wire types

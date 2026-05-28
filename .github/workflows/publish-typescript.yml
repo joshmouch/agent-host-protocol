@@ -1,0 +1,161 @@
+name: Publish TypeScript Package
+
+# Triggered when a maintainer pushes a `typescript/vX.Y.Z` git tag. The
+# workflow does GitHub-side validation (tag <-> package.json match,
+# CHANGELOG entry exists, release metadata is consistent, full client
+# build + tests pass), then triggers the Azure DevOps pipeline at
+# `clients/typescript/pipeline.yml` via the Pipelines REST API with
+# `publishPackage: true` to perform the actual signed npm publish.
+#
+# The ADO pipeline can also be triggered manually from the ADO UI by
+# toggling the `publishPackage` parameter — this workflow does not
+# remove that path, it just adds the tag-driven automation so the
+# TypeScript release flow matches the other clients' `<lang>/vX.Y.Z`
+# tag convention.
+
+on:
+  push:
+    tags:
+      - 'typescript/v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-typescript-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Strict tag → package.json cross-check. Mirrors the equivalent
+      # validation in `publish-rust.yml` / `publish-kotlin.yml`.
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#typescript/v}"
+          PKG_VERSION=$(node -p "require('./clients/typescript/package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match clients/typescript/package.json version ($PKG_VERSION). Bump the package.json version (and rerun npm install in the client to refresh the lockfile) before tagging."
+            exit 1
+          fi
+          echo "TS_VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Verify release metadata is consistent
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entry exists
+        run: npm run verify:changelog
+
+      # Belt and suspenders: also grep the CHANGELOG for the exact tag
+      # version (not just whatever `verify:changelog` derived from the
+      # checked-in `package.json`). Catches the unlikely race where the
+      # tag and the checked-in `package.json` diverge.
+      - name: Verify CHANGELOG entry exists for tag version
+        run: |
+          if ! grep -qE "^## \[$TS_VERSION\]" clients/typescript/CHANGELOG.md; then
+            echo "::error::clients/typescript/CHANGELOG.md is missing a '## [$TS_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
+
+      # Same test/build sequence the ADO pipeline runs, executed here
+      # so we can fail fast on a broken tag before touching ADO.
+      - name: Generate TypeScript client sources
+        run: npm run generate:typescript
+
+      - name: Install TypeScript client dependencies
+        working-directory: clients/typescript
+        run: npm ci
+
+      - name: Typecheck TypeScript client
+        working-directory: clients/typescript
+        run: npm run typecheck
+
+      - name: Test TypeScript client
+        working-directory: clients/typescript
+        run: npm test
+
+      - name: Build TypeScript client
+        working-directory: clients/typescript
+        run: npm run build
+
+  trigger-ado:
+    needs: validate
+    runs-on: ubuntu-latest
+    # Gated environment so a repo admin can require manual approval
+    # before any tag actually publishes to npm, even if a tag was pushed
+    # by accident. The environment also scopes the ADO PAT so it isn't
+    # available to other workflows.
+    environment: ado-typescript-publish
+    steps:
+      - name: Trigger ADO pipeline run with publishPackage=true
+        env:
+          # PAT scoped to "Build (Read & execute)" on the ADO project
+          # that hosts the npm publish pipeline. See RELEASING.md for
+          # one-time setup.
+          ADO_PAT: ${{ secrets.ADO_PIPELINE_TRIGGER_PAT }}
+          ADO_ORGANIZATION: ${{ vars.ADO_ORGANIZATION }}
+          ADO_PROJECT: ${{ vars.ADO_PROJECT }}
+          ADO_PIPELINE_ID: ${{ vars.ADO_PIPELINE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ADO_PAT:-}" ] || [ -z "${ADO_ORGANIZATION:-}" ] || [ -z "${ADO_PROJECT:-}" ] || [ -z "${ADO_PIPELINE_ID:-}" ]; then
+            echo "::error::Missing ADO configuration. The 'ado-typescript-publish' environment must define secret ADO_PIPELINE_TRIGGER_PAT and variables ADO_ORGANIZATION, ADO_PROJECT, ADO_PIPELINE_ID. See RELEASING.md."
+            exit 1
+          fi
+
+          # POST to the Pipelines REST API, pinning the run to the tag
+          # ref so ADO checks out exactly the commit the tag points at,
+          # and overriding templateParameters.publishPackage to true so
+          # the npm publish step actually runs (default is false).
+          # See: https://learn.microsoft.com/rest/api/azure/devops/pipelines/runs/run-pipeline
+          REQUEST_BODY=$(cat <<JSON
+          {
+            "resources": {
+              "repositories": {
+                "self": {
+                  "refName": "refs/tags/${GITHUB_REF_NAME}"
+                }
+              }
+            },
+            "templateParameters": {
+              "publishPackage": true
+            }
+          }
+          JSON
+          )
+
+          # ADO uses Basic auth with empty username + PAT as password.
+          AUTH_HEADER=$(printf ':%s' "$ADO_PAT" | base64 | tr -d '\n')
+
+          RESPONSE=$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --url "https://dev.azure.com/${ADO_ORGANIZATION}/${ADO_PROJECT}/_apis/pipelines/${ADO_PIPELINE_ID}/runs?api-version=7.1" \
+            --header "Authorization: Basic ${AUTH_HEADER}" \
+            --header "Content-Type: application/json" \
+            --data "${REQUEST_BODY}")
+
+          RUN_ID=$(echo "$RESPONSE" | jq -r '.id // empty')
+          RUN_URL=$(echo "$RESPONSE" | jq -r '._links.web.href // empty')
+
+          if [ -z "$RUN_ID" ]; then
+            echo "::error::ADO pipeline trigger succeeded but the response did not include a run id. Raw response:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+
+          echo "Triggered ADO pipeline run $RUN_ID for ref refs/tags/${GITHUB_REF_NAME}"
+          echo "$RUN_URL"
+          echo "## ADO pipeline run" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Triggered run [$RUN_ID]($RUN_URL) for tag \`${GITHUB_REF_NAME}\` with \`publishPackage=true\`." >> "$GITHUB_STEP_SUMMARY"

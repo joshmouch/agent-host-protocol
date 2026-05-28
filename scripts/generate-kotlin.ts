@@ -34,6 +34,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_HEADER =
   '// Generated from types/*.ts — do not edit\n\n' +
@@ -435,6 +436,18 @@ interface UnionConfig {
   name: string;
   discriminantField: string;
   variants: UnionVariant[];
+  /**
+   * Forward-compat catch-all. When `true`, the generator emits an extra
+   * `${name}Unknown(val raw: JsonObject)` value class and routes any unknown
+   * discriminator into it (rather than throwing). The raw `JsonObject` is
+   * captured at decode time and re-emitted unchanged on serialize so unknown
+   * future variants round-trip through this client without losing fields.
+   *
+   * Mirrors the `unknown: true` flag on `scripts/generate-rust.ts`'s
+   * `UnionConfig`, which emits a parallel `Unknown(serde_json::Value)` variant
+   * on the same set of state-channel unions.
+   */
+  unknown?: boolean;
 }
 
 /**
@@ -466,6 +479,18 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     lines.push(`@JvmInline`);
     lines.push(`value class ${config.name}${v.caseName}(val value: ${v.structName}) : ${config.name}`);
   }
+  if (config.unknown) {
+    lines.push(`/**`);
+    lines.push(` * Forward-compat catch-all for unknown ${config.name} discriminators.`);
+    lines.push(' *');
+    lines.push(' * Older clients may receive newer wire variants they don\'t recognise; capturing');
+    lines.push(' * the raw `JsonObject` lets such payloads round-trip through the client unchanged.');
+    lines.push(' * Reducers handle this variant conservatively on a per-union basis (typically');
+    lines.push(' * as a no-op, but see `Reducers.kt` for the exact treatment).');
+    lines.push(' */');
+    lines.push(`@JvmInline`);
+    lines.push(`value class ${config.name}Unknown(val raw: JsonObject) : ${config.name}`);
+  }
   lines.push('');
 
   // Custom KSerializer
@@ -480,13 +505,21 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   lines.push('        val obj = element as? JsonObject');
   lines.push(`            ?: error("Expected JsonObject for ${config.name}")`);
   lines.push(`        val discriminant = (obj[${JSON.stringify(config.discriminantField)}] as? JsonPrimitive)?.content`);
-  lines.push(`            ?: error("Missing ${config.discriminantField} discriminator on ${config.name}")`);
+  if (config.unknown) {
+    lines.push(`            ?: return ${config.name}Unknown(obj)`);
+  } else {
+    lines.push(`            ?: error("Missing ${config.discriminantField} discriminator on ${config.name}")`);
+  }
   lines.push('        return when (discriminant) {');
   for (const v of config.variants) {
     const variantClass = `${config.name}${(byStruct.get(v.structName) ?? v).caseName}`;
     lines.push(`            ${JSON.stringify(v.discriminantValue)} -> ${variantClass}(input.json.decodeFromJsonElement(${v.structName}.serializer(), element))`);
   }
-  lines.push(`            else -> error("Unknown ${config.name} discriminator: $discriminant")`);
+  if (config.unknown) {
+    lines.push(`            else -> ${config.name}Unknown(obj)`);
+  } else {
+    lines.push(`            else -> error("Unknown ${config.name} discriminator: $discriminant")`);
+  }
   lines.push('        }');
   lines.push('    }');
   lines.push('');
@@ -497,6 +530,9 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   for (const v of byStruct.values()) {
     const variantClass = `${config.name}${v.caseName}`;
     lines.push(`            is ${variantClass} -> output.json.encodeToJsonElement(${v.structName}.serializer(), value.value)`);
+  }
+  if (config.unknown) {
+    lines.push(`            is ${config.name}Unknown -> value.raw`);
   }
   lines.push('        }');
   lines.push('        output.encodeJsonElement(element)');
@@ -646,6 +682,14 @@ sealed interface ToolResultContent {
     @JvmInline value class FileEdit(val value: ToolResultFileEditContent) : ToolResultContent
     @JvmInline value class Terminal(val value: ToolResultTerminalContent) : ToolResultContent
     @JvmInline value class Subagent(val value: ToolResultSubagentContent) : ToolResultContent
+
+    /**
+     * Forward-compat catch-all for unknown ToolResultContent types.
+     *
+     * Older clients may receive newer wire variants they don't recognise; capturing
+     * the raw \`JsonObject\` lets such payloads round-trip through the client unchanged.
+     */
+    @JvmInline value class Unknown(val raw: JsonObject) : ToolResultContent
 }
 
 internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
@@ -659,7 +703,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ToolResultContent")
         val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
-            ?: error("ToolResultContent missing type")
+            ?: return ToolResultContent.Unknown(obj)
         return when (type) {
             "text" -> ToolResultContent.Text(input.json.decodeFromJsonElement(ToolResultTextContent.serializer(), element))
             "embeddedResource" -> ToolResultContent.EmbeddedResource(input.json.decodeFromJsonElement(ToolResultEmbeddedResourceContent.serializer(), element))
@@ -667,7 +711,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
             "fileEdit" -> ToolResultContent.FileEdit(input.json.decodeFromJsonElement(ToolResultFileEditContent.serializer(), element))
             "terminal" -> ToolResultContent.Terminal(input.json.decodeFromJsonElement(ToolResultTerminalContent.serializer(), element))
             "subagent" -> ToolResultContent.Subagent(input.json.decodeFromJsonElement(ToolResultSubagentContent.serializer(), element))
-            else -> error("Unknown ToolResultContent type: $type")
+            else -> ToolResultContent.Unknown(obj)
         }
     }
 
@@ -681,6 +725,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
             is ToolResultContent.FileEdit -> output.json.encodeToJsonElement(ToolResultFileEditContent.serializer(), value.value)
             is ToolResultContent.Terminal -> output.json.encodeToJsonElement(ToolResultTerminalContent.serializer(), value.value)
             is ToolResultContent.Subagent -> output.json.encodeToJsonElement(ToolResultSubagentContent.serializer(), value.value)
+            is ToolResultContent.Unknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -749,6 +794,7 @@ const RESPONSE_PART_UNION: UnionConfig = {
     { caseName: 'Reasoning', structName: 'ReasoningResponsePart', discriminantValue: 'reasoning' },
     { caseName: 'SystemNotification', structName: 'SystemNotificationResponsePart', discriminantValue: 'systemNotification' },
   ],
+  unknown: true,
 };
 
 const TOOL_CALL_STATE_UNION: UnionConfig = {
@@ -762,6 +808,7 @@ const TOOL_CALL_STATE_UNION: UnionConfig = {
     { caseName: 'Completed', structName: 'ToolCallCompletedState', discriminantValue: 'completed' },
     { caseName: 'Cancelled', structName: 'ToolCallCancelledState', discriminantValue: 'cancelled' },
   ],
+  unknown: true,
 };
 
 const TERMINAL_CLAIM_UNION: UnionConfig = {
@@ -771,6 +818,7 @@ const TERMINAL_CLAIM_UNION: UnionConfig = {
     { caseName: 'Client', structName: 'TerminalClientClaim', discriminantValue: 'client' },
     { caseName: 'Session', structName: 'TerminalSessionClaim', discriminantValue: 'session' },
   ],
+  unknown: true,
 };
 
 const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
@@ -780,6 +828,7 @@ const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
     { caseName: 'Unclassified', structName: 'TerminalUnclassifiedPart', discriminantValue: 'unclassified' },
     { caseName: 'Command', structName: 'TerminalCommandPart', discriminantValue: 'command' },
   ],
+  unknown: true,
 };
 
 const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
@@ -795,6 +844,7 @@ const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
     { caseName: 'SingleSelect', structName: 'SessionInputSingleSelectQuestion', discriminantValue: 'single-select' },
     { caseName: 'MultiSelect', structName: 'SessionInputMultiSelectQuestion', discriminantValue: 'multi-select' },
   ],
+  unknown: true,
 };
 
 const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
@@ -807,6 +857,7 @@ const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
     { caseName: 'Selected', structName: 'SessionInputSelectedAnswerValue', discriminantValue: 'selected' },
     { caseName: 'SelectedMany', structName: 'SessionInputSelectedManyAnswerValue', discriminantValue: 'selected-many' },
   ],
+  unknown: true,
 };
 
 const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
@@ -817,6 +868,7 @@ const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
     { caseName: 'Submitted', structName: 'SessionInputAnswered', discriminantValue: 'submitted' },
     { caseName: 'Skipped', structName: 'SessionInputSkipped', discriminantValue: 'skipped' },
   ],
+  unknown: true,
 };
 
 const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
@@ -827,6 +879,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'EmbeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'Resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
   ],
+  unknown: true,
 };
 
 const CUSTOMIZATION_UNION: UnionConfig = {
@@ -836,6 +889,7 @@ const CUSTOMIZATION_UNION: UnionConfig = {
     { caseName: 'Plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'Directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
   ],
+  unknown: true,
 };
 
 const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
@@ -849,6 +903,7 @@ const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
     { caseName: 'Hook', structName: 'HookCustomization', discriminantValue: 'hook' },
     { caseName: 'McpServer', structName: 'McpServerCustomization', discriminantValue: 'mcpServer' },
   ],
+  unknown: true,
 };
 
 const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
@@ -860,6 +915,7 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { caseName: 'Degraded', structName: 'CustomizationDegradedState', discriminantValue: 'degraded' },
     { caseName: 'Error', structName: 'CustomizationErrorState', discriminantValue: 'error' },
   ],
+  unknown: true,
 };
 
 function generateStateFile(project: Project): string {
@@ -1071,9 +1127,11 @@ function generateActionsFile(project: Project): string {
   lines.push('/**');
   lines.push(' * Discriminated union of all state actions.');
   lines.push(' *');
-  lines.push(' * Unknown wire types decode to [StateActionUnknown] and reducers should treat');
-  lines.push(' * them as no-ops; this is critical for forward compatibility across protocol');
-  lines.push(' * versions.');
+  lines.push(' * Unknown wire types decode to [StateActionUnknown], which captures the full');
+  lines.push(' * raw JSON object (mirrors the state-channel `XUnknown` variants and Rust\'s');
+  lines.push(' * `Unknown(serde_json::Value)`). Reducers should treat unknown actions as');
+  lines.push(' * no-ops; the captured payload is re-emitted unchanged on encode so unknown');
+  lines.push(' * actions can round-trip across protocol versions.');
   lines.push(' */');
   lines.push('@Serializable(with = StateActionSerializer::class)');
   lines.push('sealed interface StateAction');
@@ -1082,7 +1140,7 @@ function generateActionsFile(project: Project): string {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`@JvmInline value class StateAction${v.caseName}(val value: ${dataClass}) : StateAction`);
   }
-  lines.push('@JvmInline value class StateActionUnknown(val type: String) : StateAction');
+  lines.push('@JvmInline value class StateActionUnknown(val raw: JsonObject) : StateAction');
   lines.push('');
 
   lines.push('internal object StateActionSerializer : KSerializer<StateAction> {');
@@ -1096,13 +1154,13 @@ function generateActionsFile(project: Project): string {
   lines.push('        val obj = element as? JsonObject');
   lines.push('            ?: error("Expected JsonObject for StateAction")');
   lines.push('        val type = (obj["type"] as? JsonPrimitive)?.contentOrNull');
-  lines.push('            ?: error("Missing \\"type\\" discriminator on StateAction")');
+  lines.push('            ?: return StateActionUnknown(obj)');
   lines.push('        return when (type) {');
   for (const v of ACTION_VARIANTS) {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`            ${JSON.stringify(v.type)} -> StateAction${v.caseName}(input.json.decodeFromJsonElement(${dataClass}.serializer(), element))`);
   }
-  lines.push('            else -> StateActionUnknown(type)');
+  lines.push('            else -> StateActionUnknown(obj)');
   lines.push('        }');
   lines.push('    }');
   lines.push('');
@@ -1114,9 +1172,7 @@ function generateActionsFile(project: Project): string {
     const dataClass = v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface;
     lines.push(`            is StateAction${v.caseName} -> output.json.encodeToJsonElement(${dataClass}.serializer(), value.value)`);
   }
-  lines.push('            is StateActionUnknown -> buildJsonObject {');
-  lines.push('                put("type", JsonPrimitive(value.type))');
-  lines.push('            }');
+  lines.push('            is StateActionUnknown -> value.raw');
   lines.push('        }');
   lines.push('        output.encodeJsonElement(element)');
   lines.push('    }');
@@ -1667,6 +1723,32 @@ function checkExhaustiveness(project: Project): void {
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
+function generateVersionFile(project: Project): string {
+  const { current, supported } = readProtocolVersions(project);
+
+  const items = supported.map((v) => `    ${JSON.stringify(v)},`).join('\n');
+
+  return (
+    '// Generated from types/*.ts — do not edit\n\n' +
+    `package ${PACKAGE}\n\n` +
+    '/**\n' +
+    ' * Current protocol version (SemVer `MAJOR.MINOR.PATCH`).\n' +
+    ' */\n' +
+    `public const val PROTOCOL_VERSION: String = ${JSON.stringify(current)}\n\n` +
+    '/**\n' +
+    ' * Every protocol version this library is willing to negotiate, ordered\n' +
+    ' * most-preferred-first. The first entry equals [PROTOCOL_VERSION].\n' +
+    ' *\n' +
+    ' * Pass this list (or a derived `List<String>`) as `protocolVersions` on\n' +
+    ' * `InitializeParams` so the same client binary can fall back to older\n' +
+    " * protocol versions if the host doesn't accept the newest one.\n" +
+    ' */\n' +
+    'public val SUPPORTED_PROTOCOL_VERSIONS: List<String> = listOf(\n' +
+    items +
+    '\n)\n'
+  );
+}
+
 export function generateKotlinPackage(project: Project, outputDir: string): void {
   // Reset generator state so back-to-back invocations are deterministic.
   requiredPartialStructs.clear();
@@ -1686,4 +1768,5 @@ export function generateKotlinPackage(project: Project, outputDir: string): void
   fs.writeFileSync(path.join(generatedDir, 'Notifications.generated.kt'), generateNotificationsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.kt'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.kt'), generateMessagesFile());
+  fs.writeFileSync(path.join(generatedDir, 'Version.generated.kt'), generateVersionFile(project));
 }

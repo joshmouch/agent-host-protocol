@@ -46,6 +46,16 @@ tasks.withType<Test>().configureEach {
         events("passed", "skipped", "failed")
         showStandardStreams = false
     }
+    // Pass the absolute path of the shared reducer test fixtures to the JVM
+    // running the tests so `FixtureDrivenReducerTest` can load them without
+    // depending on the current working directory (which varies between
+    // Gradle CLI, IDE runners, and CI).
+    systemProperty(
+        "ahp.reducerFixturesDir",
+        rootProject.projectDir
+            .resolve("../../types/test-cases/reducers")
+            .canonicalPath,
+    )
 }
 
 mavenPublishing {
