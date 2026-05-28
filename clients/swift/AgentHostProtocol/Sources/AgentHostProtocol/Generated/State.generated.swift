@@ -901,13 +901,27 @@ public struct UserMessage: Codable, Sendable {
     public var text: String
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
+    /// Additional provider-specific metadata for this message.
+    /// 
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry context that does not fit any other
+    /// field. Mirrors the MCP `_meta` convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case attachments
+        case meta = "_meta"
+    }
 
     public init(
         text: String,
-        attachments: [MessageAttachment]? = nil
+        attachments: [MessageAttachment]? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.text = text
         self.attachments = attachments
+        self.meta = meta
     }
 }
 

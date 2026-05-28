@@ -22,6 +22,12 @@ Implements AHP `0.2.0`.
 [`VERSION`](VERSION) currently pins `0.2.0`; the first tag-driven Swift
 release will use the bare `v0.2.0` tag.
 
+### Added
+- `UserMessage.meta` optional `[String: AnyCodable]?` field (serialized as
+  `_meta`), exposing the new spec-level provider metadata channel on user
+  messages. The generated `init` gains a trailing `meta:` parameter that
+  defaults to `nil`.
+
 ## [0.2.0] — Unreleased
 
 Implements AHP `0.2.0`.

@@ -22,6 +22,10 @@ hotfix escape hatch.
 
 Implements AHP `0.2.0`.
 
+### Added
+- `UserMessage._meta` optional `Record<string, unknown>` field, exposing the
+  new spec-level provider metadata channel on user messages.
+
 ## [0.2.0] — Unreleased
 
 Implements AHP `0.2.0`.
