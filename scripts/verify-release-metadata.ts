@@ -73,6 +73,13 @@ const SWIFT_VERSION_FILE = path.join(
   'Generated',
   'Version.generated.swift',
 );
+const GO_VERSION_FILE = path.join(
+  ROOT,
+  'clients',
+  'go',
+  'ahptypes',
+  'version.generated.go',
+);
 const TS_REGISTRY_FILE = path.join(ROOT, 'types', 'version', 'registry.ts');
 
 interface Mismatch {
@@ -136,6 +143,21 @@ function swiftVersionConstants(source: string): { current: string; supported: st
   return { current: cur[1], supported };
 }
 
+/** Extracts the Go constants from version.generated.go. */
+function goVersionConstants(source: string): { current: string; supported: string[] } {
+  const cur = source.match(/const ProtocolVersion\s*=\s*"([^"]+)"/);
+  // supportedProtocolVersions is declared as a `var ... = []string{ ... }` slice
+  // literal; capture every quoted entry inside the braces.
+  const sup = source.match(
+    /var supportedProtocolVersions\s*=\s*\[\]string\{([\s\S]*?)\}/,
+  );
+  if (!cur || !sup) {
+    throw new Error('goVersionConstants: failed to parse version.generated.go');
+  }
+  const supported = [...sup[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  return { current: cur[1], supported };
+}
+
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -162,6 +184,7 @@ function main(): void {
     { lang: 'rust', file: RUST_VERSION_FILE, parse: rustVersionConstants },
     { lang: 'kotlin', file: KOTLIN_VERSION_FILE, parse: kotlinVersionConstants },
     { lang: 'swift', file: SWIFT_VERSION_FILE, parse: swiftVersionConstants },
+    { lang: 'go', file: GO_VERSION_FILE, parse: goVersionConstants },
   ] as const;
   for (const { lang, file, parse } of generatedSources) {
     if (!fs.existsSync(file)) {

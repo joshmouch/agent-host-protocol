@@ -185,3 +185,49 @@ jobs:
         working-directory: clients/typescript
         run: npm run build
 
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/go
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: clients/go/go.sum
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed Go sources are in sync with the TypeScript
+      # protocol definitions. We use `git status --porcelain` (like the
+      # Kotlin job) so a newly-emitted file also fails the check.
+      - name: Verify generated Go is up to date
+        working-directory: .
+        run: |
+          npm run generate:go
+          if [ -n "$(git status --porcelain -- clients/go)" ]; then
+            echo "::error::Generated Go sources are out of date. Run 'npm run generate:go' and commit the result."
+            git status --porcelain -- clients/go
+            git --no-pager diff -- clients/go
+            exit 1
+          fi
+
+      - name: Build Go module
+        run: go build ./...
+
+      - name: Vet Go module
+        run: go vet ./...
+
+      - name: Test Go module
+        run: go test ./...
+

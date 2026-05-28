@@ -34,6 +34,7 @@ import {
   readRustPackageVersion,
   readSwiftPackageVersion,
   readTypeScriptPackageVersion,
+  readGoPackageVersion,
 } from './generate-release-metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -145,6 +146,16 @@ function main(): void {
         'clients/typescript/pipeline.yml; this CI check is the only ' +
         '"no release without a changelog entry" gate, so it must pass ' +
         'on main before publishPackage is toggled.',
+    },
+    {
+      label: 'go',
+      version: readGoPackageVersion(
+        fs.readFileSync(path.join(ROOT, 'clients', 'go', 'VERSION'), 'utf-8'),
+      ),
+      changelogPath: path.join(ROOT, 'clients', 'go', 'CHANGELOG.md'),
+      hint:
+        'Bumped clients/go/VERSION? Add a matching ## [X.Y.Z] heading ' +
+        'to clients/go/CHANGELOG.md before tagging clients/go/vX.Y.Z.',
     },
   ];
 

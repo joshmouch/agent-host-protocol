@@ -34,7 +34,7 @@ import { readProtocolVersions } from './read-protocol-versions.js';
  */
 export interface ReleaseMetadata {
   /** Identifier of the per-language artifact, e.g. `"rust"`, `"kotlin"`. */
-  readonly client: 'rust' | 'kotlin' | 'swift' | 'typescript';
+  readonly client: 'rust' | 'kotlin' | 'swift' | 'typescript' | 'go';
   /** Native package version of the checked-in source. */
   readonly packageVersion: string;
   /**
@@ -89,7 +89,16 @@ export function readSwiftPackageVersion(versionFile: string): string {
   return trimmed;
 }
 
-const CLIENTS = ['rust', 'kotlin', 'swift', 'typescript'] as const;
+/** Reads the bare-semver Go module version from the VERSION file. */
+export function readGoPackageVersion(versionFile: string): string {
+  const trimmed = versionFile.trim();
+  if (trimmed.length === 0) {
+    throw new Error('readGoPackageVersion: VERSION file is empty');
+  }
+  return trimmed;
+}
+
+const CLIENTS = ['rust', 'kotlin', 'swift', 'typescript', 'go'] as const;
 
 interface ClientLocation {
   readonly metadataPath: string;
@@ -130,6 +139,13 @@ function clientLocations(rootDir: string): Record<(typeof CLIENTS)[number], Clie
             path.join(root, 'clients', 'typescript', 'package.json'),
             'utf-8',
           ),
+        ),
+    },
+    go: {
+      metadataPath: path.join(rootDir, 'clients', 'go', 'release-metadata.json'),
+      readVersion: (root) =>
+        readGoPackageVersion(
+          fs.readFileSync(path.join(root, 'clients', 'go', 'VERSION'), 'utf-8'),
         ),
     },
   };

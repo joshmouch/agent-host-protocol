@@ -12,6 +12,7 @@
     "generate:rust": "tsx scripts/generate.ts --rust",
     "generate:kotlin": "tsx scripts/generate.ts --kotlin",
     "generate:typescript": "tsx scripts/generate.ts --typescript",
+    "generate:go": "tsx scripts/generate.ts --go",
     "generate:metadata": "tsx scripts/generate.ts --metadata",
     "verify:release-metadata": "tsx scripts/verify-release-metadata.ts",
     "verify:changelog": "tsx scripts/verify-changelog.ts",
