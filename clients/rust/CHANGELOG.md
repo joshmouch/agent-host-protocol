@@ -15,11 +15,10 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ## [Unreleased]
 
-Implements AHP `0.2.0`.
+## [0.2.0] — 2026-05-28
 
-The in-tree source already supports protocol version `0.2.0` even though the
-last published crates are `0.1.0`. The next Rust release will bump the
-workspace version to align with the current spec.
+Implements AHP `0.2.0`. Bumps the `ahp-types`, `ahp`, and `ahp-ws` crates
+together from `0.1.0` to align the workspace with the current spec.
 
 - Wire types for the extended `resource*` family: `resourceResolve`,
   `resourceMkdir`, `createResourceWatch`, and the new `ahp-resource-watch:/`
@@ -29,6 +28,7 @@ workspace version to align with the current spec.
   (it appears in both `CommandMap` and `ServerCommandMap`).
 - `UserMessage.meta` optional `JsonObject` field (serialized as `_meta`),
   exposing the new spec-level provider metadata channel on user messages.
+
 ## [0.1.0] — 2026-01-01
 
 Implements AHP `0.1.0`.

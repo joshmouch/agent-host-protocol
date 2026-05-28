@@ -23,13 +23,7 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 `NOTIFICATION_INTRODUCED_IN` maps in
 [`types/version/registry.ts`](types/version/registry.ts).
 
-### Added
-- `UserMessage._meta` optional `Record<string, unknown>` field for
-  provider-specific message metadata, mirroring the MCP `_meta` convention
-  already used on `MessageAttachmentBase`, `ToolDefinition`, `ToolCallBase`,
-  `UsageInfo`, and `SessionState`.
-
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-05-28
 
 Spec version: `0.2.0`
 
@@ -57,6 +51,10 @@ commits between `spec/v0.1.0` (not yet tagged) and `spec/v0.2.0`. Highlights:
 - The entire content-bearing `resource*` family is now formally
   bidirectional — the methods appear in `ServerCommandMap` and may be
   initiated by either peer (matches VS Code's existing implementation).
+- `UserMessage._meta` optional `Record<string, unknown>` field for
+  provider-specific message metadata, mirroring the MCP `_meta` convention
+  already used on `MessageAttachmentBase`, `ToolDefinition`, `ToolCallBase`,
+  `UsageInfo`, and `SessionState`.
 
 ## [0.1.0] — Pre-tagging
 

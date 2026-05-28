@@ -14,26 +14,26 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ## [Unreleased]
 
-- Wire types for the extended `resource*` family: `resourceResolve`,
-  `resourceMkdir`, `createResourceWatch`, and the new `ahp-resource-watch:/`
-  channel with the `resourceWatch/changed` action. `ResourceWriteParams`
-  gains `mode` / `position` / `ifMatch`. New `Conflict` (`-32011`) error
-  code. The whole content-bearing `resource*` family is now bidirectional
-  (it appears in both `CommandMap` and `ServerCommandMap`).
-- `UserMessage._meta` optional map field, generated as
-  `Map[string]json.RawMessage`, exposing the new spec-level provider
-  metadata channel on user messages.
-## [0.1.0]
+## [0.1.0] — 2026-05-28
 
 Implements AHP `0.2.0`.
 
 First published version of the Go module. Includes:
 
-- `ahptypes` — generated wire types from `types/*.ts`. Structs use Go
+- `ahptypes` — generated wire types from `types/*.ts`, including the
+  extended `resource*` family (`resourceResolve`, `resourceMkdir`,
+  `createResourceWatch`, the new `ahp-resource-watch:/` channel with the
+  `resourceWatch/changed` action), `ResourceWriteParams`'s `mode` /
+  `position` / `ifMatch` fields, the new `Conflict` (`-32011`) error code,
+  and the bidirectional content-bearing `resource*` surface exposed on
+  both `CommandMap` and `ServerCommandMap`. Structs use Go
   JSON struct tags that preserve the canonical camelCase wire names;
   discriminated unions are concrete wrapper structs that round-trip via
   custom `MarshalJSON` / `UnmarshalJSON`; bitset enums are typed `uint32`
   with named flag constants and helpers.
+- `UserMessage._meta` optional map field, generated as
+  `Map[string]json.RawMessage`, exposing the new spec-level provider
+  metadata channel on user messages.
 - `ahp` — async `Client` driven by a pluggable `Transport`, pure
   `ApplyActionToRoot` / `ApplyActionToSession` / `ApplyActionToTerminal`
   / `ApplyActionToChangeset` reducers, `MultiHostClient` runtime under

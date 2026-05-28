@@ -20,17 +20,7 @@ hotfix escape hatch.
 
 ## [Unreleased]
 
-Implements AHP `0.2.0`.
-
-- Wire types for the extended `resource*` family: `resourceResolve`,
-  `resourceMkdir`, `createResourceWatch`, and the new `ahp-resource-watch:/`
-  channel with the `resourceWatch/changed` action. `ResourceWriteParams`
-  gains `mode` / `position` / `ifMatch`. New `Conflict` (`-32011`) error
-  code. The whole content-bearing `resource*` family is now bidirectional
-  (it appears in both `CommandMap` and `ServerCommandMap`).
-- `UserMessage._meta` optional `Record<string, unknown>` field, exposing the
-  new spec-level provider metadata channel on user messages.
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.
 
@@ -38,6 +28,14 @@ Initial npm publish of `@microsoft/agent-host-protocol`. Includes:
 
 - Default entry — wire types, actions, commands, reducers, version
   constants (`PROTOCOL_VERSION`, `SUPPORTED_PROTOCOL_VERSIONS`). Zero I/O.
+  Includes the extended `resource*` family (`resourceResolve`,
+  `resourceMkdir`, `createResourceWatch`, the new `ahp-resource-watch:/`
+  channel with the `resourceWatch/changed` action), `ResourceWriteParams`'s
+  `mode` / `position` / `ifMatch` fields, the new `Conflict` (`-32011`)
+  error code, and the bidirectional content-bearing `resource*` surface
+  exposed on both `CommandMap` and `ServerCommandMap`.
+- `UserMessage._meta` optional `Record<string, unknown>` field, exposing
+  the new spec-level provider metadata channel on user messages.
 - `/client` subpath — `AhpClient`, `Subscription`, `AhpStateMirror`,
   `AhpTransport` interface, `InMemoryTransport`, error taxonomy.
 - `/ws` subpath — `WebSocketTransport` built on the global `WebSocket`.
