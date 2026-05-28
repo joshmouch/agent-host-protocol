@@ -37,6 +37,10 @@
       "import": "./dist/client/index.js",
       "types": "./dist/client/index.d.ts"
     },
+    "./hosts": {
+      "import": "./dist/client/hosts/index.js",
+      "types": "./dist/client/hosts/index.d.ts"
+    },
     "./ws": {
       "import": "./dist/ws/index.js",
       "types": "./dist/ws/index.d.ts"
