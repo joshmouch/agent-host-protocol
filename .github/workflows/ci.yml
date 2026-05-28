@@ -72,6 +72,9 @@ jobs:
             exit 1
           fi
 
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
       - run: cargo clippy --workspace -- -D warnings
 
       - run: cargo test --workspace
