@@ -26,9 +26,10 @@ export interface ProtocolVersions {
 
 /**
  * Read the protocol version constants from `types/version/registry.ts`.
- * Falls back to a single hard-coded version only when the source file
- * cannot be located in `project` (e.g. unit tests with a partial
- * project), so callers don't need a runtime null-check.
+ * Throws if the registry source file is not present in `project`, or if
+ * either constant is missing, malformed, or violates the ordering
+ * invariant. Callers building a partial ts-morph project must include
+ * `types/version/registry.ts` among the source files.
  */
 export function readProtocolVersions(project: Project): ProtocolVersions {
   const sf = project

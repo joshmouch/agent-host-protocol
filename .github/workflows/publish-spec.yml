@@ -20,8 +20,10 @@ on:
 permissions:
   contents: read
 
-# Only one spec publish per tag may run at a time. A re-pushed tag (or a
-# manual re-trigger) cancels the in-flight run before publishing.
+# Only one spec publish per tag may run at a time. `cancel-in-progress:
+# false` is deliberate — a re-pushed tag (or a manual re-trigger) queues
+# behind the in-flight run rather than aborting it, so we never interrupt
+# a half-finished GitHub Release upload.
 concurrency:
   group: publish-spec-${{ github.ref }}
   cancel-in-progress: false
