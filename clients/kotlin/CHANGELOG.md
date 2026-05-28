@@ -15,21 +15,7 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ## [Unreleased]
 
-Implements AHP `0.2.0`.
-
-`gradle.properties` currently pins `VERSION_NAME=0.2.0-SNAPSHOT`. Drop the
-`-SNAPSHOT` suffix and bump as appropriate before tagging the first release.
-
-- Wire types for the extended `resource*` family: `resourceResolve`,
-  `resourceMkdir`, `createResourceWatch`, and the new `ahp-resource-watch:/`
-  channel with the `resourceWatch/changed` action. `ResourceWriteParams`
-  gains `mode` / `position` / `ifMatch`. New `Conflict` (`-32011`) error
-  code. The whole content-bearing `resource*` family is now bidirectional
-  (it appears in both `CommandMap` and `ServerCommandMap`).
-- `UserMessage.meta` optional `Map<String, JsonElement>?` field (serialized as
-  `_meta`), exposing the new spec-level provider metadata channel on user
-  messages.
-## [0.2.0] — Unreleased
+## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.
 
@@ -37,7 +23,12 @@ First Maven Central release of the Kotlin/JVM client (`com.microsoft.agenthostpr
 Includes:
 
 - Wire types generated from the canonical TypeScript protocol definitions in
-  `types/`.
+  `types/`, including the extended `resource*` family (`resourceResolve`,
+  `resourceMkdir`, `createResourceWatch`, the new `ahp-resource-watch:/`
+  channel with the `resourceWatch/changed` action), `ResourceWriteParams`'s
+  `mode` / `position` / `ifMatch` fields, and the new `Conflict` (`-32011`)
+  error code. The whole content-bearing `resource*` family is bidirectional
+  (it appears in both `CommandMap` and `ServerCommandMap`).
 - `com.microsoft.agenthostprotocol.Ahp.json` — pre-configured
   `kotlinx.serialization.json.Json` instance suitable for AHP encoding /
   decoding.
@@ -47,5 +38,8 @@ Includes:
   raw JSON envelope), so a client built against this version round-trips and
   reducer-processes wire payloads emitted by a server speaking a newer
   protocol version without throwing.
+- `UserMessage.meta` optional `Map<String, JsonElement>?` field (serialized
+  as `_meta`), exposing the new spec-level provider metadata channel on user
+  messages.
 - Generated `PROTOCOL_VERSION` and `SUPPORTED_PROTOCOL_VERSIONS` constants in
   `com.microsoft.agenthostprotocol.generated`.
