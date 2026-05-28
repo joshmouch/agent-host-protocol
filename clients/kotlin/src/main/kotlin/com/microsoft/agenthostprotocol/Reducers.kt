@@ -19,10 +19,12 @@ import com.microsoft.agenthostprotocol.generated.ChildCustomizationMcpServer
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationPrompt
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationRule
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationSkill
+import com.microsoft.agenthostprotocol.generated.ChildCustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ConfirmationOption
 import com.microsoft.agenthostprotocol.generated.Customization
 import com.microsoft.agenthostprotocol.generated.CustomizationDirectory
 import com.microsoft.agenthostprotocol.generated.CustomizationPlugin
+import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
 import com.microsoft.agenthostprotocol.generated.MarkdownResponsePart
 import com.microsoft.agenthostprotocol.generated.PendingMessage
@@ -122,6 +124,7 @@ import com.microsoft.agenthostprotocol.generated.ToolCallStatePendingConfirmatio
 import com.microsoft.agenthostprotocol.generated.ToolCallStatePendingResultConfirmation
 import com.microsoft.agenthostprotocol.generated.ToolCallStateRunning
 import com.microsoft.agenthostprotocol.generated.ToolCallStateStreaming
+import com.microsoft.agenthostprotocol.generated.ToolCallStateUnknown
 import com.microsoft.agenthostprotocol.generated.ToolCallStatus
 import com.microsoft.agenthostprotocol.generated.ToolCallStreamingState
 import com.microsoft.agenthostprotocol.generated.Turn
@@ -260,6 +263,11 @@ private fun toolCallBase(tc: ToolCallState): ToolCallBase = when (tc) {
     is ToolCallStateCancelled -> tc.value.let {
         ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
     }
+    // Forward-compat: unknown lifecycle variants have no extractable base; mirror
+    // Rust's `ToolCallState::Unknown(_) => (String::new(), ...)`. Combined with
+    // `toolCallIdOf` returning `""`, this guarantees an unknown tool call never
+    // matches a real `toolCallId` in delta/lookup paths.
+    is ToolCallStateUnknown -> ToolCallBase("", "", "", null, null)
 }
 
 /** Resolves a selected confirmation option by ID from a pending-confirmation state. */
@@ -270,33 +278,42 @@ private fun resolveSelectedOption(options: List<ConfirmationOption>?, id: String
 
 private fun toolCallIdOf(tc: ToolCallState): String = toolCallBase(tc).toolCallId
 
-private fun customizationId(c: Customization): String = when (c) {
+private fun customizationId(c: Customization): String? = when (c) {
     is CustomizationPlugin -> c.value.id
     is CustomizationDirectory -> c.value.id
+    // Unknown variants carry an opaque `raw` JSON object — no id to expose.
+    // Returning `null` mirrors Rust's `Customization::Unknown(_) => None`, so
+    // an unknown container can never collide with a real id during lookups.
+    is CustomizationUnknown -> null
 }
 
 private fun customizationChildren(c: Customization): List<ChildCustomization>? = when (c) {
     is CustomizationPlugin -> c.value.children
     is CustomizationDirectory -> c.value.children
+    is CustomizationUnknown -> null
 }
 
 private fun withCustomizationChildren(c: Customization, children: List<ChildCustomization>): Customization = when (c) {
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(children = children))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(children = children))
+    // Pass-through: we can't structurally edit a payload we don't understand.
+    is CustomizationUnknown -> c
 }
 
 private fun withCustomizationEnabled(c: Customization, enabled: Boolean): Customization = when (c) {
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(enabled = enabled))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(enabled = enabled))
+    is CustomizationUnknown -> c
 }
 
-private fun childCustomizationId(c: ChildCustomization): String = when (c) {
+private fun childCustomizationId(c: ChildCustomization): String? = when (c) {
     is ChildCustomizationAgent -> c.value.id
     is ChildCustomizationSkill -> c.value.id
     is ChildCustomizationPrompt -> c.value.id
     is ChildCustomizationRule -> c.value.id
     is ChildCustomizationHook -> c.value.id
     is ChildCustomizationMcpServer -> c.value.id
+    is ChildCustomizationUnknown -> null
 }
 
 /**
@@ -397,6 +414,10 @@ private fun endTurn(
             is ToolCallStateRunning -> tc.value.invocationMessage
             is ToolCallStatePendingResultConfirmation -> tc.value.invocationMessage
             is ToolCallStateCompleted, is ToolCallStateCancelled -> error("filtered above")
+            // Mirrors Rust's catch-all (`_ => Default::default()`). An unknown tool
+            // call cancelled at turn end becomes a Cancelled state with empty
+            // invocation message — destructive, but matches Rust parity exactly.
+            is ToolCallStateUnknown -> com.microsoft.agenthostprotocol.generated.StringOrMarkdown.Plain("")
         }
         val toolInput: String? = when (tc) {
             is ToolCallStateStreaming -> null
@@ -404,6 +425,7 @@ private fun endTurn(
             is ToolCallStateRunning -> tc.value.toolInput
             is ToolCallStatePendingResultConfirmation -> tc.value.toolInput
             is ToolCallStateCompleted, is ToolCallStateCancelled -> error("filtered above")
+            is ToolCallStateUnknown -> null
         }
         ResponsePartToolCall(
             part.value.copy(
@@ -950,14 +972,21 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
 
     is StateActionSessionCustomizationUpdated -> {
         val a = action.value
-        val list = state.customizations ?: emptyList()
-        val idx = list.indexOfFirst { customizationId(it) == customizationId(a.customization) }
-        if (idx < 0) {
-            state.copy(customizations = list + a.customization)
+        // Match Rust: an unknown customization has no id, so we can't locate or
+        // insert it sensibly — NoOp the update entirely.
+        val targetId = customizationId(a.customization)
+        if (targetId == null) {
+            state
         } else {
-            val updated = list.toMutableList()
-            updated[idx] = a.customization
-            state.copy(customizations = updated)
+            val list = state.customizations ?: emptyList()
+            val idx = list.indexOfFirst { customizationId(it) == targetId }
+            if (idx < 0) {
+                state.copy(customizations = list + a.customization)
+            } else {
+                val updated = list.toMutableList()
+                updated[idx] = a.customization
+                state.copy(customizations = updated)
+            }
         }
     }
 

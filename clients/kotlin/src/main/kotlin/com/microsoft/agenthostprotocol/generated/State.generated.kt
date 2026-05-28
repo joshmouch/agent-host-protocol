@@ -3011,6 +3011,16 @@ value class ResponsePartToolCall(val value: ToolCallResponsePart) : ResponsePart
 value class ResponsePartReasoning(val value: ReasoningResponsePart) : ResponsePart
 @JvmInline
 value class ResponsePartSystemNotification(val value: SystemNotificationResponsePart) : ResponsePart
+/**
+ * Forward-compat catch-all for unknown ResponsePart discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class ResponsePartUnknown(val raw: JsonObject) : ResponsePart
 
 internal object ResponsePartSerializer : KSerializer<ResponsePart> {
     override val descriptor: SerialDescriptor =
@@ -3023,14 +3033,14 @@ internal object ResponsePartSerializer : KSerializer<ResponsePart> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ResponsePart")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on ResponsePart")
+            ?: return ResponsePartUnknown(obj)
         return when (discriminant) {
             "markdown" -> ResponsePartMarkdown(input.json.decodeFromJsonElement(MarkdownResponsePart.serializer(), element))
             "contentRef" -> ResponsePartContentRef(input.json.decodeFromJsonElement(ResourceReponsePart.serializer(), element))
             "toolCall" -> ResponsePartToolCall(input.json.decodeFromJsonElement(ToolCallResponsePart.serializer(), element))
             "reasoning" -> ResponsePartReasoning(input.json.decodeFromJsonElement(ReasoningResponsePart.serializer(), element))
             "systemNotification" -> ResponsePartSystemNotification(input.json.decodeFromJsonElement(SystemNotificationResponsePart.serializer(), element))
-            else -> error("Unknown ResponsePart discriminator: $discriminant")
+            else -> ResponsePartUnknown(obj)
         }
     }
 
@@ -3043,6 +3053,7 @@ internal object ResponsePartSerializer : KSerializer<ResponsePart> {
             is ResponsePartToolCall -> output.json.encodeToJsonElement(ToolCallResponsePart.serializer(), value.value)
             is ResponsePartReasoning -> output.json.encodeToJsonElement(ReasoningResponsePart.serializer(), value.value)
             is ResponsePartSystemNotification -> output.json.encodeToJsonElement(SystemNotificationResponsePart.serializer(), value.value)
+            is ResponsePartUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3063,6 +3074,16 @@ value class ToolCallStatePendingResultConfirmation(val value: ToolCallPendingRes
 value class ToolCallStateCompleted(val value: ToolCallCompletedState) : ToolCallState
 @JvmInline
 value class ToolCallStateCancelled(val value: ToolCallCancelledState) : ToolCallState
+/**
+ * Forward-compat catch-all for unknown ToolCallState discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class ToolCallStateUnknown(val raw: JsonObject) : ToolCallState
 
 internal object ToolCallStateSerializer : KSerializer<ToolCallState> {
     override val descriptor: SerialDescriptor =
@@ -3075,7 +3096,7 @@ internal object ToolCallStateSerializer : KSerializer<ToolCallState> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ToolCallState")
         val discriminant = (obj["status"] as? JsonPrimitive)?.content
-            ?: error("Missing status discriminator on ToolCallState")
+            ?: return ToolCallStateUnknown(obj)
         return when (discriminant) {
             "streaming" -> ToolCallStateStreaming(input.json.decodeFromJsonElement(ToolCallStreamingState.serializer(), element))
             "pending-confirmation" -> ToolCallStatePendingConfirmation(input.json.decodeFromJsonElement(ToolCallPendingConfirmationState.serializer(), element))
@@ -3083,7 +3104,7 @@ internal object ToolCallStateSerializer : KSerializer<ToolCallState> {
             "pending-result-confirmation" -> ToolCallStatePendingResultConfirmation(input.json.decodeFromJsonElement(ToolCallPendingResultConfirmationState.serializer(), element))
             "completed" -> ToolCallStateCompleted(input.json.decodeFromJsonElement(ToolCallCompletedState.serializer(), element))
             "cancelled" -> ToolCallStateCancelled(input.json.decodeFromJsonElement(ToolCallCancelledState.serializer(), element))
-            else -> error("Unknown ToolCallState discriminator: $discriminant")
+            else -> ToolCallStateUnknown(obj)
         }
     }
 
@@ -3097,6 +3118,7 @@ internal object ToolCallStateSerializer : KSerializer<ToolCallState> {
             is ToolCallStatePendingResultConfirmation -> output.json.encodeToJsonElement(ToolCallPendingResultConfirmationState.serializer(), value.value)
             is ToolCallStateCompleted -> output.json.encodeToJsonElement(ToolCallCompletedState.serializer(), value.value)
             is ToolCallStateCancelled -> output.json.encodeToJsonElement(ToolCallCancelledState.serializer(), value.value)
+            is ToolCallStateUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3109,6 +3131,16 @@ sealed interface TerminalClaim
 value class TerminalClaimClient(val value: TerminalClientClaim) : TerminalClaim
 @JvmInline
 value class TerminalClaimSession(val value: TerminalSessionClaim) : TerminalClaim
+/**
+ * Forward-compat catch-all for unknown TerminalClaim discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class TerminalClaimUnknown(val raw: JsonObject) : TerminalClaim
 
 internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
     override val descriptor: SerialDescriptor =
@@ -3121,11 +3153,11 @@ internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for TerminalClaim")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on TerminalClaim")
+            ?: return TerminalClaimUnknown(obj)
         return when (discriminant) {
             "client" -> TerminalClaimClient(input.json.decodeFromJsonElement(TerminalClientClaim.serializer(), element))
             "session" -> TerminalClaimSession(input.json.decodeFromJsonElement(TerminalSessionClaim.serializer(), element))
-            else -> error("Unknown TerminalClaim discriminator: $discriminant")
+            else -> TerminalClaimUnknown(obj)
         }
     }
 
@@ -3135,6 +3167,7 @@ internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
         val element: JsonElement = when (value) {
             is TerminalClaimClient -> output.json.encodeToJsonElement(TerminalClientClaim.serializer(), value.value)
             is TerminalClaimSession -> output.json.encodeToJsonElement(TerminalSessionClaim.serializer(), value.value)
+            is TerminalClaimUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3147,6 +3180,16 @@ sealed interface TerminalContentPart
 value class TerminalContentPartUnclassified(val value: TerminalUnclassifiedPart) : TerminalContentPart
 @JvmInline
 value class TerminalContentPartCommand(val value: TerminalCommandPart) : TerminalContentPart
+/**
+ * Forward-compat catch-all for unknown TerminalContentPart discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class TerminalContentPartUnknown(val raw: JsonObject) : TerminalContentPart
 
 internal object TerminalContentPartSerializer : KSerializer<TerminalContentPart> {
     override val descriptor: SerialDescriptor =
@@ -3159,11 +3202,11 @@ internal object TerminalContentPartSerializer : KSerializer<TerminalContentPart>
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for TerminalContentPart")
         val discriminant = (obj["type"] as? JsonPrimitive)?.content
-            ?: error("Missing type discriminator on TerminalContentPart")
+            ?: return TerminalContentPartUnknown(obj)
         return when (discriminant) {
             "unclassified" -> TerminalContentPartUnclassified(input.json.decodeFromJsonElement(TerminalUnclassifiedPart.serializer(), element))
             "command" -> TerminalContentPartCommand(input.json.decodeFromJsonElement(TerminalCommandPart.serializer(), element))
-            else -> error("Unknown TerminalContentPart discriminator: $discriminant")
+            else -> TerminalContentPartUnknown(obj)
         }
     }
 
@@ -3173,6 +3216,7 @@ internal object TerminalContentPartSerializer : KSerializer<TerminalContentPart>
         val element: JsonElement = when (value) {
             is TerminalContentPartUnclassified -> output.json.encodeToJsonElement(TerminalUnclassifiedPart.serializer(), value.value)
             is TerminalContentPartCommand -> output.json.encodeToJsonElement(TerminalCommandPart.serializer(), value.value)
+            is TerminalContentPartUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3191,6 +3235,16 @@ value class SessionInputQuestionBoolean(val value: SessionInputBooleanQuestion) 
 value class SessionInputQuestionSingleSelect(val value: SessionInputSingleSelectQuestion) : SessionInputQuestion
 @JvmInline
 value class SessionInputQuestionMultiSelect(val value: SessionInputMultiSelectQuestion) : SessionInputQuestion
+/**
+ * Forward-compat catch-all for unknown SessionInputQuestion discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class SessionInputQuestionUnknown(val raw: JsonObject) : SessionInputQuestion
 
 internal object SessionInputQuestionSerializer : KSerializer<SessionInputQuestion> {
     override val descriptor: SerialDescriptor =
@@ -3203,7 +3257,7 @@ internal object SessionInputQuestionSerializer : KSerializer<SessionInputQuestio
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for SessionInputQuestion")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on SessionInputQuestion")
+            ?: return SessionInputQuestionUnknown(obj)
         return when (discriminant) {
             "text" -> SessionInputQuestionText(input.json.decodeFromJsonElement(SessionInputTextQuestion.serializer(), element))
             "number" -> SessionInputQuestionNumber(input.json.decodeFromJsonElement(SessionInputNumberQuestion.serializer(), element))
@@ -3211,7 +3265,7 @@ internal object SessionInputQuestionSerializer : KSerializer<SessionInputQuestio
             "boolean" -> SessionInputQuestionBoolean(input.json.decodeFromJsonElement(SessionInputBooleanQuestion.serializer(), element))
             "single-select" -> SessionInputQuestionSingleSelect(input.json.decodeFromJsonElement(SessionInputSingleSelectQuestion.serializer(), element))
             "multi-select" -> SessionInputQuestionMultiSelect(input.json.decodeFromJsonElement(SessionInputMultiSelectQuestion.serializer(), element))
-            else -> error("Unknown SessionInputQuestion discriminator: $discriminant")
+            else -> SessionInputQuestionUnknown(obj)
         }
     }
 
@@ -3224,6 +3278,7 @@ internal object SessionInputQuestionSerializer : KSerializer<SessionInputQuestio
             is SessionInputQuestionBoolean -> output.json.encodeToJsonElement(SessionInputBooleanQuestion.serializer(), value.value)
             is SessionInputQuestionSingleSelect -> output.json.encodeToJsonElement(SessionInputSingleSelectQuestion.serializer(), value.value)
             is SessionInputQuestionMultiSelect -> output.json.encodeToJsonElement(SessionInputMultiSelectQuestion.serializer(), value.value)
+            is SessionInputQuestionUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3242,6 +3297,16 @@ value class SessionInputAnswerValueBoolean(val value: SessionInputBooleanAnswerV
 value class SessionInputAnswerValueSelected(val value: SessionInputSelectedAnswerValue) : SessionInputAnswerValue
 @JvmInline
 value class SessionInputAnswerValueSelectedMany(val value: SessionInputSelectedManyAnswerValue) : SessionInputAnswerValue
+/**
+ * Forward-compat catch-all for unknown SessionInputAnswerValue discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class SessionInputAnswerValueUnknown(val raw: JsonObject) : SessionInputAnswerValue
 
 internal object SessionInputAnswerValueSerializer : KSerializer<SessionInputAnswerValue> {
     override val descriptor: SerialDescriptor =
@@ -3254,14 +3319,14 @@ internal object SessionInputAnswerValueSerializer : KSerializer<SessionInputAnsw
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for SessionInputAnswerValue")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on SessionInputAnswerValue")
+            ?: return SessionInputAnswerValueUnknown(obj)
         return when (discriminant) {
             "text" -> SessionInputAnswerValueText(input.json.decodeFromJsonElement(SessionInputTextAnswerValue.serializer(), element))
             "number" -> SessionInputAnswerValueNumber(input.json.decodeFromJsonElement(SessionInputNumberAnswerValue.serializer(), element))
             "boolean" -> SessionInputAnswerValueBoolean(input.json.decodeFromJsonElement(SessionInputBooleanAnswerValue.serializer(), element))
             "selected" -> SessionInputAnswerValueSelected(input.json.decodeFromJsonElement(SessionInputSelectedAnswerValue.serializer(), element))
             "selected-many" -> SessionInputAnswerValueSelectedMany(input.json.decodeFromJsonElement(SessionInputSelectedManyAnswerValue.serializer(), element))
-            else -> error("Unknown SessionInputAnswerValue discriminator: $discriminant")
+            else -> SessionInputAnswerValueUnknown(obj)
         }
     }
 
@@ -3274,6 +3339,7 @@ internal object SessionInputAnswerValueSerializer : KSerializer<SessionInputAnsw
             is SessionInputAnswerValueBoolean -> output.json.encodeToJsonElement(SessionInputBooleanAnswerValue.serializer(), value.value)
             is SessionInputAnswerValueSelected -> output.json.encodeToJsonElement(SessionInputSelectedAnswerValue.serializer(), value.value)
             is SessionInputAnswerValueSelectedMany -> output.json.encodeToJsonElement(SessionInputSelectedManyAnswerValue.serializer(), value.value)
+            is SessionInputAnswerValueUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3286,6 +3352,16 @@ sealed interface SessionInputAnswer
 value class SessionInputAnswerDraft(val value: SessionInputAnswered) : SessionInputAnswer
 @JvmInline
 value class SessionInputAnswerSkipped(val value: SessionInputSkipped) : SessionInputAnswer
+/**
+ * Forward-compat catch-all for unknown SessionInputAnswer discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class SessionInputAnswerUnknown(val raw: JsonObject) : SessionInputAnswer
 
 internal object SessionInputAnswerSerializer : KSerializer<SessionInputAnswer> {
     override val descriptor: SerialDescriptor =
@@ -3298,12 +3374,12 @@ internal object SessionInputAnswerSerializer : KSerializer<SessionInputAnswer> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for SessionInputAnswer")
         val discriminant = (obj["state"] as? JsonPrimitive)?.content
-            ?: error("Missing state discriminator on SessionInputAnswer")
+            ?: return SessionInputAnswerUnknown(obj)
         return when (discriminant) {
             "draft" -> SessionInputAnswerDraft(input.json.decodeFromJsonElement(SessionInputAnswered.serializer(), element))
             "submitted" -> SessionInputAnswerDraft(input.json.decodeFromJsonElement(SessionInputAnswered.serializer(), element))
             "skipped" -> SessionInputAnswerSkipped(input.json.decodeFromJsonElement(SessionInputSkipped.serializer(), element))
-            else -> error("Unknown SessionInputAnswer discriminator: $discriminant")
+            else -> SessionInputAnswerUnknown(obj)
         }
     }
 
@@ -3313,6 +3389,7 @@ internal object SessionInputAnswerSerializer : KSerializer<SessionInputAnswer> {
         val element: JsonElement = when (value) {
             is SessionInputAnswerDraft -> output.json.encodeToJsonElement(SessionInputAnswered.serializer(), value.value)
             is SessionInputAnswerSkipped -> output.json.encodeToJsonElement(SessionInputSkipped.serializer(), value.value)
+            is SessionInputAnswerUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3327,6 +3404,16 @@ value class MessageAttachmentSimple(val value: SimpleMessageAttachment) : Messag
 value class MessageAttachmentEmbeddedResource(val value: MessageEmbeddedResourceAttachment) : MessageAttachment
 @JvmInline
 value class MessageAttachmentResource(val value: MessageResourceAttachment) : MessageAttachment
+/**
+ * Forward-compat catch-all for unknown MessageAttachment discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class MessageAttachmentUnknown(val raw: JsonObject) : MessageAttachment
 
 internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
     override val descriptor: SerialDescriptor =
@@ -3339,12 +3426,12 @@ internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for MessageAttachment")
         val discriminant = (obj["type"] as? JsonPrimitive)?.content
-            ?: error("Missing type discriminator on MessageAttachment")
+            ?: return MessageAttachmentUnknown(obj)
         return when (discriminant) {
             "simple" -> MessageAttachmentSimple(input.json.decodeFromJsonElement(SimpleMessageAttachment.serializer(), element))
             "embeddedResource" -> MessageAttachmentEmbeddedResource(input.json.decodeFromJsonElement(MessageEmbeddedResourceAttachment.serializer(), element))
             "resource" -> MessageAttachmentResource(input.json.decodeFromJsonElement(MessageResourceAttachment.serializer(), element))
-            else -> error("Unknown MessageAttachment discriminator: $discriminant")
+            else -> MessageAttachmentUnknown(obj)
         }
     }
 
@@ -3355,6 +3442,7 @@ internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
             is MessageAttachmentSimple -> output.json.encodeToJsonElement(SimpleMessageAttachment.serializer(), value.value)
             is MessageAttachmentEmbeddedResource -> output.json.encodeToJsonElement(MessageEmbeddedResourceAttachment.serializer(), value.value)
             is MessageAttachmentResource -> output.json.encodeToJsonElement(MessageResourceAttachment.serializer(), value.value)
+            is MessageAttachmentUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3367,6 +3455,16 @@ sealed interface Customization
 value class CustomizationPlugin(val value: PluginCustomization) : Customization
 @JvmInline
 value class CustomizationDirectory(val value: DirectoryCustomization) : Customization
+/**
+ * Forward-compat catch-all for unknown Customization discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class CustomizationUnknown(val raw: JsonObject) : Customization
 
 internal object CustomizationSerializer : KSerializer<Customization> {
     override val descriptor: SerialDescriptor =
@@ -3379,11 +3477,11 @@ internal object CustomizationSerializer : KSerializer<Customization> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for Customization")
         val discriminant = (obj["type"] as? JsonPrimitive)?.content
-            ?: error("Missing type discriminator on Customization")
+            ?: return CustomizationUnknown(obj)
         return when (discriminant) {
             "plugin" -> CustomizationPlugin(input.json.decodeFromJsonElement(PluginCustomization.serializer(), element))
             "directory" -> CustomizationDirectory(input.json.decodeFromJsonElement(DirectoryCustomization.serializer(), element))
-            else -> error("Unknown Customization discriminator: $discriminant")
+            else -> CustomizationUnknown(obj)
         }
     }
 
@@ -3393,6 +3491,7 @@ internal object CustomizationSerializer : KSerializer<Customization> {
         val element: JsonElement = when (value) {
             is CustomizationPlugin -> output.json.encodeToJsonElement(PluginCustomization.serializer(), value.value)
             is CustomizationDirectory -> output.json.encodeToJsonElement(DirectoryCustomization.serializer(), value.value)
+            is CustomizationUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3413,6 +3512,16 @@ value class ChildCustomizationRule(val value: RuleCustomization) : ChildCustomiz
 value class ChildCustomizationHook(val value: HookCustomization) : ChildCustomization
 @JvmInline
 value class ChildCustomizationMcpServer(val value: McpServerCustomization) : ChildCustomization
+/**
+ * Forward-compat catch-all for unknown ChildCustomization discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class ChildCustomizationUnknown(val raw: JsonObject) : ChildCustomization
 
 internal object ChildCustomizationSerializer : KSerializer<ChildCustomization> {
     override val descriptor: SerialDescriptor =
@@ -3425,7 +3534,7 @@ internal object ChildCustomizationSerializer : KSerializer<ChildCustomization> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ChildCustomization")
         val discriminant = (obj["type"] as? JsonPrimitive)?.content
-            ?: error("Missing type discriminator on ChildCustomization")
+            ?: return ChildCustomizationUnknown(obj)
         return when (discriminant) {
             "agent" -> ChildCustomizationAgent(input.json.decodeFromJsonElement(AgentCustomization.serializer(), element))
             "skill" -> ChildCustomizationSkill(input.json.decodeFromJsonElement(SkillCustomization.serializer(), element))
@@ -3433,7 +3542,7 @@ internal object ChildCustomizationSerializer : KSerializer<ChildCustomization> {
             "rule" -> ChildCustomizationRule(input.json.decodeFromJsonElement(RuleCustomization.serializer(), element))
             "hook" -> ChildCustomizationHook(input.json.decodeFromJsonElement(HookCustomization.serializer(), element))
             "mcpServer" -> ChildCustomizationMcpServer(input.json.decodeFromJsonElement(McpServerCustomization.serializer(), element))
-            else -> error("Unknown ChildCustomization discriminator: $discriminant")
+            else -> ChildCustomizationUnknown(obj)
         }
     }
 
@@ -3447,6 +3556,7 @@ internal object ChildCustomizationSerializer : KSerializer<ChildCustomization> {
             is ChildCustomizationRule -> output.json.encodeToJsonElement(RuleCustomization.serializer(), value.value)
             is ChildCustomizationHook -> output.json.encodeToJsonElement(HookCustomization.serializer(), value.value)
             is ChildCustomizationMcpServer -> output.json.encodeToJsonElement(McpServerCustomization.serializer(), value.value)
+            is ChildCustomizationUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3463,6 +3573,16 @@ value class CustomizationLoadStateLoaded(val value: CustomizationLoadedState) : 
 value class CustomizationLoadStateDegraded(val value: CustomizationDegradedState) : CustomizationLoadState
 @JvmInline
 value class CustomizationLoadStateError(val value: CustomizationErrorState) : CustomizationLoadState
+/**
+ * Forward-compat catch-all for unknown CustomizationLoadState discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class CustomizationLoadStateUnknown(val raw: JsonObject) : CustomizationLoadState
 
 internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoadState> {
     override val descriptor: SerialDescriptor =
@@ -3475,13 +3595,13 @@ internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoad
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for CustomizationLoadState")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on CustomizationLoadState")
+            ?: return CustomizationLoadStateUnknown(obj)
         return when (discriminant) {
             "loading" -> CustomizationLoadStateLoading(input.json.decodeFromJsonElement(CustomizationLoadingState.serializer(), element))
             "loaded" -> CustomizationLoadStateLoaded(input.json.decodeFromJsonElement(CustomizationLoadedState.serializer(), element))
             "degraded" -> CustomizationLoadStateDegraded(input.json.decodeFromJsonElement(CustomizationDegradedState.serializer(), element))
             "error" -> CustomizationLoadStateError(input.json.decodeFromJsonElement(CustomizationErrorState.serializer(), element))
-            else -> error("Unknown CustomizationLoadState discriminator: $discriminant")
+            else -> CustomizationLoadStateUnknown(obj)
         }
     }
 
@@ -3493,6 +3613,7 @@ internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoad
             is CustomizationLoadStateLoaded -> output.json.encodeToJsonElement(CustomizationLoadedState.serializer(), value.value)
             is CustomizationLoadStateDegraded -> output.json.encodeToJsonElement(CustomizationDegradedState.serializer(), value.value)
             is CustomizationLoadStateError -> output.json.encodeToJsonElement(CustomizationErrorState.serializer(), value.value)
+            is CustomizationLoadStateUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -3506,6 +3627,14 @@ sealed interface ToolResultContent {
     @JvmInline value class FileEdit(val value: ToolResultFileEditContent) : ToolResultContent
     @JvmInline value class Terminal(val value: ToolResultTerminalContent) : ToolResultContent
     @JvmInline value class Subagent(val value: ToolResultSubagentContent) : ToolResultContent
+
+    /**
+     * Forward-compat catch-all for unknown ToolResultContent types.
+     *
+     * Older clients may receive newer wire variants they don't recognise; capturing
+     * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+     */
+    @JvmInline value class Unknown(val raw: JsonObject) : ToolResultContent
 }
 
 internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
@@ -3519,7 +3648,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ToolResultContent")
         val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
-            ?: error("ToolResultContent missing type")
+            ?: return ToolResultContent.Unknown(obj)
         return when (type) {
             "text" -> ToolResultContent.Text(input.json.decodeFromJsonElement(ToolResultTextContent.serializer(), element))
             "embeddedResource" -> ToolResultContent.EmbeddedResource(input.json.decodeFromJsonElement(ToolResultEmbeddedResourceContent.serializer(), element))
@@ -3527,7 +3656,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
             "fileEdit" -> ToolResultContent.FileEdit(input.json.decodeFromJsonElement(ToolResultFileEditContent.serializer(), element))
             "terminal" -> ToolResultContent.Terminal(input.json.decodeFromJsonElement(ToolResultTerminalContent.serializer(), element))
             "subagent" -> ToolResultContent.Subagent(input.json.decodeFromJsonElement(ToolResultSubagentContent.serializer(), element))
-            else -> error("Unknown ToolResultContent type: $type")
+            else -> ToolResultContent.Unknown(obj)
         }
     }
 
@@ -3541,6 +3670,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
             is ToolResultContent.FileEdit -> output.json.encodeToJsonElement(ToolResultFileEditContent.serializer(), value.value)
             is ToolResultContent.Terminal -> output.json.encodeToJsonElement(ToolResultTerminalContent.serializer(), value.value)
             is ToolResultContent.Subagent -> output.json.encodeToJsonElement(ToolResultSubagentContent.serializer(), value.value)
+            is ToolResultContent.Unknown -> value.raw
         }
         output.encodeJsonElement(element)
     }

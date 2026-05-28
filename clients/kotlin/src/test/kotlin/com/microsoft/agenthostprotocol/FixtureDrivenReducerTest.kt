@@ -302,26 +302,19 @@ class FixtureDrivenReducerTest {
         /**
          * Fixture descriptions intentionally skipped because they exercise
          * decoding behaviour the generated wire types in this package do
-         * not yet support (e.g. unknown `ResponsePart` discriminators
-         * surviving a round trip). Each entry is keyed by the fixture's
-         * top-level `description` field so re-numbering or splitting JSON
-         * files doesn't silently change what is skipped.
+         * not yet support. Each entry is keyed by the fixture's top-level
+         * `description` field so re-numbering or splitting JSON files
+         * doesn't silently change what is skipped. As of this writing the
+         * full reducer fixture corpus is covered (zero skipped).
          */
-        private val SKIPPED_FIXTURES: Set<String> = setOf(
-            // Initial state has a ResponsePart with `kind: "unknownFuturePart"`.
-            // ResponsePartSerializer in the generated wire types throws on
-            // unknown discriminators (no `ResponsePartUnknown` variant
-            // analogous to `StateActionUnknown`). Adding that variant is a
-            // wire-types change outside this reducer-port PR's scope.
-            "delta skips response parts without id field",
-        )
+        private val SKIPPED_FIXTURES: Set<String> = emptySet()
 
         /**
          * Upper bound on how many fixtures may be skipped. Raising this
          * requires a corresponding entry in [SKIPPED_FIXTURES]; lowering
          * it requires removing one.
          */
-        private const val MAX_SKIPPED_FIXTURES: Int = 1
+        private const val MAX_SKIPPED_FIXTURES: Int = 0
     }
 }
 
