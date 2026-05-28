@@ -33,5 +33,10 @@ Includes:
   `kotlinx.serialization.json.Json` instance suitable for AHP encoding /
   decoding.
 - Per-channel action types and discriminated-union sealed interfaces.
+- Forward-compat `Unknown` variants on every generated discriminated-union
+  sealed interface (including `StateActionUnknown`, which captures the full
+  raw JSON envelope), so a client built against this version round-trips and
+  reducer-processes wire payloads emitted by a server speaking a newer
+  protocol version without throwing.
 - Generated `PROTOCOL_VERSION` and `SUPPORTED_PROTOCOL_VERSIONS` constants in
   `com.microsoft.agenthostprotocol.generated`.
