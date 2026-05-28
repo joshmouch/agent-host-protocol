@@ -707,6 +707,12 @@ type UserMessage struct {
 	Text string `json:"text"`
 	// File/selection attachments
 	Attachments []MessageAttachment `json:"attachments,omitempty"`
+	// Additional provider-specific metadata for this message.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry context that does not fit any other
+	// field. Mirrors the MCP `_meta` convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // A choice in a select-style question.

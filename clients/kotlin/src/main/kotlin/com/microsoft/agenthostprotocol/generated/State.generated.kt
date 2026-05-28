@@ -1040,7 +1040,16 @@ data class UserMessage(
     /**
      * File/selection attachments
      */
-    val attachments: List<MessageAttachment>? = null
+    val attachments: List<MessageAttachment>? = null,
+    /**
+     * Additional provider-specific metadata for this message.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry context that does not fit any other
+     * field. Mirrors the MCP `_meta` convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable

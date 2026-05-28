@@ -909,6 +909,13 @@ pub struct UserMessage {
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
+    /// Additional provider-specific metadata for this message.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry context that does not fit any other
+    /// field. Mirrors the MCP `_meta` convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// A choice in a select-style question.

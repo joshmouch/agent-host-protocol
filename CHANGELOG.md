@@ -23,6 +23,12 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 `NOTIFICATION_INTRODUCED_IN` maps in
 [`types/version/registry.ts`](types/version/registry.ts).
 
+### Added
+- `UserMessage._meta` optional `Record<string, unknown>` field for
+  provider-specific message metadata, mirroring the MCP `_meta` convention
+  already used on `MessageAttachmentBase`, `ToolDefinition`, `ToolCallBase`,
+  `UsageInfo`, and `SessionState`.
+
 ## [0.2.0] — Unreleased
 
 Spec version: `0.2.0`

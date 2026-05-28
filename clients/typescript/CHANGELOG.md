@@ -28,7 +28,8 @@ Implements AHP `0.2.0`.
   gains `mode` / `position` / `ifMatch`. New `Conflict` (`-32011`) error
   code. The whole content-bearing `resource*` family is now bidirectional
   (it appears in both `CommandMap` and `ServerCommandMap`).
-
+- `UserMessage._meta` optional `Record<string, unknown>` field, exposing the
+  new spec-level provider metadata channel on user messages.
 ## [0.2.0] — Unreleased
 
 Implements AHP `0.2.0`.

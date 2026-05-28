@@ -1226,6 +1226,7 @@ mod tests {
             user_message: UserMessage {
                 text: "hi".into(),
                 attachments: None,
+                meta: None,
             },
             queued_message_id: None,
         });
@@ -1245,6 +1246,7 @@ mod tests {
             user_message: UserMessage {
                 text: "hi".into(),
                 attachments: None,
+                meta: None,
             },
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
@@ -1272,6 +1274,7 @@ mod tests {
             user_message: UserMessage {
                 text: "hi".into(),
                 attachments: None,
+                meta: None,
             },
             response_parts: Vec::new(),
             usage: None,

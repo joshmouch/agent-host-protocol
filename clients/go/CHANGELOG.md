@@ -20,7 +20,9 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   gains `mode` / `position` / `ifMatch`. New `Conflict` (`-32011`) error
   code. The whole content-bearing `resource*` family is now bidirectional
   (it appears in both `CommandMap` and `ServerCommandMap`).
-
+- `UserMessage._meta` optional map field, generated as
+  `Map[string]json.RawMessage`, exposing the new spec-level provider
+  metadata channel on user messages.
 ## [0.1.0]
 
 Implements AHP `0.2.0`.

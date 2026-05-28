@@ -1467,6 +1467,11 @@
             "$ref": "#/$defs/MessageAttachment"
           },
           "description": "File/selection attachments"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this message.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry context that does not fit any other\nfield. Mirrors the MCP `_meta` convention."
         }
       },
       "required": [
