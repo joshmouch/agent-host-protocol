@@ -341,7 +341,7 @@ function generateRustEnum(enumDecl: EnumDeclaration): string {
 
   if (desc) {
     for (const d of desc.split('\n')) {
-      lines.push(`/// ${d.trim()}`);
+      lines.push(`/// ${d.trimEnd()}`);
     }
   }
 

@@ -154,6 +154,9 @@ func TestFixtureDrivenReducerParity(t *testing.T) {
 			case "changeset":
 				// Changeset reducer logic is deferred — skip.
 				tt.Skip("changeset reducer is a stub in this client (parity with Rust)")
+			case "resourceWatch":
+				// Resource-watch reducer logic is deferred — skip.
+				tt.Skip("resourceWatch reducer is a stub in this client (parity with Rust)")
 			default:
 				tt.Fatalf("unknown reducer kind %q", fixture.Reducer)
 			}

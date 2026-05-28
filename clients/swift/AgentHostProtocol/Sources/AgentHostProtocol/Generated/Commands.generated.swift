@@ -34,6 +34,7 @@ public enum ResourceType: String, Codable, Sendable {
 /// How {@link ResourceWriteParams.data} is placed within the target file.
 /// 
 /// Each mode interprets {@link ResourceWriteParams.position} differently:
+/// 
 /// - `truncate` (default): rooted at the **start** of the file. The file is
 /// truncated at `position` (0 by default) and `data` is written from that
 /// offset, so the resulting file is `existing[0..position] + data`. With

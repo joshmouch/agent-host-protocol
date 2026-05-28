@@ -37,6 +37,7 @@ import com.microsoft.agenthostprotocol.generated.ResponsePartReasoning
 import com.microsoft.agenthostprotocol.generated.ResponsePartToolCall
 import com.microsoft.agenthostprotocol.generated.RootState
 import com.microsoft.agenthostprotocol.generated.SessionActiveClient
+import com.microsoft.agenthostprotocol.generated.ResourceWatchState
 import com.microsoft.agenthostprotocol.generated.SessionInputRequest
 import com.microsoft.agenthostprotocol.generated.SessionLifecycle
 import com.microsoft.agenthostprotocol.generated.SessionState
@@ -52,6 +53,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionRootActiveSessionsCh
 import com.microsoft.agenthostprotocol.generated.StateActionRootAgentsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootConfigChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootTerminalsChanged
+import com.microsoft.agenthostprotocol.generated.StateActionResourceWatchChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionActiveClientChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionActiveClientToolsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionActivityChanged
@@ -1311,7 +1313,7 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
 
 /**
  * Pure reducer for an [ResourceWatchState]. Pattern-matches on the
- * `resourceWatch/*` action variants; actions belonging to other channels
+ * `resourceWatch/changed` action; actions belonging to other channels
  * (or unknown variants) are no-ops that return [state] unchanged.
  *
  * Watches are intentionally event-pass-through: `resourceWatch/changed`
