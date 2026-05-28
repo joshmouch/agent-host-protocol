@@ -20,6 +20,11 @@ Implements AHP `0.2.0`.
 `gradle.properties` currently pins `VERSION_NAME=0.2.0-SNAPSHOT`. Drop the
 `-SNAPSHOT` suffix and bump as appropriate before tagging the first release.
 
+### Added
+- `UserMessage.meta` optional `Map<String, JsonElement>?` field (serialized as
+  `_meta`), exposing the new spec-level provider metadata channel on user
+  messages.
+
 ## [0.2.0] — Unreleased
 
 Implements AHP `0.2.0`.

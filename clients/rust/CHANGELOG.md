@@ -21,6 +21,10 @@ The in-tree source already supports protocol version `0.2.0` even though the
 last published crates are `0.1.0`. The next Rust release will bump the
 workspace version to align with the current spec.
 
+### Added
+- `UserMessage.meta` optional `JsonObject` field (serialized as `_meta`),
+  exposing the new spec-level provider metadata channel on user messages.
+
 ## [0.1.0] — 2026-01-01
 
 Implements AHP `0.1.0`.

@@ -14,6 +14,11 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ## [Unreleased]
 
+### Added
+- `UserMessage._meta` optional map field, generated as
+  `Map[string]json.RawMessage`, exposing the new spec-level provider
+  metadata channel on user messages.
+
 ## [0.1.0]
 
 Implements AHP `0.2.0`.
