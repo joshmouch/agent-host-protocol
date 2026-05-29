@@ -10,6 +10,7 @@ package com.microsoft.agenthostprotocol
 
 import com.microsoft.agenthostprotocol.generated.AgentSelection
 import com.microsoft.agenthostprotocol.generated.ChangesetFile
+import com.microsoft.agenthostprotocol.generated.ChangesetOperationStatus
 import com.microsoft.agenthostprotocol.generated.ChangesetState
 import com.microsoft.agenthostprotocol.generated.ChangesetStatus
 import com.microsoft.agenthostprotocol.generated.ChildCustomization
@@ -48,6 +49,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionChangesetCleared
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetFileRemoved
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetFileSet
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetOperationsChanged
+import com.microsoft.agenthostprotocol.generated.StateActionChangesetOperationStatusChanged
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetStatusChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootActiveSessionsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootAgentsChanged
