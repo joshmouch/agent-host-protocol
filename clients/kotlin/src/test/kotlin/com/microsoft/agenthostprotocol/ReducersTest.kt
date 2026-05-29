@@ -11,6 +11,7 @@ import com.microsoft.agenthostprotocol.generated.ChangesetFileSetAction
 import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
 import com.microsoft.agenthostprotocol.generated.FileEdit
+import com.microsoft.agenthostprotocol.generated.Message
 import com.microsoft.agenthostprotocol.generated.PendingMessage
 import com.microsoft.agenthostprotocol.generated.PendingMessageKind
 import com.microsoft.agenthostprotocol.generated.RootAgentsChangedAction
@@ -40,7 +41,6 @@ import com.microsoft.agenthostprotocol.generated.TerminalContentPartUnclassified
 import com.microsoft.agenthostprotocol.generated.TerminalDataAction
 import com.microsoft.agenthostprotocol.generated.TerminalInputAction
 import com.microsoft.agenthostprotocol.generated.TerminalState
-import com.microsoft.agenthostprotocol.generated.UserMessage
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
