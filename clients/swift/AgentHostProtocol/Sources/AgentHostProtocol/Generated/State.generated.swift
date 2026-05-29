@@ -241,6 +241,13 @@ public enum ChangesetOperationScope: String, Codable, Sendable {
     case range = "range"
 }
 
+/// Discriminant for {@link ResourceChange.type}.
+public enum ResourceChangeType: String, Codable, Sendable {
+    case added = "added"
+    case updated = "updated"
+    case deleted = "deleted"
+}
+
 // MARK: - State Types
 
 public struct Icon: Codable, Sendable {
@@ -903,15 +910,28 @@ public struct Message: Codable, Sendable {
     public var origin: AnyCodable
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
+    /// Additional provider-specific metadata for this message.
+    /// 
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry context that does not fit any other
+    /// field. Mirrors the MCP `_meta` convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case attachments
+        case meta = "_meta"
+    }
 
     public init(
         text: String,
-        origin: AnyCodable,
-        attachments: [MessageAttachment]? = nil
+        attachments: [MessageAttachment]? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.text = text
         self.origin = origin
         self.attachments = attachments
+        self.meta = meta
     }
 }
 
@@ -3307,6 +3327,51 @@ public struct TelemetryCapabilities: Codable, Sendable {
         self.logs = logs
         self.traces = traces
         self.metrics = metrics
+    }
+}
+
+public struct ResourceWatchState: Codable, Sendable {
+    /// The URI being watched. For recursive watches this is the root of the
+    /// subtree; for non-recursive watches this is the single file or
+    /// directory.
+    public var root: String
+    /// `true` if the watcher reports changes for descendants of `root`;
+    /// `false` if it only reports changes to `root` itself (and, when
+    /// `root` is a directory, its direct children).
+    public var recursive: Bool
+    /// Optional glob patterns or paths relative to `root` to exclude from
+    /// change reporting.
+    public var excludes: AnyCodable?
+    /// Optional glob patterns or paths relative to `root` to restrict
+    /// change reporting to. Omit to report every change under `root`
+    /// subject to `excludes`.
+    public var includes: AnyCodable?
+
+    public init(
+        root: String,
+        recursive: Bool,
+        excludes: AnyCodable? = nil,
+        includes: AnyCodable? = nil
+    ) {
+        self.root = root
+        self.recursive = recursive
+        self.excludes = excludes
+        self.includes = includes
+    }
+}
+
+public struct ResourceChange: Codable, Sendable {
+    /// The URI of the resource that changed.
+    public var uri: String
+    /// The kind of change observed.
+    public var type: ResourceChangeType
+
+    public init(
+        uri: String,
+        type: ResourceChangeType
+    ) {
+        self.uri = uri
+        self.type = type
     }
 }
 

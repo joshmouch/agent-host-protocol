@@ -676,7 +676,10 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                 // Unknown variant — no id to match on.
                 return ReduceOutcome::NoOp;
             };
-            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(action_id)) {
+            if let Some(idx) = list
+                .iter()
+                .position(|c| customization_id(c) == Some(action_id))
+            {
                 list[idx] = a.customization.clone();
             } else {
                 list.push(a.customization.clone());
@@ -688,14 +691,20 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                 return ReduceOutcome::NoOp;
             };
             // Try to remove a top-level container.
-            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(a.id.as_str())) {
+            if let Some(idx) = list
+                .iter()
+                .position(|c| customization_id(c) == Some(a.id.as_str()))
+            {
                 list.remove(idx);
                 return ReduceOutcome::Applied;
             }
             // Otherwise look for a child to remove.
             for container in list.iter_mut() {
                 if let Some(children) = container_children_mut(container) {
-                    if let Some(idx) = children.iter().position(|c| child_id_of(c) == Some(a.id.as_str())) {
+                    if let Some(idx) = children
+                        .iter()
+                        .position(|c| child_id_of(c) == Some(a.id.as_str()))
+                    {
                         children.remove(idx);
                         return ReduceOutcome::Applied;
                     }
@@ -1231,7 +1240,11 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         let action = StateAction::SessionTurnStarted(SessionTurnStartedAction {
             turn_id: "t1".into(),
-            message: user_message("hi"),
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+                meta: None,
+            },
             queued_message_id: None,
         });
         assert_eq!(
@@ -1247,7 +1260,11 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            message: user_message("hi"),
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+                meta: None,
+            },
             response_parts: vec![ResponsePart::Markdown(MarkdownResponsePart {
                 id: "p1".into(),
                 content: "Hello".into(),
@@ -1271,7 +1288,11 @@ mod tests {
         let mut s = empty_session("copilot:/s1");
         s.active_turn = Some(ActiveTurn {
             id: "t1".into(),
-            message: user_message("hi"),
+            user_message: UserMessage {
+                text: "hi".into(),
+                attachments: None,
+                meta: None,
+            },
             response_parts: Vec::new(),
             usage: None,
         });
@@ -1505,6 +1526,11 @@ mod tests {
                 ),
                 "changeset" => {
                     // changeset reducer not yet implemented in Rust; skip.
+                    skipped += 1;
+                    continue;
+                }
+                "resourceWatch" => {
+                    // resourceWatch reducer not yet implemented in Rust; skip.
                     skipped += 1;
                     continue;
                 }

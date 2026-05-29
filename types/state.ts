@@ -13,3 +13,4 @@ export * from './channels-session/state.js';
 export * from './channels-terminal/state.js';
 export * from './channels-changeset/state.js';
 export * from './channels-otlp/state.js';
+export * from './channels-resource-watch/state.js';

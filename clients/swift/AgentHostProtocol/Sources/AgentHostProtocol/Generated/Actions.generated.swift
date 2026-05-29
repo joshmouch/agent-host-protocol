@@ -66,6 +66,7 @@ public enum ActionType: String, Codable, Sendable {
     case terminalCommandDetectionAvailable = "terminal/commandDetectionAvailable"
     case terminalCommandExecuted = "terminal/commandExecuted"
     case terminalCommandFinished = "terminal/commandFinished"
+    case resourceWatchChanged = "resourceWatch/changed"
 }
 
 // MARK: - Action Infrastructure
@@ -1288,6 +1289,20 @@ public struct TerminalCommandFinishedAction: Codable, Sendable {
     }
 }
 
+public struct ResourceWatchChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The set of changes in this batch, wrapped for forward compatibility.
+    public var changes: AnyCodable
+
+    public init(
+        type: ActionType,
+        changes: AnyCodable
+    ) {
+        self.type = type
+        self.changes = changes
+    }
+}
+
 // MARK: - StateAction Union
 
 /// Discriminated union of all state actions.
@@ -1352,6 +1367,7 @@ public enum StateAction: Codable, Sendable {
     case terminalCommandDetectionAvailable(TerminalCommandDetectionAvailableAction)
     case terminalCommandExecuted(TerminalCommandExecutedAction)
     case terminalCommandFinished(TerminalCommandFinishedAction)
+    case resourceWatchChanged(ResourceWatchChangedAction)
     /// Unknown or future action type; reducers treat this as a no-op.
     case unknown(type: String)
 
@@ -1481,6 +1497,8 @@ public enum StateAction: Codable, Sendable {
             self = .terminalCommandExecuted(try TerminalCommandExecutedAction(from: decoder))
         case "terminal/commandFinished":
             self = .terminalCommandFinished(try TerminalCommandFinishedAction(from: decoder))
+        case "resourceWatch/changed":
+            self = .resourceWatchChanged(try ResourceWatchChangedAction(from: decoder))
         default:
             self = .unknown(type: type)
         }
@@ -1548,6 +1566,7 @@ public enum StateAction: Codable, Sendable {
         case .terminalCommandDetectionAvailable(let v): try v.encode(to: encoder)
         case .terminalCommandExecuted(let v): try v.encode(to: encoder)
         case .terminalCommandFinished(let v): try v.encode(to: encoder)
+        case .resourceWatchChanged(let v): try v.encode(to: encoder)
         case .unknown: break
         }
     }

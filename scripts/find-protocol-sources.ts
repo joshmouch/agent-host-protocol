@@ -21,6 +21,7 @@ export const PROTOCOL_SOURCE_DIRS: readonly string[] = [
   'channels-terminal',
   'channels-changeset',
   'channels-otlp',
+  'channels-resource-watch',
 ];
 
 /**

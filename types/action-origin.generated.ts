@@ -63,6 +63,7 @@ import type {
   TerminalCommandDetectionAvailableAction,
   TerminalCommandExecutedAction,
   TerminalCommandFinishedAction,
+  ResourceWatchChangedAction,
 } from './actions.js';
 
 import { ActionType } from './actions.js';
@@ -238,6 +239,21 @@ export type ServerChangesetAction =
   | ChangesetClearedAction
 ;
 
+/** Union of all resource-watch-scoped actions. */
+export type ResourceWatchAction =
+  | ResourceWatchChangedAction
+;
+
+/** Union of resource-watch actions that clients may dispatch. */
+export type ClientResourceWatchAction =
+  never
+;
+
+/** Union of resource-watch actions that only the server may produce. */
+export type ServerResourceWatchAction =
+  | ResourceWatchChangedAction
+;
+
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
 
 /**
@@ -305,4 +321,5 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.TerminalCommandDetectionAvailable]: false,
   [ActionType.TerminalCommandExecuted]: false,
   [ActionType.TerminalCommandFinished]: false,
+  [ActionType.ResourceWatchChanged]: false,
 };

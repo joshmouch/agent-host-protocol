@@ -166,6 +166,7 @@ Message {
   text: string
   origin: { kind: MessageKind }
   attachments?: MessageAttachment[]
+  _meta?: Record<string, unknown>  // provider-specific metadata; see below
 }
 
 type MessageAttachment =
@@ -203,6 +204,8 @@ Attachments MAY be referenced inline by `text` via the optional `range` field, w
 Resource and embedded-resource attachments MAY also include `selection` to identify a selected range within the attached textual resource. This is distinct from `range`, which only describes where the attachment is referenced in the user message text. Selected text is not embedded inline; consumers can resolve the resource and read the selected range when needed. `selection` is only meaningful for textual resources; binary resources may still use resource or embedded-resource attachments, but they should not use this text selection field.
 
 Use `SimpleMessageAttachment` for opaque attachments whose model representation is supplied by the producer, `MessageEmbeddedResourceAttachment` for small inline base64 payloads (e.g. a pasted image), and `MessageResourceAttachment` to reference a resource by URI (the content is fetched via `resourceRead` when needed).
+
+`UserMessage._meta` carries additional provider-specific metadata for the message itself (independent of any attachment `_meta` blob). Clients MAY look for well-known keys here to provide enhanced UI, and agent hosts MAY use it to carry context that does not fit any other field. Mirrors the [MCP `_meta` convention](https://modelcontextprotocol.io/specification/2025-06-18/basic#meta).
 
 Attachments produced by the [`completions`](#user-message-completions) command MAY include a `_meta` blob; clients MUST preserve every property of `_meta` when echoing the attachment back in the user message.
 

@@ -58,6 +58,7 @@ type _ExpectedCommands =
   | 'disposeSession'
   | 'createTerminal'
   | 'disposeTerminal'
+  | 'createResourceWatch'
   | 'listSessions'
   | 'resourceRead'
   | 'resourceWrite'
@@ -65,6 +66,8 @@ type _ExpectedCommands =
   | 'resourceCopy'
   | 'resourceDelete'
   | 'resourceMove'
+  | 'resourceResolve'
+  | 'resourceMkdir'
   | 'resourceRequest'
   | 'fetchTurns'
   | 'authenticate'
@@ -91,7 +94,16 @@ type _ExpectedServerNotifications =
 
 /** All server → client request methods. */
 type _ExpectedServerCommands =
-  | 'resourceRequest';
+  | 'resourceRead'
+  | 'resourceWrite'
+  | 'resourceList'
+  | 'resourceCopy'
+  | 'resourceDelete'
+  | 'resourceMove'
+  | 'resourceResolve'
+  | 'resourceMkdir'
+  | 'resourceRequest'
+  | 'createResourceWatch';
 
 // ─── Assertions ──────────────────────────────────────────────────────────────
 

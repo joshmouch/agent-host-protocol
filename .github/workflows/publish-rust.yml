@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: publish-rust-${{ github.ref }}
+  cancel-in-progress: false
+
 defaults:
   run:
     working-directory: clients/rust
@@ -23,6 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -30,6 +39,44 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: clients/rust
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed Rust sources are in sync with the TypeScript
+      # protocol definitions. Mirrors the equivalent check on the kotlin /
+      # swift / typescript publish workflows.
+      - name: Verify generated Rust is up to date
+        working-directory: .
+        run: |
+          npm run generate:rust
+          if ! git diff --quiet -- clients/rust; then
+            echo "::error::Generated Rust sources are out of date. Run 'npm run generate:rust' and commit the result before tagging."
+            git --no-pager diff -- clients/rust
+            exit 1
+          fi
+
+      - name: Verify release metadata
+        working-directory: .
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entry exists
+        working-directory: .
+        run: npm run verify:changelog
+
+      # Belt and suspenders: also check the tag's exact version (which
+      # may differ from the package.json/native-manifest version on a
+      # racy commit). Catches "tagged a version that isn't in the
+      # checked-out source's CHANGELOG."
+      - name: Verify CHANGELOG entry exists for tag version
+        working-directory: .
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#rust/v}"
+          if ! grep -qE "^## \[$TAG_VERSION\]" clients/rust/CHANGELOG.md; then
+            echo "::error::clients/rust/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
 
       - name: Check formatting
         run: cargo fmt --all -- --check

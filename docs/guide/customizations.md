@@ -166,7 +166,7 @@ For removals:
 
 ## Saving New Customizations
 
-When a client wants to persist a new customization (e.g. write a new skill file), it targets a `DirectoryCustomization` with `writable: true` and uses [`resourceWrite`](/reference/commands#resourcewrite) to write into it. The host watches the directory and surfaces the resulting child by re-dispatching `session/customizationUpdated` for the directory (which carries the updated `children` array).
+When a client wants to persist a new customization (e.g. write a new skill file), it targets a `DirectoryCustomization` with `writable: true` and uses [`resourceWrite`](/reference/common#resourcewrite) to write into it. The host watches the directory and surfaces the resulting child by re-dispatching `session/customizationUpdated` for the directory (which carries the updated `children` array).
 
 The protocol does not define a dedicated save action — directories plus `resourceWrite` are enough.
 

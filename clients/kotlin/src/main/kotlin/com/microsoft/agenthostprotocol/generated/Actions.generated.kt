@@ -145,7 +145,9 @@ enum class ActionType {
     @SerialName("terminal/commandExecuted")
     TERMINAL_COMMAND_EXECUTED,
     @SerialName("terminal/commandFinished")
-    TERMINAL_COMMAND_FINISHED
+    TERMINAL_COMMAND_FINISHED,
+    @SerialName("resourceWatch/changed")
+    RESOURCE_WATCH_CHANGED
 }
 
 // ─── Action Infrastructure ──────────────────────────────────────────────────
@@ -971,14 +973,25 @@ data class TerminalCommandFinishedAction(
     val durationMs: Long? = null
 )
 
+@Serializable
+data class ResourceWatchChangedAction(
+    val type: ActionType,
+    /**
+     * The set of changes in this batch, wrapped for forward compatibility.
+     */
+    val changes: JsonElement
+)
+
 // ─── StateAction Union ──────────────────────────────────────────────────────
 
 /**
  * Discriminated union of all state actions.
  *
- * Unknown wire types decode to [StateActionUnknown] and reducers should treat
- * them as no-ops; this is critical for forward compatibility across protocol
- * versions.
+ * Unknown wire types decode to [StateActionUnknown], which captures the full
+ * raw JSON object (mirrors the state-channel `XUnknown` variants and Rust's
+ * `Unknown(serde_json::Value)`). Reducers should treat unknown actions as
+ * no-ops; the captured payload is re-emitted unchanged on encode so unknown
+ * actions can round-trip across protocol versions.
  */
 @Serializable(with = StateActionSerializer::class)
 sealed interface StateAction
@@ -1043,7 +1056,8 @@ sealed interface StateAction
 @JvmInline value class StateActionTerminalCommandDetectionAvailable(val value: TerminalCommandDetectionAvailableAction) : StateAction
 @JvmInline value class StateActionTerminalCommandExecuted(val value: TerminalCommandExecutedAction) : StateAction
 @JvmInline value class StateActionTerminalCommandFinished(val value: TerminalCommandFinishedAction) : StateAction
-@JvmInline value class StateActionUnknown(val type: String) : StateAction
+@JvmInline value class StateActionResourceWatchChanged(val value: ResourceWatchChangedAction) : StateAction
+@JvmInline value class StateActionUnknown(val raw: JsonObject) : StateAction
 
 internal object StateActionSerializer : KSerializer<StateAction> {
     override val descriptor: SerialDescriptor =
@@ -1056,7 +1070,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for StateAction")
         val type = (obj["type"] as? JsonPrimitive)?.contentOrNull
-            ?: error("Missing \"type\" discriminator on StateAction")
+            ?: return StateActionUnknown(obj)
         return when (type) {
             "root/agentsChanged" -> StateActionRootAgentsChanged(input.json.decodeFromJsonElement(RootAgentsChangedAction.serializer(), element))
             "root/activeSessionsChanged" -> StateActionRootActiveSessionsChanged(input.json.decodeFromJsonElement(RootActiveSessionsChangedAction.serializer(), element))
@@ -1118,7 +1132,8 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "terminal/commandDetectionAvailable" -> StateActionTerminalCommandDetectionAvailable(input.json.decodeFromJsonElement(TerminalCommandDetectionAvailableAction.serializer(), element))
             "terminal/commandExecuted" -> StateActionTerminalCommandExecuted(input.json.decodeFromJsonElement(TerminalCommandExecutedAction.serializer(), element))
             "terminal/commandFinished" -> StateActionTerminalCommandFinished(input.json.decodeFromJsonElement(TerminalCommandFinishedAction.serializer(), element))
-            else -> StateActionUnknown(type)
+            "resourceWatch/changed" -> StateActionResourceWatchChanged(input.json.decodeFromJsonElement(ResourceWatchChangedAction.serializer(), element))
+            else -> StateActionUnknown(obj)
         }
     }
 
@@ -1186,9 +1201,8 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionTerminalCommandDetectionAvailable -> output.json.encodeToJsonElement(TerminalCommandDetectionAvailableAction.serializer(), value.value)
             is StateActionTerminalCommandExecuted -> output.json.encodeToJsonElement(TerminalCommandExecutedAction.serializer(), value.value)
             is StateActionTerminalCommandFinished -> output.json.encodeToJsonElement(TerminalCommandFinishedAction.serializer(), value.value)
-            is StateActionUnknown -> buildJsonObject {
-                put("type", JsonPrimitive(value.type))
-            }
+            is StateActionResourceWatchChanged -> output.json.encodeToJsonElement(ResourceWatchChangedAction.serializer(), value.value)
+            is StateActionUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }

@@ -21,6 +21,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_HEADER = '// Generated from types/*.ts — do not edit\n\nimport Foundation\n';
 
@@ -496,7 +497,7 @@ const STATE_ENUMS = [
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
-  'ChangesetStatus', 'ChangesetOperationScope',
+  'ChangesetStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
 const STATE_STRUCTS = [
@@ -537,6 +538,7 @@ const STATE_STRUCTS = [
   'UsageInfo', 'ErrorInfo', 'Snapshot',
   'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
   'TelemetryCapabilities',
+  'ResourceWatchState', 'ResourceChange',
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -905,6 +907,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'terminal/commandDetectionAvailable', caseName: 'terminalCommandDetectionAvailable', tsInterface: 'TerminalCommandDetectionAvailableAction' },
   { type: 'terminal/commandExecuted', caseName: 'terminalCommandExecuted', tsInterface: 'TerminalCommandExecutedAction' },
   { type: 'terminal/commandFinished', caseName: 'terminalCommandFinished', tsInterface: 'TerminalCommandFinishedAction' },
+  { type: 'resourceWatch/changed', caseName: 'resourceWatchChanged', tsInterface: 'ResourceWatchChangedAction' },
 ];
 
 /** Merged struct for the approved/denied tool call confirmed action */
@@ -1046,7 +1049,7 @@ function generateActionsFile(project: Project): string {
 
 // ─── Commands File Generator ─────────────────────────────────────────────────
 
-const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind'];
+const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind', 'ResourceType', 'ResourceWriteMode'];
 
 const COMMAND_STRUCTS = [
   'InitializeParams', 'InitializeResult',
@@ -1060,7 +1063,10 @@ const COMMAND_STRUCTS = [
   'ResourceCopyParams', 'ResourceCopyResult',
   'ResourceDeleteParams', 'ResourceDeleteResult',
   'ResourceMoveParams', 'ResourceMoveResult',
+  'ResourceResolveParams', 'ResourceResolveResult',
+  'ResourceMkdirParams', 'ResourceMkdirResult',
   'ResourceRequestParams', 'ResourceRequestResult',
+  'CreateResourceWatchParams', 'CreateResourceWatchResult',
   'FetchTurnsParams', 'FetchTurnsResult',
   'UnsubscribeParams', 'DispatchActionParams',
   'AuthenticateParams', 'AuthenticateResult',
@@ -1626,6 +1632,29 @@ function checkExhaustiveness(project: Project): void {
 
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
+function generateVersionFile(project: Project): string {
+  const { current, supported } = readProtocolVersions(project);
+
+  const items = supported.map((v) => `    ${JSON.stringify(v)},`).join('\n');
+
+  return (
+    '// Generated from types/*.ts — do not edit\n\n' +
+    'import Foundation\n\n' +
+    '/// Current protocol version (SemVer `MAJOR.MINOR.PATCH`).\n' +
+    `public let PROTOCOL_VERSION: String = ${JSON.stringify(current)}\n\n` +
+    '/// Every protocol version this package is willing to negotiate,\n' +
+    '/// ordered most-preferred-first. The first entry equals\n' +
+    '/// ``PROTOCOL_VERSION``.\n' +
+    '///\n' +
+    '/// Pass this list (or a derived `[String]`) as `protocolVersions` on\n' +
+    '/// `InitializeParams` so the same client binary can fall back to older\n' +
+    "/// protocol versions if the host doesn't accept the newest one.\n" +
+    'public let SUPPORTED_PROTOCOL_VERSIONS: [String] = [\n' +
+    items +
+    '\n]\n'
+  );
+}
+
 export function generateSwiftPackage(project: Project, outputDir: string): void {
   checkExhaustiveness(project);
 
@@ -1650,4 +1679,5 @@ export function generateSwiftPackage(project: Project, outputDir: string): void 
   fs.writeFileSync(path.join(generatedDir, 'Notifications.generated.swift'), generateNotificationsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.swift'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.swift'), generateMessagesFile());
+  fs.writeFileSync(path.join(generatedDir, 'Version.generated.swift'), generateVersionFile(project));
 }

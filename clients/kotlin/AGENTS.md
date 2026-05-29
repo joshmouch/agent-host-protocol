@@ -87,31 +87,29 @@ SessionStatus.IDLE in combined   // true
 
 ## Distribution
 
-Artifacts are published to Maven Central (Sonatype Central Portal) via [`gradle-maven-publish-plugin`](https://github.com/vanniktech/gradle-maven-publish-plugin) v0.36+ on `kotlin/v*` git tags.
+Artifacts are published to Maven Central (Sonatype Central Portal) via Microsoft's ESRP-backed `vscode-engineering` `maven-package` pipeline template on `kotlin/v*` git tags. The [`gradle-maven-publish-plugin`](https://github.com/vanniktech/gradle-maven-publish-plugin) (v0.36+) is used to stage the artifacts into a local Maven repository layout that ESRP then signs and uploads.
 
-The release pipeline (`.github/workflows/publish-kotlin.yml`):
+The release pipeline ([`clients/kotlin/pipeline.yml`](pipeline.yml)) is an Azure DevOps pipeline (GitHub Actions cannot trigger ADO in this repo — PATs are not permitted):
 
-1. **`validate` job** — re-runs `npm run generate:kotlin` (fails on diff) and `./gradlew check`.
-2. **`publish` job** — verifies the git tag matches `gradle.properties` `VERSION_NAME` (read via `./gradlew properties -q`), then runs `./gradlew publishAndReleaseToMavenCentral`.
+1. **Tag validation** — verifies the `kotlin/vX.Y.Z` tag matches `gradle.properties` `VERSION_NAME`, that the version is not `-SNAPSHOT`, and that `CHANGELOG.md` has a matching `## [X.Y.Z]` heading.
+2. **Generator + Gradle check** — re-runs `npm run generate:kotlin` (fails on diff) and `./gradlew check`.
+3. **Stage** — `./gradlew -Pahp.signPublications=false publishAllPublicationsToStagingRepository` writes a Maven layout to `build/maven-staging/`. Local PGP signing is skipped because ESRP signs server-side.
+4. **ESRP publish** — the `maven-package` template hands the staging folder to ESRP (`contenttype: maven`), which signs and uploads to Maven Central via the Sonatype Central Portal.
 
-### Required repository secrets (`maven-central` GitHub environment)
-
-| Secret                          | Purpose                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------ |
-| `MAVEN_CENTRAL_USERNAME`        | Sonatype Central Portal user-token username.                                         |
-| `MAVEN_CENTRAL_PASSWORD`        | Sonatype Central Portal user-token password.                                         |
-| `SIGNING_IN_MEMORY_KEY`         | ASCII-armored PGP private key (entire `-----BEGIN PGP PRIVATE KEY BLOCK-----` body). |
-| `SIGNING_IN_MEMORY_KEY_PASSWORD`| Passphrase for the PGP key (omit secret if the key is unprotected).                  |
-
-The Vanniktech plugin reads these from `ORG_GRADLE_PROJECT_*`-prefixed env vars at publish time, which the workflow sets from the secrets above.
+No GitHub-side secrets are required — ESRP credentials live inside the Microsoft ADO tenant.
 
 ### Cutting a release
 
+See [`RELEASING.md`](../../RELEASING.md) for the full release flow.
+Summary, scoped to Kotlin:
+
 1. Bump `VERSION_NAME` in `clients/kotlin/gradle.properties` (drop `-SNAPSHOT` for a public release; the version should match the `PROTOCOL_VERSION` in `types/version/registry.ts` when shipping a protocol-aligned drop, e.g. `0.2.0`).
-2. Commit, merge to `main`.
-3. Tag the merge commit using `kotlin/v` + the same version (e.g. `git tag kotlin/v0.2.0 && git push origin kotlin/v0.2.0`). The publish workflow rejects any mismatch between the tag and `VERSION_NAME`, and refuses `*-SNAPSHOT` tags outright.
-4. The publish workflow runs and pushes to Maven Central. With `automaticRelease = true` set in `mavenPublishing { ... }`, no manual Sonatype UI interaction is required.
-5. Bump `VERSION_NAME` back to the next `-SNAPSHOT` for ongoing development.
+2. Run `npm run generate:metadata` and commit the regenerated `clients/kotlin/release-metadata.json`.
+3. Rotate the `## [Unreleased]` section of `clients/kotlin/CHANGELOG.md` to `## [X.Y.Z] — YYYY-MM-DD` with an `Implements AHP <version>` line. The publish workflow fails if no `## [X.Y.Z]` heading exists for the tag version.
+4. Commit, merge to `main`.
+5. Tag the merge commit using `kotlin/v` + the same version (e.g. `git tag kotlin/v0.2.0 && git push origin kotlin/v0.2.0`). The ADO publish pipeline rejects any mismatch between the tag and `VERSION_NAME`, and refuses `*-SNAPSHOT` tags outright.
+6. The ADO pipeline runs, stages the Maven artifacts, and hands them to ESRP for signing and upload to Maven Central. With `automaticRelease = true` set in `mavenPublishing { ... }` and ESRP handling the publish, no manual Sonatype UI interaction is required.
+7. Bump `VERSION_NAME` back to the next `-SNAPSHOT` for ongoing development.
 
 ## Building and testing locally
 
@@ -151,6 +149,8 @@ public object ChangesetReducer : Reducer<ChangesetState, StateAction>
 
 Each reducer dispatches on the [`StateAction`] sealed interface and handles the action variants that belong to its channel. Actions belonging to other channels (or unknown `StateActionUnknown` variants returned by the wire-types decoder when the server sends a newer action type than this version of the client knows about) fall through to an `else -> state` no-op — this matches the forward-compatibility semantics of the canonical TypeScript and Swift reducers.
 
+State-channel unions decoded inside actions follow the same principle: when the server emits a discriminator this client doesn't recognise (e.g. a future `ResponsePart` kind, `ToolCallState`, `Customization` type, etc.) the decoder lifts the raw JSON into an `XUnknown` variant rather than throwing. `StateActionUnknown` uses the same shape for unknown action types. Reducers treat these variants conservatively — `customizationId` returns `null` so an unknown container can't false-match a real id, `SessionCustomizationUpdated` short-circuits to NoOp when the payload is Unknown, and cancellation collapses unknown tool calls to empty cancelled state. These behaviours mirror the Rust reducer exactly.
+
 ### Hand-port from TypeScript
 
 Each reducer is a direct hand-port of the corresponding file in `types/channels-*/reducer.ts`. Notable mechanical translations:
@@ -167,8 +167,8 @@ Each reducer is a direct hand-port of the corresponding file in `types/channels-
 The Kotlin port preserves Swift parity caveats already documented in PR #115:
 
 1. **`T | null` vs `T?`** — both collapse to nullable Kotlin fields. With `explicitNulls = false`, both encode as absent.
-2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift.
-3. **`StateActionUnknown`** — only the wire `type` string is preserved; the rest of an unknown action's payload is dropped. The reducer treats it as a no-op, which is the documented behavior.
+2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift. For forward-compat unions, an *unrecognised* discriminator decodes to the `XUnknown(val raw: JsonObject)` variant (mirrors Rust's `Unknown(serde_json::Value)`) and round-trips its raw payload on re-encode.
+3. **`StateActionUnknown`** — captures the full raw JSON object of an unknown action (same shape as the state-channel `XUnknown` variants). The reducer treats it as a no-op. Re-encoding round-trips the original payload back to the wire.
 
 ### Injectable timestamp
 
@@ -186,11 +186,7 @@ Tests override this with a constant to produce deterministic output, then restor
 
 The fixture path is wired into the test JVM via the `ahp.reducerFixturesDir` system property in `build.gradle.kts`, so the test works under `./gradlew test`, IDE runs that delegate to Gradle (the IntelliJ default), or CI without depending on the current working directory. When neither Gradle nor a delegating runner sets the property, the test falls back to walking upward from `user.dir` looking for `types/test-cases/reducers/`, so direct IDE JUnit runs from inside the repo still work.
 
-A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped because they exercise wire-type decoding behaviour this package doesn't yet support (e.g. unknown `ResponsePart` discriminators). The `coverageReport().decodable-fixture-budget` assertion bounds the skip set size so regressions surface in CI. As of the initial port, exactly one fixture is skipped:
-
-| Fixture | Why skipped |
-| --- | --- |
-| `103-delta-skips-parts-without-id.json` | Initial state contains a `ResponsePart` with `kind: "unknownFuturePart"`. The generated `ResponsePartSerializer` throws on unknown discriminators (no `ResponsePartUnknown` variant analogous to `StateActionUnknown`). Fixing this is a generator-side wire-types change outside the reducer-port scope. |
+A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped because they exercise wire-type decoding behaviour this package doesn't yet support. The `coverageReport().decodable-fixture-budget` assertion bounds the skip set size so regressions surface in CI. The full reducer fixture corpus is currently covered (`SKIPPED_FIXTURES` is empty and `MAX_SKIPPED_FIXTURES = 0`). Forward-compat coverage for unknown discriminators on state-channel unions (`ResponsePart`, `ToolCallState`, `Customization`, …) is exercised by `103-delta-skips-parts-without-id.json` and the dedicated round-trip tests in `DiscriminatedUnionTest`.
 
 ### `ReducersTest`
 

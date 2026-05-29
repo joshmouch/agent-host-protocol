@@ -41,7 +41,8 @@ Implementations can therefore dispatch any incoming message by inspecting `(meth
 | Direction | Type | Examples |
 |---|---|---|
 | Client → Server (notification) | Fire-and-forget | `unsubscribe`, `dispatchAction` |
-| Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `resourceRead`, `resourceWrite`, `resourceList`, `resourceCopy`, `resourceDelete`, `resourceMove` |
+| Client → Server (request) | Expects a response | `initialize`, `reconnect`, `subscribe`, `createSession`, `disposeSession`, `listSessions`, `fetchTurns`, `resourceRead`, `resourceWrite`, `resourceList`, `resourceCopy`, `resourceDelete`, `resourceMove`, `resourceResolve`, `resourceMkdir`, `createResourceWatch` |
+| Server → Client (request) | Symmetrical reverse direction; expects a response | Any `resource*` request (`resourceRead`, `resourceWrite`, `resourceList`, `resourceCopy`, `resourceDelete`, `resourceMove`, `resourceResolve`, `resourceMkdir`, `resourceRequest`) plus `createResourceWatch` |
 | Server → Client (notification) | Pushed | `action`, `root/sessionAdded`, `root/sessionRemoved`, `root/sessionSummaryChanged`, `auth/required` |
 | Server → Client (response) | Correlated by `id` | Success result or JSON-RPC error |
 

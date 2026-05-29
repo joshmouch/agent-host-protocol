@@ -1,0 +1,147 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+# This Azure DevOps pipeline is the source-of-truth for publishing
+# `@microsoft/agent-host-protocol` to the npm registry. GitHub
+# Actions cannot trigger this pipeline (PATs are not permitted), so
+# the pipeline owns both the tag trigger and the validation steps
+# that used to live in `.github/workflows/publish-typescript.yml`.
+#
+#   1. Push a `typescript/vX.Y.Z` tag from the repo root.
+#   2. ADO picks up the tag, runs the validation + build + test
+#      sequence, then publishes via the ESRP-backed npm-package
+#      template.
+#
+# The pipeline can also be triggered manually from the ADO UI as a
+# hotfix escape hatch — manual runs publish too. Per-commit CI runs
+# on `main` are handled by `.github/workflows/ci.yml`, so this
+# pipeline only triggers on tags and manual runs.
+trigger:
+  branches:
+    exclude:
+      - "*"
+  tags:
+    include:
+      - typescript/v*
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+extends:
+  template: azure-pipelines/npm-package/pipeline.yml@templates
+  parameters:
+    npmPackages:
+      - name: agent-host-protocol
+        workingDirectory: clients/typescript
+        ghCreateTag: false
+        # Always publish: the only entry points to this pipeline are
+        # `typescript/v*` tag pushes and manual ADO UI runs.
+        publishPackage: true
+        # APIScan is not relevant for a pure-TypeScript npm package
+        # (no native binaries to scan), and the ESRP-only ADO
+        # environment can't reach the APIScan service the way the
+        # production extension pipelines can. Skip it explicitly.
+        skipAPIScan: true
+
+        # Runs on the Package job — produces the artifact that gets published.
+        # Generated wire types and the compiled `dist/` are both required by
+        # the package's `files` field, so they must exist before `npm pack`.
+        buildSteps:
+          - script: npm ci
+            displayName: 📦 Install root dependencies
+
+          # Tag-driven runs: enforce that the git tag matches the
+          # version that `clients/typescript/package.json` will be
+          # published under, and that the CHANGELOG already has the
+          # matching section. Manual runs (no tag) skip the
+          # cross-check.
+          - bash: |
+              set -euo pipefail
+              REF="$(Build.SourceBranch)"
+              PKG_VERSION=$(node -p "require('./clients/typescript/package.json').version")
+              case "$REF" in
+                refs/tags/typescript/v*)
+                  TAG_VERSION="${REF#refs/tags/typescript/v}"
+                  if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+                    echo "##vso[task.logissue type=error]Tag version ($TAG_VERSION) does not match clients/typescript/package.json version ($PKG_VERSION). Bump the package.json version (and rerun npm install in the client to refresh the lockfile) before tagging."
+                    exit 1
+                  fi
+                  if ! grep -qE "^## \[$TAG_VERSION\]" clients/typescript/CHANGELOG.md; then
+                    echo "##vso[task.logissue type=error]clients/typescript/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+                    exit 1
+                  fi
+                  echo "Publishing version $TAG_VERSION (from tag $REF)"
+                  ;;
+                *)
+                  echo "Manual run (no typescript/v* tag) — skipping tag/package.json cross-check."
+                  ;;
+              esac
+            displayName: ✅ Verify tag matches package.json version
+
+          # Defense-in-depth checks before producing the publish artifact.
+          # These also run on every commit via the GitHub Actions `ci.yml`
+          # workflow, but re-running them here means the npm package can't
+          # ship from a branch state that would have failed the GHA check.
+          # See RELEASING.md for the release model.
+          - script: npm run verify:release-metadata
+            displayName: ✅ Verify release metadata
+
+          - script: npm run verify:changelog
+            displayName: ✅ Verify CHANGELOG entry exists
+
+          - script: npm run generate:typescript
+            displayName: 🛠 Generate TypeScript wire types
+
+          - bash: |
+              set -euo pipefail
+              if [ -n "$(git status --porcelain -- clients/typescript)" ]; then
+                echo "##vso[task.logissue type=error]Generated TypeScript sources are out of date. Run 'npm run generate:typescript' and commit the result."
+                git status --porcelain -- clients/typescript
+                git --no-pager diff -- clients/typescript
+                exit 1
+              fi
+            displayName: ✅ Verify generated TypeScript is up to date
+
+          - script: npm ci
+            workingDirectory: clients/typescript
+            displayName: 📦 Install client dependencies
+
+          - script: npm run build
+            workingDirectory: clients/typescript
+            displayName: 🛠 Build client
+
+        testPlatforms:
+          - name: Linux
+            nodeVersions:
+              - 22.x
+
+        # Runs on each test platform job.
+        testSteps:
+          - script: npm ci
+            displayName: 📦 Install root dependencies
+
+          - script: npm run verify:release-metadata
+            displayName: ✅ Verify release metadata
+
+          - script: npm run verify:changelog
+            displayName: ✅ Verify CHANGELOG entry exists
+
+          - script: npm run generate:typescript
+            displayName: 🛠 Generate TypeScript wire types
+
+          - script: npm ci
+            workingDirectory: clients/typescript
+            displayName: 📦 Install client dependencies
+
+          - script: npm run typecheck
+            workingDirectory: clients/typescript
+            displayName: ✅ Typecheck client
+
+          - script: npm test
+            workingDirectory: clients/typescript
+            displayName: 🧪 Test client

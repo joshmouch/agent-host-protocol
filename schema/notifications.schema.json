@@ -1696,6 +1696,11 @@
             "$ref": "#/$defs/MessageAttachment"
           },
           "description": "File/selection attachments"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this message.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry context that does not fit any other\nfield. Mirrors the MCP `_meta` convention."
         }
       },
       "required": [
@@ -3038,7 +3043,7 @@
     },
     "DirectoryCustomization": {
       "type": "object",
-      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/commands#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
+      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/common#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
       "properties": {
         "id": {
           "type": "string",
@@ -3692,6 +3697,66 @@
           "description": "Channel URI for OTLP metric data points (`otlp/exportMetrics`\nnotifications). No template variables are defined by this protocol\nversion."
         }
       }
+    },
+    "ResourceWatchState": {
+      "type": "object",
+      "description": "Full state for a single resource watch, returned when a client subscribes\nto an `ahp-resource-watch:` URI.\n\nWatches are otherwise stateless: the watcher exists to deliver\n{@link ResourceWatchChangedAction} events. The state carries only the\ndescriptor of what is being watched so a re-subscribing client can\nrecover the watch configuration after reconnecting.",
+      "properties": {
+        "root": {
+          "$ref": "#/$defs/URI",
+          "description": "The URI being watched. For recursive watches this is the root of the\nsubtree; for non-recursive watches this is the single file or\ndirectory."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "`true` if the watcher reports changes for descendants of `root`;\n`false` if it only reports changes to `root` itself (and, when\n`root` is a directory, its direct children)."
+        },
+        "excludes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Optional glob patterns or paths relative to `root` to exclude from\nchange reporting."
+        },
+        "includes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Optional glob patterns or paths relative to `root` to restrict\nchange reporting to. Omit to report every change under `root`\nsubject to `excludes`."
+        }
+      },
+      "required": [
+        "root",
+        "recursive"
+      ]
+    },
+    "ResourceChange": {
+      "type": "object",
+      "description": "A single change observed by a resource watcher.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "The URI of the resource that changed."
+        },
+        "type": {
+          "$ref": "#/$defs/ResourceChangeType",
+          "description": "The kind of change observed."
+        }
+      },
+      "required": [
+        "uri",
+        "type"
+      ]
     }
   }
 }

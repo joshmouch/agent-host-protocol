@@ -1,0 +1,7 @@
+{
+  "client": "kotlin",
+  "packageVersion": "0.2.0",
+  "supportedProtocolVersions": [
+    "0.2.0"
+  ]
+}

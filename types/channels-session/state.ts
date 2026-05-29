@@ -627,6 +627,14 @@ export interface Message {
   origin: { kind: MessageKind };
   /** File/selection attachments */
   attachments?: MessageAttachment[];
+  /**
+   * Additional provider-specific metadata for this message.
+   *
+   * Clients MAY look for well-known keys here to provide enhanced UI, and
+   * agent hosts MAY use it to carry context that does not fit any other
+   * field. Mirrors the MCP `_meta` convention.
+   */
+  _meta?: Record<string, unknown>;
 }
 
 /**
@@ -1486,7 +1494,7 @@ export interface ClientPluginCustomization extends PluginCustomization {
  * Presence in the customization list signals that the host may discover
  * customizations from this directory. When `writable` is `true`, clients
  * MAY persist new customizations into the directory using
- * [`resourceWrite`](/reference/commands#resourcewrite); the host will
+ * [`resourceWrite`](/reference/common#resourcewrite); the host will
  * then surface the resulting child via the customization actions.
  *
  * The directory may not yet exist on disk.

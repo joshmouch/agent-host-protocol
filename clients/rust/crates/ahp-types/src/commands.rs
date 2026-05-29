@@ -50,6 +50,46 @@ pub enum CompletionItemKind {
     UserMessage,
 }
 
+/// Discriminant for {@link ResourceResolveResult.type}.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ResourceType {
+    #[serde(rename = "file")]
+    File,
+    #[serde(rename = "directory")]
+    Directory,
+    #[serde(rename = "symlink")]
+    Symlink,
+}
+
+/// How {@link ResourceWriteParams.data} is placed within the target file.
+///
+/// Each mode interprets {@link ResourceWriteParams.position} differently:
+///
+/// - `truncate` (default): rooted at the **start** of the file. The file is
+///   truncated at `position` (0 by default) and `data` is written from that
+///   offset, so the resulting file is `existing[0..position] + data`. With
+///   `position` omitted this is a full overwrite.
+/// - `append`: rooted at the **end** of the file. `position` counts bytes
+///   backwards from EOF, so `position: 0` (the default) writes at EOF —
+///   POSIX append — and `position: 5` inserts `data` 5 bytes before the
+///   current EOF, shifting those trailing 5 bytes after the inserted region.
+///   The server MUST evaluate the effective EOF and write atomically with
+///   respect to other appenders so concurrent `append` writes do not
+///   clobber each other.
+/// - `insert`: rooted at the **start** of the file. `position` (0 by default)
+///   is the byte offset at which `data` is spliced in; bytes at or after
+///   `position` are shifted right by `data.length`. `insert` always grows
+///   the file — use `truncate` to overwrite bytes in place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ResourceWriteMode {
+    #[serde(rename = "truncate")]
+    Truncate,
+    #[serde(rename = "append")]
+    Append,
+    #[serde(rename = "insert")]
+    Insert,
+}
+
 // ─── Command Payloads ─────────────────────────────────────────────────
 
 /// Establishes a new connection and negotiates the protocol version.
@@ -272,6 +312,12 @@ pub struct ListSessionsResult {
 ///
 /// Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
 /// use `utf-8` encoding.
+///
+/// Like all `resource*` methods, `resourceRead` is symmetrical and MAY be
+/// sent in either direction. Hosts use it to fetch content from a
+/// client-published URI (e.g. `virtual://my-client/...` plugins); clients
+/// use it to read host-side files. The receiver enforces access via the
+/// same permission/`resourceRequest` flow regardless of which peer initiated.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceReadParams {
@@ -306,8 +352,15 @@ pub struct ResourceReadResult {
 /// Binary content (images, etc.) MUST use `base64` encoding. Text content MAY
 /// use `utf-8` encoding.
 ///
-/// If the file does not exist, it is created. If the file already exists, it is
-/// overwritten unless `createOnly` is set.
+/// If the file does not exist, it is created. If the file already exists, the
+/// effect on existing bytes depends on {@link ResourceWriteParams.mode}:
+/// `truncate` (default) overwrites from the chosen offset onward, `append`
+/// preserves all existing bytes and adds `data` at a position rooted at EOF,
+/// and `insert` preserves all existing bytes and splices `data` in at an
+/// offset rooted at the start of the file.
+///
+/// Like all `resource*` methods, `resourceWrite` is symmetrical and MAY be
+/// sent in either direction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceWriteParams {
@@ -326,6 +379,25 @@ pub struct ResourceWriteParams {
     /// overwriting it. Useful for safe creation of new files.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub create_only: Option<bool>,
+    /// How `data` is placed within the target file. Defaults to `'truncate'`
+    /// (full overwrite) when omitted. See {@link ResourceWriteMode} for the
+    /// meaning of each mode and how it interprets {@link position}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ResourceWriteMode>,
+    /// Byte offset interpreted according to {@link mode}. Defaults to `0`.
+    /// - `truncate`: offset from the start of the file at which to truncate
+    ///   before writing.
+    /// - `append`: bytes back from EOF at which to insert `data`.
+    /// - `insert`: offset from the start of the file at which to splice in
+    ///   `data`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
+    /// Optimistic-concurrency token previously returned by
+    /// {@link ResourceResolveResult.etag}. When set, the server MUST fail with
+    /// `Conflict` if the current `etag` does not match — preventing lost
+    /// updates between a `resourceResolve` and a subsequent `resourceWrite`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub if_match: Option<String>,
 }
 
 /// Result of the `resourceWrite` command.
@@ -343,6 +415,9 @@ pub struct ResourceWriteResult {}
 /// The server MUST return success only if the target exists and is a directory.
 /// If the target does not exist, is not a directory, or cannot be accessed, the
 /// server MUST return a JSON-RPC error.
+///
+/// Like all `resource*` methods, `resourceList` is symmetrical and MAY be
+/// sent in either direction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceListParams {
@@ -374,6 +449,9 @@ pub struct DirectoryEntry {
 ///
 /// If the destination already exists, it is overwritten unless `failIfExists`
 /// is set.
+///
+/// Like all `resource*` methods, `resourceCopy` is symmetrical and MAY be
+/// sent in either direction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceCopyParams {
@@ -397,6 +475,9 @@ pub struct ResourceCopyParams {
 pub struct ResourceCopyResult {}
 
 /// Deletes a resource at a URI on the server's filesystem.
+///
+/// Like all `resource*` methods, `resourceDelete` is symmetrical and MAY be
+/// sent in either direction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceDeleteParams {
@@ -421,6 +502,9 @@ pub struct ResourceDeleteResult {}
 ///
 /// If the destination already exists, it is overwritten unless `failIfExists`
 /// is set.
+///
+/// Like all `resource*` methods, `resourceMove` is symmetrical and MAY be
+/// sent in either direction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceMoveParams {
@@ -442,6 +526,86 @@ pub struct ResourceMoveParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceMoveResult {}
+
+/// Resolves a resource — the combination of POSIX `stat` and `realpath`.
+///
+/// `resourceResolve` returns metadata about the resource together with its
+/// canonical URI after symlink resolution. Use this in place of any
+/// `resourceExists` shim: a missing resource MUST surface as a `NotFound`
+/// JSON-RPC error rather than a success with a sentinel value. Callers that
+/// truly need a boolean check should attempt `resourceResolve` and treat
+/// `NotFound` as "does not exist".
+///
+/// Like all `resource*` methods, `resourceResolve` is symmetrical and MAY be
+/// sent in either direction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceResolveParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// URI to resolve
+    pub uri: Uri,
+    /// When `true` (default), follow symlinks and report the metadata of the
+    /// link target — and set `uri` in the result to the canonical (realpath)
+    /// URI. When `false`, stat the link itself (lstat semantics) and report
+    /// `type: 'symlink'`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow_symlinks: Option<bool>,
+}
+
+/// Result of the `resourceResolve` command.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceResolveResult {
+    /// Canonical URI after symlink resolution. Equal to the requested URI when
+    /// `followSymlinks` is `false` or the URI does not traverse a symlink.
+    pub uri: Uri,
+    /// Resource kind.
+    pub r#type: ResourceType,
+    /// Size in bytes. Omitted for directories when the provider cannot
+    /// cheaply compute it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+    /// Last-modified time in ISO 8601 format, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mtime: Option<String>,
+    /// Creation time in ISO 8601 format, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ctime: Option<String>,
+    /// Sniffed MIME type, when known (e.g. `"text/plain"`, `"image/png"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_type: Option<String>,
+    /// Opaque per-provider version token. When present, pass it as
+    /// {@link ResourceWriteParams.ifMatch} on a subsequent `resourceWrite` to
+    /// detect concurrent modifications.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+}
+
+/// Creates a directory on the server's filesystem with `mkdir -p` semantics.
+///
+/// The server MUST create any missing parent directories. Creating a
+/// directory that already exists is a no-op success. If `uri` already
+/// exists but is **not** a directory, the server MUST fail with
+/// `AlreadyExists`.
+///
+/// Like all `resource*` methods, `resourceMkdir` is symmetrical and MAY be
+/// sent in either direction.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceMkdirParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// Directory URI to create (parents created as needed).
+    pub uri: Uri,
+}
+
+/// Result of the `resourceMkdir` command.
+///
+/// An empty object on success.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceMkdirResult {}
 
 /// Requests permission to access a resource on the receiver's filesystem.
 ///
@@ -487,6 +651,54 @@ pub struct ResourceRequestParams {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResourceRequestResult {}
+
+/// Creates a resource watcher on the receiver's filesystem.
+///
+/// The receiver allocates an `ahp-resource-watch:/<id>` channel URI and
+/// returns it on {@link CreateResourceWatchResult.channel}. The caller then
+/// [`subscribe`](./subscriptions)s to that channel to receive
+/// `resourceWatch/changed` actions over the standard action envelope.
+///
+/// The watch lifecycle is tied to subscription: when every subscriber has
+/// unsubscribed (or the underlying connection drops), the receiver MUST
+/// release the watcher. There is no explicit dispose command — `unsubscribe`
+/// is the only handle the caller needs.
+///
+/// Like the rest of the `resource*` family, `createResourceWatch` is
+/// symmetrical and MAY be sent in either direction. Access is gated through
+/// the same permission flow as `resourceRead`/`resourceWrite`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateResourceWatchParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// URI to watch.
+    pub uri: Uri,
+    /// If `true`, the receiver MUST report changes for descendants of `uri`.
+    /// If `false` (default), only changes to `uri` itself — and, when `uri`
+    /// is a directory, its direct children — are reported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recursive: Option<bool>,
+    /// Glob patterns or paths relative to `uri` to exclude from reporting.
+    /// Wrapped in `{ items }` for forward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excludes: Option<AnyValue>,
+    /// Glob patterns or paths relative to `uri` to restrict reporting to.
+    /// Omit to report every change under `uri` subject to `excludes`.
+    /// Wrapped in `{ items }` for forward compatibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub includes: Option<AnyValue>,
+}
+
+/// Result of the `createResourceWatch` command.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateResourceWatchResult {
+    /// Receiver-assigned watch channel URI (`ahp-resource-watch:/<id>`). The
+    /// caller subscribes to this URI to start receiving change events and
+    /// unsubscribes to release the watcher.
+    pub channel: Uri,
+}
 
 /// Fetches historical turns for a session. Used for lazy loading of conversation
 /// history.

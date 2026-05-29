@@ -60,3 +60,41 @@ When an older client connects to a newer host:
 1. The client offers only the versions it knows.
 2. The host picks one of those (typically the newest the client offered) or returns `UnsupportedProtocolVersion` if it can no longer speak any of them.
 3. On a successful negotiation the host MUST NOT use newer-version-only behaviors on that connection unless gated behind a capability the client has acknowledged.
+
+## Release Model
+
+The protocol specification and the per-language client libraries are released independently. The spec moves on its own SemVer track; each client moves on its own native SemVer track in its native package ecosystem.
+
+### Why not a single shared version
+
+Coupling client versions to the spec version was considered and rejected:
+
+- Three of the four target ecosystems (npm, Cargo, SwiftPM) reject anything other than a strict three-number SemVer core, so a four-part "spec-major.spec-minor.spec-patch.client-iter" scheme is not portable.
+- A client-only bug fix is, from the consumer's perspective, a SemVer patch. Encoding "spec patch" as the third digit would mean consumers' `^0.2.0` dependency ranges miss client-only fixes.
+- Forcing lock-step would require shipping "dead" releases of unchanged clients every time the spec patches, just to keep version strings aligned.
+- The spec already permits independent client and host cadence via "capabilities first, then required" — this section codifies that release-side as well.
+
+### Tag conventions
+
+| Artifact   | Tag pattern   | Registry / discovery                                              |
+| ---------- | ------------- | ----------------------------------------------------------------- |
+| Spec       | `spec/vX.Y.Z` | GitHub Release with schema assets and a `registry-snapshot.json`. |
+| Rust       | `rust/vX.Y.Z` | crates.io (`ahp-types`, `ahp`, `ahp-ws`).                         |
+| Kotlin     | `kotlin/vX.Y.Z` | Maven Central (`com.microsoft.agenthostprotocol:agent-host-protocol`). |
+| TypeScript | `typescript/vX.Y.Z` | npm (`@microsoft/agent-host-protocol`) — tag triggers a GHA workflow that calls an Azure DevOps publish pipeline. |
+| Swift      | `vX.Y.Z` (bare) | SwiftPM (resolved by tag at the repo root).                     |
+
+Bare `vX.Y.Z` tags at the repository root are reserved for the Swift release pipeline because SwiftPM only resolves bare semver tags at the manifest's repo root; path-prefixed tags like `swift/v0.2.0` are invisible to it.
+
+The TypeScript client publishes via an Azure DevOps pipeline (`clients/typescript/pipeline.yml`) that picks up `typescript/vX.Y.Z` tags directly — the validation and npm publish both run in ADO.
+
+### Mapping client releases to spec versions
+
+Every client release advertises which protocol version(s) it supports in two places:
+
+- An exported **`SUPPORTED_PROTOCOL_VERSIONS`** constant (an array of SemVer strings, most-preferred-first), generated from `types/version/registry.ts`. Consumers pass this list (or a derived copy) to `initialize` so the same client binary can fall back to older protocol versions if the host doesn't accept the newest one.
+- A checked-in **`clients/<lang>/release-metadata.json`** file (machine-readable: `{ packageVersion, supportedProtocolVersions }`) and a matching **`clients/<lang>/CHANGELOG.md`** entry (human-readable).
+
+CI verifies the constants, the metadata file, and the native package manifest are all consistent on every PR (`npm run verify:release-metadata`).
+
+Full how-to for cutting a release of each artifact lives in [`RELEASING.md`](https://github.com/microsoft/agent-host-protocol/blob/main/RELEASING.md) at the repo root.

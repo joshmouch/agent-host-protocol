@@ -57,6 +57,50 @@ enum class CompletionItemKind {
     USER_MESSAGE
 }
 
+/**
+ * Discriminant for {@link ResourceResolveResult.type}.
+ */
+@Serializable
+enum class ResourceType {
+    @SerialName("file")
+    FILE,
+    @SerialName("directory")
+    DIRECTORY,
+    @SerialName("symlink")
+    SYMLINK
+}
+
+/**
+ * How {@link ResourceWriteParams.data} is placed within the target file.
+ * 
+ * Each mode interprets {@link ResourceWriteParams.position} differently:
+ * 
+ * - `truncate` (default): rooted at the **start** of the file. The file is
+ * truncated at `position` (0 by default) and `data` is written from that
+ * offset, so the resulting file is `existing[0..position] + data`. With
+ * `position` omitted this is a full overwrite.
+ * - `append`: rooted at the **end** of the file. `position` counts bytes
+ * backwards from EOF, so `position: 0` (the default) writes at EOF —
+ * POSIX append — and `position: 5` inserts `data` 5 bytes before the
+ * current EOF, shifting those trailing 5 bytes after the inserted region.
+ * The server MUST evaluate the effective EOF and write atomically with
+ * respect to other appenders so concurrent `append` writes do not
+ * clobber each other.
+ * - `insert`: rooted at the **start** of the file. `position` (0 by default)
+ * is the byte offset at which `data` is spliced in; bytes at or after
+ * `position` are shifted right by `data.length`. `insert` always grows
+ * the file — use `truncate` to overwrite bytes in place.
+ */
+@Serializable
+enum class ResourceWriteMode {
+    @SerialName("truncate")
+    TRUNCATE,
+    @SerialName("append")
+    APPEND,
+    @SerialName("insert")
+    INSERT
+}
+
 // ─── Command Types ──────────────────────────────────────────────────────────
 
 @Serializable
@@ -338,7 +382,29 @@ data class ResourceWriteParams(
      * If `true`, the server MUST fail if the file already exists instead of
      * overwriting it. Useful for safe creation of new files.
      */
-    val createOnly: Boolean? = null
+    val createOnly: Boolean? = null,
+    /**
+     * How `data` is placed within the target file. Defaults to `'truncate'`
+     * (full overwrite) when omitted. See {@link ResourceWriteMode} for the
+     * meaning of each mode and how it interprets {@link position}.
+     */
+    val mode: ResourceWriteMode? = null,
+    /**
+     * Byte offset interpreted according to {@link mode}. Defaults to `0`.
+     * - `truncate`: offset from the start of the file at which to truncate
+     * before writing.
+     * - `append`: bytes back from EOF at which to insert `data`.
+     * - `insert`: offset from the start of the file at which to splice in
+     * `data`.
+     */
+    val position: Long? = null,
+    /**
+     * Optimistic-concurrency token previously returned by
+     * {@link ResourceResolveResult.etag}. When set, the server MUST fail with
+     * `Conflict` if the current `etag` does not match — preventing lost
+     * updates between a `resourceResolve` and a subsequent `resourceWrite`.
+     */
+    val ifMatch: String? = null
 )
 
 @Serializable
@@ -445,6 +511,76 @@ data class ResourceMoveParams(
 class ResourceMoveResult
 
 @Serializable
+data class ResourceResolveParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * URI to resolve
+     */
+    val uri: String,
+    /**
+     * When `true` (default), follow symlinks and report the metadata of the
+     * link target — and set `uri` in the result to the canonical (realpath)
+     * URI. When `false`, stat the link itself (lstat semantics) and report
+     * `type: 'symlink'`.
+     */
+    val followSymlinks: Boolean? = null
+)
+
+@Serializable
+data class ResourceResolveResult(
+    /**
+     * Canonical URI after symlink resolution. Equal to the requested URI when
+     * `followSymlinks` is `false` or the URI does not traverse a symlink.
+     */
+    val uri: String,
+    /**
+     * Resource kind.
+     */
+    val type: ResourceType,
+    /**
+     * Size in bytes. Omitted for directories when the provider cannot
+     * cheaply compute it.
+     */
+    val size: Long? = null,
+    /**
+     * Last-modified time in ISO 8601 format, when known.
+     */
+    val mtime: String? = null,
+    /**
+     * Creation time in ISO 8601 format, when known.
+     */
+    val ctime: String? = null,
+    /**
+     * Sniffed MIME type, when known (e.g. `"text/plain"`, `"image/png"`).
+     */
+    val contentType: String? = null,
+    /**
+     * Opaque per-provider version token. When present, pass it as
+     * {@link ResourceWriteParams.ifMatch} on a subsequent `resourceWrite` to
+     * detect concurrent modifications.
+     */
+    val etag: String? = null
+)
+
+@Serializable
+data class ResourceMkdirParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Directory URI to create (parents created as needed).
+     */
+    val uri: String
+)
+
+@Serializable
+class ResourceMkdirResult
+
+@Serializable
 data class ResourceRequestParams(
     /**
      * Channel URI this command targets.
@@ -468,6 +604,45 @@ data class ResourceRequestParams(
 
 @Serializable
 class ResourceRequestResult
+
+@Serializable
+data class CreateResourceWatchParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * URI to watch.
+     */
+    val uri: String,
+    /**
+     * If `true`, the receiver MUST report changes for descendants of `uri`.
+     * If `false` (default), only changes to `uri` itself — and, when `uri`
+     * is a directory, its direct children — are reported.
+     */
+    val recursive: Boolean? = null,
+    /**
+     * Glob patterns or paths relative to `uri` to exclude from reporting.
+     * Wrapped in `{ items }` for forward compatibility.
+     */
+    val excludes: JsonElement? = null,
+    /**
+     * Glob patterns or paths relative to `uri` to restrict reporting to.
+     * Omit to report every change under `uri` subject to `excludes`.
+     * Wrapped in `{ items }` for forward compatibility.
+     */
+    val includes: JsonElement? = null
+)
+
+@Serializable
+data class CreateResourceWatchResult(
+    /**
+     * Receiver-assigned watch channel URI (`ahp-resource-watch:/<id>`). The
+     * caller subscribes to this URI to start receiving change events and
+     * unsubscribes to release the watcher.
+     */
+    val channel: String
+)
 
 @Serializable
 data class FetchTurnsParams(

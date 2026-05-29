@@ -9,17 +9,19 @@ modern browsers and Node 21+ without additional runtime dependencies.
 
 ## Entry points
 
-The package exposes three subpath exports:
+The package exposes four subpath exports:
 
 | Import path | What it gives you |
 |---|---|
 | `@microsoft/agent-host-protocol`        | Wire types, actions, commands, reducers, version constants. No I/O. |
 | `@microsoft/agent-host-protocol/client` | `AhpClient`, `Subscription`, `AhpStateMirror`, the `AhpTransport` interface, `InMemoryTransport`, and the error taxonomy. |
+| `@microsoft/agent-host-protocol/hosts`  | `MultiHostClient`, `HostClientHandle`, `ReconnectPolicy`, `ClientIdStore` (with `InMemoryClientIdStore`), `MultiHostStateMirror`, and the `Host*Error` family. Builds on `/client` to manage one or more host connections with reconnect, generation-checked handles, and fan-in events. |
 | `@microsoft/agent-host-protocol/ws`     | `WebSocketTransport` — an `AhpTransport` implementation backed by the global `WebSocket`. |
 
-The split mirrors the Rust SDK (`ahp-types`, `ahp`, `ahp-ws`) — wire
-types and reducers are decoupled from the client, which is in turn
-decoupled from a specific transport.
+The split mirrors the Rust SDK (`ahp-types`, `ahp`, `ahp::hosts`,
+`ahp-ws`) — wire types and reducers are decoupled from the client,
+which is in turn decoupled from a specific transport and from the
+multi-host orchestration layer.
 
 ## Quickstart
 
@@ -135,6 +137,73 @@ A typical app-level reconnect flow is:
 5. Re-fetch `listSessions` or other ephemeral data — protocol
    notifications are not replayed.
 
+If you'd rather not write that loop yourself, see
+[`@microsoft/agent-host-protocol/hosts`](#multi-host-orchestration) —
+it ships a `MultiHostClient` that owns the reconnect supervisor,
+re-subscribes across reconnects, mirrors root state, and exposes
+generation-checked client handles. Single-host consumers use
+`MultiHostClient.single(...)`.
+
+## Multi-host orchestration
+
+For apps that talk to **one or more** AHP hosts at once (a local
+sessions server plus a tunnel-attached remote, multiple project hosts
+in a sidebar, …), the `@microsoft/agent-host-protocol/hosts` entry
+point ships `MultiHostClient`:
+
+```ts
+import { ActionType } from '@microsoft/agent-host-protocol';
+import { WebSocketTransport } from '@microsoft/agent-host-protocol/ws';
+import {
+  MultiHostClient,
+  type HostTransportFactory,
+} from '@microsoft/agent-host-protocol/hosts';
+
+const openLocal: HostTransportFactory = async (_hostId, _signal) =>
+  WebSocketTransport.connect('ws://localhost:12345');
+
+// Single-host: same API, never see "registry" concepts.
+const { multi, host } = await MultiHostClient.single({
+  id: 'local',
+  label: 'Local sessions server',
+  transportFactory: openLocal,
+});
+console.log(`connected to ${host.label}: ${host.state.status}`);
+
+// Multi-host: add as many as you need.
+await multi.addHost({
+  id: 'tunnel',
+  label: 'Tunnel',
+  transportFactory: async (_id, _signal) =>
+    WebSocketTransport.connect('wss://my-tunnel.example/sessions'),
+});
+
+// Fan-in of every inbound event, tagged with host of origin.
+for await (const event of multi.events()) {
+  console.log(`[${event.hostId}] ${event.channel}`, event.event.type);
+}
+```
+
+Each host runs its own reconnect supervisor with the configured
+`ReconnectPolicy` (defaults to exponential backoff from 250 ms to 30 s
+with 25 % jitter), re-subscribes to known URIs after reconnects, and
+mirrors root state plus a session-summary cache so `MultiHostClient
+.aggregatedSessions()` and `aggregatedAgents()` are snapshot reads,
+not fan-out subscriptions. Every successful (re)connect bumps a per-
+host `generation` counter; `HostClientHandle`s minted at an earlier
+generation throw `HostReconnectedError` instead of silently writing to
+the new connection.
+
+Persistent `clientId`s are pluggable via the `ClientIdStore`
+interface. The default `InMemoryClientIdStore` is session-stable;
+production apps that need cross-launch identity wrap their platform's
+secure storage (`localStorage`, IndexedDB, Node `fs`,
+`safeStorage`, …) in a custom `ClientIdStore`.
+
+For multi-host state, `MultiHostStateMirror` keys per-resource state
+by `(hostId, uri)` so URIs that legitimately collide across hosts
+(the normal case for session URIs) don't clobber each other.
+
 ## Wire types
 
 The wire types under `src/types/` are generated from `types/*.ts` at the
@@ -149,6 +218,34 @@ npm run generate:typescript    # from the repo root
 Generated files carry a banner; do not edit them by hand. The
 `generate:typescript` script is also part of `npm run generate`, which
 regenerates every language's client output.
+
+## Protocol version mapping
+
+This package exports two protocol-version constants from its default
+entry point:
+
+```ts
+import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '@microsoft/agent-host-protocol';
+```
+
+- `PROTOCOL_VERSION` — SemVer string for the version this package's
+  source tree implements.
+- `SUPPORTED_PROTOCOL_VERSIONS` — every version this package is willing
+  to negotiate (most-preferred-first). Pass it as `protocolVersions` on
+  `InitializeParams`:
+
+  ```ts
+  await client.initialize({
+    clientId: 'my-client',
+    protocolVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
+    initialSubscriptions: ['ahp-root://'],
+  });
+  ```
+
+The same information is mirrored, in machine-readable form, in
+[`release-metadata.json`](release-metadata.json) and, in human-readable
+form, in [`CHANGELOG.md`](CHANGELOG.md). CI verifies all three sources
+agree on every PR.
 
 ## Development
 

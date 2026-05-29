@@ -44,13 +44,16 @@ target channel instead.
 | `ping` | request | Connection liveness check; scoped to the root channel. |
 | `reconnect` | request | Connection resume/replay negotiation; scoped to the root channel. |
 | `listSessions` | request | Session catalogue lives on root (`root/session*` events keep the cache fresh). |
-| `resourceRead` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceWrite` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceList` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceCopy` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceDelete` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceMove` | request | Filesystem/content access is connection-level, not session-local. |
-| `resourceRequest` | request | Permission grant/revocation flow is connection-level. |
+| `resourceRead` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client** to fetch from a client-published URI. |
+| `resourceWrite` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client** for host-driven per-session FS providers. |
+| `resourceList` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client**. |
+| `resourceCopy` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client**. |
+| `resourceDelete` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client**. |
+| `resourceMove` | request | Filesystem/content access is connection-level, not session-local. May also be issued **server → client**. |
+| `resourceResolve` | request | `stat` + `realpath` combination; throws `NotFound` for missing URIs. May also be issued **server → client**. |
+| `resourceMkdir` | request | `mkdir -p` semantics. May also be issued **server → client**. |
+| `resourceRequest` | request | Permission grant/revocation flow is connection-level. Symmetrical: either peer MAY initiate. |
+| `createResourceWatch` | request | Opens a file-change watcher; the receiver returns an `ahp-resource-watch:/<id>` channel. May also be issued **server → client** to watch a client-side URI. The watcher is released when subscribers unsubscribe — no explicit dispose call. |
 | `authenticate` | request | Bearer-token push for protected resources is connection-level. |
 | `resolveSessionConfig` | request | Pre-creation config resolution happens before any session channel exists. |
 | `sessionConfigCompletions` | request | Completes dynamic fields in pre-creation session config. |

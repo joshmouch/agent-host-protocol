@@ -80,6 +80,10 @@ import type {
   TerminalCommandFinishedAction,
 } from '../channels-terminal/actions.js';
 
+import type {
+  ResourceWatchChangedAction,
+} from '../channels-resource-watch/actions.js';
+
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
 /**
@@ -148,6 +152,7 @@ export const enum ActionType {
   TerminalCommandDetectionAvailable = 'terminal/commandDetectionAvailable',
   TerminalCommandExecuted = 'terminal/commandExecuted',
   TerminalCommandFinished = 'terminal/commandFinished',
+  ResourceWatchChanged = 'resourceWatch/changed',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -243,4 +248,5 @@ export type StateAction =
   | TerminalClearedAction
   | TerminalCommandDetectionAvailableAction
   | TerminalCommandExecutedAction
-  | TerminalCommandFinishedAction;
+  | TerminalCommandFinishedAction
+  | ResourceWatchChangedAction;

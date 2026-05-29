@@ -27,6 +27,10 @@ import type {
   ResourceDeleteResult,
   ResourceMoveParams,
   ResourceMoveResult,
+  ResourceResolveParams,
+  ResourceResolveResult,
+  ResourceMkdirParams,
+  ResourceMkdirResult,
   ResourceRequestParams,
   ResourceRequestResult,
   UnsubscribeParams,
@@ -54,6 +58,10 @@ import type {
   CreateTerminalParams,
   DisposeTerminalParams,
 } from '../channels-terminal/commands.js';
+import type {
+  CreateResourceWatchParams,
+  CreateResourceWatchResult,
+} from '../channels-resource-watch/commands.js';
 import type {
   InvokeChangesetOperationParams,
   InvokeChangesetOperationResult,
@@ -142,6 +150,7 @@ export interface CommandMap {
   'disposeSession': { params: DisposeSessionParams; result: null };
   'createTerminal': { params: CreateTerminalParams; result: null };
   'disposeTerminal': { params: DisposeTerminalParams; result: null };
+  'createResourceWatch': { params: CreateResourceWatchParams; result: CreateResourceWatchResult };
   'listSessions': { params: ListSessionsParams; result: ListSessionsResult };
   'resourceRead': { params: ResourceReadParams; result: ResourceReadResult };
   'resourceWrite': { params: ResourceWriteParams; result: ResourceWriteResult };
@@ -149,6 +158,8 @@ export interface CommandMap {
   'resourceCopy': { params: ResourceCopyParams; result: ResourceCopyResult };
   'resourceDelete': { params: ResourceDeleteParams; result: ResourceDeleteResult };
   'resourceMove': { params: ResourceMoveParams; result: ResourceMoveResult };
+  'resourceResolve': { params: ResourceResolveParams; result: ResourceResolveResult };
+  'resourceMkdir': { params: ResourceMkdirParams; result: ResourceMkdirResult };
   'resourceRequest': { params: ResourceRequestParams; result: ResourceRequestResult };
   'fetchTurns': { params: FetchTurnsParams; result: FetchTurnsResult };
   'authenticate': { params: AuthenticateParams; result: AuthenticateResult };
@@ -162,15 +173,27 @@ export interface CommandMap {
  * Registry mapping each server → client request method to its params and
  * result types.
  *
- * Bidirectional commands (currently only `resourceRequest`) appear in both
- * {@link CommandMap} and `ServerCommandMap` with identical params/result
- * shapes. The receiver decides whether to allow, deny, or prompt for the
- * requested operation regardless of which peer initiated it.
+ * The `resource*` family is symmetrical: every method that appears in
+ * {@link CommandMap} also appears here with the identical params/result
+ * shape, and the receiver decides whether to allow, deny, or prompt for
+ * the requested operation regardless of which peer initiated. Hosts use
+ * the reverse direction to read from client-published URIs (e.g.
+ * `virtual://my-client/...` plugins) and to drive per-session filesystem
+ * providers without the client having to re-implement the wire schema.
  *
  * @category Commands
  */
 export interface ServerCommandMap {
+  'resourceRead': { params: ResourceReadParams; result: ResourceReadResult };
+  'resourceWrite': { params: ResourceWriteParams; result: ResourceWriteResult };
+  'resourceList': { params: ResourceListParams; result: ResourceListResult };
+  'resourceCopy': { params: ResourceCopyParams; result: ResourceCopyResult };
+  'resourceDelete': { params: ResourceDeleteParams; result: ResourceDeleteResult };
+  'resourceMove': { params: ResourceMoveParams; result: ResourceMoveResult };
+  'resourceResolve': { params: ResourceResolveParams; result: ResourceResolveResult };
+  'resourceMkdir': { params: ResourceMkdirParams; result: ResourceMkdirResult };
   'resourceRequest': { params: ResourceRequestParams; result: ResourceRequestResult };
+  'createResourceWatch': { params: CreateResourceWatchParams; result: CreateResourceWatchResult };
 }
 
 // ─── Notification Maps ───────────────────────────────────────────────────────

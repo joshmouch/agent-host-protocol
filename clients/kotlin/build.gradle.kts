@@ -13,8 +13,8 @@ plugins {
 // `VERSION_NAME` in `gradle.properties` by the Vanniktech plugin (which
 // applies them to the publication coordinates). We mirror them onto the
 // project itself so that standard tasks like `./gradlew properties -q` can
-// surface the version — which the `publish-kotlin.yml` workflow uses to
-// validate the `kotlin/v*` git tag against the source-of-truth version.
+// surface the version — which `clients/kotlin/pipeline.yml` (ADO) uses
+// to validate the `kotlin/v*` git tag against the source-of-truth version.
 group = providers.gradleProperty("GROUP").get()
 version = providers.gradleProperty("VERSION_NAME").get()
 
@@ -64,7 +64,16 @@ mavenPublishing {
     // The plugin only targets the Sonatype Central Portal in 0.36+, so the
     // `SonatypeHost` parameter has been removed from the public API.
     publishToMavenCentral(automaticRelease = true)
-    signAllPublications()
+
+    // The ADO pipeline (`clients/kotlin/pipeline.yml`) hands a staged
+    // Maven layout to ESRP, which performs PGP signing on the server
+    // side. Local-signing is only meaningful for direct
+    // `publishAndReleaseToMavenCentral` runs, which we no longer use
+    // for releases. Gate local signing on a Gradle property so the
+    // pipeline can opt out without supplying PGP keys.
+    if (providers.gradleProperty("ahp.signPublications").orElse("true").get().toBoolean()) {
+        signAllPublications()
+    }
 
     configure(
         KotlinJvm(
@@ -79,6 +88,22 @@ mavenPublishing {
     // and issueManagement are all populated automatically by the plugin from
     // the `POM_*` keys in `gradle.properties` — we don't repeat them here
     // (doing so causes duplicate <license>/<developer> entries in the POM).
+}
+
+// Local filesystem Maven repository used by the ADO publish pipeline
+// (`clients/kotlin/pipeline.yml`). Running
+// `./gradlew publishAllPublicationsToStagingRepository` lays out a
+// standard Maven repository under `build/maven-staging/`
+// (`<groupId-with-slashes>/<artifactId>/<version>/...`) that ESRP then
+// uploads to Maven Central via `contenttype: maven`. Signing (PGP) is
+// performed by ESRP, so the staged artifacts do not need `.asc` files.
+publishing {
+    repositories {
+        maven {
+            name = "Staging"
+            url = uri(layout.buildDirectory.dir("maven-staging"))
+        }
+    }
 }
 
 

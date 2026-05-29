@@ -144,6 +144,8 @@ pub enum ActionType {
     TerminalCommandExecuted,
     #[serde(rename = "terminal/commandFinished")]
     TerminalCommandFinished,
+    #[serde(rename = "resourceWatch/changed")]
+    ResourceWatchChanged,
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────
@@ -1046,6 +1048,20 @@ pub struct TerminalCommandFinishedAction {
     pub duration_ms: Option<i64>,
 }
 
+/// A batch of resource changes observed by the watcher.
+///
+/// Watch events are coalesced into batches by the server to keep the
+/// action stream tractable; an empty `changes.items` list MUST NOT be
+/// dispatched. The reducer does not retain change history — these
+/// actions exist purely to deliver events to subscribers, who consume
+/// them directly off the action stream and apply their own logic.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceWatchChangedAction {
+    /// The set of changes in this batch, wrapped for forward compatibility.
+    pub changes: AnyValue,
+}
+
 // ─── StateAction Union ───────────────────────────────────────────────
 
 /// Discriminated union of every state action.
@@ -1172,6 +1188,8 @@ pub enum StateAction {
     TerminalCommandExecuted(TerminalCommandExecutedAction),
     #[serde(rename = "terminal/commandFinished")]
     TerminalCommandFinished(TerminalCommandFinishedAction),
+    #[serde(rename = "resourceWatch/changed")]
+    ResourceWatchChanged(ResourceWatchChangedAction),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]

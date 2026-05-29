@@ -8,12 +8,14 @@ import com.microsoft.agenthostprotocol.generated.ChangesetStatusChangedAction
 import com.microsoft.agenthostprotocol.generated.ActionType
 import com.microsoft.agenthostprotocol.generated.ChangesetClearedAction
 import com.microsoft.agenthostprotocol.generated.ChangesetFileSetAction
+import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
 import com.microsoft.agenthostprotocol.generated.FileEdit
 import com.microsoft.agenthostprotocol.generated.PendingMessage
 import com.microsoft.agenthostprotocol.generated.PendingMessageKind
 import com.microsoft.agenthostprotocol.generated.RootAgentsChangedAction
 import com.microsoft.agenthostprotocol.generated.RootState
+import com.microsoft.agenthostprotocol.generated.SessionCustomizationUpdatedAction
 import com.microsoft.agenthostprotocol.generated.SessionLifecycle
 import com.microsoft.agenthostprotocol.generated.SessionPendingMessageSetAction
 import com.microsoft.agenthostprotocol.generated.SessionQueuedMessagesReorderedAction
@@ -25,6 +27,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionChangesetCleared
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetFileSet
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetStatusChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootAgentsChanged
+import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationUpdated
 import com.microsoft.agenthostprotocol.generated.StateActionSessionPendingMessageSet
 import com.microsoft.agenthostprotocol.generated.StateActionSessionQueuedMessagesReordered
 import com.microsoft.agenthostprotocol.generated.StateActionSessionTitleChanged
@@ -37,7 +40,9 @@ import com.microsoft.agenthostprotocol.generated.TerminalContentPartUnclassified
 import com.microsoft.agenthostprotocol.generated.TerminalDataAction
 import com.microsoft.agenthostprotocol.generated.TerminalInputAction
 import com.microsoft.agenthostprotocol.generated.TerminalState
-import com.microsoft.agenthostprotocol.generated.Message
+import com.microsoft.agenthostprotocol.generated.UserMessage
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.AfterEach
@@ -327,6 +332,26 @@ class ReducersTest {
         lifecycle = SessionLifecycle.READY,
         turns = emptyList(),
     )
+
+    @Test
+    fun `SessionCustomizationUpdated with CustomizationUnknown is a no-op`() {
+        // An unknown customization has no extractable id, so the reducer
+        // cannot upsert it sensibly. Match Rust: NoOp the action entirely,
+        // leaving the existing customization list untouched.
+        val baseline = newSession()
+        val raw: JsonObject = buildJsonObject {
+            put("type", JsonPrimitive("futurePluginVariant"))
+            put("payload", buildJsonObject { put("foo", JsonPrimitive(1)) })
+        }
+        val action = StateActionSessionCustomizationUpdated(
+            SessionCustomizationUpdatedAction(
+                type = ActionType.SESSION_CUSTOMIZATION_UPDATED,
+                customization = CustomizationUnknown(raw),
+            ),
+        )
+        val after = sessionReducer(baseline, action)
+        assertSame(baseline, after)
+    }
 
     private companion object {
         private const val MOCK_NOW: Long = 9999L

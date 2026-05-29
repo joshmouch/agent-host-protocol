@@ -93,6 +93,8 @@ export type {
   ChangesetFile,
   ChangesetOperation,
   TelemetryCapabilities,
+  ResourceWatchState,
+  ResourceChange,
 } from './state.js';
 
 export {
@@ -115,6 +117,7 @@ export {
   TerminalClaimKind,
   ChangesetStatus,
   ChangesetOperationScope,
+  ResourceChangeType,
 } from './state.js';
 
 // Action types
@@ -178,6 +181,7 @@ export type {
   TerminalCommandExecutedAction,
   TerminalCommandFinishedAction,
   TerminalCommandDetectionAvailableAction,
+  ResourceWatchChangedAction,
 } from './actions.js';
 
 export { ActionType } from './actions.js';
@@ -194,6 +198,9 @@ export type {
   ChangesetAction,
   ClientChangesetAction,
   ServerChangesetAction,
+  ResourceWatchAction,
+  ClientResourceWatchAction,
+  ServerResourceWatchAction,
 } from './action-origin.generated.js';
 
 export { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
@@ -204,6 +211,7 @@ export {
   sessionReducer,
   terminalReducer,
   changesetReducer,
+  resourceWatchReducer,
   isClientDispatchable,
 } from './reducers.js';
 
@@ -238,8 +246,14 @@ export type {
   ResourceDeleteResult,
   ResourceMoveParams,
   ResourceMoveResult,
+  ResourceResolveParams,
+  ResourceResolveResult,
+  ResourceMkdirParams,
+  ResourceMkdirResult,
   ResourceRequestParams,
   ResourceRequestResult,
+  CreateResourceWatchParams,
+  CreateResourceWatchResult,
   FetchTurnsParams,
   FetchTurnsResult,
   UnsubscribeParams,
@@ -264,7 +278,7 @@ export type {
   ChangesetOperationFollowUp,
 } from './commands.js';
 
-export { ReconnectResultType, ContentEncoding, CompletionItemKind } from './commands.js';
+export { ReconnectResultType, ContentEncoding, CompletionItemKind, ResourceType, ResourceWriteMode } from './commands.js';
 
 // Notification types
 export type {
@@ -321,6 +335,7 @@ export type {
 // Version registry
 export {
   PROTOCOL_VERSION,
+  SUPPORTED_PROTOCOL_VERSIONS,
   ACTION_INTRODUCED_IN,
   NOTIFICATION_INTRODUCED_IN,
   isActionKnownToVersion,

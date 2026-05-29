@@ -24,6 +24,38 @@ public enum CompletionItemKind: String, Codable, Sendable {
     case userMessage = "userMessage"
 }
 
+/// Discriminant for {@link ResourceResolveResult.type}.
+public enum ResourceType: String, Codable, Sendable {
+    case file = "file"
+    case directory = "directory"
+    case symlink = "symlink"
+}
+
+/// How {@link ResourceWriteParams.data} is placed within the target file.
+/// 
+/// Each mode interprets {@link ResourceWriteParams.position} differently:
+/// 
+/// - `truncate` (default): rooted at the **start** of the file. The file is
+/// truncated at `position` (0 by default) and `data` is written from that
+/// offset, so the resulting file is `existing[0..position] + data`. With
+/// `position` omitted this is a full overwrite.
+/// - `append`: rooted at the **end** of the file. `position` counts bytes
+/// backwards from EOF, so `position: 0` (the default) writes at EOF —
+/// POSIX append — and `position: 5` inserts `data` 5 bytes before the
+/// current EOF, shifting those trailing 5 bytes after the inserted region.
+/// The server MUST evaluate the effective EOF and write atomically with
+/// respect to other appenders so concurrent `append` writes do not
+/// clobber each other.
+/// - `insert`: rooted at the **start** of the file. `position` (0 by default)
+/// is the byte offset at which `data` is spliced in; bytes at or after
+/// `position` are shifted right by `data.length`. `insert` always grows
+/// the file — use `truncate` to overwrite bytes in place.
+public enum ResourceWriteMode: String, Codable, Sendable {
+    case truncate = "truncate"
+    case append = "append"
+    case insert = "insert"
+}
+
 // MARK: - Command Types
 
 public struct InitializeParams: Codable, Sendable {
@@ -335,6 +367,22 @@ public struct ResourceWriteParams: Codable, Sendable {
     /// If `true`, the server MUST fail if the file already exists instead of
     /// overwriting it. Useful for safe creation of new files.
     public var createOnly: Bool?
+    /// How `data` is placed within the target file. Defaults to `'truncate'`
+    /// (full overwrite) when omitted. See {@link ResourceWriteMode} for the
+    /// meaning of each mode and how it interprets {@link position}.
+    public var mode: ResourceWriteMode?
+    /// Byte offset interpreted according to {@link mode}. Defaults to `0`.
+    /// - `truncate`: offset from the start of the file at which to truncate
+    /// before writing.
+    /// - `append`: bytes back from EOF at which to insert `data`.
+    /// - `insert`: offset from the start of the file at which to splice in
+    /// `data`.
+    public var position: Int?
+    /// Optimistic-concurrency token previously returned by
+    /// {@link ResourceResolveResult.etag}. When set, the server MUST fail with
+    /// `Conflict` if the current `etag` does not match — preventing lost
+    /// updates between a `resourceResolve` and a subsequent `resourceWrite`.
+    public var ifMatch: String?
 
     public init(
         channel: String,
@@ -342,7 +390,10 @@ public struct ResourceWriteParams: Codable, Sendable {
         data: String,
         encoding: ContentEncoding,
         contentType: String? = nil,
-        createOnly: Bool? = nil
+        createOnly: Bool? = nil,
+        mode: ResourceWriteMode? = nil,
+        position: Int? = nil,
+        ifMatch: String? = nil
     ) {
         self.channel = channel
         self.uri = uri
@@ -350,6 +401,9 @@ public struct ResourceWriteParams: Codable, Sendable {
         self.encoding = encoding
         self.contentType = contentType
         self.createOnly = createOnly
+        self.mode = mode
+        self.position = position
+        self.ifMatch = ifMatch
     }
 }
 
@@ -494,6 +548,90 @@ public struct ResourceMoveResult: Codable, Sendable {
     }
 }
 
+public struct ResourceResolveParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// URI to resolve
+    public var uri: String
+    /// When `true` (default), follow symlinks and report the metadata of the
+    /// link target — and set `uri` in the result to the canonical (realpath)
+    /// URI. When `false`, stat the link itself (lstat semantics) and report
+    /// `type: 'symlink'`.
+    public var followSymlinks: Bool?
+
+    public init(
+        channel: String,
+        uri: String,
+        followSymlinks: Bool? = nil
+    ) {
+        self.channel = channel
+        self.uri = uri
+        self.followSymlinks = followSymlinks
+    }
+}
+
+public struct ResourceResolveResult: Codable, Sendable {
+    /// Canonical URI after symlink resolution. Equal to the requested URI when
+    /// `followSymlinks` is `false` or the URI does not traverse a symlink.
+    public var uri: String
+    /// Resource kind.
+    public var type: ResourceType
+    /// Size in bytes. Omitted for directories when the provider cannot
+    /// cheaply compute it.
+    public var size: Int?
+    /// Last-modified time in ISO 8601 format, when known.
+    public var mtime: String?
+    /// Creation time in ISO 8601 format, when known.
+    public var ctime: String?
+    /// Sniffed MIME type, when known (e.g. `"text/plain"`, `"image/png"`).
+    public var contentType: String?
+    /// Opaque per-provider version token. When present, pass it as
+    /// {@link ResourceWriteParams.ifMatch} on a subsequent `resourceWrite` to
+    /// detect concurrent modifications.
+    public var etag: String?
+
+    public init(
+        uri: String,
+        type: ResourceType,
+        size: Int? = nil,
+        mtime: String? = nil,
+        ctime: String? = nil,
+        contentType: String? = nil,
+        etag: String? = nil
+    ) {
+        self.uri = uri
+        self.type = type
+        self.size = size
+        self.mtime = mtime
+        self.ctime = ctime
+        self.contentType = contentType
+        self.etag = etag
+    }
+}
+
+public struct ResourceMkdirParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Directory URI to create (parents created as needed).
+    public var uri: String
+
+    public init(
+        channel: String,
+        uri: String
+    ) {
+        self.channel = channel
+        self.uri = uri
+    }
+}
+
+public struct ResourceMkdirResult: Codable, Sendable {
+
+    public init(
+
+    ) {
+    }
+}
+
 public struct ResourceRequestParams: Codable, Sendable {
     /// Channel URI this command targets.
     public var channel: String
@@ -524,6 +662,51 @@ public struct ResourceRequestResult: Codable, Sendable {
     public init(
 
     ) {
+    }
+}
+
+public struct CreateResourceWatchParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// URI to watch.
+    public var uri: String
+    /// If `true`, the receiver MUST report changes for descendants of `uri`.
+    /// If `false` (default), only changes to `uri` itself — and, when `uri`
+    /// is a directory, its direct children — are reported.
+    public var recursive: Bool?
+    /// Glob patterns or paths relative to `uri` to exclude from reporting.
+    /// Wrapped in `{ items }` for forward compatibility.
+    public var excludes: AnyCodable?
+    /// Glob patterns or paths relative to `uri` to restrict reporting to.
+    /// Omit to report every change under `uri` subject to `excludes`.
+    /// Wrapped in `{ items }` for forward compatibility.
+    public var includes: AnyCodable?
+
+    public init(
+        channel: String,
+        uri: String,
+        recursive: Bool? = nil,
+        excludes: AnyCodable? = nil,
+        includes: AnyCodable? = nil
+    ) {
+        self.channel = channel
+        self.uri = uri
+        self.recursive = recursive
+        self.excludes = excludes
+        self.includes = includes
+    }
+}
+
+public struct CreateResourceWatchResult: Codable, Sendable {
+    /// Receiver-assigned watch channel URI (`ahp-resource-watch:/<id>`). The
+    /// caller subscribes to this URI to start receiving change events and
+    /// unsubscribes to release the watcher.
+    public var channel: String
+
+    public init(
+        channel: String
+    ) {
+        self.channel = channel
     }
 }
 

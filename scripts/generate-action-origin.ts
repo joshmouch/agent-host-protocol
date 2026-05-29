@@ -17,7 +17,7 @@ const GENERATED_HEADER = `// Generated from types/actions.ts — do not edit
 // Run \`npm run generate\` to regenerate.
 `;
 
-type ActionScope = 'root' | 'session' | 'terminal' | 'changeset';
+type ActionScope = 'root' | 'session' | 'terminal' | 'changeset' | 'resourceWatch';
 
 interface ActionInfo {
   /** The interface name (e.g. 'RootAgentsChangedAction') */
@@ -152,6 +152,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
     const scope: ActionScope = category === 'Root Actions' ? 'root'
       : category === 'Terminal Actions' ? 'terminal'
       : category === 'Changeset Actions' ? 'changeset'
+      : category === 'Resource Watch Actions' ? 'resourceWatch'
       : 'session';
     const isClientDispatchable = hasJsDocTag(node as any, 'clientDispatchable');
 
@@ -201,6 +202,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const sessionActions = actions.filter(a => a.scope === 'session');
   const terminalActions = actions.filter(a => a.scope === 'terminal');
   const changesetActions = actions.filter(a => a.scope === 'changeset');
+  const resourceWatchActions = actions.filter(a => a.scope === 'resourceWatch');
   const clientRootActions = rootActions.filter(a => a.isClientDispatchable);
   const serverRootActions = rootActions.filter(a => !a.isClientDispatchable);
   const clientSessionActions = sessionActions.filter(a => a.isClientDispatchable);
@@ -209,6 +211,8 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const serverTerminalActions = terminalActions.filter(a => !a.isClientDispatchable);
   const clientChangesetActions = changesetActions.filter(a => a.isClientDispatchable);
   const serverChangesetActions = changesetActions.filter(a => !a.isClientDispatchable);
+  const clientResourceWatchActions = resourceWatchActions.filter(a => a.isClientDispatchable);
+  const serverResourceWatchActions = resourceWatchActions.filter(a => !a.isClientDispatchable);
 
   const lines: string[] = [GENERATED_HEADER];
 
@@ -336,6 +340,45 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   } else {
     for (let i = 0; i < serverChangesetActions.length; i++) {
       lines.push(`  | ${serverChangesetActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ResourceWatchAction
+  lines.push(`/** Union of all resource-watch-scoped actions. */`);
+  lines.push(`export type ResourceWatchAction =`);
+  if (resourceWatchActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < resourceWatchActions.length; i++) {
+      lines.push(`  | ${resourceWatchActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ClientResourceWatchAction
+  lines.push(`/** Union of resource-watch actions that clients may dispatch. */`);
+  lines.push(`export type ClientResourceWatchAction =`);
+  if (clientResourceWatchActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < clientResourceWatchActions.length; i++) {
+      lines.push(`  | ${clientResourceWatchActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ServerResourceWatchAction
+  lines.push(`/** Union of resource-watch actions that only the server may produce. */`);
+  lines.push(`export type ServerResourceWatchAction =`);
+  if (serverResourceWatchActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < serverResourceWatchActions.length; i++) {
+      lines.push(`  | ${serverResourceWatchActions[i].name}`);
     }
   }
   lines.push(`;`);

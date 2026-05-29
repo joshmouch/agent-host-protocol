@@ -21,6 +21,7 @@ import { execFileSync, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
+import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
 
@@ -340,7 +341,7 @@ function generateRustEnum(enumDecl: EnumDeclaration): string {
 
   if (desc) {
     for (const d of desc.split('\n')) {
-      lines.push(`/// ${d.trim()}`);
+      lines.push(`/// ${d.trimEnd()}`);
     }
   }
 
@@ -524,7 +525,7 @@ const STATE_ENUMS = [
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
-  'ChangesetStatus', 'ChangesetOperationScope',
+  'ChangesetStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
 /**
@@ -624,6 +625,8 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },
   { name: 'TelemetryCapabilities' },
+  { name: 'ResourceWatchState' },
+  { name: 'ResourceChange' },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -925,6 +928,7 @@ const ACTION_VARIANTS: {
   { type: 'terminal/commandDetectionAvailable', variantName: 'TerminalCommandDetectionAvailable', tsInterface: 'TerminalCommandDetectionAvailableAction' },
   { type: 'terminal/commandExecuted', variantName: 'TerminalCommandExecuted', tsInterface: 'TerminalCommandExecutedAction' },
   { type: 'terminal/commandFinished', variantName: 'TerminalCommandFinished', tsInterface: 'TerminalCommandFinishedAction' },
+  { type: 'resourceWatch/changed', variantName: 'ResourceWatchChanged', tsInterface: 'ResourceWatchChangedAction' },
 ];
 
 function generateMergedToolCallConfirmedStruct(): string {
@@ -1038,7 +1042,7 @@ pub struct ActionEnvelope {
 
 // ─── Commands File Generator ─────────────────────────────────────────────────
 
-const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind'];
+const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind', 'ResourceType', 'ResourceWriteMode'];
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
@@ -1056,7 +1060,10 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: s
   { name: 'ResourceCopyParams' }, { name: 'ResourceCopyResult' },
   { name: 'ResourceDeleteParams' }, { name: 'ResourceDeleteResult' },
   { name: 'ResourceMoveParams' }, { name: 'ResourceMoveResult' },
+  { name: 'ResourceResolveParams' }, { name: 'ResourceResolveResult' },
+  { name: 'ResourceMkdirParams' }, { name: 'ResourceMkdirResult' },
   { name: 'ResourceRequestParams' }, { name: 'ResourceRequestResult' },
+  { name: 'CreateResourceWatchParams' }, { name: 'CreateResourceWatchResult' },
   { name: 'FetchTurnsParams' }, { name: 'FetchTurnsResult' },
   { name: 'UnsubscribeParams' }, { name: 'DispatchActionParams' },
   { name: 'AuthenticateParams' }, { name: 'AuthenticateResult' },
@@ -1380,22 +1387,25 @@ pub type ActionNotificationParams = ActionEnvelope;
 // ─── Version File Generator ──────────────────────────────────────────────────
 
 function generateVersionFile(project: Project): string {
-  const sf = project.getSourceFiles().find(f => f.getBaseName().endsWith('registry.ts'));
-  let protocolVersion = '0.1.0';
-  if (sf) {
-    for (const decl of sf.getVariableDeclarations()) {
-      const init = decl.getInitializer()?.getText() ?? '';
-      // Initializers are TS source text, e.g. `'0.1.0'`. Strip surrounding quotes.
-      const literal = init.replace(/^['"`]|['"`]$/g, '');
-      if (decl.getName() === 'PROTOCOL_VERSION' && literal) {
-        protocolVersion = literal;
-      }
-    }
-  }
+  const { current, supported } = readProtocolVersions(project);
+
+  const supportedLiteral = supported
+    .map((v) => `    ${JSON.stringify(v)},`)
+    .join('\n');
 
   return `${GENERATED_BANNER}
 /// Current protocol version (SemVer \`MAJOR.MINOR.PATCH\`).
-pub const PROTOCOL_VERSION: &str = ${JSON.stringify(protocolVersion)};
+pub const PROTOCOL_VERSION: &str = ${JSON.stringify(current)};
+
+/// Every protocol version this crate is willing to negotiate, ordered
+/// most-preferred-first. The first entry equals [\`PROTOCOL_VERSION\`].
+///
+/// Consumers building \`InitializeParams\` should pass this slice (or a
+/// derived \`Vec<String>\`) so the same client binary can fall back to
+/// older protocol versions if the host doesn't accept the newest one.
+pub const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &[
+${supportedLiteral}
+];
 `;
 }
 

@@ -1568,6 +1568,11 @@
             "$ref": "#/$defs/MessageAttachment"
           },
           "description": "File/selection attachments"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this message.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry context that does not fit any other\nfield. Mirrors the MCP `_meta` convention."
         }
       },
       "required": [
@@ -2910,7 +2915,7 @@
     },
     "DirectoryCustomization": {
       "type": "object",
-      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/commands#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
+      "description": "A directory the host watches for this session.\n\nPresence in the customization list signals that the host may discover\ncustomizations from this directory. When `writable` is `true`, clients\nMAY persist new customizations into the directory using\n[`resourceWrite`](/reference/common#resourcewrite); the host will\nthen surface the resulting child via the customization actions.\n\nThe directory may not yet exist on disk.",
       "properties": {
         "id": {
           "type": "string",
@@ -3565,6 +3570,66 @@
         }
       }
     },
+    "ResourceWatchState": {
+      "type": "object",
+      "description": "Full state for a single resource watch, returned when a client subscribes\nto an `ahp-resource-watch:` URI.\n\nWatches are otherwise stateless: the watcher exists to deliver\n{@link ResourceWatchChangedAction} events. The state carries only the\ndescriptor of what is being watched so a re-subscribing client can\nrecover the watch configuration after reconnecting.",
+      "properties": {
+        "root": {
+          "$ref": "#/$defs/URI",
+          "description": "The URI being watched. For recursive watches this is the root of the\nsubtree; for non-recursive watches this is the single file or\ndirectory."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "`true` if the watcher reports changes for descendants of `root`;\n`false` if it only reports changes to `root` itself (and, when\n`root` is a directory, its direct children)."
+        },
+        "excludes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Optional glob patterns or paths relative to `root` to exclude from\nchange reporting."
+        },
+        "includes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Optional glob patterns or paths relative to `root` to restrict\nchange reporting to. Omit to report every change under `root`\nsubject to `excludes`."
+        }
+      },
+      "required": [
+        "root",
+        "recursive"
+      ]
+    },
+    "ResourceChange": {
+      "type": "object",
+      "description": "A single change observed by a resource watcher.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "The URI of the resource that changed."
+        },
+        "type": {
+          "$ref": "#/$defs/ResourceChangeType",
+          "description": "The kind of change observed."
+        }
+      },
+      "required": [
+        "uri",
+        "type"
+      ]
+    },
     "BaseParams": {
       "type": "object",
       "description": "Base shape every command's params extends.\n\n`channel` identifies the channel the command targets, mirroring the\n`channel` field on every protocol notification. For commands that operate\non a specific channel (a session, terminal, or changeset), `channel` is\nthat channel's URI. For commands that are connection-level rather than\nchannel-scoped (e.g. {@link InitializeParams | `initialize`},\n{@link PingParams | `ping`}, {@link ListSessionsParams | `listSessions`},\nthe `resource*` filesystem commands, and {@link AuthenticateParams |\n`authenticate`}), the params type narrows `channel` to the literal\nroot URI `'ahp-root://'`.\n\nThis invariant lets implementations route every incoming message —\nrequest, response, or notification — by inspecting `params.channel`\nwithout needing to know the per-method param shape.",
@@ -3817,7 +3882,7 @@
     },
     "ResourceReadParams": {
       "type": "object",
-      "description": "Reads the content of a resource by URI.\n\nContent references keep the state tree small by storing large data (images,\nlong tool outputs) by reference rather than inline.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.",
+      "description": "Reads the content of a resource by URI.\n\nContent references keep the state tree small by storing large data (images,\nlong tool outputs) by reference rather than inline.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.\n\nLike all `resource*` methods, `resourceRead` is symmetrical and MAY be\nsent in either direction. Hosts use it to fetch content from a\nclient-published URI (e.g. `virtual://my-client/...` plugins); clients\nuse it to read host-side files. The receiver enforces access via the\nsame permission/`resourceRequest` flow regardless of which peer initiated.",
       "properties": {
         "channel": {
           "type": "string",
@@ -3863,7 +3928,7 @@
     },
     "ResourceWriteParams": {
       "type": "object",
-      "description": "Writes content to a file on the server's filesystem.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.\n\nIf the file does not exist, it is created. If the file already exists, it is\noverwritten unless `createOnly` is set.",
+      "description": "Writes content to a file on the server's filesystem.\n\nBinary content (images, etc.) MUST use `base64` encoding. Text content MAY\nuse `utf-8` encoding.\n\nIf the file does not exist, it is created. If the file already exists, the\neffect on existing bytes depends on {@link ResourceWriteParams.mode}:\n`truncate` (default) overwrites from the chosen offset onward, `append`\npreserves all existing bytes and adds `data` at a position rooted at EOF,\nand `insert` preserves all existing bytes and splices `data` in at an\noffset rooted at the start of the file.\n\nLike all `resource*` methods, `resourceWrite` is symmetrical and MAY be\nsent in either direction.",
       "properties": {
         "channel": {
           "type": "string",
@@ -3890,6 +3955,18 @@
         "createOnly": {
           "type": "boolean",
           "description": "If `true`, the server MUST fail if the file already exists instead of\noverwriting it. Useful for safe creation of new files."
+        },
+        "mode": {
+          "$ref": "#/$defs/ResourceWriteMode",
+          "description": "How `data` is placed within the target file. Defaults to `'truncate'`\n(full overwrite) when omitted. See {@link ResourceWriteMode} for the\nmeaning of each mode and how it interprets {@link position}."
+        },
+        "position": {
+          "type": "number",
+          "description": "Byte offset interpreted according to {@link mode}. Defaults to `0`.\n- `truncate`: offset from the start of the file at which to truncate\n  before writing.\n- `append`: bytes back from EOF at which to insert `data`.\n- `insert`: offset from the start of the file at which to splice in\n  `data`."
+        },
+        "ifMatch": {
+          "type": "string",
+          "description": "Optimistic-concurrency token previously returned by\n{@link ResourceResolveResult.etag}. When set, the server MUST fail with\n`Conflict` if the current `etag` does not match — preventing lost\nupdates between a `resourceResolve` and a subsequent `resourceWrite`."
         }
       },
       "required": [
@@ -3906,7 +3983,7 @@
     },
     "ResourceListParams": {
       "type": "object",
-      "description": "Lists directory entries at a file URI on the server's filesystem.\n\nThis is intended for remote folder pickers and similar UI that needs to let\nusers navigate the server's local filesystem.\n\nThe server MUST return success only if the target exists and is a directory.\nIf the target does not exist, is not a directory, or cannot be accessed, the\nserver MUST return a JSON-RPC error.",
+      "description": "Lists directory entries at a file URI on the server's filesystem.\n\nThis is intended for remote folder pickers and similar UI that needs to let\nusers navigate the server's local filesystem.\n\nThe server MUST return success only if the target exists and is a directory.\nIf the target does not exist, is not a directory, or cannot be accessed, the\nserver MUST return a JSON-RPC error.\n\nLike all `resource*` methods, `resourceList` is symmetrical and MAY be\nsent in either direction.",
       "properties": {
         "channel": {
           "type": "string",
@@ -3964,7 +4041,7 @@
     },
     "ResourceCopyParams": {
       "type": "object",
-      "description": "Copies a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
+      "description": "Copies a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.\n\nLike all `resource*` methods, `resourceCopy` is symmetrical and MAY be\nsent in either direction.",
       "properties": {
         "channel": {
           "type": "string",
@@ -3998,7 +4075,7 @@
     },
     "ResourceDeleteParams": {
       "type": "object",
-      "description": "Deletes a resource at a URI on the server's filesystem.",
+      "description": "Deletes a resource at a URI on the server's filesystem.\n\nLike all `resource*` methods, `resourceDelete` is symmetrical and MAY be\nsent in either direction.",
       "properties": {
         "channel": {
           "type": "string",
@@ -4060,7 +4137,7 @@
     },
     "ResourceMoveParams": {
       "type": "object",
-      "description": "Moves (renames) a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.",
+      "description": "Moves (renames) a resource from one URI to another on the server's filesystem.\n\nIf the destination already exists, it is overwritten unless `failIfExists`\nis set.\n\nLike all `resource*` methods, `resourceMove` is symmetrical and MAY be\nsent in either direction.",
       "properties": {
         "channel": {
           "type": "string",
@@ -4090,6 +4167,93 @@
     "ResourceMoveResult": {
       "type": "object",
       "description": "Result of the `resourceMove` command.\n\nAn empty object on success.",
+      "properties": {}
+    },
+    "ResourceResolveParams": {
+      "type": "object",
+      "description": "Resolves a resource — the combination of POSIX `stat` and `realpath`.\n\n`resourceResolve` returns metadata about the resource together with its\ncanonical URI after symlink resolution. Use this in place of any\n`resourceExists` shim: a missing resource MUST surface as a `NotFound`\nJSON-RPC error rather than a success with a sentinel value. Callers that\ntruly need a boolean check should attempt `resourceResolve` and treat\n`NotFound` as \"does not exist\".\n\nLike all `resource*` methods, `resourceResolve` is symmetrical and MAY be\nsent in either direction.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "URI to resolve"
+        },
+        "followSymlinks": {
+          "type": "boolean",
+          "description": "When `true` (default), follow symlinks and report the metadata of the\nlink target — and set `uri` in the result to the canonical (realpath)\nURI. When `false`, stat the link itself (lstat semantics) and report\n`type: 'symlink'`."
+        }
+      },
+      "required": [
+        "channel",
+        "uri"
+      ]
+    },
+    "ResourceResolveResult": {
+      "type": "object",
+      "description": "Result of the `resourceResolve` command.",
+      "properties": {
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Canonical URI after symlink resolution. Equal to the requested URI when\n`followSymlinks` is `false` or the URI does not traverse a symlink."
+        },
+        "type": {
+          "$ref": "#/$defs/ResourceType",
+          "description": "Resource kind."
+        },
+        "size": {
+          "type": "number",
+          "description": "Size in bytes. Omitted for directories when the provider cannot\ncheaply compute it."
+        },
+        "mtime": {
+          "type": "string",
+          "description": "Last-modified time in ISO 8601 format, when known."
+        },
+        "ctime": {
+          "type": "string",
+          "description": "Creation time in ISO 8601 format, when known."
+        },
+        "contentType": {
+          "type": "string",
+          "description": "Sniffed MIME type, when known (e.g. `\"text/plain\"`, `\"image/png\"`)."
+        },
+        "etag": {
+          "type": "string",
+          "description": "Opaque per-provider version token. When present, pass it as\n{@link ResourceWriteParams.ifMatch} on a subsequent `resourceWrite` to\ndetect concurrent modifications."
+        }
+      },
+      "required": [
+        "uri",
+        "type"
+      ]
+    },
+    "ResourceMkdirParams": {
+      "type": "object",
+      "description": "Creates a directory on the server's filesystem with `mkdir -p` semantics.\n\nThe server MUST create any missing parent directories. Creating a\ndirectory that already exists is a no-op success. If `uri` already\nexists but is **not** a directory, the server MUST fail with\n`AlreadyExists`.\n\nLike all `resource*` methods, `resourceMkdir` is symmetrical and MAY be\nsent in either direction.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "Directory URI to create (parents created as needed)."
+        }
+      },
+      "required": [
+        "channel",
+        "uri"
+      ]
+    },
+    "ResourceMkdirResult": {
+      "type": "object",
+      "description": "Result of the `resourceMkdir` command.\n\nAn empty object on success.",
       "properties": {}
     },
     "AuthenticateParams": {
@@ -4561,6 +4725,67 @@
           "description": "Optional follow-up: a URI to open (e.g. a PR), a content ref, etc."
         }
       }
+    },
+    "CreateResourceWatchParams": {
+      "type": "object",
+      "description": "Creates a resource watcher on the receiver's filesystem.\n\nThe receiver allocates an `ahp-resource-watch:/<id>` channel URI and\nreturns it on {@link CreateResourceWatchResult.channel}. The caller then\n[`subscribe`](./subscriptions)s to that channel to receive\n`resourceWatch/changed` actions over the standard action envelope.\n\nThe watch lifecycle is tied to subscription: when every subscriber has\nunsubscribed (or the underlying connection drops), the receiver MUST\nrelease the watcher. There is no explicit dispose command — `unsubscribe`\nis the only handle the caller needs.\n\nLike the rest of the `resource*` family, `createResourceWatch` is\nsymmetrical and MAY be sent in either direction. Access is gated through\nthe same permission flow as `resourceRead`/`resourceWrite`.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ]
+        },
+        "uri": {
+          "$ref": "#/$defs/URI",
+          "description": "URI to watch."
+        },
+        "recursive": {
+          "type": "boolean",
+          "description": "If `true`, the receiver MUST report changes for descendants of `uri`.\nIf `false` (default), only changes to `uri` itself — and, when `uri`\nis a directory, its direct children — are reported."
+        },
+        "excludes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Glob patterns or paths relative to `uri` to exclude from reporting.\nWrapped in `{ items }` for forward compatibility."
+        },
+        "includes": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "items"
+          ],
+          "description": "Glob patterns or paths relative to `uri` to restrict reporting to.\nOmit to report every change under `uri` subject to `excludes`.\nWrapped in `{ items }` for forward compatibility."
+        }
+      },
+      "required": [
+        "channel",
+        "uri"
+      ]
+    },
+    "CreateResourceWatchResult": {
+      "type": "object",
+      "description": "Result of the `createResourceWatch` command.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Receiver-assigned watch channel URI (`ahp-resource-watch:/<id>`). The\ncaller subscribes to this URI to start receiving change events and\nunsubscribes to release the watcher."
+        }
+      },
+      "required": [
+        "channel"
+      ]
     }
   }
 }

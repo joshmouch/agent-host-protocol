@@ -1,0 +1,132 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+# This Azure DevOps pipeline is the source-of-truth for publishing
+# `com.microsoft.agenthostprotocol:agent-host-protocol` to Maven
+# Central. Microsoft is moving Maven publishing to the ESRP-backed
+# Central Package Publishing Model, which is only available from
+# Azure DevOps (no GitHub Actions support today, see
+# `aka.ms/esrpreleaseadotask`). Mirroring the TypeScript publish
+# pipeline, the publish flow lives entirely here:
+#
+#   1. Push a `kotlin/vX.Y.Z` tag from the repo root.
+#   2. ADO picks up the tag, runs the full validation + build + test
+#      sequence, stages a Maven repository layout under
+#      `clients/kotlin/build/maven-staging/`, and hands it to ESRP
+#      (`contenttype: maven`) for upload + sign + release to Maven
+#      Central via the Sonatype Central Portal.
+#
+# The pipeline can also be triggered manually from the ADO UI as a
+# hotfix escape hatch — manual runs publish too. Per-commit CI runs on
+# `main` are handled by `.github/workflows/ci.yml`, so this pipeline
+# only triggers on tags and manual runs.
+trigger:
+  branches:
+    exclude:
+      - "*"
+  tags:
+    include:
+      - kotlin/v*
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: connor4312/maven-pipeline # temporary to validate
+      endpoint: Monaco
+
+extends:
+  template: azure-pipelines/maven-package/pipeline.yml@templates
+  parameters:
+    packageName: agent-host-protocol
+    projectRootDirectory: $(Build.SourcesDirectory)/clients/kotlin
+    artifactStagingDirectory: $(Build.SourcesDirectory)/clients/kotlin/build/maven-staging
+    # Always publish: the only entry points to this pipeline are
+    # `kotlin/v*` tag pushes and manual ADO UI runs.
+    publishPackage: true
+    # The GitHub tag is what triggers this pipeline, so there's no
+    # need for the pipeline to also push a tag back.
+    ghCreateTag: false
+    javaVersion: "17"
+    jdkDistribution: Temurin
+    buildPlatforms:
+      - name: Linux
+
+    buildSteps:
+      - script: npm ci
+        displayName: 📦 Install root dependencies
+
+      # Tag-driven runs: enforce that the git tag matches the version
+      # that `gradle.properties` (`VERSION_NAME`) will be published
+      # under, that the version isn't a `-SNAPSHOT`, and that the
+      # CHANGELOG already has the matching section. Manual runs (no
+      # tag) skip the cross-check.
+      - bash: |
+          set -euo pipefail
+          REF="$(Build.SourceBranch)"
+          GRADLE_VERSION=$(grep '^VERSION_NAME=' clients/kotlin/gradle.properties | cut -d= -f2)
+          case "$REF" in
+            refs/tags/kotlin/v*)
+              TAG_VERSION="${REF#refs/tags/kotlin/v}"
+              if [ "$TAG_VERSION" != "$GRADLE_VERSION" ]; then
+                echo "##vso[task.logissue type=error]Tag version ($TAG_VERSION) does not match clients/kotlin/gradle.properties VERSION_NAME ($GRADLE_VERSION)."
+                exit 1
+              fi
+              if ! grep -qE "^## \[$TAG_VERSION\]" clients/kotlin/CHANGELOG.md; then
+                echo "##vso[task.logissue type=error]clients/kotlin/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+                exit 1
+              fi
+              echo "Publishing version $TAG_VERSION (from tag $REF)"
+              ;;
+            *)
+              echo "Manual run (no kotlin/v* tag) — skipping tag/gradle.properties cross-check."
+              ;;
+          esac
+          case "$GRADLE_VERSION" in
+            *-SNAPSHOT)
+              echo "##vso[task.logissue type=error]Refusing to release SNAPSHOT version ($GRADLE_VERSION). Bump VERSION_NAME in clients/kotlin/gradle.properties to a non-SNAPSHOT value before tagging."
+              exit 1
+              ;;
+          esac
+        displayName: ✅ Verify tag matches Gradle version
+
+      # Defense-in-depth checks before producing the publish artifact.
+      # These also run on every commit via the GitHub Actions
+      # `ci.yml` workflow, but re-running them here means the Maven
+      # artifact can't ship from a branch state that would have
+      # failed the GHA check.
+      - script: npm run verify:release-metadata
+        displayName: ✅ Verify release metadata
+
+      - script: npm run verify:changelog
+        displayName: ✅ Verify CHANGELOG entry exists
+
+      - script: npm run generate:kotlin
+        displayName: 🛠 Generate Kotlin sources
+
+      - bash: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain -- clients/kotlin)" ]; then
+            echo "##vso[task.logissue type=error]Generated Kotlin sources are out of date. Run 'npm run generate:kotlin' and commit the result."
+            git status --porcelain -- clients/kotlin
+            git --no-pager diff -- clients/kotlin
+            exit 1
+          fi
+        displayName: ✅ Verify generated Kotlin is up to date
+
+      - script: ./gradlew check --stacktrace
+        workingDirectory: clients/kotlin
+        displayName: 🧪 Run Gradle check (tests + lint)
+
+      # Stage the publish artifact. The `Staging` Maven repository is
+      # declared in `clients/kotlin/build.gradle.kts` and points at
+      # `build/maven-staging/`. ESRP picks up that folder (with the
+      # standard Maven layout `<groupId>/<artifactId>/<version>/...`)
+      # and uploads it to Maven Central. Signing is performed by
+      # ESRP, so we pass `-Pahp.signPublications=false` to skip the
+      # Vanniktech `signAllPublications()` call (which would otherwise
+      # require PGP key configuration here).
+      - script: ./gradlew -Pahp.signPublications=false publishAllPublicationsToStagingRepository --no-configuration-cache --stacktrace
+        workingDirectory: clients/kotlin
+        displayName: 📦 Stage Maven artifacts for ESRP

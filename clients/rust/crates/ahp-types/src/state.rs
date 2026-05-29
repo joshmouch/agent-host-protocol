@@ -309,6 +309,17 @@ pub enum ChangesetOperationScope {
     Range,
 }
 
+/// Discriminant for {@link ResourceChange.type}.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ResourceChangeType {
+    #[serde(rename = "added")]
+    Added,
+    #[serde(rename = "updated")]
+    Updated,
+    #[serde(rename = "deleted")]
+    Deleted,
+}
+
 // ─── Structs ──────────────────────────────────────────────────────────
 
 /// An optionally-sized icon that can be displayed in a user interface.
@@ -901,6 +912,13 @@ pub struct Message {
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
+    /// Additional provider-specific metadata for this message.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry context that does not fit any other
+    /// field. Mirrors the MCP `_meta` convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// A choice in a select-style question.
@@ -1948,7 +1966,7 @@ pub struct ClientPluginCustomization {
 /// Presence in the customization list signals that the host may discover
 /// customizations from this directory. When `writable` is `true`, clients
 /// MAY persist new customizations into the directory using
-/// [`resourceWrite`](/reference/commands#resourcewrite); the host will
+/// [`resourceWrite`](/reference/common#resourcewrite); the host will
 /// then surface the resulting child via the customization actions.
 ///
 /// The directory may not yet exist on disk.
@@ -2562,6 +2580,45 @@ pub struct TelemetryCapabilities {
     /// version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metrics: Option<Uri>,
+}
+
+/// Full state for a single resource watch, returned when a client subscribes
+/// to an `ahp-resource-watch:` URI.
+///
+/// Watches are otherwise stateless: the watcher exists to deliver
+/// {@link ResourceWatchChangedAction} events. The state carries only the
+/// descriptor of what is being watched so a re-subscribing client can
+/// recover the watch configuration after reconnecting.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceWatchState {
+    /// The URI being watched. For recursive watches this is the root of the
+    /// subtree; for non-recursive watches this is the single file or
+    /// directory.
+    pub root: Uri,
+    /// `true` if the watcher reports changes for descendants of `root`;
+    /// `false` if it only reports changes to `root` itself (and, when
+    /// `root` is a directory, its direct children).
+    pub recursive: bool,
+    /// Optional glob patterns or paths relative to `root` to exclude from
+    /// change reporting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub excludes: Option<AnyValue>,
+    /// Optional glob patterns or paths relative to `root` to restrict
+    /// change reporting to. Omit to report every change under `root`
+    /// subject to `excludes`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub includes: Option<AnyValue>,
+}
+
+/// A single change observed by a resource watcher.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceChange {
+    /// The URI of the resource that changed.
+    pub uri: Uri,
+    /// The kind of change observed.
+    pub r#type: ResourceChangeType,
 }
 
 // ─── Discriminated Unions ─────────────────────────────────────────────
