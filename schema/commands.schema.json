@@ -4592,6 +4592,14 @@
           },
           "description": "Where this operation can be invoked."
         },
+        "status": {
+          "$ref": "#/$defs/ChangesetOperationStatus",
+          "description": "Lifecycle of the most recent invocation. When omitted, the operation is\ntreated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available\nto invoke and not currently running."
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Cause of the most recent failure. Present iff\n`status === ChangesetOperationStatus.Error`; otherwise omitted (the\noperation transitioning back to `Idle` or `Running` clears it)."
+        },
         "confirmation": {
           "$ref": "#/$defs/StringOrMarkdown",
           "description": "Optional confirmation prompt to show before invoking. When present,\nthe client MUST display this message to the user (typically in a\nconfirmation dialog) and only invoke the operation after the user\naccepts. The presence of this field also signals that the operation\nis destructive — clients SHOULD style the affirmative button\naccordingly (e.g. with a warning colour)."
@@ -6114,6 +6122,32 @@
       "required": [
         "type",
         "operations"
+      ]
+    },
+    "ChangesetOperationStatusChangedAction": {
+      "type": "object",
+      "description": "The {@link ChangesetOperation.status} for a single operation transitioned\n(e.g. `idle → running` when an invocation starts, or `running → error`\nwhen it fails). The error payload is set together with `status` whenever\nit transitions to {@link ChangesetOperationStatus.Error | Error}, and\ncleared on any other transition.\n\nThis is the granular counterpart to {@link ChangesetOperationsChangedAction}:\nuse it to flip a single operation's lifecycle without re-sending the whole\n`operations` list. It is a no-op when `operationId` matches no operation\ncurrently on the changeset.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.ChangesetOperationStatusChanged"
+        },
+        "operationId": {
+          "type": "string",
+          "description": "The {@link ChangesetOperation.id} whose status changed."
+        },
+        "status": {
+          "$ref": "#/$defs/ChangesetOperationStatus",
+          "description": "New lifecycle status for the operation."
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Cause when `status === ChangesetOperationStatus.Error`; otherwise omitted."
+        }
+      },
+      "required": [
+        "type",
+        "operationId",
+        "status"
       ]
     },
     "ChangesetClearedAction": {

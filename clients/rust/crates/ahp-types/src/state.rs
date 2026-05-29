@@ -309,6 +309,28 @@ pub enum ChangesetOperationScope {
     Range,
 }
 
+/// Lifecycle of the most recent invocation of a {@link ChangesetOperation}.
+///
+/// The status reflects the operation as a whole, not any single
+/// {@link ChangesetOperationScope | scope} or target: an operation that is
+/// `Running` against one file is `Running` for the purposes of this state,
+/// and clients SHOULD disable re-invocation while it is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ChangesetOperationStatus {
+    /// The operation is available to invoke and is not currently running. This
+    /// is the implied status when {@link ChangesetOperation.status} is omitted.
+    #[serde(rename = "idle")]
+    Idle,
+    /// The operation has been invoked and is still executing. Clients SHOULD
+    /// surface progress affordances and prevent concurrent re-invocation.
+    #[serde(rename = "running")]
+    Running,
+    /// The most recent invocation failed. The cause is described by
+    /// {@link ChangesetOperation.error}.
+    #[serde(rename = "error")]
+    Error,
+}
+
 /// Discriminant for {@link ResourceChange.type}.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ResourceChangeType {
@@ -2514,6 +2536,16 @@ pub struct ChangesetOperation {
     pub description: Option<String>,
     /// Where this operation can be invoked.
     pub scopes: Vec<ChangesetOperationScope>,
+    /// Lifecycle of the most recent invocation. When omitted, the operation is
+    /// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
+    /// to invoke and not currently running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<ChangesetOperationStatus>,
+    /// Cause of the most recent failure. Present iff
+    /// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
+    /// operation transitioning back to `Idle` or `Running` clears it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorInfo>,
     /// Optional confirmation prompt to show before invoking. When present,
     /// the client MUST display this message to the user (typically in a
     /// confirmation dialog) and only invoke the operation after the user

@@ -1,0 +1,52 @@
+{
+    "description": "changeset/operationStatusChanged flips a single operation to running",
+    "reducer": "changeset",
+    "initial": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "stage",
+                "label": "Stage",
+                "scopes": [
+                    "resource"
+                ]
+            },
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ]
+            }
+        ]
+    },
+    "actions": [
+        {
+            "type": "changeset/operationStatusChanged",
+            "operationId": "make-pr",
+            "status": "running"
+        }
+    ],
+    "expected": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "stage",
+                "label": "Stage",
+                "scopes": [
+                    "resource"
+                ]
+            },
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ],
+                "status": "running"
+            }
+        ]
+    }
+}

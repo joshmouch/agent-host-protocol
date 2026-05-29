@@ -6,7 +6,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { ChangesetState, ChangesetFile } from './state.js';
-import { ChangesetStatus } from './state.js';
+import { ChangesetStatus, ChangesetOperationStatus } from './state.js';
 import type { ChangesetAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
 
@@ -57,6 +57,27 @@ export function changesetReducer(state: ChangesetState, action: ChangesetAction,
         return rest;
       }
       return { ...state, operations: action.operations };
+    }
+
+    case ActionType.ChangesetOperationStatusChanged: {
+      if (state.operations === undefined) {
+        return state;
+      }
+      const idx = state.operations.findIndex(op => op.id === action.operationId);
+      if (idx < 0) {
+        return state;
+      }
+      const next = [...state.operations];
+      const current = next[idx];
+      // Carry `error` only when the new status is `Error` so we don't leave a
+      // stale error sitting on an operation that recovered to idle/running.
+      if (action.status === ChangesetOperationStatus.Error) {
+        next[idx] = { ...current, status: action.status, error: action.error };
+      } else {
+        const { error: _ignored, ...rest } = current;
+        next[idx] = { ...rest, status: action.status };
+      }
+      return { ...state, operations: next };
     }
 
     case ActionType.ChangesetCleared:

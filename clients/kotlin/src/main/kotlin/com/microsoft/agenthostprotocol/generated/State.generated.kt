@@ -462,6 +462,36 @@ enum class ChangesetOperationScope {
 }
 
 /**
+ * Lifecycle of the most recent invocation of a {@link ChangesetOperation}.
+ * 
+ * The status reflects the operation as a whole, not any single
+ * {@link ChangesetOperationScope | scope} or target: an operation that is
+ * `Running` against one file is `Running` for the purposes of this state,
+ * and clients SHOULD disable re-invocation while it is.
+ */
+@Serializable
+enum class ChangesetOperationStatus {
+    /**
+     * The operation is available to invoke and is not currently running. This
+     * is the implied status when {@link ChangesetOperation.status} is omitted.
+     */
+    @SerialName("idle")
+    IDLE,
+    /**
+     * The operation has been invoked and is still executing. Clients SHOULD
+     * surface progress affordances and prevent concurrent re-invocation.
+     */
+    @SerialName("running")
+    RUNNING,
+    /**
+     * The most recent invocation failed. The cause is described by
+     * {@link ChangesetOperation.error}.
+     */
+    @SerialName("error")
+    ERROR
+}
+
+/**
  * Discriminant for {@link ResourceChange.type}.
  */
 @Serializable
@@ -2967,6 +2997,18 @@ data class ChangesetOperation(
      * Where this operation can be invoked.
      */
     val scopes: List<ChangesetOperationScope>,
+    /**
+     * Lifecycle of the most recent invocation. When omitted, the operation is
+     * treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
+     * to invoke and not currently running.
+     */
+    val status: ChangesetOperationStatus? = null,
+    /**
+     * Cause of the most recent failure. Present iff
+     * `status === ChangesetOperationStatus.Error`; otherwise omitted (the
+     * operation transitioning back to `Idle` or `Running` clears it).
+     */
+    val error: ErrorInfo? = null,
     /**
      * Optional confirmation prompt to show before invoking. When present,
      * the client MUST display this message to the user (typically in a

@@ -1,0 +1,47 @@
+{
+    "description": "changeset/operationStatusChanged with error attaches the error payload to the operation",
+    "reducer": "changeset",
+    "initial": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ],
+                "status": "running"
+            }
+        ]
+    },
+    "actions": [
+        {
+            "type": "changeset/operationStatusChanged",
+            "operationId": "make-pr",
+            "status": "error",
+            "error": {
+                "errorType": "git",
+                "message": "push rejected"
+            }
+        }
+    ],
+    "expected": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ],
+                "status": "error",
+                "error": {
+                    "errorType": "git",
+                    "message": "push rejected"
+                }
+            }
+        ]
+    }
+}

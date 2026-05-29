@@ -65,6 +65,7 @@ const (
 	ActionTypeChangesetFileSet                  ActionType = "changeset/fileSet"
 	ActionTypeChangesetFileRemoved              ActionType = "changeset/fileRemoved"
 	ActionTypeChangesetOperationsChanged        ActionType = "changeset/operationsChanged"
+	ActionTypeChangesetOperationStatusChanged   ActionType = "changeset/operationStatusChanged"
 	ActionTypeChangesetCleared                  ActionType = "changeset/cleared"
 	ActionTypeRootTerminalsChanged              ActionType = "root/terminalsChanged"
 	ActionTypeRootConfigChanged                 ActionType = "root/configChanged"
@@ -718,6 +719,26 @@ type ChangesetOperationsChangedAction struct {
 	Operations []ChangesetOperation `json:"operations,omitempty"`
 }
 
+// The {@link ChangesetOperation.status} for a single operation transitioned
+// (e.g. `idle → running` when an invocation starts, or `running → error`
+// when it fails). The error payload is set together with `status` whenever
+// it transitions to {@link ChangesetOperationStatus.Error | Error}, and
+// cleared on any other transition.
+//
+// This is the granular counterpart to {@link ChangesetOperationsChangedAction}:
+// use it to flip a single operation's lifecycle without re-sending the whole
+// `operations` list. It is a no-op when `operationId` matches no operation
+// currently on the changeset.
+type ChangesetOperationStatusChangedAction struct {
+	Type ActionType `json:"type"`
+	// The {@link ChangesetOperation.id} whose status changed.
+	OperationId string `json:"operationId"`
+	// New lifecycle status for the operation.
+	Status ChangesetOperationStatus `json:"status"`
+	// Cause when `status === ChangesetOperationStatus.Error`; otherwise omitted.
+	Error *ErrorInfo `json:"error,omitempty"`
+}
+
 // Drop every file from the changeset.
 //
 // Two cases use this:
@@ -938,6 +959,7 @@ func (*ChangesetStatusChangedAction) isStateAction()            {}
 func (*ChangesetFileSetAction) isStateAction()                  {}
 func (*ChangesetFileRemovedAction) isStateAction()              {}
 func (*ChangesetOperationsChangedAction) isStateAction()        {}
+func (*ChangesetOperationStatusChangedAction) isStateAction()   {}
 func (*ChangesetClearedAction) isStateAction()                  {}
 func (*RootTerminalsChangedAction) isStateAction()              {}
 func (*TerminalDataAction) isStateAction()                      {}
@@ -1245,6 +1267,12 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "changeset/operationsChanged":
 		var value ChangesetOperationsChangedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "changeset/operationStatusChanged":
+		var value ChangesetOperationStatusChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

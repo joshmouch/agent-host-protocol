@@ -8,7 +8,7 @@
 import { ActionType } from '../common/actions.js';
 import type { ErrorInfo } from '../common/state.js';
 import type { ChangesetFile, ChangesetOperation } from './state.js';
-import { ChangesetStatus } from './state.js';
+import { ChangesetStatus, ChangesetOperationStatus } from './state.js';
 
 // ─── Changeset Actions ───────────────────────────────────────────────────────
 
@@ -68,6 +68,31 @@ export interface ChangesetOperationsChangedAction {
   type: ActionType.ChangesetOperationsChanged;
   /** Updated operation list. Pass `undefined` to clear all operations. */
   operations: ChangesetOperation[] | undefined;
+}
+
+/**
+ * The {@link ChangesetOperation.status} for a single operation transitioned
+ * (e.g. `idle → running` when an invocation starts, or `running → error`
+ * when it fails). The error payload is set together with `status` whenever
+ * it transitions to {@link ChangesetOperationStatus.Error | Error}, and
+ * cleared on any other transition.
+ *
+ * This is the granular counterpart to {@link ChangesetOperationsChangedAction}:
+ * use it to flip a single operation's lifecycle without re-sending the whole
+ * `operations` list. It is a no-op when `operationId` matches no operation
+ * currently on the changeset.
+ *
+ * @category Changeset Actions
+ * @version 2
+ */
+export interface ChangesetOperationStatusChangedAction {
+  type: ActionType.ChangesetOperationStatusChanged;
+  /** The {@link ChangesetOperation.id} whose status changed. */
+  operationId: string;
+  /** New lifecycle status for the operation. */
+  status: ChangesetOperationStatus;
+  /** Cause when `status === ChangesetOperationStatus.Error`; otherwise omitted. */
+  error?: ErrorInfo;
 }
 
 /**

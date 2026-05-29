@@ -1,0 +1,48 @@
+{
+    "description": "changeset/operationStatusChanged back to idle clears a stale error, and is a no-op for unknown ids",
+    "reducer": "changeset",
+    "initial": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ],
+                "status": "error",
+                "error": {
+                    "errorType": "git",
+                    "message": "push rejected"
+                }
+            }
+        ]
+    },
+    "actions": [
+        {
+            "type": "changeset/operationStatusChanged",
+            "operationId": "unknown",
+            "status": "running"
+        },
+        {
+            "type": "changeset/operationStatusChanged",
+            "operationId": "make-pr",
+            "status": "idle"
+        }
+    ],
+    "expected": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+            {
+                "id": "make-pr",
+                "label": "Create Pull Request",
+                "scopes": [
+                    "changeset"
+                ],
+                "status": "idle"
+            }
+        ]
+    }
+}

@@ -261,6 +261,26 @@ const (
 	ChangesetOperationScopeRange ChangesetOperationScope = "range"
 )
 
+// Lifecycle of the most recent invocation of a {@link ChangesetOperation}.
+//
+// The status reflects the operation as a whole, not any single
+// {@link ChangesetOperationScope | scope} or target: an operation that is
+// `Running` against one file is `Running` for the purposes of this state,
+// and clients SHOULD disable re-invocation while it is.
+type ChangesetOperationStatus string
+
+const (
+	// The operation is available to invoke and is not currently running. This
+	// is the implied status when {@link ChangesetOperation.status} is omitted.
+	ChangesetOperationStatusIdle ChangesetOperationStatus = "idle"
+	// The operation has been invoked and is still executing. Clients SHOULD
+	// surface progress affordances and prevent concurrent re-invocation.
+	ChangesetOperationStatusRunning ChangesetOperationStatus = "running"
+	// The most recent invocation failed. The cause is described by
+	// {@link ChangesetOperation.error}.
+	ChangesetOperationStatusError ChangesetOperationStatus = "error"
+)
+
 // Discriminant for {@link ResourceChange.type}.
 type ResourceChangeType string
 
@@ -2067,6 +2087,14 @@ type ChangesetOperation struct {
 	Description *string `json:"description,omitempty"`
 	// Where this operation can be invoked.
 	Scopes []ChangesetOperationScope `json:"scopes"`
+	// Lifecycle of the most recent invocation. When omitted, the operation is
+	// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
+	// to invoke and not currently running.
+	Status *ChangesetOperationStatus `json:"status,omitempty"`
+	// Cause of the most recent failure. Present iff
+	// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
+	// operation transitioning back to `Idle` or `Running` clears it).
+	Error *ErrorInfo `json:"error,omitempty"`
 	// Optional confirmation prompt to show before invoking. When present,
 	// the client MUST display this message to the user (typically in a
 	// confirmation dialog) and only invoke the operation after the user

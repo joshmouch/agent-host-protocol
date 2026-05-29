@@ -76,6 +76,7 @@ of the changeset URI:
 | `changeset/fileSet`           | No                   | Upsert a `ChangesetFile` (new or replacing existing by `id`). |
 | `changeset/fileRemoved`       | No                   | A file is no longer in the changeset.                         |
 | `changeset/operationsChanged` | No                   | The set of available `operations` changed.                    |
+| `changeset/operationStatusChanged` | No             | A single operation's `status` transitioned (e.g. `idle → running`). |
 | `changeset/cleared`           | No                   | All files dropped (e.g. branch switched).                     |
 | `changeset/disposed`          | No                   | The changeset URI is no longer subscribable.                  |
 
@@ -93,6 +94,10 @@ ChangesetOperation {
   label: string
   description?: string
   scopes: ChangesetOperationScope[]   // 'changeset' | 'resource' | 'range'
+  /** Lifecycle of the most recent invocation. Defaults to 'idle' when omitted. */
+  status?: ChangesetOperationStatus   // 'idle' | 'running' | 'error'
+  /** Present iff status === 'error'. */
+  error?: ErrorInfo
   /**
    * When set, the client should prompt the user for confirmation before
    * invoking the operation, using this text as the prompt body.
@@ -101,6 +106,12 @@ ChangesetOperation {
   icon?: string
 }
 ```
+
+While an operation runs, the server flips its `status` to `'running'` (so
+clients can disable re-invocation and show progress) and, on failure, to
+`'error'` with an `error` payload. These transitions ride on the granular
+`changeset/operationStatusChanged` action rather than re-sending the whole
+`operations` list.
 
 Operations are invoked via the `invokeChangesetOperation` JSON-RPC
 command (not via dispatched actions, because they return data and may

@@ -131,6 +131,34 @@ export const enum ChangesetOperationScope {
 }
 
 /**
+ * Lifecycle of the most recent invocation of a {@link ChangesetOperation}.
+ *
+ * The status reflects the operation as a whole, not any single
+ * {@link ChangesetOperationScope | scope} or target: an operation that is
+ * `Running` against one file is `Running` for the purposes of this state,
+ * and clients SHOULD disable re-invocation while it is.
+ *
+ * @category Changesets
+ */
+export const enum ChangesetOperationStatus {
+  /**
+   * The operation is available to invoke and is not currently running. This
+   * is the implied status when {@link ChangesetOperation.status} is omitted.
+   */
+  Idle = 'idle',
+  /**
+   * The operation has been invoked and is still executing. Clients SHOULD
+   * surface progress affordances and prevent concurrent re-invocation.
+   */
+  Running = 'running',
+  /**
+   * The most recent invocation failed. The cause is described by
+   * {@link ChangesetOperation.error}.
+   */
+  Error = 'error',
+}
+
+/**
  * A server-declared invokable verb the client can run against a
  * changeset, a file, or a range — `"stage"`, `"revert"`, `"create-pr"`,
  * and so on.
@@ -149,6 +177,18 @@ export interface ChangesetOperation {
   description?: string;
   /** Where this operation can be invoked. */
   scopes: ChangesetOperationScope[];
+  /**
+   * Lifecycle of the most recent invocation. When omitted, the operation is
+   * treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
+   * to invoke and not currently running.
+   */
+  status?: ChangesetOperationStatus;
+  /**
+   * Cause of the most recent failure. Present iff
+   * `status === ChangesetOperationStatus.Error`; otherwise omitted (the
+   * operation transitioning back to `Idle` or `Running` clears it).
+   */
+  error?: ErrorInfo;
   /**
    * Optional confirmation prompt to show before invoking. When present,
    * the client MUST display this message to the user (typically in a

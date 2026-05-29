@@ -12,12 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
-    ChangesetSummary, ConfirmationOption, Customization, ErrorInfo, ModelSelection,
-    PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
-    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
-    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
-    UserMessage,
+    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetOperationStatus,
+    ChangesetStatus, ChangesetSummary, ConfirmationOption, Customization, ErrorInfo,
+    ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer,
+    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
+    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
+    ToolResultContent, UsageInfo, UserMessage,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -117,6 +117,8 @@ pub enum ActionType {
     ChangesetFileRemoved,
     #[serde(rename = "changeset/operationsChanged")]
     ChangesetOperationsChanged,
+    #[serde(rename = "changeset/operationStatusChanged")]
+    ChangesetOperationStatusChanged,
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared,
     #[serde(rename = "root/terminalsChanged")]
@@ -883,6 +885,28 @@ pub struct ChangesetOperationsChangedAction {
     pub operations: Option<Vec<ChangesetOperation>>,
 }
 
+/// The {@link ChangesetOperation.status} for a single operation transitioned
+/// (e.g. `idle → running` when an invocation starts, or `running → error`
+/// when it fails). The error payload is set together with `status` whenever
+/// it transitions to {@link ChangesetOperationStatus.Error | Error}, and
+/// cleared on any other transition.
+///
+/// This is the granular counterpart to {@link ChangesetOperationsChangedAction}:
+/// use it to flip a single operation's lifecycle without re-sending the whole
+/// `operations` list. It is a no-op when `operationId` matches no operation
+/// currently on the changeset.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetOperationStatusChangedAction {
+    /// The {@link ChangesetOperation.id} whose status changed.
+    pub operation_id: String,
+    /// New lifecycle status for the operation.
+    pub status: ChangesetOperationStatus,
+    /// Cause when `status === ChangesetOperationStatus.Error`; otherwise omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorInfo>,
+}
+
 /// Drop every file from the changeset.
 ///
 /// Two cases use this:
@@ -1159,6 +1183,8 @@ pub enum StateAction {
     ChangesetFileRemoved(ChangesetFileRemovedAction),
     #[serde(rename = "changeset/operationsChanged")]
     ChangesetOperationsChanged(ChangesetOperationsChangedAction),
+    #[serde(rename = "changeset/operationStatusChanged")]
+    ChangesetOperationStatusChanged(ChangesetOperationStatusChangedAction),
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared(ChangesetClearedAction),
     #[serde(rename = "root/terminalsChanged")]

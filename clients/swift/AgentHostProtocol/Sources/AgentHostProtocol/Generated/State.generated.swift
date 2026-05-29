@@ -241,6 +241,24 @@ public enum ChangesetOperationScope: String, Codable, Sendable {
     case range = "range"
 }
 
+/// Lifecycle of the most recent invocation of a {@link ChangesetOperation}.
+/// 
+/// The status reflects the operation as a whole, not any single
+/// {@link ChangesetOperationScope | scope} or target: an operation that is
+/// `Running` against one file is `Running` for the purposes of this state,
+/// and clients SHOULD disable re-invocation while it is.
+public enum ChangesetOperationStatus: String, Codable, Sendable {
+    /// The operation is available to invoke and is not currently running. This
+    /// is the implied status when {@link ChangesetOperation.status} is omitted.
+    case idle = "idle"
+    /// The operation has been invoked and is still executing. Clients SHOULD
+    /// surface progress affordances and prevent concurrent re-invocation.
+    case running = "running"
+    /// The most recent invocation failed. The cause is described by
+    /// {@link ChangesetOperation.error}.
+    case error = "error"
+}
+
 /// Discriminant for {@link ResourceChange.type}.
 public enum ResourceChangeType: String, Codable, Sendable {
     case added = "added"
@@ -3261,6 +3279,14 @@ public struct ChangesetOperation: Codable, Sendable {
     public var description: String?
     /// Where this operation can be invoked.
     public var scopes: [ChangesetOperationScope]
+    /// Lifecycle of the most recent invocation. When omitted, the operation is
+    /// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
+    /// to invoke and not currently running.
+    public var status: ChangesetOperationStatus?
+    /// Cause of the most recent failure. Present iff
+    /// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
+    /// operation transitioning back to `Idle` or `Running` clears it).
+    public var error: ErrorInfo?
     /// Optional confirmation prompt to show before invoking. When present,
     /// the client MUST display this message to the user (typically in a
     /// confirmation dialog) and only invoke the operation after the user
@@ -3276,6 +3302,8 @@ public struct ChangesetOperation: Codable, Sendable {
         label: String,
         description: String? = nil,
         scopes: [ChangesetOperationScope],
+        status: ChangesetOperationStatus? = nil,
+        error: ErrorInfo? = nil,
         confirmation: StringOrMarkdown? = nil,
         icon: String? = nil
     ) {
@@ -3283,6 +3311,8 @@ public struct ChangesetOperation: Codable, Sendable {
         self.label = label
         self.description = description
         self.scopes = scopes
+        self.status = status
+        self.error = error
         self.confirmation = confirmation
         self.icon = icon
     }
