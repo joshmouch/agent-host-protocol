@@ -15,9 +15,14 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 ## [Unreleased]
 
 ### Added
-- `ChangesetOperation` gains `status` / `error` fields and the new
+- `ChangesetOperation` gains required `status` (`idle` / `running` /
+  `error`) and optional `error` fields and the new
   `changeset/operationStatusChanged` action for signalling running/failed
-  changeset operations.
+  changeset operations. Tracks AHP `0.3.0`.
+
+### Changed
+- Re-exported `PROTOCOL_VERSION` / `SUPPORTED_PROTOCOL_VERSIONS` now
+  advertise `0.3.0`.
 
 ## [0.1.0] — 2026-05-28
 

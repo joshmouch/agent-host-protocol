@@ -248,8 +248,7 @@ public enum ChangesetOperationScope: String, Codable, Sendable {
 /// `Running` against one file is `Running` for the purposes of this state,
 /// and clients SHOULD disable re-invocation while it is.
 public enum ChangesetOperationStatus: String, Codable, Sendable {
-    /// The operation is available to invoke and is not currently running. This
-    /// is the implied status when {@link ChangesetOperation.status} is omitted.
+    /// The operation is available to invoke and is not currently running.
     case idle = "idle"
     /// The operation has been invoked and is still executing. Clients SHOULD
     /// surface progress affordances and prevent concurrent re-invocation.
@@ -3279,10 +3278,8 @@ public struct ChangesetOperation: Codable, Sendable {
     public var description: String?
     /// Where this operation can be invoked.
     public var scopes: [ChangesetOperationScope]
-    /// Lifecycle of the most recent invocation. When omitted, the operation is
-    /// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
-    /// to invoke and not currently running.
-    public var status: ChangesetOperationStatus?
+    /// Lifecycle of the most recent invocation.
+    public var status: ChangesetOperationStatus
     /// Cause of the most recent failure. Present iff
     /// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
     /// operation transitioning back to `Idle` or `Running` clears it).
@@ -3302,7 +3299,7 @@ public struct ChangesetOperation: Codable, Sendable {
         label: String,
         description: String? = nil,
         scopes: [ChangesetOperationScope],
-        status: ChangesetOperationStatus? = nil,
+        status: ChangesetOperationStatus,
         error: ErrorInfo? = nil,
         confirmation: StringOrMarkdown? = nil,
         icon: String? = nil

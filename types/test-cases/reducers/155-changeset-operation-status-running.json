@@ -10,14 +10,16 @@
                 "label": "Stage",
                 "scopes": [
                     "resource"
-                ]
+                ],
+                "status": "idle"
             },
             {
                 "id": "make-pr",
                 "label": "Create Pull Request",
                 "scopes": [
                     "changeset"
-                ]
+                ],
+                "status": "idle"
             }
         ]
     },
@@ -37,7 +39,8 @@
                 "label": "Stage",
                 "scopes": [
                     "resource"
-                ]
+                ],
+                "status": "idle"
             },
             {
                 "id": "make-pr",

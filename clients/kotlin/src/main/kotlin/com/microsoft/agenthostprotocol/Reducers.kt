@@ -1305,6 +1305,27 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
     is StateActionChangesetOperationsChanged ->
         state.copy(operations = action.value.operations)
 
+    is StateActionChangesetOperationStatusChanged -> {
+        val operations = state.operations
+        if (operations == null) {
+            state
+        } else {
+            val idx = operations.indexOfFirst { it.id == action.value.operationId }
+            if (idx < 0) {
+                state
+            } else {
+                val current = operations[idx]
+                val updated = if (action.value.status == ChangesetOperationStatus.ERROR) {
+                    current.copy(status = action.value.status, error = action.value.error)
+                } else {
+                    current.copy(status = action.value.status, error = null)
+                }
+                val next = operations.toMutableList().also { it[idx] = updated }
+                state.copy(operations = next)
+            }
+        }
+    }
+
     is StateActionChangesetCleared ->
         if (state.files.isEmpty()) state else state.copy(files = emptyList())
 

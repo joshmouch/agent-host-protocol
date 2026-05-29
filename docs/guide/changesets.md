@@ -94,8 +94,8 @@ ChangesetOperation {
   label: string
   description?: string
   scopes: ChangesetOperationScope[]   // 'changeset' | 'resource' | 'range'
-  /** Lifecycle of the most recent invocation. Defaults to 'idle' when omitted. */
-  status?: ChangesetOperationStatus   // 'idle' | 'running' | 'error'
+  /** Lifecycle of the most recent invocation. */
+  status: ChangesetOperationStatus    // 'idle' | 'running' | 'error'
   /** Present iff status === 'error'. */
   error?: ErrorInfo
   /**

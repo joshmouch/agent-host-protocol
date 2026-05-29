@@ -472,8 +472,7 @@ enum class ChangesetOperationScope {
 @Serializable
 enum class ChangesetOperationStatus {
     /**
-     * The operation is available to invoke and is not currently running. This
-     * is the implied status when {@link ChangesetOperation.status} is omitted.
+     * The operation is available to invoke and is not currently running.
      */
     @SerialName("idle")
     IDLE,
@@ -2998,11 +2997,9 @@ data class ChangesetOperation(
      */
     val scopes: List<ChangesetOperationScope>,
     /**
-     * Lifecycle of the most recent invocation. When omitted, the operation is
-     * treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
-     * to invoke and not currently running.
+     * Lifecycle of the most recent invocation.
      */
-    val status: ChangesetOperationStatus? = null,
+    val status: ChangesetOperationStatus,
     /**
      * Cause of the most recent failure. Present iff
      * `status === ChangesetOperationStatus.Error`; otherwise omitted (the

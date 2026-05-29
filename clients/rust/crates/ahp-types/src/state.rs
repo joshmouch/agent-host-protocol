@@ -317,8 +317,7 @@ pub enum ChangesetOperationScope {
 /// and clients SHOULD disable re-invocation while it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ChangesetOperationStatus {
-    /// The operation is available to invoke and is not currently running. This
-    /// is the implied status when {@link ChangesetOperation.status} is omitted.
+    /// The operation is available to invoke and is not currently running.
     #[serde(rename = "idle")]
     Idle,
     /// The operation has been invoked and is still executing. Clients SHOULD
@@ -2536,11 +2535,8 @@ pub struct ChangesetOperation {
     pub description: Option<String>,
     /// Where this operation can be invoked.
     pub scopes: Vec<ChangesetOperationScope>,
-    /// Lifecycle of the most recent invocation. When omitted, the operation is
-    /// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
-    /// to invoke and not currently running.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub status: Option<ChangesetOperationStatus>,
+    /// Lifecycle of the most recent invocation.
+    pub status: ChangesetOperationStatus,
     /// Cause of the most recent failure. Present iff
     /// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
     /// operation transitioning back to `Idle` or `Running` clears it).

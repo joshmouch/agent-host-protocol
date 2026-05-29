@@ -270,8 +270,7 @@ const (
 type ChangesetOperationStatus string
 
 const (
-	// The operation is available to invoke and is not currently running. This
-	// is the implied status when {@link ChangesetOperation.status} is omitted.
+	// The operation is available to invoke and is not currently running.
 	ChangesetOperationStatusIdle ChangesetOperationStatus = "idle"
 	// The operation has been invoked and is still executing. Clients SHOULD
 	// surface progress affordances and prevent concurrent re-invocation.
@@ -2087,10 +2086,8 @@ type ChangesetOperation struct {
 	Description *string `json:"description,omitempty"`
 	// Where this operation can be invoked.
 	Scopes []ChangesetOperationScope `json:"scopes"`
-	// Lifecycle of the most recent invocation. When omitted, the operation is
-	// treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
-	// to invoke and not currently running.
-	Status *ChangesetOperationStatus `json:"status,omitempty"`
+	// Lifecycle of the most recent invocation.
+	Status ChangesetOperationStatus `json:"status"`
 	// Cause of the most recent failure. Present iff
 	// `status === ChangesetOperationStatus.Error`; otherwise omitted (the
 	// operation transitioning back to `Idle` or `Running` clears it).

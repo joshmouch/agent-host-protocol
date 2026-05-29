@@ -3526,7 +3526,7 @@
         },
         "status": {
           "$ref": "#/$defs/ChangesetOperationStatus",
-          "description": "Lifecycle of the most recent invocation. When omitted, the operation is\ntreated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available\nto invoke and not currently running."
+          "description": "Lifecycle of the most recent invocation."
         },
         "error": {
           "$ref": "#/$defs/ErrorInfo",
@@ -3544,7 +3544,8 @@
       "required": [
         "id",
         "label",
-        "scopes"
+        "scopes",
+        "status"
       ]
     },
     "TelemetryCapabilities": {

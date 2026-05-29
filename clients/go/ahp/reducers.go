@@ -1110,6 +1110,7 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 		*ahptypes.ChangesetFileSetAction,
 		*ahptypes.ChangesetFileRemovedAction,
 		*ahptypes.ChangesetOperationsChangedAction,
+		*ahptypes.ChangesetOperationStatusChangedAction,
 		*ahptypes.ChangesetClearedAction:
 		return ReduceOutcomeNoOp
 	}

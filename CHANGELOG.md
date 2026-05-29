@@ -23,10 +23,18 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 `NOTIFICATION_INTRODUCED_IN` maps in
 [`types/version/registry.ts`](types/version/registry.ts).
 
+## [0.3.0]
+
+Spec version: `0.3.0`
+
 ### Added
-- `ChangesetOperation.status` (`idle` / `running` / `error`) and `error`
-  fields, plus the `changeset/operationStatusChanged` action, so servers can
-  signal that a changeset operation is running or completed with an error.
+- `ChangesetOperation.status` (`idle` / `running` / `error`, required) and
+  `error` fields, plus the `changeset/operationStatusChanged` action, so
+  servers can signal that a changeset operation is running or completed with
+  an error.
+
+### Changed
+- Bumped `PROTOCOL_VERSION` to `0.3.0`.
 
 ## [0.2.0] — 2026-05-28
 

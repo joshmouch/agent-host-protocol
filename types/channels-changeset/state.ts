@@ -141,10 +141,7 @@ export const enum ChangesetOperationScope {
  * @category Changesets
  */
 export const enum ChangesetOperationStatus {
-  /**
-   * The operation is available to invoke and is not currently running. This
-   * is the implied status when {@link ChangesetOperation.status} is omitted.
-   */
+  /** The operation is available to invoke and is not currently running. */
   Idle = 'idle',
   /**
    * The operation has been invoked and is still executing. Clients SHOULD
@@ -178,11 +175,11 @@ export interface ChangesetOperation {
   /** Where this operation can be invoked. */
   scopes: ChangesetOperationScope[];
   /**
-   * Lifecycle of the most recent invocation. When omitted, the operation is
-   * treated as {@link ChangesetOperationStatus.Idle | Idle} — i.e. available
-   * to invoke and not currently running.
+   * Lifecycle of the most recent invocation.
+   *
+   * @since 0.3.0
    */
-  status?: ChangesetOperationStatus;
+  status: ChangesetOperationStatus;
   /**
    * Cause of the most recent failure. Present iff
    * `status === ChangesetOperationStatus.Error`; otherwise omitted (the
