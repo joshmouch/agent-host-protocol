@@ -10,7 +10,7 @@ readme = "README.md"
 homepage = "https://microsoft.github.io/agent-host-protocol/"
 documentation = "https://docs.rs/ahp-ws"
 keywords = ["ahp", "agent", "websocket", "transport", "tokio"]
-categories = ["api-bindings", "asynchronous", "network-programming::websocket"]
+categories = ["api-bindings", "asynchronous", "artificial-intelligence", "web-programming::websocket"]
 
 [package.metadata.docs.rs]
 all-features = true
