@@ -72,6 +72,9 @@ jobs:
             exit 1
           fi
 
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
       - run: cargo clippy --workspace -- -D warnings
 
       - run: cargo test --workspace
@@ -168,6 +171,18 @@ jobs:
       # before installing/typechecking/testing the TS client.
       - name: Generate TypeScript client sources
         run: npm run generate:typescript
+
+      # Verify the committed TypeScript generated sources are in sync with the
+      # TypeScript protocol definitions. Check only clients/typescript/src
+      # (the actual generated files), not lock files which naturally drift
+      # with npm ci.
+      - name: Verify generated TypeScript is up to date
+        run: |
+          if ! git diff --quiet -- clients/typescript/src; then
+            echo "::error::Generated TypeScript sources are out of date. Run 'npm run generate:typescript' and commit the result."
+            git --no-pager diff -- clients/typescript/src
+            exit 1
+          fi
 
       - name: Install TypeScript client dependencies
         working-directory: clients/typescript

@@ -676,7 +676,10 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                 // Unknown variant — no id to match on.
                 return ReduceOutcome::NoOp;
             };
-            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(action_id)) {
+            if let Some(idx) = list
+                .iter()
+                .position(|c| customization_id(c) == Some(action_id))
+            {
                 list[idx] = a.customization.clone();
             } else {
                 list.push(a.customization.clone());
@@ -688,14 +691,20 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                 return ReduceOutcome::NoOp;
             };
             // Try to remove a top-level container.
-            if let Some(idx) = list.iter().position(|c| customization_id(c) == Some(a.id.as_str())) {
+            if let Some(idx) = list
+                .iter()
+                .position(|c| customization_id(c) == Some(a.id.as_str()))
+            {
                 list.remove(idx);
                 return ReduceOutcome::Applied;
             }
             // Otherwise look for a child to remove.
             for container in list.iter_mut() {
                 if let Some(children) = container_children_mut(container) {
-                    if let Some(idx) = children.iter().position(|c| child_id_of(c) == Some(a.id.as_str())) {
+                    if let Some(idx) = children
+                        .iter()
+                        .position(|c| child_id_of(c) == Some(a.id.as_str()))
+                    {
                         children.remove(idx);
                         return ReduceOutcome::Applied;
                     }
