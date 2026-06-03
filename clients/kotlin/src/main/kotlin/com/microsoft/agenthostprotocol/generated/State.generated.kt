@@ -2481,7 +2481,14 @@ data class AgentCustomization(
      * Short description of what the agent specializes in and when to
      * invoke it. Sourced from the agent file's frontmatter `description`.
      */
-    val description: String? = null
+    val description: String? = null,
+    /**
+     * Additional provider-specific metadata for this custom agent.
+     * 
+     * Mirrors the MCP `_meta` convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable

@@ -1696,6 +1696,10 @@ type AgentCustomization struct {
 	// Short description of what the agent specializes in and when to
 	// invoke it. Sourced from the agent file's frontmatter `description`.
 	Description *string `json:"description,omitempty"`
+	// Additional provider-specific metadata for this custom agent.
+	//
+	// Mirrors the MCP `_meta` convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // A skill contributed by a plugin or directory.

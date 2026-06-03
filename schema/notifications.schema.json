@@ -3142,6 +3142,11 @@
         "description": {
           "type": "string",
           "description": "Short description of what the agent specializes in and when to\ninvoke it. Sourced from the agent file's frontmatter `description`."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this custom agent.\n\nMirrors the MCP `_meta` convention."
         }
       },
       "required": [

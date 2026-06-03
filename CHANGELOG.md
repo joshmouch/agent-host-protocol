@@ -31,6 +31,7 @@ Spec version: `0.3.0`
   `changeset/operationStatusChanged` action so servers can reflect an
   operation's execution lifecycle (`idle → running → error`) back into
   changeset state.
+- Added optional `_meta` provider metadata to `AgentCustomization`.
 - Renamed the `UserMessage` type to `Message` and surfaced it consistently
   across turn state (`Turn.message`, `ActiveTurn.message`, `PendingMessage.message`)
   and the actions that carry it (`session/turnStarted`,

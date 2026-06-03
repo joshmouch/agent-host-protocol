@@ -2075,6 +2075,11 @@ pub struct AgentCustomization {
     /// invoke it. Sourced from the agent file's frontmatter `description`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Additional provider-specific metadata for this custom agent.
+    ///
+    /// Mirrors the MCP `_meta` convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// A skill contributed by a plugin or directory.

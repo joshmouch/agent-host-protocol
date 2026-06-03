@@ -2665,6 +2665,21 @@ public struct AgentCustomization: Codable, Sendable {
     /// Short description of what the agent specializes in and when to
     /// invoke it. Sourced from the agent file's frontmatter `description`.
     public var description: String?
+    /// Additional provider-specific metadata for this custom agent.
+    /// 
+    /// Mirrors the MCP `_meta` convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case uri
+        case name
+        case icons
+        case range
+        case type
+        case description
+        case meta = "_meta"
+    }
 
     public init(
         id: String,
@@ -2673,7 +2688,8 @@ public struct AgentCustomization: Codable, Sendable {
         icons: [Icon]? = nil,
         range: TextRange? = nil,
         type: CustomizationType,
-        description: String? = nil
+        description: String? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.id = id
         self.uri = uri
@@ -2682,6 +2698,7 @@ public struct AgentCustomization: Codable, Sendable {
         self.range = range
         self.type = type
         self.description = description
+        self.meta = meta
     }
 }
 
