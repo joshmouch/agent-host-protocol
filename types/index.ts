@@ -215,6 +215,8 @@ export {
   changesetReducer,
   resourceWatchReducer,
   isClientDispatchable,
+  currentTimestampProvider,
+  setCurrentTimestampProvider,
 } from './reducers.js';
 
 // Command types

@@ -24,6 +24,7 @@ import {
   changesetReducer,
   resourceWatchReducer,
   isClientDispatchable,
+  setCurrentTimestampProvider,
 } from './reducers.js';
 import { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
 import { ActionType } from './actions.js';
@@ -107,21 +108,20 @@ const fixtures: Fixture[] = fixtureFiles.map(f => {
 // ─── Fixture-Driven Reducer Tests ────────────────────────────────────────────
 
 /**
- * The reducers call Date.now() for modifiedAt timestamps.
- * We mock it to a fixed value (9999) matching what was used during
- * fixture generation, so expected values match exactly.
+ * The reducers stamp modifiedAt via the injectable `currentTimestampProvider` (issue #186).
+ * We override it to a fixed value (9999) matching what was used during fixture generation, so
+ * expected values match exactly — no longer monkeypatching the process-global `Date.now` (which was
+ * racy under concurrency). This mirrors the Go/Kotlin/Rust fixture runners, which inject the same now.
  */
 const MOCK_NOW = 9999;
-let originalDateNow: typeof Date.now;
 
 describe('reducer fixtures', () => {
   beforeEach(() => {
-    originalDateNow = Date.now;
-    Date.now = () => MOCK_NOW;
+    setCurrentTimestampProvider(() => MOCK_NOW);
   });
 
   afterEach(() => {
-    Date.now = originalDateNow;
+    setCurrentTimestampProvider(() => Date.now());
   });
 
   for (const fixture of fixtures) {

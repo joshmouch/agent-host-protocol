@@ -30,6 +30,27 @@ import {
 import type { SessionAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
 
+// ─── Injectable clock ──────────────────────────────────────────────────────────
+
+/**
+ * Provider for the `modifiedAt` timestamps the session reducer stamps. Defaults to `Date.now`.
+ *
+ * The reducer is documented as pure, and "the same reducer code runs on both server and client,
+ * which is what makes write-ahead possible" — but reading the ambient wall clock makes an identical
+ * `(state, action)` pair produce different `summary.modifiedAt` depending on when it runs. The Go,
+ * Kotlin, and Rust clients already expose an injectable now-seam for exactly this (Go `SetNowProvider`,
+ * Kotlin `currentTimestampProvider`, Rust `MOCK_NOW_MS`); the TypeScript client was the only one
+ * forcing consumers to monkeypatch the process-global `Date.now`. This brings TS to parity.
+ *
+ * Tests/hosts set this for deterministic output; production leaves the default. See issue #186.
+ */
+export let currentTimestampProvider: () => number = () => Date.now();
+
+/** Override {@link currentTimestampProvider} (e.g. tests/hosts needing deterministic `modifiedAt`). */
+export function setCurrentTimestampProvider(provider: () => number): void {
+  currentTimestampProvider = provider;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Extracts the common base fields shared by all tool call lifecycle states. */
@@ -152,7 +173,7 @@ function endTurn(
     ...state,
     turns: [...state.turns, turn],
     activeTurn: undefined,
-    summary: { ...state.summary, modifiedAt: Date.now() },
+    summary: { ...state.summary, modifiedAt: currentTimestampProvider() },
   };
   delete next.inputRequests;
   return {
@@ -172,7 +193,7 @@ function upsertInputRequest(state: SessionState, request: SessionInputRequest): 
     inputRequests.push(request);
   }
   const next = { ...state, inputRequests };
-  return { ...next, summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: Date.now() } };
+  return { ...next, summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: currentTimestampProvider() } };
 }
 
 /**
@@ -295,7 +316,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       };
       next = {
         ...next,
-        summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: Date.now() },
+        summary: { ...next.summary, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: currentTimestampProvider() },
       };
 
       // If this turn was auto-started from a pending message, remove it
@@ -517,7 +538,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
     case ActionType.SessionTitleChanged:
       return {
         ...state,
-        summary: { ...state.summary, title: action.title, modifiedAt: Date.now() },
+        summary: { ...state.summary, title: action.title, modifiedAt: currentTimestampProvider() },
       };
 
     case ActionType.SessionUsage:
@@ -540,13 +561,13 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
     case ActionType.SessionModelChanged:
       return {
         ...state,
-        summary: { ...state.summary, model: action.model, modifiedAt: Date.now() },
+        summary: { ...state.summary, model: action.model, modifiedAt: currentTimestampProvider() },
       };
 
     case ActionType.SessionAgentChanged:
       return {
         ...state,
-        summary: { ...state.summary, agent: action.agent, modifiedAt: Date.now() },
+        summary: { ...state.summary, agent: action.agent, modifiedAt: currentTimestampProvider() },
       };
 
     case ActionType.SessionIsReadChanged:
@@ -587,7 +608,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         },
         summary: {
           ...state.summary,
-          modifiedAt: Date.now(),
+          modifiedAt: currentTimestampProvider(),
         },
       };
 
@@ -691,7 +712,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         ...state,
         turns,
         activeTurn: undefined,
-        summary: { ...state.summary, modifiedAt: Date.now() },
+        summary: { ...state.summary, modifiedAt: currentTimestampProvider() },
       };
       delete next.inputRequests;
       return {
@@ -726,7 +747,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       return {
         ...state,
         inputRequests: updated,
-        summary: { ...state.summary, modifiedAt: Date.now() },
+        summary: { ...state.summary, modifiedAt: currentTimestampProvider() },
       };
     }
 
@@ -746,7 +767,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       }
       return {
         ...next,
-        summary: { ...next.summary, status: summaryStatus(next), modifiedAt: Date.now() },
+        summary: { ...next.summary, status: summaryStatus(next), modifiedAt: currentTimestampProvider() },
       };
     }
 
