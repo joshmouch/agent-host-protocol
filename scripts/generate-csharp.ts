@@ -426,14 +426,18 @@ interface StructOpts {
 
 function csPropDefault(csType: string, optional: boolean): string {
   if (optional) return '';
-  // Required reference types: silence nullable warnings; deserialize /
-  // reducers populate them. Required value types get C# default.
+  // Required value types get the C# default (matches Go's numeric/bool zero).
   if (csIsValueType(csType)) return '';
-  if (csType.startsWith('List<')) return ' = new();';
-  if (csType.startsWith('Dictionary<')) return ' = new();';
+  // Required string → "" (matches Go's string zero value, which serializes
+  // as "" rather than null).
   if (csType === 'string') return ' = "";';
+  // Required StringOrMarkdown → empty wrapper, which serializes as "" (matches
+  // Go's value-type zero).
   if (csType === 'StringOrMarkdown') return ' = new();';
-  // Other reference types (nested objects, unions): null-forgiving.
+  // Required collections and nested objects → null-forgiving. A null
+  // collection serializes as `null`, which the conformance harness strips —
+  // matching Go, where a required-but-unset slice/map is `nil` → `null`.
+  // Deserialization and reducers populate these before they are read.
   return ' = null!;';
 }
 
