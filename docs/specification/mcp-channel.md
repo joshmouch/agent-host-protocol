@@ -42,7 +42,7 @@ The channel URI is exposed on the customization that owns it. Today that means [
 The URI itself is opaque to the client. Its scheme is `mcp://`; its path and authority are host-defined.
 
 - There is at most one channel per customization within a session.
-- The host MAY only expose `channel` while the owning customization is in a usable runtime state (for `McpServerCustomization` that's `runtimeStatus.kind === 'ready'`). When that condition no longer holds, the host MAY clear `channel` via the customization's update action. Clients SHOULD treat the channel as unavailable while it is absent.
+- The host MAY only expose `channel` while the owning customization is in a usable runtime state (for `McpServerCustomization` that's `state.kind === 'ready'`). When that condition no longer holds, the host MAY clear `channel` via the customization's update action. Clients SHOULD treat the channel as unavailable while it is absent.
 - The URI SHOULD be stable across the customization's lifetime, but the host MAY change it (for example after a restart). Clients MUST re-read `channel` whenever the customization is updated.
 - The channel is only present when the owning customization advertises at least one capability set requiring it. Customizations without such an advertisement do not need a side-channel — their state is already covered by AHP's normal flows.
 

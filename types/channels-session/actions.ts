@@ -14,7 +14,7 @@ import type {
   ToolDefinition,
   SessionActiveClient,
   Customization,
-  McpServerStatus,
+  McpServerState,
   SessionInputAnswer,
   SessionInputRequest,
   SessionInputResponseKind,
@@ -646,7 +646,7 @@ export interface SessionCustomizationRemovedAction {
  *
  * Locates the target entry by `id`, searching both the top-level
  * customization list and the `children` array of every container.
- * Replaces the entry's {@link McpServerCustomization.runtimeStatus | `runtimeStatus`}
+ * Replaces the entry's {@link McpServerCustomization.state | `state`}
  * and {@link McpServerCustomization.channel | `channel`}
  * (full-replacement semantics: omit `channel` to clear an existing
  * channel URI). Other fields of the customization are preserved.
@@ -655,24 +655,24 @@ export interface SessionCustomizationRemovedAction {
  * update any other field (name, icons, `mcpApp` capabilities, etc.) use
  * {@link SessionCustomizationUpdatedAction} instead.
  *
- * When the transition is to {@link McpServerStatusKind.AuthRequired}
+ * When the transition is to {@link McpServerStatus.AuthRequired}
  * because of a request issued mid-turn, the host SHOULD also raise
  * {@link SessionStatus.InputNeeded} on the session — see
- * {@link McpServerStatusAuthRequired} for the rationale.
+ * {@link McpServerAuthRequiredState} for the rationale.
  *
  * @category Session Actions
  * @version 1
  */
-export interface SessionMcpServerStatusChangedAction {
-  type: ActionType.SessionMcpServerStatusChanged;
+export interface SessionMcpServerStateChangedAction {
+  type: ActionType.SessionMcpServerStateChanged;
   /** The id of the {@link McpServerCustomization} to update. */
   id: string;
-  /** The new runtime status. */
-  runtimeStatus: McpServerStatus;
+  /** The new lifecycle state. */
+  state: McpServerState;
   /**
    * Updated `mcp://` side-channel URI. Full-replacement: omit to clear
    * an existing channel (typical when leaving
-   * {@link McpServerStatusKind.Ready | `Ready`}).
+   * {@link McpServerStatus.Ready | `Ready`}).
    */
   channel?: URI;
 }

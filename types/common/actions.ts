@@ -49,7 +49,7 @@ import type {
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
   SessionCustomizationRemovedAction,
-  SessionMcpServerStatusChangedAction,
+  SessionMcpServerStateChangedAction,
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
@@ -128,7 +128,7 @@ export const enum ActionType {
   SessionCustomizationToggled = 'session/customizationToggled',
   SessionCustomizationUpdated = 'session/customizationUpdated',
   SessionCustomizationRemoved = 'session/customizationRemoved',
-  SessionMcpServerStatusChanged = 'session/mcpServerStatusChanged',
+  SessionMcpServerStateChanged = 'session/mcpServerStateChanged',
   SessionTruncated = 'session/truncated',
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsArchivedChanged = 'session/isArchivedChanged',
@@ -228,7 +228,7 @@ export type StateAction =
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction
   | SessionCustomizationRemovedAction
-  | SessionMcpServerStatusChangedAction
+  | SessionMcpServerStateChangedAction
   | SessionTruncatedAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction

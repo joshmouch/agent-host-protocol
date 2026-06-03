@@ -34,7 +34,7 @@ McpServerCustomization {
   icons?: Icon[]
   range?: TextRange              // span inside `uri` for inline declarations
   enabled: boolean               // user-toggleable (see Customizations guide)
-  runtimeStatus: McpServerStatus // discriminated union — see below
+  state: McpServerState // discriminated union — see below
   channel?: URI                  // optional mcp:// side-channel
   mcpApp?: McpServerCustomizationApps
 }
@@ -44,7 +44,7 @@ McpServerCustomization {
 
 ## Runtime status
 
-`runtimeStatus` is a [discriminated union on `kind`](/reference/session#mcpserverstatus). It is the host's view of the server's lifecycle, separate from `enabled` (which is the user's intent).
+`state` is a [discriminated union on `kind`](/reference/session#mcpserverstatus). It is the host's view of the server's lifecycle, separate from `enabled` (which is the user's intent).
 
 ```mermaid
 stateDiagram-v2
@@ -76,7 +76,7 @@ stateDiagram-v2
 | `error` | Unrecoverable failure. Carries an `ErrorInfo`. Use `authRequired` for auth-specific failures. |
 | `stopped` | Shut down. The host MAY remove the entry shortly after. |
 
-High-frequency lifecycle transitions go through the narrow [`session/mcpServerStatusChanged`](/reference/session#sessionmcpserverstatuschangedaction) action, which upserts just `runtimeStatus` (and optionally `channel`) on an existing entry. Use `session/customizationUpdated` for anything else (name, icons, `mcpApp`).
+High-frequency lifecycle transitions go through the narrow [`session/mcpServerStateChanged`](/reference/session#sessionmcpserverstatuschangedaction) action, which upserts just `state` (and optionally `channel`) on an existing entry. Use `session/customizationUpdated` for anything else (name, icons, `mcpApp`).
 
 ## Authentication
 
@@ -89,7 +89,7 @@ sequenceDiagram
     participant AS as Authorization Server
 
     Note over Host: MCP server returns 401 with PRM
-    Host->>Client: customizationUpdated (runtimeStatus: authRequired, resource: PRM)
+    Host->>Client: customizationUpdated (state: authRequired, resource: PRM)
 
     Client->>AS: OAuth flow against PRM.authorization_servers
     AS-->>Client: Bearer token
@@ -97,10 +97,10 @@ sequenceDiagram
     Client->>Host: authenticate({ channel: 'ahp-root://', resource, token })
     Host-->>Client: {}
 
-    Host->>Client: customizationUpdated (runtimeStatus: ready)
+    Host->>Client: customizationUpdated (state: ready)
 ```
 
-`McpServerStatusAuthRequired` carries:
+`McpServerAuthRequiredState` carries:
 
 - **`reason`** — `required`, `expired`, or `insufficientScope`. Mirrors the [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md) failure modes.
 - **`resource`** — [`ProtectedResourceMetadata`](/reference/common#protectedresourcemetadata) per [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728). The `resource` field inside is the canonical MCP server URI (per RFC 8707) and what the client passes back as `authenticate({ resource })`.
@@ -112,14 +112,14 @@ sequenceDiagram
 `reason: 'insufficientScope'` almost always surfaces *during* a tool call — the model invokes an MCP tool, the upstream server responds 403, and a turn that was happily streaming suddenly needs the user to grant more access. AHP couples this case through two signals so it can't be missed:
 
 1. **The host SHOULD raise [`SessionStatus.InputNeeded`](/reference/session#sessionstatus) on the session** when it transitions an MCP server to `authRequired` because of an in-flight request. This makes the block visible at the session-summary level, exactly like a tool confirmation or input request.
-2. **Clients SHOULD watch the `runtimeStatus.kind` of any MCP server backing a running tool call** (via [`ToolCallContributor`](/reference/session#toolcallcontributor) — `{ kind: 'mcp', customizationId }`). When that server flips to `authRequired`, the client SHOULD present an explicit affordance tied to *that tool call* (e.g. an inline "grant additional access" button), rather than relying on the user to spot a status badge on the server's customization entry.
+2. **Clients SHOULD watch the `state.kind` of any MCP server backing a running tool call** (via [`ToolCallContributor`](/reference/session#toolcallcontributor) — `{ kind: 'mcp', customizationId }`). When that server flips to `authRequired`, the client SHOULD present an explicit affordance tied to *that tool call* (e.g. an inline "grant additional access" button), rather than relying on the user to spot a status badge on the server's customization entry.
 
 The same monitoring pattern also covers `reason: 'expired'` mid-turn — the difference is purely whether the user needs to re-authenticate or grant additional scopes.
 
 Per-agent protected resources in [`AgentInfo.protectedResources`](/reference/root#agentinfo) cover agents themselves. MCP server resources are advertised here, on the customization, so a single agent can carry an arbitrary number of MCP servers each with their own authorization servers without bloating the root state.
 
 ::: tip
-The existing `authenticate` command requires `resource` to match one declared by an agent. Hosts that surface MCP server auth via `McpServerStatusAuthRequired` either need to widen that rule or mirror MCP server resources into `AgentInfo.protectedResources` until the dedicated MCP actions land. This is a known gap and will be tightened when the MCP-specific action surface is specified.
+The existing `authenticate` command requires `resource` to match one declared by an agent. Hosts that surface MCP server auth via `McpServerAuthRequiredState` either need to widen that rule or mirror MCP server resources into `AgentInfo.protectedResources` until the dedicated MCP actions land. This is a known gap and will be tightened when the MCP-specific action surface is specified.
 :::
 
 ## Where MCP tools live
@@ -246,4 +246,4 @@ The client is responsible for translating any locally-supported `ui/*` request i
 ## Next steps
 
 - [`mcp://` channel](/specification/mcp-channel) — the side-channel clients use to talk to the upstream server.
-- [Session Channel Reference](/reference/session) — full type definitions for `McpServerCustomization`, `McpServerStatus`, and friends.
+- [Session Channel Reference](/reference/session) — full type definitions for `McpServerCustomization`, `McpServerState`, and friends.

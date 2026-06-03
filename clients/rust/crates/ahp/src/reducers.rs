@@ -58,9 +58,9 @@ use ahp_types::state::{
     PendingMessageKind, ResponsePart, RootState, SessionInputRequest, SessionLifecycle,
     SessionState, SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
     TerminalUnclassifiedPart, ToolCallCancellationReason, ToolCallCancelledState,
-    ToolCallCompletedState, ToolCallConfirmationReason, ToolCallPendingConfirmationState,
-    ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
-    ToolCallState, ToolCallStreamingState, Turn, TurnState,
+    ToolCallCompletedState, ToolCallConfirmationReason, ToolCallContributor,
+    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState, ToolCallResponsePart,
+    ToolCallRunningState, ToolCallState, ToolCallStreamingState, Turn, TurnState,
 };
 
 /// What happened when an action was applied.
@@ -100,7 +100,7 @@ fn tool_call_meta(
     String,
     String,
     String,
-    Option<String>,
+    Option<ToolCallContributor>,
     Option<serde_json::Map<String, serde_json::Value>>,
 ) {
     match tc {
@@ -108,42 +108,42 @@ fn tool_call_meta(
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::PendingConfirmation(s) => (
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::Running(s) => (
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::PendingResultConfirmation(s) => (
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::Completed(s) => (
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::Cancelled(s) => (
             s.tool_call_id.clone(),
             s.tool_name.clone(),
             s.display_name.clone(),
-            s.tool_client_id.clone(),
+            s.contributor.clone(),
             s.meta.clone(),
         ),
         ToolCallState::Unknown(_) => (String::new(), String::new(), String::new(), None, None),
@@ -241,7 +241,7 @@ fn end_turn(
                         ResponsePart::ToolCall(Box::new(ToolCallResponsePart { tool_call: tc }))
                     }
                     _ => {
-                        let (tool_call_id, tool_name, display_name, tool_client_id, meta) =
+                        let (tool_call_id, tool_name, display_name, contributor, meta) =
                             tool_call_meta(&tc);
                         let invocation_message = match &tc {
                             ToolCallState::Streaming(s) => {
@@ -265,7 +265,7 @@ fn end_turn(
                             tool_call_id,
                             tool_name,
                             display_name,
-                            tool_client_id,
+                            contributor,
                             meta,
                             invocation_message,
                             tool_input,
@@ -324,6 +324,7 @@ fn customization_id(c: &Customization) -> Option<&str> {
     match c {
         Customization::Plugin(p) => Some(p.id.as_str()),
         Customization::Directory(d) => Some(d.id.as_str()),
+        Customization::McpServer(m) => Some(m.id.as_str()),
         Customization::Unknown(_) => None,
     }
 }
@@ -344,7 +345,7 @@ fn container_children_mut(c: &mut Customization) -> Option<&mut Vec<ChildCustomi
     match c {
         Customization::Plugin(p) => p.children.as_mut(),
         Customization::Directory(d) => d.children.as_mut(),
-        Customization::Unknown(_) => None,
+        Customization::McpServer(_) | Customization::Unknown(_) => None,
     }
 }
 
@@ -352,6 +353,7 @@ fn set_container_enabled(c: &mut Customization, enabled: bool) {
     match c {
         Customization::Plugin(p) => p.enabled = enabled,
         Customization::Directory(d) => d.enabled = enabled,
+        Customization::McpServer(m) => m.enabled = enabled,
         Customization::Unknown(_) => {}
     }
 }
@@ -388,7 +390,7 @@ where
                         tool_call_id: String::new(),
                         tool_name: String::new(),
                         display_name: String::new(),
-                        tool_client_id: None,
+                        contributor: None,
                         meta: None,
                         invocation_message: Default::default(),
                         tool_input: None,
@@ -531,7 +533,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                         tool_call_id: a.tool_call_id.clone(),
                         tool_name: a.tool_name.clone(),
                         display_name: a.display_name.clone(),
-                        tool_client_id: a.tool_client_id.clone(),
+                        contributor: a.contributor.clone(),
                         meta: a.meta.clone(),
                         partial_input: None,
                         invocation_message: None,
@@ -712,6 +714,42 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             }
             ReduceOutcome::NoOp
         }
+        StateAction::SessionMcpServerStateChanged(a) => {
+            let Some(list) = state.customizations.as_mut() else {
+                return ReduceOutcome::NoOp;
+            };
+            if let Some(idx) = list
+                .iter()
+                .position(|c| customization_id(c) == Some(a.id.as_str()))
+            {
+                match &mut list[idx] {
+                    Customization::McpServer(m) => {
+                        m.state = a.state.clone();
+                        m.channel = a.channel.clone();
+                        return ReduceOutcome::Applied;
+                    }
+                    // Top-level entry exists but isn't an MCP server: no-op.
+                    _ => return ReduceOutcome::NoOp,
+                }
+            }
+            for container in list.iter_mut() {
+                let Some(children) = container_children_mut(container) else {
+                    continue;
+                };
+                if let Some(idx) = children
+                    .iter()
+                    .position(|c| child_id_of(c) == Some(a.id.as_str()))
+                {
+                    if let ChildCustomization::McpServer(m) = &mut children[idx] {
+                        m.state = a.state.clone();
+                        m.channel = a.channel.clone();
+                        return ReduceOutcome::Applied;
+                    }
+                    return ReduceOutcome::NoOp;
+                }
+            }
+            ReduceOutcome::NoOp
+        }
         StateAction::SessionTruncated(a) => apply_truncated(state, a.turn_id.as_deref()),
         StateAction::SessionInputRequested(a) => {
             upsert_input_request(state, a.request.clone());
@@ -850,7 +888,7 @@ fn apply_tool_call_ready(
     a: &SessionToolCallReadyAction,
 ) -> ReduceOutcome {
     update_tool_call(state, &a.turn_id, &a.tool_call_id, |tc| {
-        let (tool_call_id, tool_name, display_name, tool_client_id, meta) = tool_call_meta(&tc);
+        let (tool_call_id, tool_name, display_name, contributor, meta) = tool_call_meta(&tc);
         match tc {
             ToolCallState::Streaming(_) | ToolCallState::Running(_) => {
                 if let Some(confirmed) = a.confirmed {
@@ -858,7 +896,7 @@ fn apply_tool_call_ready(
                         tool_call_id,
                         tool_name,
                         display_name,
-                        tool_client_id,
+                        contributor,
                         meta,
                         invocation_message: a.invocation_message.clone(),
                         tool_input: a.tool_input.clone(),
@@ -871,7 +909,7 @@ fn apply_tool_call_ready(
                         tool_call_id,
                         tool_name,
                         display_name,
-                        tool_client_id,
+                        contributor,
                         meta,
                         invocation_message: a.invocation_message.clone(),
                         tool_input: a.tool_input.clone(),
@@ -909,7 +947,7 @@ fn apply_tool_call_confirmed(
         let tool_call_id = s.tool_call_id;
         let tool_name = s.tool_name;
         let display_name = s.display_name;
-        let tool_client_id = s.tool_client_id;
+        let contributor = s.contributor;
         let meta = s.meta;
         let invocation_message = s.invocation_message;
         let tool_input = s.tool_input;
@@ -918,7 +956,7 @@ fn apply_tool_call_confirmed(
                 tool_call_id,
                 tool_name,
                 display_name,
-                tool_client_id,
+                contributor,
                 meta,
                 invocation_message,
                 tool_input: a.edited_tool_input.clone().or(tool_input),
@@ -931,7 +969,7 @@ fn apply_tool_call_confirmed(
                 tool_call_id,
                 tool_name,
                 display_name,
-                tool_client_id,
+                contributor,
                 meta,
                 invocation_message,
                 tool_input,
@@ -949,7 +987,7 @@ fn apply_tool_call_complete(
     a: &SessionToolCallCompleteAction,
 ) -> ReduceOutcome {
     update_tool_call(state, &a.turn_id, &a.tool_call_id, |tc| {
-        let (tool_call_id, tool_name, display_name, tool_client_id, meta) = tool_call_meta(&tc);
+        let (tool_call_id, tool_name, display_name, contributor, meta) = tool_call_meta(&tc);
         let (invocation_message, tool_input, confirmed, selected_option) = match tc {
             ToolCallState::Running(s) => (
                 s.invocation_message,
@@ -970,7 +1008,7 @@ fn apply_tool_call_complete(
                 tool_call_id,
                 tool_name,
                 display_name,
-                tool_client_id,
+                contributor,
                 meta,
                 invocation_message,
                 tool_input,
@@ -987,7 +1025,7 @@ fn apply_tool_call_complete(
                 tool_call_id,
                 tool_name,
                 display_name,
-                tool_client_id,
+                contributor,
                 meta,
                 invocation_message,
                 tool_input,
@@ -1016,7 +1054,7 @@ fn apply_tool_call_result_confirmed(
                 tool_call_id: s.tool_call_id,
                 tool_name: s.tool_name,
                 display_name: s.display_name,
-                tool_client_id: s.tool_client_id,
+                contributor: s.contributor,
                 meta: s.meta,
                 invocation_message: s.invocation_message,
                 tool_input: s.tool_input,
@@ -1033,7 +1071,7 @@ fn apply_tool_call_result_confirmed(
                 tool_call_id: s.tool_call_id,
                 tool_name: s.tool_name,
                 display_name: s.display_name,
-                tool_client_id: s.tool_client_id,
+                contributor: s.contributor,
                 meta: s.meta,
                 invocation_message: s.invocation_message,
                 tool_input: s.tool_input,

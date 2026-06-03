@@ -679,7 +679,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       return { ...state, customizations: updated };
     }
 
-    case ActionType.SessionMcpServerStatusChanged: {
+    case ActionType.SessionMcpServerStateChanged: {
       const list = state.customizations;
       if (!list) {
         return state;
@@ -692,7 +692,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         }
         const updatedEntry: McpServerCustomization = {
           ...entry,
-          runtimeStatus: action.runtimeStatus,
+          state: action.state,
           channel: action.channel,
         };
         const updated = list.slice();
@@ -719,7 +719,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         changed = true;
         const updatedChild: McpServerCustomization = {
           ...child,
-          runtimeStatus: action.runtimeStatus,
+          state: action.state,
           channel: action.channel,
         };
         const newChildren = children.slice();

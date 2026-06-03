@@ -965,30 +965,30 @@
         "id"
       ]
     },
-    "SessionMcpServerStatusChangedAction": {
+    "SessionMcpServerStateChangedAction": {
       "type": "object",
-      "description": "Updates the runtime fields of an existing\n{@link McpServerCustomization} — narrow alternative to\n{@link SessionCustomizationUpdatedAction} for the high-frequency\n`starting` ↔ `ready` ↔ `authRequired` transitions.\n\nLocates the target entry by `id`, searching both the top-level\ncustomization list and the `children` array of every container.\nReplaces the entry's {@link McpServerCustomization.runtimeStatus | `runtimeStatus`}\nand {@link McpServerCustomization.channel | `channel`}\n(full-replacement semantics: omit `channel` to clear an existing\nchannel URI). Other fields of the customization are preserved.\n\nIs a no-op when no matching `McpServerCustomization` is found. To\nupdate any other field (name, icons, `mcpApp` capabilities, etc.) use\n{@link SessionCustomizationUpdatedAction} instead.\n\nWhen the transition is to {@link McpServerStatusKind.AuthRequired}\nbecause of a request issued mid-turn, the host SHOULD also raise\n{@link SessionStatus.InputNeeded} on the session — see\n{@link McpServerStatusAuthRequired} for the rationale.",
+      "description": "Updates the runtime fields of an existing\n{@link McpServerCustomization} — narrow alternative to\n{@link SessionCustomizationUpdatedAction} for the high-frequency\n`starting` ↔ `ready` ↔ `authRequired` transitions.\n\nLocates the target entry by `id`, searching both the top-level\ncustomization list and the `children` array of every container.\nReplaces the entry's {@link McpServerCustomization.state | `state`}\nand {@link McpServerCustomization.channel | `channel`}\n(full-replacement semantics: omit `channel` to clear an existing\nchannel URI). Other fields of the customization are preserved.\n\nIs a no-op when no matching `McpServerCustomization` is found. To\nupdate any other field (name, icons, `mcpApp` capabilities, etc.) use\n{@link SessionCustomizationUpdatedAction} instead.\n\nWhen the transition is to {@link McpServerStatus.AuthRequired}\nbecause of a request issued mid-turn, the host SHOULD also raise\n{@link SessionStatus.InputNeeded} on the session — see\n{@link McpServerAuthRequiredState} for the rationale.",
       "properties": {
         "type": {
-          "$ref": "#/$defs/ActionType.SessionMcpServerStatusChanged"
+          "$ref": "#/$defs/ActionType.SessionMcpServerStateChanged"
         },
         "id": {
           "type": "string",
           "description": "The id of the {@link McpServerCustomization} to update."
         },
-        "runtimeStatus": {
-          "$ref": "#/$defs/McpServerStatus",
-          "description": "The new runtime status."
+        "state": {
+          "$ref": "#/$defs/McpServerState",
+          "description": "The new lifecycle state."
         },
         "channel": {
           "$ref": "#/$defs/URI",
-          "description": "Updated `mcp://` side-channel URI. Full-replacement: omit to clear\nan existing channel (typical when leaving\n{@link McpServerStatusKind.Ready | `Ready`})."
+          "description": "Updated `mcp://` side-channel URI. Full-replacement: omit to clear\nan existing channel (typical when leaving\n{@link McpServerStatus.Ready | `Ready`})."
         }
       },
       "required": [
         "type",
         "id",
-        "runtimeStatus"
+        "state"
       ]
     },
     "SessionConfigChangedAction": {
@@ -4685,13 +4685,13 @@
           "type": "boolean",
           "description": "Whether this MCP server is currently enabled."
         },
-        "runtimeStatus": {
-          "$ref": "#/$defs/McpServerStatus",
-          "description": "Current status of the MCP server."
+        "state": {
+          "$ref": "#/$defs/McpServerState",
+          "description": "Current lifecycle state of the MCP server."
         },
         "channel": {
           "$ref": "#/$defs/URI",
-          "description": "An `mcp://`-protocol channel the client uses to side-channel traffic\ninto the upstream MCP server itself. The channel is NOT a fresh raw MCP\nconnection: it piggybacks on the AHP transport\nand skips the MCP `initialize` sequence.\n\nThe agent host MAY only serve a subset of MCP on this\nchannel; the served subset is described by domain-specific\ncapabilities such as those in\n{@link McpServerCustomizationApps.capabilities}.\n\nThe channel URI SHOULD be stable across the server's lifetime, but\nthe agent host MAY change it (for example across a restart) and\nMAY only expose it while the server is in\n{@link McpServerStatusKind.Ready | `Ready`}. Absence means no\nside-channel is currently available."
+          "description": "An `mcp://`-protocol channel the client uses to side-channel traffic\ninto the upstream MCP server itself. The channel is NOT a fresh raw MCP\nconnection: it piggybacks on the AHP transport\nand skips the MCP `initialize` sequence.\n\nThe agent host MAY only serve a subset of MCP on this\nchannel; the served subset is described by domain-specific\ncapabilities such as those in\n{@link McpServerCustomizationApps.capabilities}.\n\nThe channel URI SHOULD be stable across the server's lifetime, but\nthe agent host MAY change it (for example across a restart) and\nMAY only expose it while the server is in\n{@link McpServerStatus.Ready | `Ready`}. Absence means no\nside-channel is currently available."
         },
         "mcpApp": {
           "$ref": "#/$defs/McpServerCustomizationApps",
@@ -4704,7 +4704,7 @@
         "name",
         "type",
         "enabled",
-        "runtimeStatus"
+        "state"
       ]
     },
     "McpServerCustomizationApps": {
@@ -4758,36 +4758,36 @@
         }
       }
     },
-    "McpServerStatusStarting": {
+    "McpServerStartingState": {
       "type": "object",
       "description": "Server is registered with the host but has not yet started.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/McpServerStatusKind.Starting"
+          "$ref": "#/$defs/McpServerStatus.Starting"
         }
       },
       "required": [
         "kind"
       ]
     },
-    "McpServerStatusReady": {
+    "McpServerReadyState": {
       "type": "object",
       "description": "Server is running and serving requests.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/McpServerStatusKind.Ready"
+          "$ref": "#/$defs/McpServerStatus.Ready"
         }
       },
       "required": [
         "kind"
       ]
     },
-    "McpServerStatusAuthRequired": {
+    "McpServerAuthRequiredState": {
       "type": "object",
       "description": "Server is reachable but cannot serve requests until the client\nauthenticates. Mirrors the discovery flow defined by\n[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)\n(Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge\nsemantics required by the MCP authorization spec.\n\nClients react to this state by calling the existing `authenticate`\ncommand with the {@link ProtectedResourceMetadata.resource | resource}\ncarried here. There is **no** `notify/authRequired` notification for\nMCP servers — the action stream is the single source of truth.\n\nWhen the transition is triggered by a request issued during a turn\n— most commonly\n{@link McpAuthRequiredReason.InsufficientScope | `InsufficientScope`}\nsurfacing mid-tool-call — the host SHOULD also raise\n{@link SessionStatus.InputNeeded} on the session so the block is\nvisible at the summary level. Clients SHOULD watch this status on\nany MCP server backing a running tool call and surface an explicit\naffordance (e.g. a \"grant additional access\" prompt) tied to that\ntool call, rather than relying on the user to notice the\ncustomization’s status badge.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/McpServerStatusKind.AuthRequired"
+          "$ref": "#/$defs/McpServerStatus.AuthRequired"
         },
         "reason": {
           "$ref": "#/$defs/McpAuthRequiredReason",
@@ -4815,12 +4815,12 @@
         "resource"
       ]
     },
-    "McpServerStatusError": {
+    "McpServerErrorState": {
       "type": "object",
-      "description": "Server failed to start, crashed, or otherwise transitioned to a\nnon-recoverable error. Use {@link McpServerStatusKind.AuthRequired}\nfor authentication failures.",
+      "description": "Server failed to start, crashed, or otherwise transitioned to a\nnon-recoverable error. Use {@link McpServerStatus.AuthRequired}\nfor authentication failures.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/McpServerStatusKind.Error"
+          "$ref": "#/$defs/McpServerStatus.Error"
         },
         "error": {
           "$ref": "#/$defs/ErrorInfo",
@@ -4832,12 +4832,12 @@
         "error"
       ]
     },
-    "McpServerStatusStopped": {
+    "McpServerStoppedState": {
       "type": "object",
       "description": "Server has been shut down. The host MAY remove the server from the\nsession entirely shortly after this state.",
       "properties": {
         "kind": {
-          "$ref": "#/$defs/McpServerStatusKind.Stopped"
+          "$ref": "#/$defs/McpServerStatus.Stopped"
         }
       },
       "required": [
@@ -5477,26 +5477,26 @@
       ],
       "description": "A top-level customization active in a session. Either a container\n({@link PluginCustomization} or {@link DirectoryCustomization}) whose\nleaf customizations live in its\n{@link ContainerCustomizationBase.children | `children`} array, or a\nbare {@link McpServerCustomization} surfaced directly by the host."
     },
-    "McpServerStatus": {
+    "McpServerState": {
       "oneOf": [
         {},
         {
-          "$ref": "#/$defs/McpServerStatusStarting"
+          "$ref": "#/$defs/McpServerStartingState"
         },
         {
-          "$ref": "#/$defs/McpServerStatusReady"
+          "$ref": "#/$defs/McpServerReadyState"
         },
         {
-          "$ref": "#/$defs/McpServerStatusAuthRequired"
+          "$ref": "#/$defs/McpServerAuthRequiredState"
         },
         {
-          "$ref": "#/$defs/McpServerStatusError"
+          "$ref": "#/$defs/McpServerErrorState"
         },
         {
-          "$ref": "#/$defs/McpServerStatusStopped"
+          "$ref": "#/$defs/McpServerStoppedState"
         }
       ],
-      "description": "Discriminated union of all MCP server statuses. Discriminated by `kind`."
+      "description": "Discriminated union of all MCP server lifecycle states.\nDiscriminated by `kind` (a {@link McpServerStatus} value)."
     },
     "TerminalClaim": {
       "oneOf": [
@@ -5639,7 +5639,7 @@
           "$ref": "#/$defs/SessionCustomizationRemovedAction"
         },
         {
-          "$ref": "#/$defs/SessionMcpServerStatusChangedAction"
+          "$ref": "#/$defs/SessionMcpServerStateChangedAction"
         },
         {
           "$ref": "#/$defs/SessionTruncatedAction"

@@ -166,7 +166,13 @@ function mapType(tsType: string): string {
 
   // Record<string, T>
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
-  if (recordMatch) return `Map<String, ${mapType(recordMatch[1])}>`;
+  if (recordMatch) {
+    const inner = recordMatch[1].trim();
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'never') return 'Map<String, JsonElement>';
+    return `Map<String, ${mapType(inner)}>`;
+  }
 
   // Partial<T>
   const partialMatch = tsType.match(/^Partial<(\w+)>$/);
@@ -740,7 +746,9 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
+  'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -775,6 +783,10 @@ const STATE_STRUCTS = [
   'PluginCustomization', 'ClientPluginCustomization', 'DirectoryCustomization',
   'AgentCustomization', 'SkillCustomization', 'PromptCustomization',
   'RuleCustomization', 'HookCustomization', 'McpServerCustomization',
+  'McpServerCustomizationApps', 'AhpMcpUiHostCapabilities',
+  'McpServerStartingState', 'McpServerReadyState', 'McpServerAuthRequiredState',
+  'McpServerErrorState', 'McpServerStoppedState',
+  'ToolCallClientContributor', 'ToolCallMcpContributor',
   'FileEdit', 'TerminalInfo',
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
@@ -888,6 +900,7 @@ const CUSTOMIZATION_UNION: UnionConfig = {
   variants: [
     { caseName: 'Plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'Directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
+    { caseName: 'McpServer', structName: 'McpServerCustomization', discriminantValue: 'mcpServer' },
   ],
   unknown: true,
 };
@@ -914,6 +927,29 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { caseName: 'Loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
     { caseName: 'Degraded', structName: 'CustomizationDegradedState', discriminantValue: 'degraded' },
     { caseName: 'Error', structName: 'CustomizationErrorState', discriminantValue: 'error' },
+  ],
+  unknown: true,
+};
+
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'Starting', structName: 'McpServerStartingState', discriminantValue: 'starting' },
+    { caseName: 'Ready', structName: 'McpServerReadyState', discriminantValue: 'ready' },
+    { caseName: 'AuthRequired', structName: 'McpServerAuthRequiredState', discriminantValue: 'authRequired' },
+    { caseName: 'Error', structName: 'McpServerErrorState', discriminantValue: 'error' },
+    { caseName: 'Stopped', structName: 'McpServerStoppedState', discriminantValue: 'stopped' },
+  ],
+  unknown: true,
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'Client', structName: 'ToolCallClientContributor', discriminantValue: 'client' },
+    { caseName: 'Mcp', structName: 'ToolCallMcpContributor', discriminantValue: 'mcp' },
   ],
   unknown: true,
 };
@@ -977,6 +1013,10 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -1026,6 +1066,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/customizationToggled', caseName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', caseName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', caseName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', caseName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', caseName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', caseName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', caseName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1188,6 +1229,7 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 
 const COMMAND_STRUCTS = [
   'InitializeParams', 'InitializeResult',
+  'ClientCapabilities',
   'ReconnectParams', 'ReconnectReplayResult', 'ReconnectSnapshotResult',
   'SubscribeParams', 'SubscribeResult',
   'SessionForkSource', 'CreateSessionParams', 'DisposeSessionParams',
@@ -1693,6 +1735,8 @@ function checkExhaustiveness(project: Project): void {
     'MessageAttachmentBase',        // base interface, flattened into the variant data classes via `extends`
     'Customization',                // CUSTOMIZATION_UNION discriminated union
     'ChildCustomization',           // CHILD_CUSTOMIZATION_UNION discriminated union
+    'McpServerState',              // MCP_SERVER_STATUS_UNION discriminated union
+    'ToolCallContributor',          // TOOL_CALL_CONTRIBUTOR_UNION discriminated union
     'ChildCustomizationType',       // TS subset alias of CustomizationType; consumers reuse CustomizationType
     'CustomizationLoadState',       // CUSTOMIZATION_LOAD_STATE_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()

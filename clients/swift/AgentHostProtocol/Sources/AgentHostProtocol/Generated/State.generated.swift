@@ -178,6 +178,11 @@ public enum ConfirmationOptionKind: String, Codable, Sendable {
     case deny = "deny"
 }
 
+public enum ToolCallContributorKind: String, Codable, Sendable {
+    case client = "client"
+    case mCP = "mcp"
+}
+
 /// Discriminant for tool result content types.
 public enum ToolResultContentType: String, Codable, Sendable {
     case text = "text"
@@ -191,10 +196,12 @@ public enum ToolResultContentType: String, Codable, Sendable {
 /// Discriminant for the kind of customization.
 /// 
 /// Top-level entries in {@link SessionState.customizations} and
-/// {@link AgentInfo.customizations} are always
-/// {@link CustomizationType.Plugin | `Plugin`} or
-/// {@link CustomizationType.Directory | `Directory`}; the remaining
-/// types appear only as children of those containers.
+/// {@link AgentInfo.customizations} are either container customizations
+/// ({@link CustomizationType.Plugin | `Plugin`} or
+/// {@link CustomizationType.Directory | `Directory`}) or
+/// {@link CustomizationType.McpServer | `McpServer`} entries surfaced
+/// directly by the host. The remaining types appear only as children of
+/// a container.
 public enum CustomizationType: String, Codable, Sendable {
     case plugin = "plugin"
     case directory = "directory"
@@ -218,6 +225,51 @@ public enum CustomizationLoadStatus: String, Codable, Sendable {
 public enum TerminalClaimKind: String, Codable, Sendable {
     case client = "client"
     case session = "session"
+}
+
+/// Discriminant for the {@link McpServerState} union.
+public enum McpServerStatus: String, Codable, Sendable {
+    /// Server has been registered but is not yet running.
+    case starting = "starting"
+    /// Server is running and serving requests.
+    case ready = "ready"
+    /// Server is reachable but requires additional authentication before it
+    /// can start, or before it can serve a particular request. Carries the
+    /// RFC 9728 Protected Resource Metadata the client needs to obtain a
+    /// token; the client then pushes the token via the existing
+    /// `authenticate` command.
+    case authRequired = "authRequired"
+    /// Server failed to start, crashed, or otherwise transitioned to a fatal error.
+    case error = "error"
+    /// Server has been shut down.
+    case stopped = "stopped"
+}
+
+/// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+/// state. Mirrors the three failure modes defined by the
+/// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+public enum McpAuthRequiredReason: String, Codable, Sendable {
+    /// No token has been provided yet (HTTP 401, no prior token).
+    case required = "required"
+    /// A previously valid token expired or was revoked (HTTP 401).
+    case expired = "expired"
+    /// Step-up auth: a token is present but its scopes are insufficient for
+    /// the requested operation (HTTP 403 with
+    /// `WWW-Authenticate: Bearer error="insufficient_scope"`).
+    /// 
+    /// Unlike {@link Required} and {@link Expired} — which typically surface
+    /// before any tool work is in flight — `InsufficientScope` is almost
+    /// always triggered by an MCP request issued mid-turn (a `tools/call`,
+    /// `resources/read`, etc.). The host SHOULD pair the
+    /// {@link McpServerAuthRequiredState} transition with
+    /// {@link SessionStatus.InputNeeded} on
+    /// {@link SessionSummary.status | the session} so the activity becomes
+    /// visible at the session-summary level, and clients SHOULD watch for
+    /// this kind on any
+    /// {@link McpServerCustomization | MCP server} backing a running tool
+    /// call so they can present an explicit "grant more access" affordance
+    /// tied to the blocked tool call.
+    case insufficientScope = "insufficientScope"
 }
 
 /// Computation lifecycle of a {@link ChangesetState}.
@@ -429,13 +481,15 @@ public struct AgentInfo: Codable, Sendable {
     public var protectedResources: [ProtectedResourceMetadata]?
     /// Customizations associated with this agent.
     /// 
-    /// Always container customizations —
+    /// Either container customizations —
     /// {@link PluginCustomization | `PluginCustomization`} entries the agent
     /// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-    /// entries it watches in any workspace it's used with. When a session is
-    /// created with this agent, these entries are augmented (e.g. directory
-    /// URIs are resolved against the workspace, children are parsed) and
-    /// propagated into the session's `customizations` list.
+    /// entries it watches in any workspace it's used with — or top-level
+    /// {@link McpServerCustomization | `McpServerCustomization`} entries
+    /// the agent host declares directly. When a session is created with
+    /// this agent, these entries are augmented (e.g. directory URIs are
+    /// resolved against the workspace, children are parsed) and propagated
+    /// into the session's `customizations` list.
     public var customizations: [Customization]?
 
     public init(
@@ -660,15 +714,23 @@ public struct SessionState: Codable, Sendable {
     public var config: SessionConfigState?
     /// Top-level customizations active in this session.
     /// 
-    /// Always container customizations — {@link PluginCustomization} or
-    /// {@link DirectoryCustomization}. Children (agents, skills, prompts,
-    /// rules, hooks, MCP servers) live in each container's
+    /// Always one of the {@link Customization} variants:
+    /// 
+    /// - Container customizations ({@link PluginCustomization},
+    /// {@link DirectoryCustomization}) whose children — agents, skills,
+    /// prompts, rules, hooks, MCP servers — live in each container's
     /// {@link ContainerCustomizationBase.children | `children`} array.
+    /// - Top-level {@link McpServerCustomization} entries the host
+    /// surfaces directly (for example a globally-configured MCP server
+    /// that isn't bundled in a plugin or directory). MCP servers may
+    /// also appear as children of a container.
     /// 
     /// Client-published plugins arrive via
     /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
     /// and the host propagates them into this list (typically with the
-    /// container's `clientId` set and `children` populated).
+    /// container's `clientId` set and `children` populated). Clients
+    /// publish in container shape only; bare MCP servers at the top level
+    /// are server-originated.
     public var customizations: [Customization]?
     /// Additional provider-specific metadata for this session.
     /// 
@@ -1667,18 +1729,13 @@ public struct ToolCallStreamingState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     public var status: ToolCallStatus
     /// Partial parameters accumulated so far
@@ -1690,7 +1747,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case status
         case partialInput
@@ -1701,7 +1758,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         status: ToolCallStatus,
         partialInput: String? = nil,
@@ -1710,7 +1767,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.status = status
         self.partialInput = partialInput
@@ -1725,18 +1782,13 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1759,7 +1811,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1774,7 +1826,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1787,7 +1839,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1806,18 +1858,13 @@ public struct ToolCallRunningState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1838,7 +1885,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1852,7 +1899,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1864,7 +1911,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1882,18 +1929,13 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1923,7 +1965,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1941,7 +1983,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1957,7 +1999,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1979,18 +2021,13 @@ public struct ToolCallCompletedState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -2020,7 +2057,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -2038,7 +2075,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -2054,7 +2091,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -2076,18 +2113,13 @@ public struct ToolCallCancelledState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
     /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -2107,7 +2139,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -2122,7 +2154,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -2135,7 +2167,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -2885,6 +2917,29 @@ public struct McpServerCustomization: Codable, Sendable {
     /// Absent when the customization covers the whole resource.
     public var range: TextRange?
     public var type: CustomizationType
+    /// Whether this MCP server is currently enabled.
+    public var enabled: Bool
+    /// Current lifecycle state of the MCP server.
+    public var state: McpServerState
+    /// An `mcp://`-protocol channel the client uses to side-channel traffic
+    /// into the upstream MCP server itself. The channel is NOT a fresh raw MCP
+    /// connection: it piggybacks on the AHP transport
+    /// and skips the MCP `initialize` sequence.
+    /// 
+    /// The agent host MAY only serve a subset of MCP on this
+    /// channel; the served subset is described by domain-specific
+    /// capabilities such as those in
+    /// {@link McpServerCustomizationApps.capabilities}.
+    /// 
+    /// The channel URI SHOULD be stable across the server's lifetime, but
+    /// the agent host MAY change it (for example across a restart) and
+    /// MAY only expose it while the server is in
+    /// {@link McpServerStatus.Ready | `Ready`}. Absence means no
+    /// side-channel is currently available.
+    public var channel: String?
+    /// MCP App support. This property SHOULD be advertised for MCP servers
+    /// which support apps.
+    public var mcpApp: McpServerCustomizationApps?
 
     public init(
         id: String,
@@ -2892,7 +2947,11 @@ public struct McpServerCustomization: Codable, Sendable {
         name: String,
         icons: [Icon]? = nil,
         range: TextRange? = nil,
-        type: CustomizationType
+        type: CustomizationType,
+        enabled: Bool,
+        state: McpServerState,
+        channel: String? = nil,
+        mcpApp: McpServerCustomizationApps? = nil
     ) {
         self.id = id
         self.uri = uri
@@ -2900,6 +2959,157 @@ public struct McpServerCustomization: Codable, Sendable {
         self.icons = icons
         self.range = range
         self.type = type
+        self.enabled = enabled
+        self.state = state
+        self.channel = channel
+        self.mcpApp = mcpApp
+    }
+}
+
+public struct McpServerCustomizationApps: Codable, Sendable {
+    /// The subset of MCP App
+    /// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+    /// the AHP host can satisfy for Views backed by this server. The
+    /// client feeds these straight through into the `hostCapabilities` of
+    /// the `ui/initialize` response delivered to the View.
+    public var capabilities: AhpMcpUiHostCapabilities
+
+    public init(
+        capabilities: AhpMcpUiHostCapabilities
+    ) {
+        self.capabilities = capabilities
+    }
+}
+
+public struct AhpMcpUiHostCapabilities: Codable, Sendable {
+    /// Producer proxies the MCP `tools/*` methods to the upstream server.
+    public var serverTools: AnyCodable?
+    /// Producer proxies the MCP `resources/*` methods to the upstream server.
+    public var serverResources: AnyCodable?
+    /// Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+    public var logging: [String: AnyCodable]?
+    /// Producer serves `sampling/createMessage` via `mcpMethodCall`.
+    public var sampling: AnyCodable?
+
+    public init(
+        serverTools: AnyCodable? = nil,
+        serverResources: AnyCodable? = nil,
+        logging: [String: AnyCodable]? = nil,
+        sampling: AnyCodable? = nil
+    ) {
+        self.serverTools = serverTools
+        self.serverResources = serverResources
+        self.logging = logging
+        self.sampling = sampling
+    }
+}
+
+public struct McpServerStartingState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct McpServerReadyState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct McpServerAuthRequiredState: Codable, Sendable {
+    public var kind: McpServerStatus
+    /// Why authentication is required.
+    public var reason: McpAuthRequiredReason
+    /// RFC 9728 Protected Resource Metadata. The `resource` field is the
+    /// canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+    /// indicator. `authorization_servers` is REQUIRED by the MCP
+    /// authorization spec.
+    public var resource: ProtectedResourceMetadata
+    /// Scopes required for the current challenge, parsed from the
+    /// `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+    /// fallback). Authoritative for the next authorization request — clients
+    /// MUST NOT assume any subset/superset relationship to
+    /// `resource.scopes_supported`.
+    public var requiredScopes: [String]?
+    /// Human-readable hint, typically from the OAuth `error_description`.
+    public var description: String?
+
+    public init(
+        kind: McpServerStatus,
+        reason: McpAuthRequiredReason,
+        resource: ProtectedResourceMetadata,
+        requiredScopes: [String]? = nil,
+        description: String? = nil
+    ) {
+        self.kind = kind
+        self.reason = reason
+        self.resource = resource
+        self.requiredScopes = requiredScopes
+        self.description = description
+    }
+}
+
+public struct McpServerErrorState: Codable, Sendable {
+    public var kind: McpServerStatus
+    /// Error details.
+    public var error: ErrorInfo
+
+    public init(
+        kind: McpServerStatus,
+        error: ErrorInfo
+    ) {
+        self.kind = kind
+        self.error = error
+    }
+}
+
+public struct McpServerStoppedState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct ToolCallClientContributor: Codable, Sendable {
+    public var kind: ToolCallContributorKind
+    /// If this tool is provided by a client, the `clientId` of the owning client.
+    /// Absent for server-side tools.
+    /// 
+    /// When set, the identified client is responsible for executing the tool and
+    /// dispatching `session/toolCallComplete` with the result.
+    public var clientId: String
+
+    public init(
+        kind: ToolCallContributorKind,
+        clientId: String
+    ) {
+        self.kind = kind
+        self.clientId = clientId
+    }
+}
+
+public struct ToolCallMcpContributor: Codable, Sendable {
+    public var kind: ToolCallContributorKind
+    /// Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+    public var customizationId: String
+
+    public init(
+        kind: ToolCallContributorKind,
+        customizationId: String
+    ) {
+        self.kind = kind
+        self.customizationId = customizationId
     }
 }
 
@@ -3678,6 +3888,7 @@ public enum MessageAttachment: Codable, Sendable {
 public enum Customization: Codable, Sendable {
     case plugin(PluginCustomization)
     case directory(DirectoryCustomization)
+    case mcpServer(McpServerCustomization)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "type"
@@ -3691,6 +3902,8 @@ public enum Customization: Codable, Sendable {
             self = .plugin(try PluginCustomization(from: decoder))
         case "directory":
             self = .directory(try DirectoryCustomization(from: decoder))
+        case "mcpServer":
+            self = .mcpServer(try McpServerCustomization(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown Customization discriminant: \(discriminant)")
         }
@@ -3700,6 +3913,7 @@ public enum Customization: Codable, Sendable {
         switch self {
         case .plugin(let value): try value.encode(to: encoder)
         case .directory(let value): try value.encode(to: encoder)
+        case .mcpServer(let value): try value.encode(to: encoder)
         }
     }
 }
@@ -3782,6 +3996,76 @@ public enum CustomizationLoadState: Codable, Sendable {
         case .loaded(let value): try value.encode(to: encoder)
         case .degraded(let value): try value.encode(to: encoder)
         case .error(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum McpServerState: Codable, Sendable {
+    case starting(McpServerStartingState)
+    case ready(McpServerReadyState)
+    case authRequired(McpServerAuthRequiredState)
+    case error(McpServerErrorState)
+    case stopped(McpServerStoppedState)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "starting":
+            self = .starting(try McpServerStartingState(from: decoder))
+        case "ready":
+            self = .ready(try McpServerReadyState(from: decoder))
+        case "authRequired":
+            self = .authRequired(try McpServerAuthRequiredState(from: decoder))
+        case "error":
+            self = .error(try McpServerErrorState(from: decoder))
+        case "stopped":
+            self = .stopped(try McpServerStoppedState(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown McpServerState discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .starting(let value): try value.encode(to: encoder)
+        case .ready(let value): try value.encode(to: encoder)
+        case .authRequired(let value): try value.encode(to: encoder)
+        case .error(let value): try value.encode(to: encoder)
+        case .stopped(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum ToolCallContributor: Codable, Sendable {
+    case client(ToolCallClientContributor)
+    case mcp(ToolCallMcpContributor)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "client":
+            self = .client(try ToolCallClientContributor(from: decoder))
+        case "mcp":
+            self = .mcp(try ToolCallMcpContributor(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ToolCallContributor discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .client(let value): try value.encode(to: encoder)
+        case .mcp(let value): try value.encode(to: encoder)
         }
     }
 }

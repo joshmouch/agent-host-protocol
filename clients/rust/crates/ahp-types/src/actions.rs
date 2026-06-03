@@ -13,10 +13,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
     AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetStatus,
-    ChangesetSummary, ConfirmationOption, Customization, ErrorInfo, Message, ModelSelection,
-    PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
-    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
-    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
+    ChangesetSummary, ConfirmationOption, Customization, ErrorInfo, McpServerState, Message,
+    ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer,
+    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
+    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributor, ToolCallResult,
+    ToolDefinition, ToolResultContent, UsageInfo,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -94,6 +95,8 @@ pub enum ActionType {
     SessionCustomizationUpdated,
     #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved,
+    #[serde(rename = "session/mcpServerStateChanged")]
+    SessionMcpServerStateChanged,
     #[serde(rename = "session/truncated")]
     SessionTruncated,
     #[serde(rename = "session/isReadChanged")]
@@ -264,9 +267,11 @@ pub struct SessionResponsePartAction {
 
 /// A tool call begins — parameters are streaming from the LM.
 ///
-/// For client-provided tools, the server sets `toolClientId` to identify the
-/// owning client. That client is responsible for executing the tool once it
-/// reaches the `running` state and dispatching `session/toolCallComplete`.
+/// The server sets {@link ToolCallContributor | `contributor`} to identify
+/// the origin of the tool. For client-provided tools, the named client is
+/// responsible for executing the tool once it reaches the `running` state
+/// and dispatching `session/toolCallComplete`. For MCP-served tools, the
+/// server executes the call against the named `McpServerCustomization`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolCallStartAction {
@@ -286,10 +291,10 @@ pub struct SessionToolCallStartAction {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
+    /// Reference to the contributor of the tool being called. Absent for
+    /// server-side tools that are not contributed by a client or MCP server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
 }
 
 /// Streaming partial parameters for a tool call.
@@ -770,6 +775,40 @@ pub struct SessionCustomizationRemovedAction {
     pub id: String,
 }
 
+/// Updates the runtime fields of an existing
+/// {@link McpServerCustomization} — narrow alternative to
+/// {@link SessionCustomizationUpdatedAction} for the high-frequency
+/// `starting` ↔ `ready` ↔ `authRequired` transitions.
+///
+/// Locates the target entry by `id`, searching both the top-level
+/// customization list and the `children` array of every container.
+/// Replaces the entry's {@link McpServerCustomization.state | `state`}
+/// and {@link McpServerCustomization.channel | `channel`}
+/// (full-replacement semantics: omit `channel` to clear an existing
+/// channel URI). Other fields of the customization are preserved.
+///
+/// Is a no-op when no matching `McpServerCustomization` is found. To
+/// update any other field (name, icons, `mcpApp` capabilities, etc.) use
+/// {@link SessionCustomizationUpdatedAction} instead.
+///
+/// When the transition is to {@link McpServerStatus.AuthRequired}
+/// because of a request issued mid-turn, the host SHOULD also raise
+/// {@link SessionStatus.InputNeeded} on the session — see
+/// {@link McpServerAuthRequiredState} for the rationale.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpServerStateChangedAction {
+    /// The id of the {@link McpServerCustomization} to update.
+    pub id: String,
+    /// The new lifecycle state.
+    pub state: McpServerState,
+    /// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+    /// an existing channel (typical when leaving
+    /// {@link McpServerStatus.Ready | `Ready`}).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<Uri>,
+}
+
 /// Truncates a session's history. If `turnId` is provided, all turns after that
 /// turn are removed and the specified turn is kept. If `turnId` is omitted, all
 /// turns are removed.
@@ -1146,6 +1185,8 @@ pub enum StateAction {
     SessionCustomizationUpdated(SessionCustomizationUpdatedAction),
     #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved(SessionCustomizationRemovedAction),
+    #[serde(rename = "session/mcpServerStateChanged")]
+    SessionMcpServerStateChanged(SessionMcpServerStateChangedAction),
     #[serde(rename = "session/truncated")]
     SessionTruncated(SessionTruncatedAction),
     #[serde(rename = "session/configChanged")]

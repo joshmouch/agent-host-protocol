@@ -14,6 +14,33 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ## [Unreleased]
 
+### Added
+
+- `McpServerCustomization` now exposes the full MCP lifecycle: `Enabled`,
+  the discriminated `McpServerState` union
+  (`Starting`/`Ready`/`AuthRequired`/`Error`/`Stopped`), optional
+  `Channel` URI for the `mcp://` side-channel, and optional `McpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `Reason` / `RequiredScopes` / `Description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization` top-level union now includes `McpServer` — hosts MAY
+  surface bare MCP servers directly rather than only inside a plugin or
+  directory.
+- `SessionMcpServerStateChangedAction` and matching reducer case —
+  narrow upsert of `State` + `Channel` on an existing MCP
+  server customization by id.
+- `ClientCapabilities` struct on `InitializeParams.Capabilities` with
+  first entry `McpApps`.
+
+### Changed
+
+- `ToolCallBase.ToolClientId *string` replaced by
+  `ToolCallBase.Contributor *ToolCallContributor` (union with
+  `Client { ClientId }` and `Mcp { CustomizationId }` variants).
+  `SessionToolCallStartAction` carries the new `Contributor` field as
+  well. The reducer follows the rename.
+
 ## [0.1.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

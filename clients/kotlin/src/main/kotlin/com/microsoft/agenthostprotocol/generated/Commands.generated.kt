@@ -132,7 +132,15 @@ data class InitializeParams(
      * (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
      * user-facing strings such as confirmation option labels.
      */
-    val locale: String? = null
+    val locale: String? = null,
+    /**
+     * Optional client capability declarations.
+     * 
+     * Servers SHOULD only advertise features whose corresponding client
+     * capability is set here. Absent means "not declared" — the server
+     * MUST assume the client does not support the feature.
+     */
+    val capabilities: ClientCapabilities? = null
 )
 
 @Serializable
@@ -170,6 +178,24 @@ data class InitializeResult(
      * filtering). Clients MAY ignore signals they cannot process.
      */
     val telemetry: TelemetryCapabilities? = null
+)
+
+@Serializable
+data class ClientCapabilities(
+    /**
+     * Client can render
+     * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+     * it can host the View sandbox, run the `ui/*` protocol against it,
+     * and forward `mcp://`-channel traffic on the App's behalf.
+     * 
+     * Hosts SHOULD only populate
+     * {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+     * (and expose the corresponding
+     * {@link McpServerCustomization.channel | `mcp://` channel}) when this
+     * capability is declared. Clients that omit it MUST treat
+     * App-bearing tool calls as ordinary MCP tool calls.
+     */
+    val mcpApps: Map<String, JsonElement>? = null
 )
 
 @Serializable

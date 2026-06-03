@@ -190,7 +190,7 @@ public struct AHPSessionReducer: Reducer {
                     toolCallId: a.toolCallId,
                     toolName: a.toolName,
                     displayName: a.displayName,
-                    toolClientId: a.toolClientId,
+                    contributor: a.contributor,
                     meta: a.meta,
                     status: .streaming
                 ))
@@ -220,7 +220,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: a.invocationMessage,
                         toolInput: a.toolInput,
@@ -232,7 +232,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: a.invocationMessage,
                         toolInput: a.toolInput,
@@ -256,7 +256,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: pending.invocationMessage,
                         toolInput: a.editedToolInput ?? pending.toolInput,
@@ -269,7 +269,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: pending.invocationMessage,
                         toolInput: pending.toolInput,
@@ -310,7 +310,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: invocationMessage,
                         toolInput: toolInput,
@@ -328,7 +328,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: invocationMessage,
                         toolInput: toolInput,
@@ -354,7 +354,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: prc.invocationMessage,
                         toolInput: prc.toolInput,
@@ -372,7 +372,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: prc.invocationMessage,
                         toolInput: prc.toolInput,
@@ -468,6 +468,30 @@ public struct AHPSessionReducer: Reducer {
                     state.customizations = list
                     return
                 }
+            }
+
+        case .sessionMcpServerStatusChanged(let a):
+            guard var list = state.customizations else { return }
+            if let topIdx = list.firstIndex(where: { customizationId($0) == a.id }) {
+                guard case .mcpServer(var entry) = list[topIdx] else { return }
+                entry.state = a.state
+                entry.channel = a.channel
+                list[topIdx] = .mcpServer(entry)
+                state.customizations = list
+                return
+            }
+            for containerIdx in list.indices {
+                var container = list[containerIdx]
+                guard var children = customizationChildren(container) else { continue }
+                guard let childIdx = children.firstIndex(where: { childId($0) == a.id }) else { continue }
+                guard case .mcpServer(var child) = children[childIdx] else { continue }
+                child.state = a.state
+                child.channel = a.channel
+                children[childIdx] = .mcpServer(child)
+                setCustomizationChildren(&container, children)
+                list[containerIdx] = container
+                state.customizations = list
+                return
             }
 
         // ── Truncation ────────────────────────────────────────────────────────
@@ -642,7 +666,7 @@ public struct AHPSessionReducer: Reducer {
                         toolCallId: base.toolCallId,
                         toolName: base.toolName,
                         displayName: base.displayName,
-                        toolClientId: base.toolClientId,
+                        contributor: base.contributor,
                         meta: base.meta,
                         invocationMessage: invocationMessage,
                         toolInput: toolInput,
@@ -796,6 +820,7 @@ func customizationId(_ c: Customization) -> String {
     switch c {
     case .plugin(let p): return p.id
     case .directory(let d): return d.id
+    case .mcpServer(let m): return m.id
     }
 }
 
@@ -814,6 +839,7 @@ func customizationChildren(_ c: Customization) -> [ChildCustomization]? {
     switch c {
     case .plugin(let p): return p.children
     case .directory(let d): return d.children
+    case .mcpServer: return nil
     }
 }
 
@@ -825,6 +851,8 @@ func setCustomizationChildren(_ c: inout Customization, _ children: [ChildCustom
     case .directory(var d):
         d.children = children
         c = .directory(d)
+    case .mcpServer:
+        break
     }
 }
 
@@ -836,6 +864,9 @@ func setCustomizationEnabled(_ c: inout Customization, _ enabled: Bool) {
     case .directory(var d):
         d.enabled = enabled
         c = .directory(d)
+    case .mcpServer(var m):
+        m.enabled = enabled
+        c = .mcpServer(m)
     }
 }
 

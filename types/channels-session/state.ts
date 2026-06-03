@@ -1656,9 +1656,9 @@ export interface McpServerCustomization extends CustomizationBase {
    */
   enabled: boolean;
   /**
-   * Current status of the MCP server.
+   * Current lifecycle state of the MCP server.
    */
-  runtimeStatus: McpServerStatus;
+  state: McpServerState;
   /**
    * An `mcp://`-protocol channel the client uses to side-channel traffic
    * into the upstream MCP server itself. The channel is NOT a fresh raw MCP
@@ -1673,7 +1673,7 @@ export interface McpServerCustomization extends CustomizationBase {
    * The channel URI SHOULD be stable across the server's lifetime, but
    * the agent host MAY change it (for example across a restart) and
    * MAY only expose it while the server is in
-   * {@link McpServerStatusKind.Ready | `Ready`}. Absence means no
+   * {@link McpServerStatus.Ready | `Ready`}. Absence means no
    * side-channel is currently available.
    */
   channel?: URI;
@@ -1795,11 +1795,11 @@ export type Customization =
 // ─── MCP Server State ────────────────────────────────────────────────────────
 
 /**
- * Discriminant for the {@link McpServerStatus} union.
+ * Discriminant for the {@link McpServerState} union.
  *
  * @category MCP Server State
  */
-export const enum McpServerStatusKind {
+export const enum McpServerStatus {
   /** Server has been registered but is not yet running. */
   Starting = 'starting',
   /** Server is running and serving requests. */
@@ -1819,7 +1819,7 @@ export const enum McpServerStatusKind {
 }
 
 /**
- * Why an MCP server is currently in the {@link McpServerStatusKind.AuthRequired}
+ * Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
  * state. Mirrors the three failure modes defined by the
  * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
  *
@@ -1839,7 +1839,7 @@ export const enum McpAuthRequiredReason {
    * before any tool work is in flight — `InsufficientScope` is almost
    * always triggered by an MCP request issued mid-turn (a `tools/call`,
    * `resources/read`, etc.). The host SHOULD pair the
-   * {@link McpServerStatusAuthRequired} transition with
+   * {@link McpServerAuthRequiredState} transition with
    * {@link SessionStatus.InputNeeded} on
    * {@link SessionSummary.status | the session} so the activity becomes
    * visible at the session-summary level, and clients SHOULD watch for
@@ -1856,8 +1856,8 @@ export const enum McpAuthRequiredReason {
  *
  * @category MCP Server State
  */
-export interface McpServerStatusStarting {
-  kind: McpServerStatusKind.Starting;
+export interface McpServerStartingState {
+  kind: McpServerStatus.Starting;
 }
 
 /**
@@ -1865,8 +1865,8 @@ export interface McpServerStatusStarting {
  *
  * @category MCP Server State
  */
-export interface McpServerStatusReady {
-  kind: McpServerStatusKind.Ready;
+export interface McpServerReadyState {
+  kind: McpServerStatus.Ready;
 }
 
 /**
@@ -1894,8 +1894,8 @@ export interface McpServerStatusReady {
  *
  * @category MCP Server State
  */
-export interface McpServerStatusAuthRequired {
-  kind: McpServerStatusKind.AuthRequired;
+export interface McpServerAuthRequiredState {
+  kind: McpServerStatus.AuthRequired;
   /** Why authentication is required. */
   reason: McpAuthRequiredReason;
   /**
@@ -1919,13 +1919,13 @@ export interface McpServerStatusAuthRequired {
 
 /**
  * Server failed to start, crashed, or otherwise transitioned to a
- * non-recoverable error. Use {@link McpServerStatusKind.AuthRequired}
+ * non-recoverable error. Use {@link McpServerStatus.AuthRequired}
  * for authentication failures.
  *
  * @category MCP Server State
  */
-export interface McpServerStatusError {
-  kind: McpServerStatusKind.Error;
+export interface McpServerErrorState {
+  kind: McpServerStatus.Error;
   /** Error details. */
   error: ErrorInfo;
 }
@@ -1936,18 +1936,19 @@ export interface McpServerStatusError {
  *
  * @category MCP Server State
  */
-export interface McpServerStatusStopped {
-  kind: McpServerStatusKind.Stopped;
+export interface McpServerStoppedState {
+  kind: McpServerStatus.Stopped;
 }
 
 /**
- * Discriminated union of all MCP server statuses. Discriminated by `kind`.
+ * Discriminated union of all MCP server lifecycle states.
+ * Discriminated by `kind` (a {@link McpServerStatus} value).
  *
  * @category MCP Server State
  */
-export type McpServerStatus =
-  | McpServerStatusStarting
-  | McpServerStatusReady
-  | McpServerStatusAuthRequired
-  | McpServerStatusError
-  | McpServerStatusStopped;
+export type McpServerState =
+  | McpServerStartingState
+  | McpServerReadyState
+  | McpServerAuthRequiredState
+  | McpServerErrorState
+  | McpServerStoppedState;

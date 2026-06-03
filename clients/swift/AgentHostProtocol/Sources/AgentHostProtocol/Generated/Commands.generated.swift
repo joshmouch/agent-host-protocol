@@ -77,19 +77,27 @@ public struct InitializeParams: Codable, Sendable {
     /// (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
     /// user-facing strings such as confirmation option labels.
     public var locale: String?
+    /// Optional client capability declarations.
+    /// 
+    /// Servers SHOULD only advertise features whose corresponding client
+    /// capability is set here. Absent means "not declared" — the server
+    /// MUST assume the client does not support the feature.
+    public var capabilities: ClientCapabilities?
 
     public init(
         channel: String,
         protocolVersions: [String],
         clientId: String,
         initialSubscriptions: [String]? = nil,
-        locale: String? = nil
+        locale: String? = nil,
+        capabilities: ClientCapabilities? = nil
     ) {
         self.channel = channel
         self.protocolVersions = protocolVersions
         self.clientId = clientId
         self.initialSubscriptions = initialSubscriptions
         self.locale = locale
+        self.capabilities = capabilities
     }
 }
 
@@ -130,6 +138,27 @@ public struct InitializeResult: Codable, Sendable {
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters
         self.telemetry = telemetry
+    }
+}
+
+public struct ClientCapabilities: Codable, Sendable {
+    /// Client can render
+    /// [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+    /// it can host the View sandbox, run the `ui/*` protocol against it,
+    /// and forward `mcp://`-channel traffic on the App's behalf.
+    /// 
+    /// Hosts SHOULD only populate
+    /// {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+    /// (and expose the corresponding
+    /// {@link McpServerCustomization.channel | `mcp://` channel}) when this
+    /// capability is declared. Clients that omit it MUST treat
+    /// App-bearing tool calls as ordinary MCP tool calls.
+    public var mcpApps: [String: AnyCodable]?
+
+    public init(
+        mcpApps: [String: AnyCodable]? = nil
+    ) {
+        self.mcpApps = mcpApps
     }
 }
 

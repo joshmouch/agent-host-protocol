@@ -114,10 +114,10 @@ SkillCustomization        { type: 'skill';       description?, disableModelInvoc
 PromptCustomization       { type: 'prompt';      description? }
 RuleCustomization         { type: 'rule';        description?, alwaysApply?, globs? }    // covers "instruction" formats too
 HookCustomization         { type: 'hook';        event?, matcher? }
-McpServerCustomization    { type: 'mcpServer';   enabled, runtimeStatus, channel?, mcpApp? }   // see /guide/mcp
+McpServerCustomization    { type: 'mcpServer';   enabled, state, channel?, mcpApp? }   // see /guide/mcp
 ```
 
-The protocol intentionally omits host-internal execution details (a hook's command/script, an MCP server's `command`/`args`/`env`, etc.). Those stay on the agent host; clients see only what's needed for display, search, and selection. MCP tools and their descriptions surface through the standard tool channels once the server is running. The MCP-specific runtime fields (`runtimeStatus`, `channel`, `mcpApp`) are covered in [MCP Servers](/guide/mcp).
+The protocol intentionally omits host-internal execution details (a hook's command/script, an MCP server's `command`/`args`/`env`, etc.). Those stay on the agent host; clients see only what's needed for display, search, and selection. MCP tools and their descriptions surface through the standard tool channels once the server is running. The MCP-specific runtime fields (`state`, `channel`, `mcpApp`) are covered in [MCP Servers](/guide/mcp).
 
 Consumers filter by `type` to find the children they care about — for example, the agent picker reads every `AgentCustomization` under any container:
 

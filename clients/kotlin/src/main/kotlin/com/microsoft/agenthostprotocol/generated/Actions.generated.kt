@@ -96,6 +96,8 @@ enum class ActionType {
     SESSION_CUSTOMIZATION_UPDATED,
     @SerialName("session/customizationRemoved")
     SESSION_CUSTOMIZATION_REMOVED,
+    @SerialName("session/mcpServerStateChanged")
+    SESSION_MCP_SERVER_STATE_CHANGED,
     @SerialName("session/truncated")
     SESSION_TRUNCATED,
     @SerialName("session/isReadChanged")
@@ -281,10 +283,10 @@ data class SessionToolCallStartAction(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
+     * Reference to the contributor of the tool being called. Absent for
+     * server-side tools that are not contributed by a client or MCP server.
      */
-    val toolClientId: String? = null
+    val contributor: ToolCallContributor? = null
 )
 
 @Serializable
@@ -734,6 +736,25 @@ data class SessionCustomizationRemovedAction(
 )
 
 @Serializable
+data class SessionMcpServerStateChangedAction(
+    val type: ActionType,
+    /**
+     * The id of the {@link McpServerCustomization} to update.
+     */
+    val id: String,
+    /**
+     * The new lifecycle state.
+     */
+    val state: McpServerState,
+    /**
+     * Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+     * an existing channel (typical when leaving
+     * {@link McpServerStatus.Ready | `Ready`}).
+     */
+    val channel: String? = null
+)
+
+@Serializable
 data class SessionTruncatedAction(
     val type: ActionType,
     /**
@@ -1034,6 +1055,7 @@ sealed interface StateAction
 @JvmInline value class StateActionSessionCustomizationToggled(val value: SessionCustomizationToggledAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationUpdated(val value: SessionCustomizationUpdatedAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationRemoved(val value: SessionCustomizationRemovedAction) : StateAction
+@JvmInline value class StateActionSessionMcpServerStateChanged(val value: SessionMcpServerStateChangedAction) : StateAction
 @JvmInline value class StateActionSessionTruncated(val value: SessionTruncatedAction) : StateAction
 @JvmInline value class StateActionSessionConfigChanged(val value: SessionConfigChangedAction) : StateAction
 @JvmInline value class StateActionSessionMetaChanged(val value: SessionMetaChangedAction) : StateAction
@@ -1110,6 +1132,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "session/customizationToggled" -> StateActionSessionCustomizationToggled(input.json.decodeFromJsonElement(SessionCustomizationToggledAction.serializer(), element))
             "session/customizationUpdated" -> StateActionSessionCustomizationUpdated(input.json.decodeFromJsonElement(SessionCustomizationUpdatedAction.serializer(), element))
             "session/customizationRemoved" -> StateActionSessionCustomizationRemoved(input.json.decodeFromJsonElement(SessionCustomizationRemovedAction.serializer(), element))
+            "session/mcpServerStateChanged" -> StateActionSessionMcpServerStateChanged(input.json.decodeFromJsonElement(SessionMcpServerStateChangedAction.serializer(), element))
             "session/truncated" -> StateActionSessionTruncated(input.json.decodeFromJsonElement(SessionTruncatedAction.serializer(), element))
             "session/configChanged" -> StateActionSessionConfigChanged(input.json.decodeFromJsonElement(SessionConfigChangedAction.serializer(), element))
             "session/metaChanged" -> StateActionSessionMetaChanged(input.json.decodeFromJsonElement(SessionMetaChangedAction.serializer(), element))
@@ -1179,6 +1202,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionSessionCustomizationToggled -> output.json.encodeToJsonElement(SessionCustomizationToggledAction.serializer(), value.value)
             is StateActionSessionCustomizationUpdated -> output.json.encodeToJsonElement(SessionCustomizationUpdatedAction.serializer(), value.value)
             is StateActionSessionCustomizationRemoved -> output.json.encodeToJsonElement(SessionCustomizationRemovedAction.serializer(), value.value)
+            is StateActionSessionMcpServerStateChanged -> output.json.encodeToJsonElement(SessionMcpServerStateChangedAction.serializer(), value.value)
             is StateActionSessionTruncated -> output.json.encodeToJsonElement(SessionTruncatedAction.serializer(), value.value)
             is StateActionSessionConfigChanged -> output.json.encodeToJsonElement(SessionConfigChangedAction.serializer(), value.value)
             is StateActionSessionMetaChanged -> output.json.encodeToJsonElement(SessionMetaChangedAction.serializer(), value.value)

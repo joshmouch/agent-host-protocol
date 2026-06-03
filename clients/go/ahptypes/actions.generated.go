@@ -54,6 +54,7 @@ const (
 	ActionTypeSessionCustomizationToggled       ActionType = "session/customizationToggled"
 	ActionTypeSessionCustomizationUpdated       ActionType = "session/customizationUpdated"
 	ActionTypeSessionCustomizationRemoved       ActionType = "session/customizationRemoved"
+	ActionTypeSessionMcpServerStateChanged      ActionType = "session/mcpServerStateChanged"
 	ActionTypeSessionTruncated                  ActionType = "session/truncated"
 	ActionTypeSessionIsReadChanged              ActionType = "session/isReadChanged"
 	ActionTypeSessionIsArchivedChanged          ActionType = "session/isArchivedChanged"
@@ -179,9 +180,11 @@ type SessionResponsePartAction struct {
 
 // A tool call begins — parameters are streaming from the LM.
 //
-// For client-provided tools, the server sets `toolClientId` to identify the
-// owning client. That client is responsible for executing the tool once it
-// reaches the `running` state and dispatching `session/toolCallComplete`.
+// The server sets {@link ToolCallContributor | `contributor`} to identify
+// the origin of the tool. For client-provided tools, the named client is
+// responsible for executing the tool once it reaches the `running` state
+// and dispatching `session/toolCallComplete`. For MCP-served tools, the
+// server executes the call against the named `McpServerCustomization`.
 type SessionToolCallStartAction struct {
 	// Turn identifier
 	TurnId string `json:"turnId"`
@@ -199,9 +202,9 @@ type SessionToolCallStartAction struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called. Absent for
+	// server-side tools that are not contributed by a client or MCP server.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 }
 
 // Streaming partial parameters for a tool call.
@@ -620,6 +623,38 @@ type SessionCustomizationRemovedAction struct {
 	Id string `json:"id"`
 }
 
+// Updates the runtime fields of an existing
+// {@link McpServerCustomization} — narrow alternative to
+// {@link SessionCustomizationUpdatedAction} for the high-frequency
+// `starting` ↔ `ready` ↔ `authRequired` transitions.
+//
+// Locates the target entry by `id`, searching both the top-level
+// customization list and the `children` array of every container.
+// Replaces the entry's {@link McpServerCustomization.state | `state`}
+// and {@link McpServerCustomization.channel | `channel`}
+// (full-replacement semantics: omit `channel` to clear an existing
+// channel URI). Other fields of the customization are preserved.
+//
+// Is a no-op when no matching `McpServerCustomization` is found. To
+// update any other field (name, icons, `mcpApp` capabilities, etc.) use
+// {@link SessionCustomizationUpdatedAction} instead.
+//
+// When the transition is to {@link McpServerStatus.AuthRequired}
+// because of a request issued mid-turn, the host SHOULD also raise
+// {@link SessionStatus.InputNeeded} on the session — see
+// {@link McpServerAuthRequiredState} for the rationale.
+type SessionMcpServerStateChangedAction struct {
+	Type ActionType `json:"type"`
+	// The id of the {@link McpServerCustomization} to update.
+	Id string `json:"id"`
+	// The new lifecycle state.
+	State McpServerState `json:"state"`
+	// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+	// an existing channel (typical when leaving
+	// {@link McpServerStatus.Ready | `Ready`}).
+	Channel *URI `json:"channel,omitempty"`
+}
+
 // Truncates a session's history. If `turnId` is provided, all turns after that
 // turn are removed and the specified turn is kept. If `turnId` is omitted, all
 // turns are removed.
@@ -934,6 +969,7 @@ func (*SessionCustomizationsChangedAction) isStateAction()      {}
 func (*SessionCustomizationToggledAction) isStateAction()       {}
 func (*SessionCustomizationUpdatedAction) isStateAction()       {}
 func (*SessionCustomizationRemovedAction) isStateAction()       {}
+func (*SessionMcpServerStateChangedAction) isStateAction()      {}
 func (*SessionTruncatedAction) isStateAction()                  {}
 func (*SessionConfigChangedAction) isStateAction()              {}
 func (*SessionMetaChangedAction) isStateAction()                {}
@@ -1201,6 +1237,12 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "session/customizationRemoved":
 		var value SessionCustomizationRemovedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "session/mcpServerStateChanged":
+		var value SessionMcpServerStateChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

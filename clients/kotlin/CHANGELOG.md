@@ -15,6 +15,32 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ## [Unreleased]
 
+### Added
+
+- `McpServerCustomization` now exposes the full MCP lifecycle: `enabled`,
+  the discriminated `McpServerState` sealed interface
+  (`Starting`/`Ready`/`AuthRequired`/`Error`/`Stopped`), optional
+  `channel` URI for the `mcp://` side-channel, and optional `mcpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `reason` / `requiredScopes` / `description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization.McpServer` top-level variant — hosts MAY surface bare
+  MCP servers directly rather than only inside a plugin or directory.
+- `SessionMcpServerStateChangedAction` — narrow upsert of
+  `state` + `channel` on an existing MCP server customization
+  by id.
+- `ClientCapabilities` data class on `InitializeParams.capabilities`
+  with first entry `mcpApps`.
+
+### Changed
+
+- `ToolCallBase.toolClientId: String?` replaced by
+  `ToolCallBase.contributor: ToolCallContributor?` (sealed interface
+  with `Client(clientId)` and `Mcp(customizationId)` variants).
+  `SessionToolCallStartAction` carries the new `contributor` field as
+  well.
+
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

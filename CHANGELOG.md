@@ -30,21 +30,21 @@ Spec version: `0.3.0`
 ### Added
 
 - `McpServerCustomization` now models MCP servers as first-class session
-  customizations: `enabled`, `runtimeStatus` (a discriminated
-  `McpServerStatus` union covering `starting`, `ready`, `authRequired`,
+  customizations: `enabled`, `state` (a discriminated
+  `McpServerState` union covering `starting`, `ready`, `authRequired`,
   `error`, `stopped`), an optional `channel` URI for an `mcp://`
   side-channel into the upstream server, and an optional `mcpApp` block
   carrying `AhpMcpUiHostCapabilities` so clients can render
   [MCP Apps](https://github.com/modelcontextprotocol/ext-apps).
-- `McpServerStatusAuthRequired` carries `ProtectedResourceMetadata` plus
+- `McpServerAuthRequiredState` carries `ProtectedResourceMetadata` plus
   `reason` / `requiredScopes` / `description`, letting clients drive the
   existing `authenticate` command for per-MCP-server auth challenges.
 - `Customization` now includes `McpServerCustomization` at the top level
   (hosts MAY surface globally-configured MCP servers directly rather
   than only inside a plugin or directory). MCP servers remain valid as
   children of a container.
-- New `session/mcpServerStatusChanged` action — narrow upsert of
-  `runtimeStatus` + `channel` on an existing `McpServerCustomization`
+- New `session/mcpServerStateChanged` action — narrow upsert of
+  `state` + `channel` on an existing `McpServerCustomization`
   by id, intended for the high-frequency
   `starting`/`ready`/`authRequired` transitions. Other customization
   fields stay in `session/customizationUpdated` territory.
