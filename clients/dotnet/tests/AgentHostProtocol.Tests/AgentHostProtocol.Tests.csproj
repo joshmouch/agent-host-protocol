@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/AgentHostProtocol/AgentHostProtocol.csproj" />
+    <ProjectReference Include="../../src/AgentHostProtocol.WebSockets/AgentHostProtocol.WebSockets.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.AgentHostProtocol.WebSockets</RootNamespace>
+    <AssemblyName>Microsoft.AgentHostProtocol.WebSockets</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Microsoft.AgentHostProtocol.WebSockets</PackageId>
+    <Description>
+      A ClientWebSocket-backed ITransport implementation for the Agent Host Protocol .NET client.
+      Uses only BCL WebSocket APIs (System.Net.WebSockets); no external NuGet dependencies.
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AgentHostProtocol.Abstractions/AgentHostProtocol.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

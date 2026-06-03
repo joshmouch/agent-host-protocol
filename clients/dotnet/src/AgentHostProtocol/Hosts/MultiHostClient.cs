@@ -1,0 +1,821 @@
+// Multi-host registry + reconnect supervisor.
+// Faithful port of clients/go/ahp/hosts/hosts.go + multi_host_state_mirror.go.
+#nullable enable
+
+using System;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Microsoft.AgentHostProtocol.Hosts;
+
+// ─── HostId ──────────────────────────────────────────────────────────────────
+
+/// <summary>Opaque, stable identifier for a host registered with <see cref="MultiHostClient"/>.</summary>
+public sealed class HostId : IEquatable<HostId>
+{
+    private readonly string _value;
+
+    /// <summary>Creates a host ID from a string. The empty string is invalid.</summary>
+    public HostId(string value)
+    {
+        if (string.IsNullOrEmpty(value)) throw new ArgumentException("HostId must not be empty.", nameof(value));
+        _value = value;
+    }
+
+    /// <inheritdoc />
+    public override string ToString() => _value;
+
+    /// <inheritdoc />
+    public bool Equals(HostId? other) => other is not null && _value == other._value;
+
+    /// <inheritdoc />
+    public override bool Equals(object? obj) => obj is HostId h && Equals(h);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => _value.GetHashCode(StringComparison.Ordinal);
+
+    /// <summary>Implicit conversion from string.</summary>
+    public static implicit operator HostId(string s) => new(s);
+}
+
+// ─── HostState ───────────────────────────────────────────────────────────────
+
+/// <summary>Lifecycle states a host can be in.</summary>
+public enum HostStateKind
+{
+    /// <summary>Added but no transport is open.</summary>
+    Disconnected,
+    /// <summary>Transport is being opened or <c>initialize</c> is in flight.</summary>
+    Connecting,
+    /// <summary>Fully connected and serving subscriptions.</summary>
+    Connected,
+    /// <summary>Previous connection dropped; supervisor is retrying.</summary>
+    Reconnecting,
+    /// <summary>Reconnect attempts exhausted (or disabled).</summary>
+    Failed,
+}
+
+/// <summary>Current lifecycle state of a host.</summary>
+public sealed class HostState
+{
+    /// <summary>The state kind.</summary>
+    public HostStateKind Kind { get; init; }
+
+    /// <summary>Consecutive reconnect attempt counter.</summary>
+    public uint Attempt { get; init; }
+
+    /// <summary>The error that put the host into its current state, if any.</summary>
+    public Exception? Err { get; init; }
+
+    /// <inheritdoc />
+    public override string ToString() => Kind switch
+    {
+        HostStateKind.Disconnected => "disconnected",
+        HostStateKind.Connecting => "connecting",
+        HostStateKind.Connected => "connected",
+        HostStateKind.Reconnecting => "reconnecting",
+        HostStateKind.Failed => "failed",
+        _ => "unknown",
+    };
+}
+
+// ─── ReconnectPolicy ─────────────────────────────────────────────────────────
+
+/// <summary>Controls reconnect behaviour after an unexpected transport drop.</summary>
+public sealed class ReconnectPolicy
+{
+    /// <summary>
+    /// Caps consecutive retry attempts. Zero means unlimited.
+    /// </summary>
+    public uint MaxAttempts { get; init; }
+
+    /// <summary>Wait before the first retry.</summary>
+    public TimeSpan InitialBackoff { get; init; }
+
+    /// <summary>Caps the exponential backoff.</summary>
+    public TimeSpan MaxBackoff { get; init; }
+
+    /// <summary>Scales each successive backoff. Use 2.0 for exponential.</summary>
+    public double BackoffMultiplier { get; init; } = 2.0;
+
+    /// <summary>If true, resets the attempt counter after a successful reconnect.</summary>
+    public bool ResetOnSuccess { get; init; }
+
+    /// <summary>Whether reconnection is effectively disabled (zero initial backoff).</summary>
+    public bool IsDisabled => InitialBackoff <= TimeSpan.Zero;
+
+    /// <summary>
+    /// Returns a policy with 1 s → 2 s → 4 s → … capped at 30 s, unlimited, reset on success.
+    /// </summary>
+    public static ReconnectPolicy Default { get; } = new()
+    {
+        InitialBackoff = TimeSpan.FromSeconds(1),
+        MaxBackoff = TimeSpan.FromSeconds(30),
+        BackoffMultiplier = 2.0,
+        ResetOnSuccess = true,
+    };
+
+    /// <summary>Returns a policy that disables reconnection.</summary>
+    public static ReconnectPolicy Disabled { get; } = new()
+    {
+        MaxAttempts = 0,
+        InitialBackoff = TimeSpan.Zero,
+    };
+
+    /// <summary>Computes the wait before attempt number <paramref name="attempt"/> (1-based).</summary>
+    internal TimeSpan BackoffFor(uint attempt)
+    {
+        if (IsDisabled) return TimeSpan.Zero;
+        var b = (double)InitialBackoff.Ticks;
+        var mult = BackoffMultiplier <= 0 ? 1.0 : BackoffMultiplier;
+        for (uint i = 1; i < attempt; i++) b *= mult;
+        var result = TimeSpan.FromTicks((long)b);
+        if (MaxBackoff > TimeSpan.Zero && result > MaxBackoff) result = MaxBackoff;
+        return result;
+    }
+}
+
+// ─── HostConfig ──────────────────────────────────────────────────────────────
+
+/// <summary>Factory delegate that opens a fresh transport for a given host.</summary>
+public delegate Task<ITransport> HostTransportFactory(HostId hostId, CancellationToken cancellationToken);
+
+/// <summary>Everything <see cref="MultiHostClient.AddHostAsync"/> needs to supervise a single host.</summary>
+public sealed class HostConfig
+{
+    /// <summary>Stable host identifier. Required.</summary>
+    public HostId Id { get; init; } = new("host");
+
+    /// <summary>Human-readable name surfaced on <see cref="HostHandle.Label"/>.</summary>
+    public string Label { get; init; } = "";
+
+    /// <summary>Stable AHP client ID. Leave empty to auto-generate and persist.</summary>
+    public string? ClientId { get; init; }
+
+    /// <summary>URIs to subscribe to on <c>initialize</c>. Defaults to <c>["ahp-root://"]</c>.</summary>
+    public IReadOnlyList<string>? InitialSubscriptions { get; init; }
+
+    /// <summary>Tunes the underlying <see cref="AhpClient"/> driver.</summary>
+    public ClientConfig? ClientConfig { get; init; }
+
+    /// <summary>Opens a transport for this host. Required.</summary>
+    public HostTransportFactory? TransportFactory { get; init; }
+
+    /// <summary>Controls reconnect behaviour on drops. Defaults to <see cref="ReconnectPolicy.Default"/>.</summary>
+    public ReconnectPolicy? ReconnectPolicy { get; init; }
+
+    /// <summary>Protocol versions advertised on <c>initialize</c>. Defaults to <see cref="ProtocolVersion.Supported"/>.</summary>
+    public IReadOnlyList<string>? ProtocolVersions { get; init; }
+}
+
+// ─── HostHandle ──────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Immutable snapshot of a registered host's observable state. Obtain a fresh
+/// copy via <see cref="MultiHostClient.Host(HostId)"/> to see updates.
+/// </summary>
+public sealed class HostHandle
+{
+    /// <summary>The host's stable identifier.</summary>
+    public HostId Id { get; init; } = new("host");
+
+    /// <summary>Human-readable label.</summary>
+    public string Label { get; init; } = "";
+
+    /// <summary>The stable AHP client ID sent on <c>initialize</c>.</summary>
+    public string ClientId { get; init; } = "";
+
+    /// <summary>Current lifecycle state.</summary>
+    public HostState State { get; init; } = new() { Kind = HostStateKind.Disconnected };
+
+    /// <summary>Protocol version negotiated on the last successful <c>initialize</c>.</summary>
+    public string ProtocolVersion { get; init; } = "";
+
+    /// <summary>Snapshot time.</summary>
+    public DateTimeOffset UpdatedAt { get; init; }
+}
+
+// ─── IClientIdStore ──────────────────────────────────────────────────────────
+
+/// <summary>Persists the stable <c>clientId</c> used in AHP's reconnect flow.</summary>
+public interface IClientIdStore
+{
+    /// <summary>Returns the stored client ID for <paramref name="host"/>, or null if absent.</summary>
+    Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default);
+
+    /// <summary>Persists <paramref name="clientId"/> for <paramref name="host"/>.</summary>
+    Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Thread-safe in-memory <see cref="IClientIdStore"/>. Suitable for tests and short-lived processes.</summary>
+public sealed class InMemoryClientIdStore : IClientIdStore
+{
+    private readonly Dictionary<string, string> _data = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _mu = new(1, 1);
+
+    /// <inheritdoc />
+    public async Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
+    {
+        await _mu.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return _data.TryGetValue(host.ToString(), out var v) ? v : null; }
+        finally { _mu.Release(); }
+    }
+
+    /// <inheritdoc />
+    public async Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default)
+    {
+        await _mu.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { _data[host.ToString()] = clientId; }
+        finally { _mu.Release(); }
+    }
+}
+
+// ─── Events ──────────────────────────────────────────────────────────────────
+
+/// <summary>A connection-level event for a registered host.</summary>
+public sealed class HostEvent
+{
+    /// <summary>Which host the state change belongs to.</summary>
+    public HostId HostId { get; }
+
+    /// <summary>The new state.</summary>
+    public HostState State { get; }
+
+    /// <summary>Creates a host event.</summary>
+    public HostEvent(HostId hostId, HostState state) { HostId = hostId; State = state; }
+}
+
+/// <summary>An <see cref="AhpClient"/> subscription event tagged with host + URI.</summary>
+public sealed class HostSubscriptionEvent
+{
+    /// <summary>Which host emitted this event.</summary>
+    public HostId HostId { get; }
+
+    /// <summary>The channel URI the event belongs to.</summary>
+    public string Channel { get; }
+
+    /// <summary>The underlying subscription event.</summary>
+    public SubscriptionEvent Event { get; }
+
+    /// <summary>Creates a host subscription event.</summary>
+    public HostSubscriptionEvent(HostId hostId, string channel, SubscriptionEvent @event)
+    {
+        HostId = hostId; Channel = channel; Event = @event;
+    }
+}
+
+// ─── Internal per-host bookkeeping ───────────────────────────────────────────
+
+internal sealed class HostEntry
+{
+    public HostId Id { get; }
+    public HostConfig Config { get; }
+    public string ClientId { get; set; }
+
+    private readonly SemaphoreSlim _mu = new(1, 1);
+    private AhpClient? _client;
+    private HostState _state = new() { Kind = HostStateKind.Disconnected };
+    private string _protoVer = "";
+    private ulong _generation;
+    private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
+
+    public CancellationTokenSource LifetimeCts { get; } = new();
+    public Task SupervisorTask { get; set; } = Task.CompletedTask;
+
+    public HostEntry(HostId id, HostConfig config, string clientId)
+    {
+        Id = id; Config = config; ClientId = clientId;
+    }
+
+    public async Task<(AhpClient? client, HostState state, string protoVer, ulong gen)> ReadAsync()
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { return (_client, _state, _protoVer, _generation); }
+        finally { _mu.Release(); }
+    }
+
+    public async Task SetClientAsync(AhpClient? client, string protoVer)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _client = client; _protoVer = protoVer; if (client is not null) _generation++; }
+        finally { _mu.Release(); }
+    }
+
+    public async Task SetStateAsync(HostState state)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
+        finally { _mu.Release(); }
+    }
+
+    public async Task<HostHandle> SnapshotAsync()
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return new HostHandle
+            {
+                Id = Id,
+                Label = Config.Label,
+                ClientId = ClientId,
+                State = _state,
+                ProtocolVersion = _protoVer,
+                UpdatedAt = _updatedAt,
+            };
+        }
+        finally { _mu.Release(); }
+    }
+}
+
+// ─── MultiHostClient ─────────────────────────────────────────────────────────
+
+/// <summary>
+/// Multi-host registry + reconnect supervisor. Manages N independent AHP hosts,
+/// fans in their inbound events, and supervises reconnects per-host policy.
+/// </summary>
+public sealed class MultiHostClient : IAsyncDisposable
+{
+    private readonly Dictionary<string, HostEntry> _hosts = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _hostsMu = new(1, 1);
+    private IClientIdStore _store;
+
+    private readonly List<System.Threading.Channels.Channel<HostEvent>> _eventChannels = new();
+    private readonly object _eventsLock = new();
+
+    private readonly List<System.Threading.Channels.Channel<HostSubscriptionEvent>> _subChannels = new();
+    private readonly object _subsLock = new();
+
+    private readonly CancellationTokenSource _rootCts = new();
+
+    // ── Construction ──────────────────────────────────────────────────────
+
+    /// <summary>Creates a multi-host registry backed by an <see cref="InMemoryClientIdStore"/>.</summary>
+    public MultiHostClient() : this(new InMemoryClientIdStore()) { }
+
+    /// <summary>Creates a multi-host registry backed by the given store.</summary>
+    public MultiHostClient(IClientIdStore store) => _store = store;
+
+    /// <summary>Swaps the <see cref="IClientIdStore"/>. Call before any <see cref="AddHostAsync"/>.</summary>
+    public MultiHostClient WithClientIdStore(IClientIdStore store)
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        return this;
+    }
+
+    // ── Single-host convenience ───────────────────────────────────────────
+
+    /// <summary>
+    /// One-line constructor for the common "I just want one host" case.
+    /// Returns the client and the initial host handle.
+    /// </summary>
+    public static async Task<(MultiHostClient Client, HostHandle Handle)> SingleAsync(
+        HostConfig config,
+        CancellationToken cancellationToken = default)
+    {
+        var m = new MultiHostClient();
+        try
+        {
+            var handle = await m.AddHostAsync(config, cancellationToken).ConfigureAwait(false);
+            return (m, handle);
+        }
+        catch
+        {
+            await m.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    // ── Host management ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registers <paramref name="config"/>, opens its initial transport, runs the
+    /// <c>initialize</c> handshake, and starts the reconnect supervisor. Returns a
+    /// fresh <see cref="HostHandle"/> snapshot.
+    /// </summary>
+    public async Task<HostHandle> AddHostAsync(
+        HostConfig config,
+        CancellationToken cancellationToken = default)
+    {
+        if (config.Id is null) throw new ArgumentException("HostConfig.Id is required.");
+        if (config.TransportFactory is null)
+            throw new ArgumentException($"HostConfig.TransportFactory is required for {config.Id}.");
+
+        var policy = config.ReconnectPolicy ?? ReconnectPolicy.Default;
+        var initialSubs = config.InitialSubscriptions is { Count: > 0 }
+            ? config.InitialSubscriptions
+            : new[] { ProtocolVersion.RootResourceUri };
+        var protoVersions = config.ProtocolVersions is { Count: > 0 }
+            ? config.ProtocolVersions
+            : ProtocolVersion.Supported;
+
+        // Resolve or mint a clientId.
+        var clientId = config.ClientId;
+        if (string.IsNullOrEmpty(clientId))
+        {
+            clientId = await _store.LoadAsync(config.Id, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrEmpty(clientId))
+                clientId = GenerateClientId();
+        }
+        await _store.StoreAsync(config.Id, clientId, cancellationToken).ConfigureAwait(false);
+
+        var normalizedConfig = new HostConfig
+        {
+            Id = config.Id,
+            Label = config.Label,
+            ClientId = clientId,
+            InitialSubscriptions = initialSubs,
+            ClientConfig = config.ClientConfig,
+            TransportFactory = config.TransportFactory,
+            ReconnectPolicy = policy,
+            ProtocolVersions = protoVersions,
+        };
+
+        var entry = new HostEntry(config.Id, normalizedConfig, clientId);
+
+        await _hostsMu.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (_hosts.ContainsKey(config.Id.ToString()))
+                throw new InvalidOperationException($"hosts: host id already registered: {config.Id}");
+            _hosts[config.Id.ToString()] = entry;
+        }
+        finally { _hostsMu.Release(); }
+
+        // Initial connect; on failure remove the host and propagate.
+        try
+        {
+            await OpenHostAsync(entry, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Failed, Err = ex }).ConfigureAwait(false);
+            await _hostsMu.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try { _hosts.Remove(entry.Id.ToString()); }
+            finally { _hostsMu.Release(); }
+            throw;
+        }
+
+        // Start supervisor.
+        entry.SupervisorTask = Task.Run(() => SuperviseAsync(entry));
+
+        return await entry.SnapshotAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Returns a fresh snapshot of the host with <paramref name="id"/>, or null if not registered.</summary>
+    public async Task<HostHandle?> Host(HostId id)
+    {
+        await _hostsMu.WaitAsync().ConfigureAwait(false);
+        HostEntry? entry;
+        try { _hosts.TryGetValue(id.ToString(), out entry); }
+        finally { _hostsMu.Release(); }
+        if (entry is null) return null;
+        return await entry.SnapshotAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Returns a fresh snapshot of every registered host.</summary>
+    public async Task<List<HostHandle>> Hosts()
+    {
+        List<HostEntry> entries;
+        await _hostsMu.WaitAsync().ConfigureAwait(false);
+        try { entries = new List<HostEntry>(_hosts.Values); }
+        finally { _hostsMu.Release(); }
+
+        var result = new List<HostHandle>(entries.Count);
+        foreach (var e in entries) result.Add(await e.SnapshotAsync().ConfigureAwait(false));
+        return result;
+    }
+
+    /// <summary>Unregisters a host and tears down its supervisor and client.</summary>
+    public async Task RemoveHostAsync(HostId id, CancellationToken cancellationToken = default)
+    {
+        await _hostsMu.WaitAsync(cancellationToken).ConfigureAwait(false);
+        HostEntry? entry;
+        try
+        {
+            if (!_hosts.Remove(id.ToString(), out entry))
+                throw new InvalidOperationException($"hosts: unknown host id: {id}");
+        }
+        finally { _hostsMu.Release(); }
+
+        entry!.LifetimeCts.Cancel();
+        var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+        if (client is not null)
+        {
+            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+        }
+        try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
+    }
+
+    // ── Event channels ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns a channel that receives <see cref="HostEvent"/> state transitions.
+    /// Each call returns an independent channel; slow consumers drop events.
+    /// </summary>
+    public System.Threading.Channels.ChannelReader<HostEvent> Events()
+    {
+        var ch = System.Threading.Channels.Channel.CreateBounded<HostEvent>(
+            new System.Threading.Channels.BoundedChannelOptions(64)
+            { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
+        lock (_eventsLock) { _eventChannels.Add(ch); }
+        return ch.Reader;
+    }
+
+    /// <summary>
+    /// Returns a channel that receives every <see cref="HostSubscriptionEvent"/> from
+    /// every registered host.
+    /// </summary>
+    public System.Threading.Channels.ChannelReader<HostSubscriptionEvent> Subscriptions()
+    {
+        var ch = System.Threading.Channels.Channel.CreateBounded<HostSubscriptionEvent>(
+            new System.Threading.Channels.BoundedChannelOptions(256)
+            { FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest });
+        lock (_subsLock) { _subChannels.Add(ch); }
+        return ch.Reader;
+    }
+
+    // ── Shutdown ──────────────────────────────────────────────────────────
+
+    /// <summary>Tears down every host and releases registered event channels.</summary>
+    public async Task ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        _rootCts.Cancel();
+
+        List<HostEntry> entries;
+        await _hostsMu.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            entries = new List<HostEntry>(_hosts.Values);
+            _hosts.Clear();
+        }
+        finally { _hostsMu.Release(); }
+
+        foreach (var entry in entries)
+        {
+            entry.LifetimeCts.Cancel();
+            var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+            if (client is not null)
+            {
+                try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            }
+        }
+
+        // Wait for all supervisors.
+        foreach (var entry in entries)
+        {
+            try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        await ShutdownAsync().ConfigureAwait(false);
+    }
+
+    // ── Internal: openHost, supervisor, pumpEvents ────────────────────────
+
+    private async Task OpenHostAsync(HostEntry entry, CancellationToken cancellationToken)
+    {
+        await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connecting }).ConfigureAwait(false);
+
+        var transport = await entry.Config.TransportFactory!(entry.Id, cancellationToken).ConfigureAwait(false);
+        var client = await AhpClient.ConnectAsync(
+            transport,
+            entry.Config.ClientConfig,
+            null)
+            .ConfigureAwait(false);
+
+        InitializeResult result;
+        try
+        {
+            result = await client.InitializeAsync(
+                entry.ClientId,
+                entry.Config.ProtocolVersions,
+                entry.Config.InitialSubscriptions,
+                cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            throw;
+        }
+
+        await entry.SetClientAsync(client, result.ProtocolVersion).ConfigureAwait(false);
+        await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connected }).ConfigureAwait(false);
+
+        // Fan events out to subscribers.
+        _ = Task.Run(() => PumpEventsAsync(entry, client));
+    }
+
+    private async Task PumpEventsAsync(HostEntry entry, AhpClient client)
+    {
+        var stream = client.CreateEventStream();
+        try
+        {
+            await foreach (var ev in stream.Events.ReadAllAsync().ConfigureAwait(false))
+            {
+                var hostEv = new HostSubscriptionEvent(entry.Id, ev.Channel, ev.Event);
+                List<System.Threading.Channels.Channel<HostSubscriptionEvent>> channels;
+                lock (_subsLock) { channels = new List<System.Threading.Channels.Channel<HostSubscriptionEvent>>(_subChannels); }
+                foreach (var ch in channels) ch.Writer.TryWrite(hostEv);
+            }
+        }
+        finally
+        {
+            stream.Close();
+        }
+    }
+
+    private async Task SuperviseAsync(HostEntry entry)
+    {
+        var policy = entry.Config.ReconnectPolicy ?? ReconnectPolicy.Default;
+        var ct = entry.LifetimeCts.Token;
+
+        while (true)
+        {
+            var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+            if (client is null) return;
+
+            try { await client.Completion.WaitAsync(ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+
+            if (ct.IsCancellationRequested) return;
+            if (policy.IsDisabled)
+            {
+                await SetHostStateAsync(entry, new HostState
+                {
+                    Kind = HostStateKind.Failed,
+                    Err = new Exception("hosts: transport closed and reconnect disabled"),
+                }).ConfigureAwait(false);
+                return;
+            }
+
+            // Ensure old client is torn down.
+            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+
+            uint attempt = 1;
+            while (true)
+            {
+                await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt }).ConfigureAwait(false);
+                var delay = policy.BackoffFor(attempt);
+                try { await Task.Delay(delay, ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
+
+                try
+                {
+                    await OpenHostAsync(entry, ct).ConfigureAwait(false);
+                    if (policy.ResetOnSuccess) attempt = 0;
+                    break; // reconnected successfully
+                }
+                catch (OperationCanceledException) { return; }
+                catch { /* retry */ }
+
+                attempt++;
+                if (policy.MaxAttempts > 0 && attempt > policy.MaxAttempts)
+                {
+                    await SetHostStateAsync(entry, new HostState
+                    {
+                        Kind = HostStateKind.Failed,
+                        Err = new Exception($"hosts: exceeded {policy.MaxAttempts} reconnect attempts"),
+                    }).ConfigureAwait(false);
+                    return;
+                }
+            }
+        }
+    }
+
+    private async Task SetHostStateAsync(HostEntry entry, HostState state)
+    {
+        await entry.SetStateAsync(state).ConfigureAwait(false);
+
+        var ev = new HostEvent(entry.Id, state);
+        List<System.Threading.Channels.Channel<HostEvent>> channels;
+        lock (_eventsLock) { channels = new List<System.Threading.Channels.Channel<HostEvent>>(_eventChannels); }
+        foreach (var ch in channels) ch.Writer.TryWrite(ev);
+    }
+
+    private static string GenerateClientId()
+    {
+        var bytes = RandomNumberGenerator.GetBytes(16);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+}
+
+// ─── MultiHostStateMirror ─────────────────────────────────────────────────────
+
+/// <summary>
+/// Thread-safe map of (hostId, URI) → state snapshot. Port of
+/// <c>multi_host_state_mirror.go</c>. Writes snapshots in; reads them back;
+/// drops them when the host or resource disappears.
+/// </summary>
+public sealed class MultiHostStateMirror
+{
+    private readonly SemaphoreSlim _mu = new(1, 1);
+    private readonly Dictionary<string, RootState> _roots = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string hostId, string uri), SessionState> _sessions = new();
+    private readonly Dictionary<(string hostId, string uri), TerminalState> _terminals = new();
+    private readonly Dictionary<(string hostId, string uri), ChangesetState> _changesets = new();
+
+    /// <summary>Stores <paramref name="root"/> for <paramref name="hostId"/>.</summary>
+    public async Task PutRootAsync(string hostId, RootState root)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _roots[hostId] = root; }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Returns the root snapshot for <paramref name="hostId"/>, or (default, false) if absent.</summary>
+    public async Task<(RootState? Value, bool Found)> RootAsync(string hostId)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { return _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false); }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Stores a session snapshot under (hostId, uri).</summary>
+    public async Task PutSessionAsync(string hostId, string uri, SessionState state)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _sessions[(hostId, uri)] = state; }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Returns the session snapshot at (hostId, uri), or (default, false) if absent.</summary>
+    public async Task<(SessionState? Value, bool Found)> SessionAsync(string hostId, string uri)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { return _sessions.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Stores a terminal snapshot under (hostId, uri).</summary>
+    public async Task PutTerminalAsync(string hostId, string uri, TerminalState state)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _terminals[(hostId, uri)] = state; }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Returns the terminal snapshot at (hostId, uri), or (default, false) if absent.</summary>
+    public async Task<(TerminalState? Value, bool Found)> TerminalAsync(string hostId, string uri)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { return _terminals.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Stores a changeset snapshot under (hostId, uri).</summary>
+    public async Task PutChangesetAsync(string hostId, string uri, ChangesetState state)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { _changesets[(hostId, uri)] = state; }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Returns the changeset snapshot at (hostId, uri), or (default, false) if absent.</summary>
+    public async Task<(ChangesetState? Value, bool Found)> ChangesetAsync(string hostId, string uri)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try { return _changesets.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Removes every snapshot belonging to <paramref name="hostId"/>.</summary>
+    public async Task DropHostAsync(string hostId)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            _roots.Remove(hostId);
+            var toRemove = new List<(string, string)>();
+            foreach (var k in _sessions.Keys) if (k.hostId == hostId) toRemove.Add(k);
+            foreach (var k in toRemove) _sessions.Remove(k);
+            toRemove.Clear();
+            foreach (var k in _terminals.Keys) if (k.hostId == hostId) toRemove.Add(k);
+            foreach (var k in toRemove) _terminals.Remove(k);
+            toRemove.Clear();
+            foreach (var k in _changesets.Keys) if (k.hostId == hostId) toRemove.Add(k);
+            foreach (var k in toRemove) _changesets.Remove(k);
+        }
+        finally { _mu.Release(); }
+    }
+
+    /// <summary>Removes the snapshot at (hostId, uri) across every resource kind.</summary>
+    public async Task DropResourceAsync(string hostId, string uri)
+    {
+        await _mu.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            _sessions.Remove((hostId, uri));
+            _terminals.Remove((hostId, uri));
+            _changesets.Remove((hostId, uri));
+        }
+        finally { _mu.Release(); }
+    }
+}
