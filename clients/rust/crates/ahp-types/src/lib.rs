@@ -68,6 +68,7 @@
 //!     client_id: "my-host/1.0".into(),
 //!     initial_subscriptions: Some(vec!["ahp-root://".into()]),
 //!     locale: Some("en".into()),
+//!     capabilities: None,
 //! };
 //!
 //! let req = JsonRpcMessage::Request(JsonRpcRequest {
