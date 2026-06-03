@@ -176,7 +176,7 @@ public sealed class HostConfig
 
 /// <summary>
 /// Immutable snapshot of a registered host's observable state. Obtain a fresh
-/// copy via <see cref="MultiHostClient.HostAsync(HostId)"/> to see updates.
+/// copy via <see cref="MultiHostClient.Host(HostId)"/> to see updates.
 /// </summary>
 public sealed class HostHandle
 {
@@ -215,22 +215,19 @@ public interface IClientIdStore
 public sealed class InMemoryClientIdStore : IClientIdStore
 {
     private readonly Dictionary<string, string> _data = new(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _mu = new(1, 1);
+    private readonly object _gate = new();
 
     /// <inheritdoc />
-    public async Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
+    public Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
     {
-        await _mu.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return _data.TryGetValue(host.ToString(), out var v) ? v : null; }
-        finally { _mu.Release(); }
+        lock (_gate) { return Task.FromResult(_data.TryGetValue(host.ToString(), out var v) ? v : null); }
     }
 
     /// <inheritdoc />
-    public async Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default)
+    public Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default)
     {
-        await _mu.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { _data[host.ToString()] = clientId; }
-        finally { _mu.Release(); }
+        lock (_gate) { _data[host.ToString()] = clientId; }
+        return Task.CompletedTask;
     }
 }
 
@@ -276,7 +273,7 @@ internal sealed class HostEntry
     public HostConfig Config { get; }
     public string ClientId { get; set; }
 
-    private readonly SemaphoreSlim _mu = new(1, 1);
+    private readonly object _gate = new();
     private AhpClient? _client;
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
@@ -294,31 +291,24 @@ internal sealed class HostEntry
         Id = id; Config = config; ClientId = clientId;
     }
 
-    public async Task<(AhpClient? client, HostState state, string protoVer, ulong gen)> ReadAsync()
+    public (AhpClient? client, HostState state, string protoVer, ulong gen) Read()
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { return (_client, _state, _protoVer, _generation); }
-        finally { _mu.Release(); }
+        lock (_gate) { return (_client, _state, _protoVer, _generation); }
     }
 
-    public async Task SetClientAsync(AhpClient? client, string protoVer)
+    public void SetClient(AhpClient? client, string protoVer)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _client = client; _protoVer = protoVer; if (client is not null) _generation++; }
-        finally { _mu.Release(); }
+        lock (_gate) { _client = client; _protoVer = protoVer; if (client is not null) _generation++; }
     }
 
-    public async Task SetStateAsync(HostState state)
+    public void SetState(HostState state)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
-        finally { _mu.Release(); }
+        lock (_gate) { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
     }
 
-    public async Task<HostHandle> SnapshotAsync()
+    public HostHandle Snapshot()
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try
+        lock (_gate)
         {
             return new HostHandle
             {
@@ -330,7 +320,6 @@ internal sealed class HostEntry
                 UpdatedAt = _updatedAt,
             };
         }
-        finally { _mu.Release(); }
     }
 }
 
@@ -343,7 +332,7 @@ internal sealed class HostEntry
 public sealed class MultiHostClient : IAsyncDisposable
 {
     private readonly Dictionary<string, HostEntry> _hosts = new(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _hostsMu = new(1, 1);
+    private readonly object _hostsGate = new();
     private volatile IClientIdStore _store;
 
     private readonly List<System.Threading.Channels.Channel<HostEvent>> _eventChannels = new();
@@ -439,14 +428,12 @@ public sealed class MultiHostClient : IAsyncDisposable
 
         var entry = new HostEntry(config.Id, normalizedConfig, clientId);
 
-        await _hostsMu.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        lock (_hostsGate)
         {
             if (_hosts.ContainsKey(config.Id.ToString()))
                 throw new InvalidOperationException($"hosts: host id already registered: {config.Id}");
             _hosts[config.Id.ToString()] = entry;
         }
-        finally { _hostsMu.Release(); }
 
         // Initial connect; on failure remove the host and propagate.
         try
@@ -455,57 +442,48 @@ public sealed class MultiHostClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Failed, Error = ex }).ConfigureAwait(false);
-            await _hostsMu.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-            try { _hosts.Remove(entry.Id.ToString()); }
-            finally { _hostsMu.Release(); }
+            SetHostState(entry, new HostState { Kind = HostStateKind.Failed, Error = ex });
+            lock (_hostsGate) { _hosts.Remove(entry.Id.ToString()); }
             throw;
         }
 
         // Start supervisor.
         entry.SupervisorTask = Task.Run(() => SuperviseAsync(entry));
 
-        return await entry.SnapshotAsync().ConfigureAwait(false);
+        return entry.Snapshot();
     }
 
     /// <summary>Returns a fresh snapshot of the host with <paramref name="id"/>, or null if not registered.</summary>
-    public async Task<HostHandle?> HostAsync(HostId id)
+    public HostHandle? Host(HostId id)
     {
-        await _hostsMu.WaitAsync().ConfigureAwait(false);
         HostEntry? entry;
-        try { _hosts.TryGetValue(id.ToString(), out entry); }
-        finally { _hostsMu.Release(); }
-        if (entry is null) return null;
-        return await entry.SnapshotAsync().ConfigureAwait(false);
+        lock (_hostsGate) { _hosts.TryGetValue(id.ToString(), out entry); }
+        return entry?.Snapshot();
     }
 
     /// <summary>Returns a fresh snapshot of every registered host.</summary>
-    public async Task<List<HostHandle>> HostsAsync()
+    public List<HostHandle> Hosts()
     {
         List<HostEntry> entries;
-        await _hostsMu.WaitAsync().ConfigureAwait(false);
-        try { entries = new List<HostEntry>(_hosts.Values); }
-        finally { _hostsMu.Release(); }
+        lock (_hostsGate) { entries = new List<HostEntry>(_hosts.Values); }
 
         var result = new List<HostHandle>(entries.Count);
-        foreach (var e in entries) result.Add(await e.SnapshotAsync().ConfigureAwait(false));
+        foreach (var e in entries) result.Add(e.Snapshot());
         return result;
     }
 
     /// <summary>Unregisters a host and tears down its supervisor and client.</summary>
     public async Task RemoveHostAsync(HostId id, CancellationToken cancellationToken = default)
     {
-        await _hostsMu.WaitAsync(cancellationToken).ConfigureAwait(false);
         HostEntry? entry;
-        try
+        lock (_hostsGate)
         {
             if (!_hosts.Remove(id.ToString(), out entry))
                 throw new InvalidOperationException($"hosts: unknown host id: {id}");
         }
-        finally { _hostsMu.Release(); }
 
         entry!.LifetimeCts.Cancel();
-        var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+        var (client, _, _, _) = entry.Read();
         if (client is not null)
         {
             try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
@@ -551,18 +529,16 @@ public sealed class MultiHostClient : IAsyncDisposable
         _rootCts.Cancel();
 
         List<HostEntry> entries;
-        await _hostsMu.WaitAsync(CancellationToken.None).ConfigureAwait(false);
-        try
+        lock (_hostsGate)
         {
             entries = new List<HostEntry>(_hosts.Values);
             _hosts.Clear();
         }
-        finally { _hostsMu.Release(); }
 
         foreach (var entry in entries)
         {
             entry.LifetimeCts.Cancel();
-            var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+            var (client, _, _, _) = entry.Read();
             if (client is not null)
             {
                 try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
@@ -600,7 +576,7 @@ public sealed class MultiHostClient : IAsyncDisposable
 
     private async Task OpenHostAsync(HostEntry entry, CancellationToken cancellationToken)
     {
-        await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connecting }).ConfigureAwait(false);
+        SetHostState(entry, new HostState { Kind = HostStateKind.Connecting });
 
         var transport = await entry.Config.TransportFactory!(entry.Id, cancellationToken).ConfigureAwait(false);
         var client = AhpClient.Connect(
@@ -624,8 +600,8 @@ public sealed class MultiHostClient : IAsyncDisposable
             throw;
         }
 
-        await entry.SetClientAsync(client, result.ProtocolVersion).ConfigureAwait(false);
-        await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connected }).ConfigureAwait(false);
+        entry.SetClient(client, result.ProtocolVersion);
+        SetHostState(entry, new HostState { Kind = HostStateKind.Connected });
 
         // Fan events out to subscribers.
         entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
@@ -651,11 +627,11 @@ public sealed class MultiHostClient : IAsyncDisposable
         catch (Exception ex)
         {
             // Unexpected pump failure — mark the host as failed.
-            await SetHostStateAsync(entry, new HostState
+            SetHostState(entry, new HostState
             {
                 Kind = HostStateKind.Failed,
                 Error = ex,
-            }).ConfigureAwait(false);
+            });
         }
         finally
         {
@@ -670,7 +646,7 @@ public sealed class MultiHostClient : IAsyncDisposable
 
         while (true)
         {
-            var (client, _, _, _) = await entry.ReadAsync().ConfigureAwait(false);
+            var (client, _, _, _) = entry.Read();
             if (client is null) return;
 
             try { await client.Completion.WaitAsync(ct).ConfigureAwait(false); }
@@ -679,11 +655,11 @@ public sealed class MultiHostClient : IAsyncDisposable
             if (ct.IsCancellationRequested) return;
             if (policy.IsDisabled)
             {
-                await SetHostStateAsync(entry, new HostState
+                SetHostState(entry, new HostState
                 {
                     Kind = HostStateKind.Failed,
                     Error = new Exception("hosts: transport closed and reconnect disabled"),
-                }).ConfigureAwait(false);
+                });
                 return;
             }
 
@@ -693,7 +669,7 @@ public sealed class MultiHostClient : IAsyncDisposable
             uint attempt = 1;
             while (true)
             {
-                await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt }).ConfigureAwait(false);
+                SetHostState(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt });
                 var delay = policy.BackoffFor(attempt);
                 try { await Task.Delay(delay, ct).ConfigureAwait(false); }
                 catch (OperationCanceledException) { return; }
@@ -710,20 +686,20 @@ public sealed class MultiHostClient : IAsyncDisposable
                 attempt++;
                 if (policy.MaxAttempts > 0 && attempt > policy.MaxAttempts)
                 {
-                    await SetHostStateAsync(entry, new HostState
+                    SetHostState(entry, new HostState
                     {
                         Kind = HostStateKind.Failed,
                         Error = new Exception($"hosts: exceeded {policy.MaxAttempts} reconnect attempts"),
-                    }).ConfigureAwait(false);
+                    });
                     return;
                 }
             }
         }
     }
 
-    private async Task SetHostStateAsync(HostEntry entry, HostState state)
+    private void SetHostState(HostEntry entry, HostState state)
     {
-        await entry.SetStateAsync(state).ConfigureAwait(false);
+        entry.SetState(state);
 
         var ev = new HostEvent(entry.Id, state);
         List<System.Threading.Channels.Channel<HostEvent>> channels;
@@ -747,81 +723,66 @@ public sealed class MultiHostClient : IAsyncDisposable
 /// </summary>
 public sealed class MultiHostStateMirror
 {
-    private readonly SemaphoreSlim _mu = new(1, 1);
+    // Pure in-memory map: every critical section is a short dictionary
+    // operation with no awaited work, so a plain monitor is the right tool.
+    private readonly object _gate = new();
     private readonly Dictionary<string, RootState> _roots = new(StringComparer.Ordinal);
     private readonly Dictionary<(string hostId, string uri), SessionState> _sessions = new();
     private readonly Dictionary<(string hostId, string uri), TerminalState> _terminals = new();
     private readonly Dictionary<(string hostId, string uri), ChangesetState> _changesets = new();
 
     /// <summary>Stores <paramref name="root"/> for <paramref name="hostId"/>.</summary>
-    public async Task PutRootAsync(string hostId, RootState root)
+    public void PutRoot(string hostId, RootState root)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _roots[hostId] = root; }
-        finally { _mu.Release(); }
+        lock (_gate) { _roots[hostId] = root; }
     }
 
     /// <summary>Returns the root snapshot for <paramref name="hostId"/>, or (default, false) if absent.</summary>
-    public async Task<(RootState? Value, bool Found)> RootAsync(string hostId)
+    public (RootState? Value, bool Found) Root(string hostId)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { return _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false); }
-        finally { _mu.Release(); }
+        lock (_gate) { return _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false); }
     }
 
     /// <summary>Stores a session snapshot under (hostId, uri).</summary>
-    public async Task PutSessionAsync(string hostId, string uri, SessionState state)
+    public void PutSession(string hostId, string uri, SessionState state)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _sessions[(hostId, uri)] = state; }
-        finally { _mu.Release(); }
+        lock (_gate) { _sessions[(hostId, uri)] = state; }
     }
 
     /// <summary>Returns the session snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public async Task<(SessionState? Value, bool Found)> SessionAsync(string hostId, string uri)
+    public (SessionState? Value, bool Found) Session(string hostId, string uri)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { return _sessions.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-        finally { _mu.Release(); }
+        lock (_gate) { return _sessions.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
     }
 
     /// <summary>Stores a terminal snapshot under (hostId, uri).</summary>
-    public async Task PutTerminalAsync(string hostId, string uri, TerminalState state)
+    public void PutTerminal(string hostId, string uri, TerminalState state)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _terminals[(hostId, uri)] = state; }
-        finally { _mu.Release(); }
+        lock (_gate) { _terminals[(hostId, uri)] = state; }
     }
 
     /// <summary>Returns the terminal snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public async Task<(TerminalState? Value, bool Found)> TerminalAsync(string hostId, string uri)
+    public (TerminalState? Value, bool Found) Terminal(string hostId, string uri)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { return _terminals.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-        finally { _mu.Release(); }
+        lock (_gate) { return _terminals.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
     }
 
     /// <summary>Stores a changeset snapshot under (hostId, uri).</summary>
-    public async Task PutChangesetAsync(string hostId, string uri, ChangesetState state)
+    public void PutChangeset(string hostId, string uri, ChangesetState state)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { _changesets[(hostId, uri)] = state; }
-        finally { _mu.Release(); }
+        lock (_gate) { _changesets[(hostId, uri)] = state; }
     }
 
     /// <summary>Returns the changeset snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public async Task<(ChangesetState? Value, bool Found)> ChangesetAsync(string hostId, string uri)
+    public (ChangesetState? Value, bool Found) Changeset(string hostId, string uri)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try { return _changesets.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-        finally { _mu.Release(); }
+        lock (_gate) { return _changesets.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
     }
 
     /// <summary>Removes every snapshot belonging to <paramref name="hostId"/>.</summary>
-    public async Task DropHostAsync(string hostId)
+    public void DropHost(string hostId)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try
+        lock (_gate)
         {
             _roots.Remove(hostId);
             var toRemove = new List<(string, string)>();
@@ -834,19 +795,16 @@ public sealed class MultiHostStateMirror
             foreach (var k in _changesets.Keys) if (k.hostId == hostId) toRemove.Add(k);
             foreach (var k in toRemove) _changesets.Remove(k);
         }
-        finally { _mu.Release(); }
     }
 
     /// <summary>Removes the snapshot at (hostId, uri) across every resource kind.</summary>
-    public async Task DropResourceAsync(string hostId, string uri)
+    public void DropResource(string hostId, string uri)
     {
-        await _mu.WaitAsync().ConfigureAwait(false);
-        try
+        lock (_gate)
         {
             _sessions.Remove((hostId, uri));
             _terminals.Remove((hostId, uri));
             _changesets.Remove((hostId, uri));
         }
-        finally { _mu.Release(); }
     }
 }
