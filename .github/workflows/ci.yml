@@ -246,3 +246,47 @@ jobs:
       - name: Test Go module
         run: go test ./...
 
+  dotnet:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/dotnet
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed C# sources are in sync with the TypeScript
+      # protocol definitions. `git status --porcelain` (like the Kotlin / Go
+      # jobs) so a newly-emitted file also fails the check.
+      - name: Verify generated .NET is up to date
+        working-directory: .
+        run: |
+          npm run generate:dotnet
+          if [ -n "$(git status --porcelain -- clients/dotnet)" ]; then
+            echo "::error::Generated .NET sources are out of date. Run 'npm run generate:dotnet' and commit the result."
+            git status --porcelain -- clients/dotnet
+            git --no-pager diff -- clients/dotnet
+            exit 1
+          fi
+
+      - name: Restore .NET solution
+        run: dotnet restore
+
+      - name: Build .NET solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test .NET solution
+        run: dotnet test --no-build --configuration Release
+

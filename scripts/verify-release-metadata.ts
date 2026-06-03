@@ -80,6 +80,15 @@ const GO_VERSION_FILE = path.join(
   'ahptypes',
   'version.generated.go',
 );
+const DOTNET_VERSION_FILE = path.join(
+  ROOT,
+  'clients',
+  'dotnet',
+  'src',
+  'AgentHostProtocol.Abstractions',
+  'Generated',
+  'Version.generated.cs',
+);
 const TS_REGISTRY_FILE = path.join(ROOT, 'types', 'version', 'registry.ts');
 
 interface Mismatch {
@@ -143,6 +152,19 @@ function swiftVersionConstants(source: string): { current: string; supported: st
   return { current: cur[1], supported };
 }
 
+/** Extracts the C# constants from Version.generated.cs. */
+function csharpVersionConstants(source: string): { current: string; supported: string[] } {
+  const cur = source.match(/public const string Current = "([^"]+)"/);
+  const sup = source.match(
+    /private static readonly string\[\] s_supported\s*=\s*\{([\s\S]*?)\}/,
+  );
+  if (!cur || !sup) {
+    throw new Error('csharpVersionConstants: failed to parse Version.generated.cs');
+  }
+  const supported = [...sup[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  return { current: cur[1], supported };
+}
+
 /** Extracts the Go constants from version.generated.go. */
 function goVersionConstants(source: string): { current: string; supported: string[] } {
   const cur = source.match(/const ProtocolVersion\s*=\s*"([^"]+)"/);
@@ -185,6 +207,7 @@ function main(): void {
     { lang: 'kotlin', file: KOTLIN_VERSION_FILE, parse: kotlinVersionConstants },
     { lang: 'swift', file: SWIFT_VERSION_FILE, parse: swiftVersionConstants },
     { lang: 'go', file: GO_VERSION_FILE, parse: goVersionConstants },
+    { lang: 'dotnet', file: DOTNET_VERSION_FILE, parse: csharpVersionConstants },
   ] as const;
   for (const { lang, file, parse } of generatedSources) {
     if (!fs.existsSync(file)) {
