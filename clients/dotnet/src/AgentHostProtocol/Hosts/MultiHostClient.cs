@@ -3,6 +3,7 @@
 #nullable enable
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
@@ -214,19 +215,16 @@ public interface IClientIdStore
 /// <summary>Thread-safe in-memory <see cref="IClientIdStore"/>. Suitable for tests and short-lived processes.</summary>
 public sealed class InMemoryClientIdStore : IClientIdStore
 {
-    private readonly Dictionary<string, string> _data = new(StringComparer.Ordinal);
-    private readonly object _gate = new();
+    private readonly ConcurrentDictionary<string, string> _data = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
-    public Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
-    {
-        lock (_gate) { return Task.FromResult(_data.TryGetValue(host.ToString(), out var v) ? v : null); }
-    }
+    public Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_data.TryGetValue(host.ToString(), out var v) ? v : null);
 
     /// <inheritdoc />
     public Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default)
     {
-        lock (_gate) { _data[host.ToString()] = clientId; }
+        _data[host.ToString()] = clientId;
         return Task.CompletedTask;
     }
 }
@@ -331,8 +329,7 @@ internal sealed class HostEntry
 /// </summary>
 public sealed class MultiHostClient : IAsyncDisposable
 {
-    private readonly Dictionary<string, HostEntry> _hosts = new(StringComparer.Ordinal);
-    private readonly object _hostsGate = new();
+    private readonly ConcurrentDictionary<string, HostEntry> _hosts = new(StringComparer.Ordinal);
     private volatile IClientIdStore _store;
 
     private readonly List<System.Threading.Channels.Channel<HostEvent>> _eventChannels = new();
@@ -428,12 +425,10 @@ public sealed class MultiHostClient : IAsyncDisposable
 
         var entry = new HostEntry(config.Id, normalizedConfig, clientId);
 
-        lock (_hostsGate)
-        {
-            if (_hosts.ContainsKey(config.Id.ToString()))
-                throw new InvalidOperationException($"hosts: host id already registered: {config.Id}");
-            _hosts[config.Id.ToString()] = entry;
-        }
+        // Atomic add-if-absent: TryAdd is the check-then-act done correctly,
+        // with no separate lock and no race window.
+        if (!_hosts.TryAdd(config.Id.ToString(), entry))
+            throw new InvalidOperationException($"hosts: host id already registered: {config.Id}");
 
         // Initial connect; on failure remove the host and propagate.
         try
@@ -443,7 +438,7 @@ public sealed class MultiHostClient : IAsyncDisposable
         catch (Exception ex)
         {
             SetHostState(entry, new HostState { Kind = HostStateKind.Failed, Error = ex });
-            lock (_hostsGate) { _hosts.Remove(entry.Id.ToString()); }
+            _hosts.TryRemove(entry.Id.ToString(), out _);
             throw;
         }
 
@@ -454,33 +449,24 @@ public sealed class MultiHostClient : IAsyncDisposable
     }
 
     /// <summary>Returns a fresh snapshot of the host with <paramref name="id"/>, or null if not registered.</summary>
-    public HostHandle? Host(HostId id)
-    {
-        HostEntry? entry;
-        lock (_hostsGate) { _hosts.TryGetValue(id.ToString(), out entry); }
-        return entry?.Snapshot();
-    }
+    public HostHandle? Host(HostId id) =>
+        _hosts.TryGetValue(id.ToString(), out var entry) ? entry.Snapshot() : null;
 
     /// <summary>Returns a fresh snapshot of every registered host.</summary>
     public List<HostHandle> Hosts()
     {
-        List<HostEntry> entries;
-        lock (_hostsGate) { entries = new List<HostEntry>(_hosts.Values); }
-
-        var result = new List<HostHandle>(entries.Count);
-        foreach (var e in entries) result.Add(e.Snapshot());
+        // ConcurrentDictionary.Values is a moment-in-time snapshot — safe to
+        // enumerate without external locking.
+        var result = new List<HostHandle>();
+        foreach (var e in _hosts.Values) result.Add(e.Snapshot());
         return result;
     }
 
     /// <summary>Unregisters a host and tears down its supervisor and client.</summary>
     public async Task RemoveHostAsync(HostId id, CancellationToken cancellationToken = default)
     {
-        HostEntry? entry;
-        lock (_hostsGate)
-        {
-            if (!_hosts.Remove(id.ToString(), out entry))
-                throw new InvalidOperationException($"hosts: unknown host id: {id}");
-        }
+        if (!_hosts.TryRemove(id.ToString(), out var entry))
+            throw new InvalidOperationException($"hosts: unknown host id: {id}");
 
         entry!.LifetimeCts.Cancel();
         var (client, _, _, _) = entry.Read();
@@ -528,12 +514,8 @@ public sealed class MultiHostClient : IAsyncDisposable
     {
         _rootCts.Cancel();
 
-        List<HostEntry> entries;
-        lock (_hostsGate)
-        {
-            entries = new List<HostEntry>(_hosts.Values);
-            _hosts.Clear();
-        }
+        var entries = new List<HostEntry>(_hosts.Values);
+        _hosts.Clear();
 
         foreach (var entry in entries)
         {
@@ -723,88 +705,55 @@ public sealed class MultiHostClient : IAsyncDisposable
 /// </summary>
 public sealed class MultiHostStateMirror
 {
-    // Pure in-memory map: every critical section is a short dictionary
-    // operation with no awaited work, so a plain monitor is the right tool.
-    private readonly object _gate = new();
-    private readonly Dictionary<string, RootState> _roots = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string hostId, string uri), SessionState> _sessions = new();
-    private readonly Dictionary<(string hostId, string uri), TerminalState> _terminals = new();
-    private readonly Dictionary<(string hostId, string uri), ChangesetState> _changesets = new();
+    // Independent per-key snapshots: ConcurrentDictionary gives lock-free
+    // reads and fine-grained writes, which is exactly this access pattern.
+    private readonly ConcurrentDictionary<string, RootState> _roots = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<(string hostId, string uri), SessionState> _sessions = new();
+    private readonly ConcurrentDictionary<(string hostId, string uri), TerminalState> _terminals = new();
+    private readonly ConcurrentDictionary<(string hostId, string uri), ChangesetState> _changesets = new();
 
     /// <summary>Stores <paramref name="root"/> for <paramref name="hostId"/>.</summary>
-    public void PutRoot(string hostId, RootState root)
-    {
-        lock (_gate) { _roots[hostId] = root; }
-    }
+    public void PutRoot(string hostId, RootState root) => _roots[hostId] = root;
 
     /// <summary>Returns the root snapshot for <paramref name="hostId"/>, or (default, false) if absent.</summary>
-    public (RootState? Value, bool Found) Root(string hostId)
-    {
-        lock (_gate) { return _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false); }
-    }
+    public (RootState? Value, bool Found) Root(string hostId) =>
+        _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a session snapshot under (hostId, uri).</summary>
-    public void PutSession(string hostId, string uri, SessionState state)
-    {
-        lock (_gate) { _sessions[(hostId, uri)] = state; }
-    }
+    public void PutSession(string hostId, string uri, SessionState state) => _sessions[(hostId, uri)] = state;
 
     /// <summary>Returns the session snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (SessionState? Value, bool Found) Session(string hostId, string uri)
-    {
-        lock (_gate) { return _sessions.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-    }
+    public (SessionState? Value, bool Found) Session(string hostId, string uri) =>
+        _sessions.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a terminal snapshot under (hostId, uri).</summary>
-    public void PutTerminal(string hostId, string uri, TerminalState state)
-    {
-        lock (_gate) { _terminals[(hostId, uri)] = state; }
-    }
+    public void PutTerminal(string hostId, string uri, TerminalState state) => _terminals[(hostId, uri)] = state;
 
     /// <summary>Returns the terminal snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (TerminalState? Value, bool Found) Terminal(string hostId, string uri)
-    {
-        lock (_gate) { return _terminals.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-    }
+    public (TerminalState? Value, bool Found) Terminal(string hostId, string uri) =>
+        _terminals.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a changeset snapshot under (hostId, uri).</summary>
-    public void PutChangeset(string hostId, string uri, ChangesetState state)
-    {
-        lock (_gate) { _changesets[(hostId, uri)] = state; }
-    }
+    public void PutChangeset(string hostId, string uri, ChangesetState state) => _changesets[(hostId, uri)] = state;
 
     /// <summary>Returns the changeset snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (ChangesetState? Value, bool Found) Changeset(string hostId, string uri)
-    {
-        lock (_gate) { return _changesets.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false); }
-    }
+    public (ChangesetState? Value, bool Found) Changeset(string hostId, string uri) =>
+        _changesets.TryGetValue((hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Removes every snapshot belonging to <paramref name="hostId"/>.</summary>
     public void DropHost(string hostId)
     {
-        lock (_gate)
-        {
-            _roots.Remove(hostId);
-            var toRemove = new List<(string, string)>();
-            foreach (var k in _sessions.Keys) if (k.hostId == hostId) toRemove.Add(k);
-            foreach (var k in toRemove) _sessions.Remove(k);
-            toRemove.Clear();
-            foreach (var k in _terminals.Keys) if (k.hostId == hostId) toRemove.Add(k);
-            foreach (var k in toRemove) _terminals.Remove(k);
-            toRemove.Clear();
-            foreach (var k in _changesets.Keys) if (k.hostId == hostId) toRemove.Add(k);
-            foreach (var k in toRemove) _changesets.Remove(k);
-        }
+        _roots.TryRemove(hostId, out _);
+        foreach (var k in _sessions.Keys) if (k.hostId == hostId) _sessions.TryRemove(k, out _);
+        foreach (var k in _terminals.Keys) if (k.hostId == hostId) _terminals.TryRemove(k, out _);
+        foreach (var k in _changesets.Keys) if (k.hostId == hostId) _changesets.TryRemove(k, out _);
     }
 
     /// <summary>Removes the snapshot at (hostId, uri) across every resource kind.</summary>
     public void DropResource(string hostId, string uri)
     {
-        lock (_gate)
-        {
-            _sessions.Remove((hostId, uri));
-            _terminals.Remove((hostId, uri));
-            _changesets.Remove((hostId, uri));
-        }
+        _sessions.TryRemove((hostId, uri), out _);
+        _terminals.TryRemove((hostId, uri), out _);
+        _changesets.TryRemove((hostId, uri), out _);
     }
 }
