@@ -2,6 +2,21 @@
 
 Status: Draft for discussion (not a protocol change yet)
 
+## Scope
+
+This proposal covers **multiple chats per session** with shared context — the
+*breadth* axis of multi-agent topologies.
+
+Arbitrary **depth** (nesting via sub-sessions / a session tree) is a related
+but orthogonal axis and is **deferred to a separate proposal**. The two are
+designed to *compose* — the chat catalog and `ahp-chat:` channel introduced
+here are intended to extend cleanly with a later `parentSession?` addition,
+without further breakage — but neither requires the other, and they have very
+different protocol surfaces and hard problems. Sub-sessions in particular need
+their own design pass for cross-edge concerns (result-reporting child→parent,
+dispose-cascade semantics, tree-aggregation under fan-out, cycle invariants,
+mixed-provider trees). Bundling would bury both designs.
+
 ## 1. Motivation
 
 Today an AHP **session is exactly one linear chat**. `SessionState` holds
@@ -314,6 +329,47 @@ clients fully working would be to retain `turns`/`activeTurn` as a single-chat
 projection — the capability-gated path rejected above for reintroducing a
 "primary chat" and a permanent dual read path.
 
+### Open implementation questions (to resolve before types land)
+
+The §9 decisions pin down the *type shapes*. These questions remain open and
+need answers (or explicit "out-of-scope") statements before the implementing PR:
+
+- **Cross-chat write coordination.** Multiple concurrent chats share the
+  session's workspace. The protocol provides no advisory locks,
+  read-after-write barriers, or write-serialization primitives, so two chats
+  editing the same file race. Either we add a coordination primitive, or we
+  explicitly downgrade the "shared workspace" claim to "shared *reads*; writes
+  are best-effort and harness-coordinated" — and update the motivating examples
+  to reflect that.
+- **Session-disposal lifecycle.** What happens to active chats — and their
+  in-flight `activeTurn`s, pending `inputRequests`, and `queuedMessages` — when
+  the parent session is disposed? Cascade-cancel? Reject-while-busy? Default
+  semantics need to be normative.
+- **Interactive routing under concurrency.** With N chats running, multiple
+  permission prompts / elicitations can be raised simultaneously to a single
+  session-level `activeClient`. The protocol needs at least a defined ordering
+  (FIFO? priority?) and a UX-friendly batching/queue story.
+- **Aggregation bounds.** Q3 defines session-level aggregation rules over a
+  session's chats. With many chats the summary stream churns continuously and
+  `status === 'InProgress'` becomes uninformative. Worth considering an
+  `activeChildCount` (or similar) and/or a debounce/coalesce rule on summary
+  emission instead of cascading every per-chat change.
+- **Session-wide turn history.** `fetchTurns` now targets a single chat
+  (Q9). The "show me everything that happened in this session, interleaved"
+  use case becomes `listChats` + N × `fetchTurns` + client-side merge. We
+  should decide whether a session-scoped overload that returns time-merged
+  turns is worth adding, or whether the per-chat-only model is acceptable.
+- **UI "default chat" hint.** Q2 keeps chats as equal peers at the protocol
+  level (no first-class primary), but every UI will pick one to show by
+  default. A non-normative `defaultChat?: URI` hint on the session summary
+  would let clients converge on the same heuristic without re-introducing a
+  protocol primary-chat.
+- **Forward-compatibility with sub-sessions.** This proposal is designed to
+  compose with a later session-tree extension (`parentSession?` on session
+  state). Confirm no field added here conflicts with that extension, and
+  consider whether any reserved field name (e.g. avoiding `parent*` on
+  `ChatSummary`) should be set aside now.
+
 ## 10. Validation against Claude "Agent Teams"
 
 Reference: https://code.claude.com/docs/en/agent-teams
@@ -499,3 +555,15 @@ clients ignore it.
 
 **Best for:** ecosystems that cannot coordinate a client upgrade and must keep
 chat-unaware clients functioning indefinitely.
+
+---
+
+A future proposal will add depth to this model — a `parentSession?` (or
+equivalent) link on session state, turning sessions into a tree that delegates
+across context boundaries. The chat catalog and `ahp-chat:` channel introduced
+here are deliberately shaped so that extension composes orthogonally: chats
+remain the *breadth* primitive (peer conversations sharing one session's
+context), sub-sessions become the *depth* primitive (delegated tasks with their
+own context boundary). Subagent / agent-team / dynamic-workflow topologies are
+expressible as combinations of the two without further breaking changes to the
+shapes introduced here.
