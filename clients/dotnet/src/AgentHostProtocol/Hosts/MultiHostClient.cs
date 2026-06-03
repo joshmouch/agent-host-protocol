@@ -69,7 +69,7 @@ public sealed class HostState
     public uint Attempt { get; init; }
 
     /// <summary>The error that put the host into its current state, if any.</summary>
-    public Exception? Err { get; init; }
+    public Exception? Error { get; init; }
 
     /// <inheritdoc />
     public override string ToString() => Kind switch
@@ -176,7 +176,7 @@ public sealed class HostConfig
 
 /// <summary>
 /// Immutable snapshot of a registered host's observable state. Obtain a fresh
-/// copy via <see cref="MultiHostClient.Host(HostId)"/> to see updates.
+/// copy via <see cref="MultiHostClient.HostAsync(HostId)"/> to see updates.
 /// </summary>
 public sealed class HostHandle
 {
@@ -286,6 +286,9 @@ internal sealed class HostEntry
     public CancellationTokenSource LifetimeCts { get; } = new();
     public Task SupervisorTask { get; set; } = Task.CompletedTask;
 
+    /// <summary>Task for the fire-and-forget pump loop started in OpenHostAsync.</summary>
+    public Task PumpTask { get; set; } = Task.CompletedTask;
+
     public HostEntry(HostId id, HostConfig config, string clientId)
     {
         Id = id; Config = config; ClientId = clientId;
@@ -341,7 +344,7 @@ public sealed class MultiHostClient : IAsyncDisposable
 {
     private readonly Dictionary<string, HostEntry> _hosts = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _hostsMu = new(1, 1);
-    private IClientIdStore _store;
+    private volatile IClientIdStore _store;
 
     private readonly List<System.Threading.Channels.Channel<HostEvent>> _eventChannels = new();
     private readonly object _eventsLock = new();
@@ -452,7 +455,7 @@ public sealed class MultiHostClient : IAsyncDisposable
         }
         catch (Exception ex)
         {
-            await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Failed, Err = ex }).ConfigureAwait(false);
+            await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Failed, Error = ex }).ConfigureAwait(false);
             await _hostsMu.WaitAsync(CancellationToken.None).ConfigureAwait(false);
             try { _hosts.Remove(entry.Id.ToString()); }
             finally { _hostsMu.Release(); }
@@ -466,7 +469,7 @@ public sealed class MultiHostClient : IAsyncDisposable
     }
 
     /// <summary>Returns a fresh snapshot of the host with <paramref name="id"/>, or null if not registered.</summary>
-    public async Task<HostHandle?> Host(HostId id)
+    public async Task<HostHandle?> HostAsync(HostId id)
     {
         await _hostsMu.WaitAsync().ConfigureAwait(false);
         HostEntry? entry;
@@ -477,7 +480,7 @@ public sealed class MultiHostClient : IAsyncDisposable
     }
 
     /// <summary>Returns a fresh snapshot of every registered host.</summary>
-    public async Task<List<HostHandle>> Hosts()
+    public async Task<List<HostHandle>> HostsAsync()
     {
         List<HostEntry> entries;
         await _hostsMu.WaitAsync().ConfigureAwait(false);
@@ -508,6 +511,8 @@ public sealed class MultiHostClient : IAsyncDisposable
             try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
         }
         try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
+        try { await entry.PumpTask.ConfigureAwait(false); } catch (OperationCanceledException) { } catch { }
+        entry.LifetimeCts.Dispose();
     }
 
     // ── Event channels ────────────────────────────────────────────────────
@@ -564,11 +569,25 @@ public sealed class MultiHostClient : IAsyncDisposable
             }
         }
 
-        // Wait for all supervisors.
+        // Wait for all supervisors and pump tasks.
         foreach (var entry in entries)
         {
             try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
+            try { await entry.PumpTask.ConfigureAwait(false); } catch (OperationCanceledException) { } catch { }
+            entry.LifetimeCts.Dispose();
         }
+
+        // Complete all event/subscription channel writers so consumers' await foreach terminates.
+        lock (_eventsLock)
+        {
+            foreach (var ch in _eventChannels) ch.Writer.TryComplete();
+        }
+        lock (_subsLock)
+        {
+            foreach (var ch in _subChannels) ch.Writer.TryComplete();
+        }
+
+        _rootCts.Dispose();
     }
 
     /// <inheritdoc />
@@ -584,11 +603,10 @@ public sealed class MultiHostClient : IAsyncDisposable
         await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connecting }).ConfigureAwait(false);
 
         var transport = await entry.Config.TransportFactory!(entry.Id, cancellationToken).ConfigureAwait(false);
-        var client = await AhpClient.ConnectAsync(
+        var client = AhpClient.Connect(
             transport,
             entry.Config.ClientConfig,
-            null)
-            .ConfigureAwait(false);
+            null);
 
         InitializeResult result;
         try
@@ -610,7 +628,7 @@ public sealed class MultiHostClient : IAsyncDisposable
         await SetHostStateAsync(entry, new HostState { Kind = HostStateKind.Connected }).ConfigureAwait(false);
 
         // Fan events out to subscribers.
-        _ = Task.Run(() => PumpEventsAsync(entry, client));
+        entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
     }
 
     private async Task PumpEventsAsync(HostEntry entry, AhpClient client)
@@ -625,6 +643,19 @@ public sealed class MultiHostClient : IAsyncDisposable
                 lock (_subsLock) { channels = new List<System.Threading.Channels.Channel<HostSubscriptionEvent>>(_subChannels); }
                 foreach (var ch in channels) ch.Writer.TryWrite(hostEv);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown via LifetimeCts.
+        }
+        catch (Exception ex)
+        {
+            // Unexpected pump failure — mark the host as failed.
+            await SetHostStateAsync(entry, new HostState
+            {
+                Kind = HostStateKind.Failed,
+                Error = ex,
+            }).ConfigureAwait(false);
         }
         finally
         {
@@ -651,7 +682,7 @@ public sealed class MultiHostClient : IAsyncDisposable
                 await SetHostStateAsync(entry, new HostState
                 {
                     Kind = HostStateKind.Failed,
-                    Err = new Exception("hosts: transport closed and reconnect disabled"),
+                    Error = new Exception("hosts: transport closed and reconnect disabled"),
                 }).ConfigureAwait(false);
                 return;
             }
@@ -682,7 +713,7 @@ public sealed class MultiHostClient : IAsyncDisposable
                     await SetHostStateAsync(entry, new HostState
                     {
                         Kind = HostStateKind.Failed,
-                        Err = new Exception($"hosts: exceeded {policy.MaxAttempts} reconnect attempts"),
+                        Error = new Exception($"hosts: exceeded {policy.MaxAttempts} reconnect attempts"),
                     }).ConfigureAwait(false);
                     return;
                 }

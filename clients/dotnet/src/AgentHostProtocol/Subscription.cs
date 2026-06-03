@@ -90,9 +90,10 @@ public sealed class ClientEvent
 /// <summary>
 /// Per-URI fan-out handle returned by <see cref="AhpClient.SubscribeAsync"/> and
 /// <see cref="AhpClient.AttachSubscription"/>. Drop the handle by calling
-/// <see cref="Close"/> or let <see cref="AhpClient.ShutdownAsync"/> tear it down.
+/// <see cref="Close"/> (or <see cref="Dispose"/>) or let <see cref="AhpClient.ShutdownAsync"/>
+/// tear it down.
 /// </summary>
-public sealed class Subscription
+public sealed class Subscription : IDisposable
 {
     private readonly Channel<SubscriptionEvent> _channel;
     private int _closed;
@@ -131,6 +132,9 @@ public sealed class Subscription
         }
     }
 
+    /// <inheritdoc cref="Close"/>
+    public void Dispose() => Close();
+
     /// <summary>
     /// Attempts to deliver an event. Drops the event if the channel is full
     /// (overflow protection mirrors the Go <c>trySend</c>).
@@ -149,7 +153,7 @@ public sealed class Subscription
 /// tagged with the channel URI. Multiple streams may exist concurrently.
 /// Returned by <see cref="AhpClient.CreateEventStream"/>.
 /// </summary>
-public sealed class EventStream
+public sealed class EventStream : IDisposable
 {
     private readonly Channel<ClientEvent> _channel;
     private int _closed;
@@ -182,6 +186,9 @@ public sealed class EventStream
             _channel.Writer.TryComplete();
         }
     }
+
+    /// <inheritdoc cref="Close"/>
+    public void Dispose() => Close();
 
     /// <summary>
     /// Attempts to deliver an event. Drops it on full (mirrors Go <c>trySend</c>).

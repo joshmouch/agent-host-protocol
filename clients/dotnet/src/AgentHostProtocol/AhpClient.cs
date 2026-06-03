@@ -37,7 +37,7 @@ public sealed class ClientConfig
 /// <summary>
 /// Async JSON-RPC client over a pluggable <see cref="ITransport"/>.
 /// <para>
-/// Create with <see cref="ConnectAsync"/> which spawns a background read loop.
+/// Create with <see cref="Connect"/> which spawns a background read loop.
 /// All public methods are safe to call from multiple threads.
 /// </para>
 /// </summary>
@@ -107,16 +107,29 @@ public sealed class AhpClient : IAsyncDisposable
     /// starts the background reader / writer tasks. The client owns the transport
     /// from this point.
     /// </summary>
-    public static Task<AhpClient> ConnectAsync(
+    public static AhpClient Connect(
         ITransport transport,
         ClientConfig? config = null,
         IAhpSerializer? serializer = null)
     {
         var cfg = config ?? ClientConfig.Default;
         if (cfg.SubscriptionBufferCapacity <= 0) cfg.SubscriptionBufferCapacity = 256;
-        var client = new AhpClient(transport, cfg, serializer ?? SystemTextJsonAhpSerializer.Default);
-        return Task.FromResult(client);
+        return new AhpClient(transport, cfg, serializer ?? SystemTextJsonAhpSerializer.Default);
     }
+
+    /// <summary>
+    /// Wires <paramref name="transport"/> to a new <see cref="AhpClient"/> and
+    /// starts the background reader / writer tasks. The client owns the transport
+    /// from this point.
+    /// </summary>
+    /// <remarks>
+    /// Kept for source compatibility. Prefer the synchronous <see cref="Connect"/> factory.
+    /// </remarks>
+    public static Task<AhpClient> ConnectAsync(
+        ITransport transport,
+        ClientConfig? config = null,
+        IAhpSerializer? serializer = null)
+        => Task.FromResult(Connect(transport, config, serializer));
 
     // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -167,10 +180,10 @@ public sealed class AhpClient : IAsyncDisposable
         _doneTcs.TrySetResult();
 
         // Close the transport so any blocked ReceiveAsync unblocks.
+        using var shutdownCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            await _transport.CloseAsync(cts.Token).ConfigureAwait(false);
+            await _transport.CloseAsync(shutdownCts.Token).ConfigureAwait(false);
         }
         catch { /* best effort */ }
 
@@ -249,6 +262,12 @@ public sealed class AhpClient : IAsyncDisposable
                 try
                 {
                     frame = await _transport.ReceiveAsync().ConfigureAwait(false);
+                }
+                catch (TransportClosedException)
+                {
+                    // A clean remote close is not an error: shut down without a cause.
+                    await ShutdownWithErrorAsync(null).ConfigureAwait(false);
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -376,8 +395,8 @@ public sealed class AhpClient : IAsyncDisposable
 
     /// <summary>
     /// Sends a JSON-RPC request and decodes the result. Applies the configured
-    /// default timeout if the supplied <paramref name="cancellationToken"/> has no
-    /// deadline.
+    /// default timeout whenever <see cref="ClientConfig.DefaultRequestTimeout"/> is
+    /// positive, composing it with any caller-supplied cancellation token.
     /// </summary>
     public async Task<TResult> RequestAsync<TParams, TResult>(
         string method,
@@ -391,7 +410,24 @@ public sealed class AhpClient : IAsyncDisposable
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = tcs;
 
-        JsonElement? paramsEl = @params is null ? null : JsonDocument.Parse(_serializer.Serialize(@params)).RootElement;
+        // Re-check shutdown after inserting into _pending so a request registered
+        // during shutdown cannot hang.
+        if (Volatile.Read(ref _shutdownStarted) == 1)
+        {
+            _pending.TryRemove(id, out _);
+            throw new AhpClientClosedException();
+        }
+
+        JsonElement? paramsEl;
+        if (@params is null)
+        {
+            paramsEl = null;
+        }
+        else
+        {
+            using var doc = JsonDocument.Parse(_serializer.Serialize(@params));
+            paramsEl = doc.RootElement.Clone();
+        }
 
         var req = new JsonRpcMessage
         {
@@ -413,9 +449,10 @@ public sealed class AhpClient : IAsyncDisposable
             throw;
         }
 
-        // Apply the configured default timeout if no deadline is already set.
+        // Always apply the configured default timeout when positive, composing it
+        // with any caller-supplied cancellation token.
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (_cfg.DefaultRequestTimeout > TimeSpan.Zero && cancellationToken == CancellationToken.None)
+        if (_cfg.DefaultRequestTimeout > TimeSpan.Zero)
             linkedCts.CancelAfter(_cfg.DefaultRequestTimeout);
 
         try
@@ -452,7 +489,16 @@ public sealed class AhpClient : IAsyncDisposable
         if (Volatile.Read(ref _shutdownStarted) == 1)
             throw new AhpClientClosedException();
 
-        JsonElement? paramsEl = @params is null ? null : JsonDocument.Parse(_serializer.Serialize(@params)).RootElement;
+        JsonElement? paramsEl;
+        if (@params is null)
+        {
+            paramsEl = null;
+        }
+        else
+        {
+            using var doc = JsonDocument.Parse(_serializer.Serialize(@params));
+            paramsEl = doc.RootElement.Clone();
+        }
 
         var notif = new JsonRpcMessage
         {

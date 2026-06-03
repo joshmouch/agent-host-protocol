@@ -49,14 +49,14 @@ public sealed class AhpRpcException : AhpException
     public int Code { get; }
 
     /// <summary>The JSON-RPC error data, if present.</summary>
-    public new JsonElement? Data { get; }
+    public JsonElement? ErrorData { get; }
 
     /// <summary>Creates an RPC exception from the server error response.</summary>
     public AhpRpcException(int code, string message, JsonElement? data = null)
         : base($"ahp: rpc error {code}: {message}")
     {
         Code = code;
-        Data = data;
+        ErrorData = data;
     }
 }
 

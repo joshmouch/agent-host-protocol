@@ -12,19 +12,45 @@ using Microsoft.AgentHostProtocol;
 namespace Microsoft.AgentHostProtocol.WebSockets;
 
 /// <summary>
+/// Options for <see cref="WebSocketTransport.ConnectAsync"/> and
+/// <see cref="WebSocketTransport.FromClientWebSocket"/>.
+/// </summary>
+public sealed class WebSocketTransportOptions
+{
+    /// <summary>
+    /// Optional callback invoked on the new <see cref="ClientWebSocket"/> before
+    /// it connects. Use it to set request headers, sub-protocols, keep-alive,
+    /// proxy settings, etc.
+    /// </summary>
+    public Action<ClientWebSocket>? ConfigureSocket { get; set; }
+
+    /// <summary>
+    /// Maximum number of bytes allowed in a single inbound message.
+    /// A value ≤ 0 means unlimited. Defaults to 32 MiB.
+    /// </summary>
+    public long MaxMessageBytes { get; set; } = 32L * 1024 * 1024;
+}
+
+/// <summary>
 /// A <see cref="ITransport"/> implementation backed by <see cref="ClientWebSocket"/>.
-/// Use <see cref="ConnectAsync(Uri, ClientWebSocketOptions?, CancellationToken)"/> to dial,
-/// or <see cref="FromClientWebSocket(ClientWebSocket)"/> to wrap an existing connection.
+/// Use <see cref="ConnectAsync(Uri, WebSocketTransportOptions?, CancellationToken)"/> to dial,
+/// or <see cref="FromClientWebSocket(ClientWebSocket, WebSocketTransportOptions?)"/> to wrap
+/// an existing connection.
 /// </summary>
 public sealed class WebSocketTransport : ITransport
 {
     private readonly ClientWebSocket _ws;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
+    private readonly long _maxMessageBytes;
 
     // Receive buffer: 64 KiB initial, grows as needed.
     private byte[] _receiveBuffer = new byte[64 * 1024];
 
-    private WebSocketTransport(ClientWebSocket ws) => _ws = ws;
+    private WebSocketTransport(ClientWebSocket ws, long maxMessageBytes)
+    {
+        _ws = ws;
+        _maxMessageBytes = maxMessageBytes;
+    }
 
     // ── Factory methods ───────────────────────────────────────────────────
 
@@ -32,31 +58,34 @@ public sealed class WebSocketTransport : ITransport
     /// Dials <paramref name="uri"/> (must use <c>ws://</c> or <c>wss://</c>) and
     /// returns a ready-to-use <see cref="WebSocketTransport"/>.
     /// </summary>
+    /// <param name="uri">The WebSocket server URI.</param>
+    /// <param name="options">Optional configuration; see <see cref="WebSocketTransportOptions"/>.</param>
+    /// <param name="cancellationToken">Cancellation token for the connect operation.</param>
     public static async Task<WebSocketTransport> ConnectAsync(
         Uri uri,
-        ClientWebSocketOptions? options = null,
+        WebSocketTransportOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         var ws = new ClientWebSocket();
-        if (options is not null)
-        {
-            // Copy commonly-needed options.
-            foreach (var header in options.HttpVersion.ToString() is { } v ? Array.Empty<(string, string)>() : Array.Empty<(string, string)>())
-            {
-                // placeholder: user passes a pre-configured ws instead via FromClientWebSocket.
-            }
-        }
+        options?.ConfigureSocket?.Invoke(ws);
         await ws.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
-        return new WebSocketTransport(ws);
+        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
+        return new WebSocketTransport(ws, maxBytes);
     }
 
     /// <summary>
-    /// Wraps an already-connected <see cref="ClientWebSocket"/> in a <see cref="WebSocketTransport"/>.
+    /// Wraps an already-connected <see cref="ClientWebSocket"/> in a
+    /// <see cref="WebSocketTransport"/>.
+    /// The transport takes ownership of <paramref name="ws"/> and disposes it on
+    /// <see cref="DisposeAsync"/>.
     /// </summary>
-    public static WebSocketTransport FromClientWebSocket(ClientWebSocket ws)
+    /// <param name="ws">A connected <see cref="ClientWebSocket"/>.</param>
+    /// <param name="options">Optional configuration; see <see cref="WebSocketTransportOptions"/>.</param>
+    public static WebSocketTransport FromClientWebSocket(ClientWebSocket ws, WebSocketTransportOptions? options = null)
     {
         if (ws is null) throw new ArgumentNullException(nameof(ws));
-        return new WebSocketTransport(ws);
+        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
+        return new WebSocketTransport(ws, maxBytes);
     }
 
     // ── ITransport ────────────────────────────────────────────────────────
@@ -122,7 +151,7 @@ public sealed class WebSocketTransport : ITransport
 
             if (result.MessageType == WebSocketMessageType.Close)
             {
-                // Perform the closing handshake.
+                // Perform the closing handshake (best effort).
                 try
                 {
                     await _ws.CloseOutputAsync(
@@ -132,7 +161,14 @@ public sealed class WebSocketTransport : ITransport
                         .ConfigureAwait(false);
                 }
                 catch { /* best effort */ }
-                throw new Exception("ahp: transport closed");
+                throw new TransportClosedException();
+            }
+
+            // Enforce the inbound message size cap.
+            if (_maxMessageBytes > 0 && (builder.Length + result.Count) > _maxMessageBytes)
+            {
+                throw new TransportClosedException(
+                    $"inbound message exceeds {_maxMessageBytes} bytes");
             }
 
             // Grow receive buffer if needed.
@@ -160,7 +196,9 @@ public sealed class WebSocketTransport : ITransport
     /// <inheritdoc />
     public async ValueTask CloseAsync(CancellationToken cancellationToken = default)
     {
-        if (_ws.State == WebSocketState.Open || _ws.State == WebSocketState.CloseReceived)
+        if (_ws.State == WebSocketState.Open
+            || _ws.State == WebSocketState.CloseReceived
+            || _ws.State == WebSocketState.CloseSent)
         {
             try
             {
@@ -170,7 +208,8 @@ public sealed class WebSocketTransport : ITransport
                     cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch { /* best effort */ }
+            catch (WebSocketException) { /* best effort — state race */ }
+            catch (InvalidOperationException) { /* best effort — state race */ }
         }
     }
 
@@ -179,5 +218,6 @@ public sealed class WebSocketTransport : ITransport
     {
         await CloseAsync(CancellationToken.None).ConfigureAwait(false);
         _ws.Dispose();
+        _sendLock.Dispose();
     }
 }
