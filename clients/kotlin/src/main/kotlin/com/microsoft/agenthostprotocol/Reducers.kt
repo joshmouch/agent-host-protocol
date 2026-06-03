@@ -24,6 +24,7 @@ import com.microsoft.agenthostprotocol.generated.ChildCustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ConfirmationOption
 import com.microsoft.agenthostprotocol.generated.Customization
 import com.microsoft.agenthostprotocol.generated.CustomizationDirectory
+import com.microsoft.agenthostprotocol.generated.CustomizationMcpServer
 import com.microsoft.agenthostprotocol.generated.CustomizationPlugin
 import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
@@ -117,6 +118,7 @@ import com.microsoft.agenthostprotocol.generated.ToolCallCancellationReason
 import com.microsoft.agenthostprotocol.generated.ToolCallCancelledState
 import com.microsoft.agenthostprotocol.generated.ToolCallCompletedState
 import com.microsoft.agenthostprotocol.generated.ToolCallConfirmationReason
+import com.microsoft.agenthostprotocol.generated.ToolCallContributor
 import com.microsoft.agenthostprotocol.generated.ToolCallPendingConfirmationState
 import com.microsoft.agenthostprotocol.generated.ToolCallPendingResultConfirmationState
 import com.microsoft.agenthostprotocol.generated.ToolCallResponsePart
@@ -250,28 +252,28 @@ private data class ToolCallBase(
     val toolCallId: String,
     val toolName: String,
     val displayName: String,
-    val toolClientId: String?,
+    val contributor: ToolCallContributor?,
     val meta: Map<String, JsonElement>?,
 )
 
 private fun toolCallBase(tc: ToolCallState): ToolCallBase = when (tc) {
     is ToolCallStateStreaming -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStatePendingConfirmation -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateRunning -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStatePendingResultConfirmation -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateCompleted -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateCancelled -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     // Forward-compat: unknown lifecycle variants have no extractable base; mirror
     // Rust's `ToolCallState::Unknown(_) => (String::new(), ...)`. Combined with
@@ -291,6 +293,7 @@ private fun toolCallIdOf(tc: ToolCallState): String = toolCallBase(tc).toolCallI
 private fun customizationId(c: Customization): String? = when (c) {
     is CustomizationPlugin -> c.value.id
     is CustomizationDirectory -> c.value.id
+    is CustomizationMcpServer -> c.value.id
     // Unknown variants carry an opaque `raw` JSON object — no id to expose.
     // Returning `null` mirrors Rust's `Customization::Unknown(_) => None`, so
     // an unknown container can never collide with a real id during lookups.
@@ -300,6 +303,7 @@ private fun customizationId(c: Customization): String? = when (c) {
 private fun customizationChildren(c: Customization): List<ChildCustomization>? = when (c) {
     is CustomizationPlugin -> c.value.children
     is CustomizationDirectory -> c.value.children
+    is CustomizationMcpServer -> null
     is CustomizationUnknown -> null
 }
 
@@ -307,12 +311,14 @@ private fun withCustomizationChildren(c: Customization, children: List<ChildCust
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(children = children))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(children = children))
     // Pass-through: we can't structurally edit a payload we don't understand.
+    is CustomizationMcpServer -> c
     is CustomizationUnknown -> c
 }
 
 private fun withCustomizationEnabled(c: Customization, enabled: Boolean): Customization = when (c) {
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(enabled = enabled))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(enabled = enabled))
+    is CustomizationMcpServer -> CustomizationMcpServer(c.value.copy(enabled = enabled))
     is CustomizationUnknown -> c
 }
 
@@ -444,7 +450,7 @@ private fun endTurn(
                         toolCallId = base.toolCallId,
                         toolName = base.toolName,
                         displayName = base.displayName,
-                        toolClientId = base.toolClientId,
+                        contributor = base.contributor,
                         meta = base.meta,
                         invocationMessage = invocationMessage,
                         toolInput = toolInput,
@@ -634,7 +640,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = a.toolCallId,
                             toolName = a.toolName,
                             displayName = a.displayName,
-                            toolClientId = a.toolClientId,
+                            contributor = a.contributor,
                             meta = a.meta,
                             status = ToolCallStatus.STREAMING,
                         ),
@@ -673,7 +679,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = a.invocationMessage,
                                 toolInput = a.toolInput,
@@ -687,7 +693,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = a.invocationMessage,
                                 toolInput = a.toolInput,
@@ -717,7 +723,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = a.editedToolInput ?: tc.value.toolInput,
@@ -733,7 +739,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,
@@ -777,7 +783,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = base.toolCallId,
                             toolName = base.toolName,
                             displayName = base.displayName,
-                            toolClientId = base.toolClientId,
+                            contributor = base.contributor,
                             meta = base.meta,
                             invocationMessage = invocationMessage,
                             toolInput = toolInput,
@@ -797,7 +803,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = base.toolCallId,
                             toolName = base.toolName,
                             displayName = base.displayName,
-                            toolClientId = base.toolClientId,
+                            contributor = base.contributor,
                             meta = base.meta,
                             invocationMessage = invocationMessage,
                             toolInput = toolInput,
@@ -828,7 +834,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,
@@ -848,7 +854,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,

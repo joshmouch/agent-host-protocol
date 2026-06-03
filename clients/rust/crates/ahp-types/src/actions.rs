@@ -1206,11 +1206,11 @@ pub enum StateAction {
     #[serde(rename = "session/customizationToggled")]
     SessionCustomizationToggled(SessionCustomizationToggledAction),
     #[serde(rename = "session/customizationUpdated")]
-    SessionCustomizationUpdated(SessionCustomizationUpdatedAction),
+    SessionCustomizationUpdated(Box<SessionCustomizationUpdatedAction>),
     #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved(SessionCustomizationRemovedAction),
     #[serde(rename = "session/mcpServerStateChanged")]
-    SessionMcpServerStateChanged(SessionMcpServerStateChangedAction),
+    SessionMcpServerStateChanged(Box<SessionMcpServerStateChangedAction>),
     #[serde(rename = "session/truncated")]
     SessionTruncated(SessionTruncatedAction),
     #[serde(rename = "session/configChanged")]

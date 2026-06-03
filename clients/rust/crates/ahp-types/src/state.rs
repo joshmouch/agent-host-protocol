@@ -3061,7 +3061,7 @@ pub enum Customization {
     #[serde(rename = "directory")]
     Directory(DirectoryCustomization),
     #[serde(rename = "mcpServer")]
-    McpServer(McpServerCustomization),
+    McpServer(Box<McpServerCustomization>),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
@@ -3083,7 +3083,7 @@ pub enum ChildCustomization {
     #[serde(rename = "hook")]
     Hook(HookCustomization),
     #[serde(rename = "mcpServer")]
-    McpServer(McpServerCustomization),
+    McpServer(Box<McpServerCustomization>),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
@@ -3117,7 +3117,7 @@ pub enum McpServerState {
     #[serde(rename = "ready")]
     Ready(McpServerReadyState),
     #[serde(rename = "authRequired")]
-    AuthRequired(McpServerAuthRequiredState),
+    AuthRequired(Box<McpServerAuthRequiredState>),
     #[serde(rename = "error")]
     Error(McpServerErrorState),
     #[serde(rename = "stopped")]

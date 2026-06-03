@@ -185,7 +185,7 @@ data class ClientCapabilities(
     /**
      * Client can render
      * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
-     * it can host the View sandbox, run the `ui/*` protocol against it,
+     * it can host the View sandbox, run the `ui/​*` protocol against it,
      * and forward `mcp://`-channel traffic on the App's behalf.
      * 
      * Hosts SHOULD only populate

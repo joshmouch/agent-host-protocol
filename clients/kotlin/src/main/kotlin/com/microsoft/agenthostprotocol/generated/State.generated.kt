@@ -2812,11 +2812,11 @@ data class McpServerCustomizationApps(
 @Serializable
 data class AhpMcpUiHostCapabilities(
     /**
-     * Producer proxies the MCP `tools/*` methods to the upstream server.
+     * Producer proxies the MCP `tools/​*` methods to the upstream server.
      */
     val serverTools: JsonElement? = null,
     /**
-     * Producer proxies the MCP `resources/*` methods to the upstream server.
+     * Producer proxies the MCP `resources/​*` methods to the upstream server.
      */
     val serverResources: JsonElement? = null,
     /**

@@ -318,7 +318,12 @@ function emitKDoc(doc: string, indent = ''): string[] {
   const lines = doc.split('\n');
   const out: string[] = [`${indent}/**`];
   for (const line of lines) {
-    out.push(`${indent} * ${line.trim()}`);
+    // Kotlin's tokenizer treats `/*` and `*/` as block-comment delimiters even
+    // inside KDoc backtick spans, so `\`tools/*\`` would open a nested
+    // comment that never closes. Insert a zero-width space (U+200B) to break
+    // the token without changing the rendered output.
+    const safe = line.trim().replace(/\/\*/g, '/\u200B*').replace(/\*\//g, '*\u200B/');
+    out.push(`${indent} * ${safe}`);
   }
   out.push(`${indent} */`);
   return out;

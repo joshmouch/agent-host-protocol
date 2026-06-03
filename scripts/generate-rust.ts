@@ -767,7 +767,9 @@ const CUSTOMIZATION_UNION: UnionConfig = {
   variants: [
     { variantName: 'Plugin', innerType: 'PluginCustomization', wireValue: 'plugin' },
     { variantName: 'Directory', innerType: 'DirectoryCustomization', wireValue: 'directory' },
-    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
+    // Boxed: `McpServerCustomization` is significantly larger than the
+    // other variants thanks to its transitive `ProtectedResourceMetadata`.
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer', boxed: true },
   ],
   unknown: true,
 };
@@ -782,7 +784,8 @@ const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
     { variantName: 'Prompt', innerType: 'PromptCustomization', wireValue: 'prompt' },
     { variantName: 'Rule', innerType: 'RuleCustomization', wireValue: 'rule' },
     { variantName: 'Hook', innerType: 'HookCustomization', wireValue: 'hook' },
-    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
+    // Boxed: see comment on `Customization::McpServer`.
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer', boxed: true },
   ],
   unknown: true,
 };
@@ -807,7 +810,9 @@ const MCP_SERVER_STATUS_UNION: UnionConfig = {
   variants: [
     { variantName: 'Starting', innerType: 'McpServerStartingState', wireValue: 'starting' },
     { variantName: 'Ready', innerType: 'McpServerReadyState', wireValue: 'ready' },
-    { variantName: 'AuthRequired', innerType: 'McpServerAuthRequiredState', wireValue: 'authRequired' },
+    // Boxed: `McpServerAuthRequiredState` carries the large RFC 9728
+    // `ProtectedResourceMetadata` payload.
+    { variantName: 'AuthRequired', innerType: 'McpServerAuthRequiredState', wireValue: 'authRequired', boxed: true },
     { variantName: 'Error', innerType: 'McpServerErrorState', wireValue: 'error' },
     { variantName: 'Stopped', innerType: 'McpServerStoppedState', wireValue: 'stopped' },
   ],
@@ -909,6 +914,8 @@ const ACTION_VARIANTS: {
   variantName: string;
   tsInterface: string;
   rustName?: string;
+  /** Box the variant payload in the `StateAction` enum (reduces enum size). */
+  boxed?: boolean;
 }[] = [
   { type: 'root/agentsChanged', variantName: 'RootAgentsChanged', tsInterface: 'RootAgentsChangedAction' },
   { type: 'root/activeSessionsChanged', variantName: 'RootActiveSessionsChanged', tsInterface: 'RootActiveSessionsChangedAction' },
@@ -947,9 +954,9 @@ const ACTION_VARIANTS: {
   { type: 'session/inputCompleted', variantName: 'SessionInputCompleted', tsInterface: 'SessionInputCompletedAction' },
   { type: 'session/customizationsChanged', variantName: 'SessionCustomizationsChanged', tsInterface: 'SessionCustomizationsChangedAction' },
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
-  { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
+  { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction', boxed: true },
   { type: 'session/customizationRemoved', variantName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
-  { type: 'session/mcpServerStateChanged', variantName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
+  { type: 'session/mcpServerStateChanged', variantName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction', boxed: true },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1071,6 +1078,7 @@ pub struct ActionEnvelope {
     variantName: v.variantName,
     innerType: v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : stripIPrefix(v.tsInterface),
     wireValue: v.type,
+    boxed: v.boxed,
   }));
   lines.push(generateDiscriminatedUnion({
     name: 'StateAction',
