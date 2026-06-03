@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.AgentHostProtocol</RootNamespace>
+    <AssemblyName>Microsoft.AgentHostProtocol.Abstractions</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Microsoft.AgentHostProtocol.Abstractions</PackageId>
+    <Description>
+      Wire types, reducers' data contracts, and transport/serializer
+      interfaces for the Agent Host Protocol (AHP) — the synchronized,
+      multi-client state protocol for AI agent sessions. This package has no
+      I/O and no dependencies beyond the base class library; reference it to
+      parse, construct, or inspect AHP messages, or to implement a transport.
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

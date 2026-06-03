@@ -1,0 +1,41 @@
+<Project>
+
+  <!--
+    Shared MSBuild properties for every project in the .NET client. Per-
+    project packaging (IsPackable / PackageId / Description) lives in the
+    individual .csproj files; this file carries the cross-cutting compiler
+    and metadata settings.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: missing XML doc on a public member. Generated wire types
+         carry docs where the protocol provides them but not everywhere. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Package metadata applied to the publishable libraries. -->
+  <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <Authors>Microsoft Corporation</Authors>
+    <Company>Microsoft Corporation</Company>
+    <Product>Agent Host Protocol</Product>
+    <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/microsoft/agent-host-protocol</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/microsoft/agent-host-protocol</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>agent-host-protocol;ahp;ai;agent;jsonrpc</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Version is sourced from the VERSION file at release time; see
+         RELEASING.md. The default here keeps local builds reproducible. -->
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+</Project>
