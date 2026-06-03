@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.AgentHostProtocol</RootNamespace>
+    <AssemblyName>Microsoft.AgentHostProtocol</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Microsoft.AgentHostProtocol</PackageId>
+    <Description>
+      The Agent Host Protocol (AHP) client for .NET: an async JSON-RPC client,
+      the pure state reducers, the default System.Text.Json serializer, and the
+      multi-host runtime. Bring your own transport (see
+      Microsoft.AgentHostProtocol.WebSockets for a ClientWebSocket-based one).
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../AgentHostProtocol.Abstractions/AgentHostProtocol.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

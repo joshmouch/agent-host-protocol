@@ -618,7 +618,7 @@ public sealed class RootState
     /// Available agent backends and their models
     /// </summary>
     [JsonPropertyName("agents")]
-    public List<AgentInfo> Agents { get; set; } = new();
+    public List<AgentInfo> Agents { get; set; } = null!;
 
     /// <summary>
     /// Number of active (non-disposed) sessions on the server
@@ -660,7 +660,7 @@ public sealed class RootConfigState
     /// Current configuration values
     /// </summary>
     [JsonPropertyName("values")]
-    public Dictionary<string, JsonElement> Values { get; set; } = new();
+    public Dictionary<string, JsonElement> Values { get; set; } = null!;
 }
 
 public sealed class AgentInfo
@@ -687,7 +687,7 @@ public sealed class AgentInfo
     /// Available models for this agent
     /// </summary>
     [JsonPropertyName("models")]
-    public List<SessionModelInfo> Models { get; set; } = new();
+    public List<SessionModelInfo> Models { get; set; } = null!;
 
     /// <summary>
     /// Protected resources this agent requires authentication for.
@@ -926,7 +926,7 @@ public sealed class ConfigSchema
     /// JSON Schema: property descriptors keyed by property id
     /// </summary>
     [JsonPropertyName("properties")]
-    public Dictionary<string, ConfigPropertySchema> Properties { get; set; } = new();
+    public Dictionary<string, ConfigPropertySchema> Properties { get; set; } = null!;
 
     /// <summary>
     /// JSON Schema: list of required property ids
@@ -1000,7 +1000,7 @@ public sealed class SessionState
     /// Completed turns
     /// </summary>
     [JsonPropertyName("turns")]
-    public List<Turn> Turns { get; set; } = new();
+    public List<Turn> Turns { get; set; } = null!;
 
     /// <summary>
     /// Currently in-progress turn
@@ -1091,7 +1091,7 @@ public sealed class SessionActiveClient
     /// Tools this client provides to the session
     /// </summary>
     [JsonPropertyName("tools")]
-    public List<ToolDefinition> Tools { get; set; } = new();
+    public List<ToolDefinition> Tools { get; set; } = null!;
 
     /// <summary>
     /// Plugin customizations this client contributes to the session.
@@ -1328,7 +1328,7 @@ public sealed class SessionConfigSchema
     /// JSON Schema: property descriptors keyed by property id
     /// </summary>
     [JsonPropertyName("properties")]
-    public Dictionary<string, SessionConfigPropertySchema> Properties { get; set; } = new();
+    public Dictionary<string, SessionConfigPropertySchema> Properties { get; set; } = null!;
 
     /// <summary>
     /// JSON Schema: list of required property ids
@@ -1356,7 +1356,7 @@ public sealed class SessionConfigState
     /// Current configuration values
     /// </summary>
     [JsonPropertyName("values")]
-    public Dictionary<string, JsonElement> Values { get; set; } = new();
+    public Dictionary<string, JsonElement> Values { get; set; } = null!;
 }
 
 /// <summary>
@@ -1383,7 +1383,7 @@ public sealed class Turn
     /// and find tool calls by filtering for `ToolCall` parts.
     /// </summary>
     [JsonPropertyName("responseParts")]
-    public List<ResponsePart> ResponseParts { get; set; } = new();
+    public List<ResponsePart> ResponseParts { get; set; } = null!;
 
     /// <summary>
     /// Token usage info
@@ -1429,7 +1429,7 @@ public sealed class ActiveTurn
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
     /// </summary>
     [JsonPropertyName("responseParts")]
-    public List<ResponsePart> ResponseParts { get; set; } = new();
+    public List<ResponsePart> ResponseParts { get; set; } = null!;
 
     /// <summary>
     /// Token usage info
@@ -1565,7 +1565,7 @@ public sealed class SessionInputSelectedManyAnswerValue
     public SessionInputAnswerValueKind Kind { get; set; }
 
     [JsonPropertyName("value")]
-    public List<string> Value { get; set; } = new();
+    public List<string> Value { get; set; } = null!;
 
     /// <summary>
     /// Free-form text entered in addition to selected options
@@ -1805,7 +1805,7 @@ public sealed class SessionInputSingleSelectQuestion
     /// Options the user may select from
     /// </summary>
     [JsonPropertyName("options")]
-    public List<SessionInputOption> Options { get; set; } = new();
+    public List<SessionInputOption> Options { get; set; } = null!;
 
     /// <summary>
     /// Whether the user may enter text instead of selecting an option
@@ -1853,7 +1853,7 @@ public sealed class SessionInputMultiSelectQuestion
     /// Options the user may select from
     /// </summary>
     [JsonPropertyName("options")]
-    public List<SessionInputOption> Options { get; set; } = new();
+    public List<SessionInputOption> Options { get; set; } = null!;
 
     /// <summary>
     /// Whether the user may enter text in addition to selecting options
@@ -4151,7 +4151,7 @@ public sealed class TerminalState
     /// Consumers that need command boundaries can filter by part type.
     /// </summary>
     [JsonPropertyName("content")]
-    public List<TerminalContentPart> Content { get; set; } = new();
+    public List<TerminalContentPart> Content { get; set; } = null!;
 
     /// <summary>
     /// Process exit code, set when the terminal process exits
@@ -4434,7 +4434,7 @@ public sealed class ChangesetState
     /// Files in this changeset, keyed by {@link ChangesetFile.id}.
     /// </summary>
     [JsonPropertyName("files")]
-    public List<ChangesetFile> Files { get; set; } = new();
+    public List<ChangesetFile> Files { get; set; } = null!;
 
     /// <summary>
     /// Operations the client may invoke against this changeset. Omit when no
@@ -4506,7 +4506,7 @@ public sealed class ChangesetOperation
     /// Where this operation can be invoked.
     /// </summary>
     [JsonPropertyName("scopes")]
-    public List<ChangesetOperationScope> Scopes { get; set; } = new();
+    public List<ChangesetOperationScope> Scopes { get; set; } = null!;
 
     /// <summary>
     /// Optional confirmation prompt to show before invoking. When present,

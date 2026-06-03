@@ -189,7 +189,7 @@ public sealed class OtlpExportLogsParams
     /// opentelemetry-proto and are not redeclared here.
     /// </summary>
     [JsonPropertyName("payload")]
-    public Dictionary<string, JsonElement> Payload { get; set; } = new();
+    public Dictionary<string, JsonElement> Payload { get; set; } = null!;
 }
 
 /// <summary>
@@ -214,7 +214,7 @@ public sealed class OtlpExportTracesParams
     /// opentelemetry-proto and are not redeclared here.
     /// </summary>
     [JsonPropertyName("payload")]
-    public Dictionary<string, JsonElement> Payload { get; set; } = new();
+    public Dictionary<string, JsonElement> Payload { get; set; } = null!;
 }
 
 /// <summary>
@@ -239,7 +239,7 @@ public sealed class OtlpExportMetricsParams
     /// opentelemetry-proto and are not redeclared here.
     /// </summary>
     [JsonPropertyName("payload")]
-    public Dictionary<string, JsonElement> Payload { get; set; } = new();
+    public Dictionary<string, JsonElement> Payload { get; set; } = null!;
 }
 
 // ─── Partial Summaries ────────────────────────────────────────────────

@@ -197,7 +197,7 @@ public sealed class RootAgentsChangedAction
     /// Updated agent list
     /// </summary>
     [JsonPropertyName("agents")]
-    public List<AgentInfo> Agents { get; set; } = new();
+    public List<AgentInfo> Agents { get; set; } = null!;
 }
 
 /// <summary>
@@ -230,7 +230,7 @@ public sealed class RootConfigChangedAction
     /// Updated config values
     /// </summary>
     [JsonPropertyName("config")]
-    public Dictionary<string, JsonElement> Config { get; set; } = new();
+    public Dictionary<string, JsonElement> Config { get; set; } = null!;
 
     /// <summary>
     /// When `true`, replaces all config values instead of merging
@@ -938,7 +938,7 @@ public sealed class SessionServerToolsChangedAction
     /// Updated server tools list (full replacement)
     /// </summary>
     [JsonPropertyName("tools")]
-    public List<ToolDefinition> Tools { get; set; } = new();
+    public List<ToolDefinition> Tools { get; set; } = null!;
 }
 
 /// <summary>
@@ -978,7 +978,7 @@ public sealed class SessionActiveClientToolsChangedAction
     /// Updated client tools list (full replacement)
     /// </summary>
     [JsonPropertyName("tools")]
-    public List<ToolDefinition> Tools { get; set; } = new();
+    public List<ToolDefinition> Tools { get; set; } = null!;
 }
 
 /// <summary>
@@ -1059,7 +1059,7 @@ public sealed class SessionQueuedMessagesReorderedAction
     /// Queued message IDs in the desired order
     /// </summary>
     [JsonPropertyName("order")]
-    public List<string> Order { get; set; } = new();
+    public List<string> Order { get; set; } = null!;
 }
 
 /// <summary>
@@ -1157,7 +1157,7 @@ public sealed class SessionCustomizationsChangedAction
     /// Updated customization list (full replacement).
     /// </summary>
     [JsonPropertyName("customizations")]
-    public List<Customization> Customizations { get; set; } = new();
+    public List<Customization> Customizations { get; set; } = null!;
 }
 
 /// <summary>
@@ -1267,7 +1267,7 @@ public sealed class SessionConfigChangedAction
     /// Updated config values
     /// </summary>
     [JsonPropertyName("config")]
-    public Dictionary<string, JsonElement> Config { get; set; } = new();
+    public Dictionary<string, JsonElement> Config { get; set; } = null!;
 
     /// <summary>
     /// When `true`, replaces all config values instead of merging
@@ -1340,7 +1340,7 @@ public sealed class SessionToolCallContentChangedAction
     /// The current partial content for the running tool call
     /// </summary>
     [JsonPropertyName("content")]
-    public List<ToolResultContent> Content { get; set; } = new();
+    public List<ToolResultContent> Content { get; set; } = null!;
 }
 
 /// <summary>
@@ -1493,7 +1493,7 @@ public sealed class RootTerminalsChangedAction
     /// Updated terminal list (full replacement)
     /// </summary>
     [JsonPropertyName("terminals")]
-    public List<TerminalInfo> Terminals { get; set; } = new();
+    public List<TerminalInfo> Terminals { get; set; } = null!;
 }
 
 /// <summary>

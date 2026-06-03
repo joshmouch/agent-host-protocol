@@ -123,7 +123,7 @@ public sealed class InitializeParams
     /// error code `-32005` (`UnsupportedProtocolVersion`).
     /// </summary>
     [JsonPropertyName("protocolVersions")]
-    public List<string> ProtocolVersions { get; set; } = new();
+    public List<string> ProtocolVersions { get; set; } = null!;
 
     /// <summary>
     /// Unique client identifier
@@ -177,7 +177,7 @@ public sealed class InitializeResult
     /// Snapshots for each `initialSubscriptions` URI
     /// </summary>
     [JsonPropertyName("snapshots")]
-    public List<Snapshot> Snapshots { get; set; } = new();
+    public List<Snapshot> Snapshots { get; set; } = null!;
 
     /// <summary>
     /// Suggested default directory for remote filesystem browsing
@@ -236,7 +236,7 @@ public sealed class ReconnectParams
     /// URIs the client was subscribed to
     /// </summary>
     [JsonPropertyName("subscriptions")]
-    public List<string> Subscriptions { get; set; } = new();
+    public List<string> Subscriptions { get; set; } = null!;
 }
 
 /// <summary>
@@ -250,7 +250,7 @@ public sealed class ReconnectReplayResult
     /// Missed action envelopes since `lastSeenServerSeq`
     /// </summary>
     [JsonPropertyName("actions")]
-    public List<ActionEnvelope> Actions { get; set; } = new();
+    public List<ActionEnvelope> Actions { get; set; } = null!;
 
     /// <summary>
     /// URIs from `ReconnectParams.subscriptions` that the server cannot resume.
@@ -259,7 +259,7 @@ public sealed class ReconnectReplayResult
     /// observe. Clients SHOULD drop these from their local subscription set.
     /// </summary>
     [JsonPropertyName("missing")]
-    public List<string> Missing { get; set; } = new();
+    public List<string> Missing { get; set; } = null!;
 }
 
 /// <summary>
@@ -271,7 +271,7 @@ public sealed class ReconnectSnapshotResult
     /// Fresh snapshots for each subscription
     /// </summary>
     [JsonPropertyName("snapshots")]
-    public List<Snapshot> Snapshots { get; set; } = new();
+    public List<Snapshot> Snapshots { get; set; } = null!;
 }
 
 /// <summary>
@@ -445,7 +445,7 @@ public sealed class ListSessionsResult
     /// The list of session summaries.
     /// </summary>
     [JsonPropertyName("items")]
-    public List<SessionSummary> Items { get; set; } = new();
+    public List<SessionSummary> Items { get; set; } = null!;
 }
 
 /// <summary>
@@ -649,7 +649,7 @@ public sealed class ResourceListResult
     /// Entries directly contained in the requested directory
     /// </summary>
     [JsonPropertyName("entries")]
-    public List<DirectoryEntry> Entries { get; set; } = new();
+    public List<DirectoryEntry> Entries { get; set; } = null!;
 }
 
 /// <summary>
@@ -1103,7 +1103,7 @@ public sealed class FetchTurnsResult
     /// The requested turns, ordered oldest-first
     /// </summary>
     [JsonPropertyName("turns")]
-    public List<Turn> Turns { get; set; } = new();
+    public List<Turn> Turns { get; set; } = null!;
 
     /// <summary>
     /// Whether more turns exist before the returned range
@@ -1318,7 +1318,7 @@ public sealed class ResolveSessionConfigResult
     /// Current configuration values (echoed back with server-resolved defaults applied)
     /// </summary>
     [JsonPropertyName("values")]
-    public Dictionary<string, JsonElement> Values { get; set; } = new();
+    public Dictionary<string, JsonElement> Values { get; set; } = null!;
 }
 
 /// <summary>
@@ -1380,7 +1380,7 @@ public sealed class SessionConfigCompletionsResult
     /// Matching value items
     /// </summary>
     [JsonPropertyName("items")]
-    public List<SessionConfigValueItem> Items { get; set; } = new();
+    public List<SessionConfigValueItem> Items { get; set; } = null!;
 }
 
 /// <summary>
@@ -1503,7 +1503,7 @@ public sealed class CompletionsResult
     /// The completion items, in the order the server suggests displaying them.
     /// </summary>
     [JsonPropertyName("items")]
-    public List<CompletionItem> Items { get; set; } = new();
+    public List<CompletionItem> Items { get; set; } = null!;
 }
 
 /// <summary>
