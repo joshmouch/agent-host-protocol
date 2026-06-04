@@ -1,5 +1,5 @@
 {
-  "description": "session/changesetsChanged with undefined clears summary.changesets",
+  "description": "session/changesetsChanged with undefined clears state.changesets",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -8,16 +8,16 @@
       "title": "Test Session",
       "status": 1,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "changesets": [
-        {
-          "label": "Session Changes",
-          "uriTemplate": "copilot:/test-session/changeset/session"
-        }
-      ]
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
-    "turns": []
+    "turns": [],
+    "changesets": [
+      {
+        "label": "Session Changes",
+        "uriTemplate": "copilot:/test-session/changeset/session"
+      }
+    ]
   },
   "actions": [
     {

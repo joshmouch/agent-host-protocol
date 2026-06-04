@@ -809,7 +809,7 @@
     },
     "SessionChangesetsChangedAction": {
       "type": "object",
-      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
+      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n{@link SessionState.changesets | `state.changesets`} entirely\n(full-replacement semantics) — set to `undefined` to clear the\ncatalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
@@ -2173,6 +2173,13 @@
           },
           "description": "Top-level customizations active in this session.\n\nAlways container customizations — {@link PluginCustomization} or\n{@link DirectoryCustomization}. Children (agents, skills, prompts,\nrules, hooks, MCP servers) live in each container's\n{@link ContainerCustomizationBase.children | `children`} array.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated)."
         },
+        "changesets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Changeset"
+          },
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+        },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
@@ -2281,13 +2288,6 @@
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
-        },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Changeset"
-          },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",

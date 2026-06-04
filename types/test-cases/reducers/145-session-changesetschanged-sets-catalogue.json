@@ -1,5 +1,5 @@
 {
-  "description": "session/changesetsChanged replaces summary.changesets with the new catalogue",
+  "description": "session/changesetsChanged replaces state.changesets with the new catalogue",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -31,15 +31,15 @@
       "title": "Test Session",
       "status": 1,
       "createdAt": 1000,
-      "modifiedAt": 1000,
-      "changesets": [
-        {
-          "label": "Session Changes",
-          "uriTemplate": "copilot:/test-session/changeset/session"
-        }
-      ]
+      "modifiedAt": 1000
     },
     "lifecycle": "ready",
-    "turns": []
+    "turns": [],
+    "changesets": [
+      {
+        "label": "Session Changes",
+        "uriTemplate": "copilot:/test-session/changeset/session"
+      }
+    ]
   }
 }

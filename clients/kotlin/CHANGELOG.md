@@ -26,7 +26,8 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ### Changed
 
-- Renamed the `ChangesetSummary` type to `Changeset` (catalogue entry on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+- Renamed the `ChangesetSummary` type to `Changeset`. The on-the-wire shape is unchanged.
+- Moved the `changesets` catalogue from `SessionSummary` to `SessionState`. The `session/changesetsChanged` action now updates `state.changesets` directly instead of `state.summary.changesets`.
 
 ### Removed
 

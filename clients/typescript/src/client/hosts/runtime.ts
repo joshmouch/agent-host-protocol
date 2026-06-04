@@ -882,6 +882,5 @@ function applySummaryChange(
   if (changes.project !== undefined) merged.project = changes.project;
   if (changes.model !== undefined) merged.model = changes.model;
   if (changes.workingDirectory !== undefined) merged.workingDirectory = changes.workingDirectory;
-  if (changes.changesets !== undefined) merged.changesets = changes.changesets;
   cache.set(params.session, merged);
 }

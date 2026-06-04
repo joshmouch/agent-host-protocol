@@ -376,7 +376,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
 
     case .sessionChangesetsChanged(let a):
         var next = state
-        next.summary.changesets = a.changesets
+        next.changesets = a.changesets
         return next
 
     case .sessionConfigChanged(let a):

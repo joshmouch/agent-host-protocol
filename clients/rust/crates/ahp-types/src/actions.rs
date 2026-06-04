@@ -577,8 +577,9 @@ pub struct SessionActivityChangedAction {
 
 /// The {@link Changeset | catalogue of changesets} the agent host
 /// advertises for this session changed. Replaces
-/// `state.summary.changesets` entirely (full-replacement semantics) — set
-/// to `undefined` to clear the catalogue.
+/// {@link SessionState.changesets | `state.changesets`} entirely
+/// (full-replacement semantics) — set to `undefined` to clear the
+/// catalogue.
 ///
 /// Producers dispatch this whenever entries are added or removed. The
 /// fan-out happens through this action so observers see catalogue

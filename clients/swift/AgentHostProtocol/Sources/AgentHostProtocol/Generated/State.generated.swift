@@ -687,6 +687,12 @@ public struct SessionState: Codable, Sendable {
     /// and the host propagates them into this list (typically with the
     /// container's `clientId` set and `children` populated).
     public var customizations: [Customization]?
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link Changeset} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    public var changesets: [Changeset]?
     /// Additional provider-specific metadata for this session.
     /// 
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -707,6 +713,7 @@ public struct SessionState: Codable, Sendable {
         case inputRequests
         case config
         case customizations
+        case changesets
         case meta = "_meta"
     }
 
@@ -723,6 +730,7 @@ public struct SessionState: Codable, Sendable {
         inputRequests: [SessionInputRequest]? = nil,
         config: SessionConfigState? = nil,
         customizations: [Customization]? = nil,
+        changesets: [Changeset]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.summary = summary
@@ -737,6 +745,7 @@ public struct SessionState: Codable, Sendable {
         self.inputRequests = inputRequests
         self.config = config
         self.customizations = customizations
+        self.changesets = changesets
         self.meta = meta
     }
 }
@@ -795,12 +804,6 @@ public struct SessionSummary: Codable, Sendable {
     public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link Changeset} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [Changeset]?
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the
@@ -819,7 +822,6 @@ public struct SessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [Changeset]? = nil,
         changes: ChangesSummary? = nil
     ) {
         self.resource = resource
@@ -833,7 +835,6 @@ public struct SessionSummary: Codable, Sendable {
         self.model = model
         self.agent = agent
         self.workingDirectory = workingDirectory
-        self.changesets = changesets
         self.changes = changes
     }
 }
