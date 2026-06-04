@@ -1245,4 +1245,46 @@ public static class Reducers
 
         return ReduceOutcome.OutOfScope;
     }
+
+    // ─── Client Dispatchable ───────────────────────────────────────────────
+
+    /// <summary>
+    /// The set of action wire-<c>type</c> strings a client is allowed to
+    /// dispatch. Mirrors the Swift client's <c>clientDispatchableActions</c>
+    /// — the cross-language contract for which actions originate on the client
+    /// channel rather than host-only.
+    /// </summary>
+    public static readonly IReadOnlySet<string> ClientDispatchableActions = new HashSet<string>
+    {
+        "session/turnStarted",
+        "session/toolCallConfirmed",
+        "session/toolCallComplete",
+        "session/toolCallResultConfirmed",
+        "session/turnCancelled",
+        "session/modelChanged",
+        "session/activeClientChanged",
+        "session/activeClientToolsChanged",
+        "session/pendingMessageSet",
+        "session/pendingMessageRemoved",
+        "session/queuedMessagesReordered",
+        "session/inputAnswerChanged",
+        "session/inputCompleted",
+        "session/customizationToggled",
+        "session/isReadChanged",
+        "session/isArchivedChanged",
+    };
+
+    /// <summary>
+    /// Checks whether <paramref name="action"/> may be dispatched by a client.
+    /// The action's wire <c>type</c> is read by serializing it through the real
+    /// serializer (there is no public accessor for the generated <c>[WireValue]</c>
+    /// mapping), then tested for membership in <see cref="ClientDispatchableActions"/>.
+    /// Mirrors the Swift client's <c>isClientDispatchable</c>.
+    /// </summary>
+    public static bool IsClientDispatchable(StateAction action)
+    {
+        using var doc = JsonDocument.Parse(SystemTextJsonAhpSerializer.Default.Serialize(action));
+        string? type = doc.RootElement.GetProperty("type").GetString();
+        return type is not null && ClientDispatchableActions.Contains(type);
+    }
 }
