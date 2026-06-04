@@ -1119,3 +1119,22 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 	}
 	return ReduceOutcomeOutOfScope
 }
+
+// ─── Comments Reducer ─────────────────────────────────────────
+
+// ApplyActionToComments is the entry point for comments actions.
+// Mirrors the Rust client's stub: every recognized comments action
+// short-circuits as [ReduceOutcomeNoOp] until the full comments
+// reducer is ported. Unrelated actions return [ReduceOutcomeOutOfScope].
+func ApplyActionToComments(state *ahptypes.CommentsState, action ahptypes.StateAction) ReduceOutcome {
+	_ = state
+	switch action.Value.(type) {
+	case *ahptypes.CommentsThreadSetAction,
+		*ahptypes.CommentsThreadRemovedAction,
+		*ahptypes.CommentsCommentSetAction,
+		*ahptypes.CommentsCommentRemovedAction,
+		*ahptypes.CommentsClearedAction:
+		return ReduceOutcomeNoOp
+	}
+	return ReduceOutcomeOutOfScope
+}

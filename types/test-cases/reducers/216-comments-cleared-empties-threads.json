@@ -1,0 +1,27 @@
+{
+  "description": "comments/cleared empties the thread list and is a no-op on an already-empty channel",
+  "reducer": "comments",
+  "initial": {
+    "threads": [
+      {
+        "id": "t-1",
+        "turnId": "turn-1",
+        "resource": "file:///src/a.ts",
+        "range": {
+          "start": { "line": 0, "character": 0 },
+          "end": { "line": 0, "character": 5 }
+        },
+        "comments": [
+          { "id": "c-1", "text": "first" }
+        ]
+      }
+    ]
+  },
+  "actions": [
+    { "type": "comments/cleared" },
+    { "type": "comments/cleared" }
+  ],
+  "expected": {
+    "threads": []
+  }
+}

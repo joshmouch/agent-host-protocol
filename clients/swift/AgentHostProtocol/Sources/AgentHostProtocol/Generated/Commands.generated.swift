@@ -1159,6 +1159,162 @@ public struct ChangesetOperationFollowUp: Codable, Sendable {
     }
 }
 
+public struct CreateCommentThreadParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Turn whose file versions {@link resource} + {@link range} address.
+    public var turnId: String
+    /// Anchored file URI.
+    public var resource: String
+    /// Anchored range within {@link resource}.
+    public var range: TextRange
+    /// First comment in the thread. The server assigns its {@link Comment.id}.
+    public var comment: NewComment
+
+    public init(
+        channel: String,
+        turnId: String,
+        resource: String,
+        range: TextRange,
+        comment: NewComment
+    ) {
+        self.channel = channel
+        self.turnId = turnId
+        self.resource = resource
+        self.range = range
+        self.comment = comment
+    }
+}
+
+public struct CreateCommentThreadResult: Codable, Sendable {
+    /// Server-assigned {@link CommentThread.id}.
+    public var threadId: String
+    /// Server-assigned {@link Comment.id} of the initial comment.
+    public var commentId: String
+
+    public init(
+        threadId: String,
+        commentId: String
+    ) {
+        self.threadId = threadId
+        self.commentId = commentId
+    }
+}
+
+public struct UpdateCommentThreadParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// The {@link CommentThread.id} to update.
+    public var threadId: String
+    /// New {@link CommentThread.turnId}, if changing.
+    public var turnId: String?
+    /// New anchored file URI, if changing.
+    public var resource: String?
+    /// New anchored range, if changing.
+    public var range: TextRange?
+
+    public init(
+        channel: String,
+        threadId: String,
+        turnId: String? = nil,
+        resource: String? = nil,
+        range: TextRange? = nil
+    ) {
+        self.channel = channel
+        self.threadId = threadId
+        self.turnId = turnId
+        self.resource = resource
+        self.range = range
+    }
+}
+
+public struct DeleteCommentThreadParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// The {@link CommentThread.id} to delete.
+    public var threadId: String
+
+    public init(
+        channel: String,
+        threadId: String
+    ) {
+        self.channel = channel
+        self.threadId = threadId
+    }
+}
+
+public struct AddCommentParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Thread that receives the new comment.
+    public var threadId: String
+    /// Comment payload — the server assigns the id.
+    public var comment: NewComment
+
+    public init(
+        channel: String,
+        threadId: String,
+        comment: NewComment
+    ) {
+        self.channel = channel
+        self.threadId = threadId
+        self.comment = comment
+    }
+}
+
+public struct AddCommentResult: Codable, Sendable {
+    /// Server-assigned {@link Comment.id} of the new comment.
+    public var commentId: String
+
+    public init(
+        commentId: String
+    ) {
+        self.commentId = commentId
+    }
+}
+
+public struct EditCommentParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Enclosing thread.
+    public var threadId: String
+    /// {@link Comment.id} to edit.
+    public var commentId: String
+    /// New comment body.
+    public var text: String
+
+    public init(
+        channel: String,
+        threadId: String,
+        commentId: String,
+        text: String
+    ) {
+        self.channel = channel
+        self.threadId = threadId
+        self.commentId = commentId
+        self.text = text
+    }
+}
+
+public struct DeleteCommentParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Enclosing thread.
+    public var threadId: String
+    /// {@link Comment.id} to remove.
+    public var commentId: String
+
+    public init(
+        channel: String,
+        threadId: String,
+        commentId: String
+    ) {
+        self.channel = channel
+        self.threadId = threadId
+        self.commentId = commentId
+    }
+}
+
 // MARK: - ReconnectResult Union
 
 public enum ReconnectResult: Codable, Sendable {

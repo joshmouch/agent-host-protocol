@@ -809,6 +809,11 @@ public struct SessionSummary: Codable, Sendable {
     /// session's footprint (e.g., for list rendering) without requiring the
     /// client to subscribe to a changeset.
     public var changes: ChangesSummary?
+    /// Lightweight summary of this session's inline comments channel
+    /// (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+    /// thread / comment counts without subscribing. Absent when the session
+    /// does not expose a comments channel.
+    public var comments: CommentsSummary?
 
     public init(
         resource: String,
@@ -822,7 +827,8 @@ public struct SessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changes: ChangesSummary? = nil
+        changes: ChangesSummary? = nil,
+        comments: CommentsSummary? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -836,6 +842,7 @@ public struct SessionSummary: Codable, Sendable {
         self.agent = agent
         self.workingDirectory = workingDirectory
         self.changes = changes
+        self.comments = comments
     }
 }
 
@@ -3359,6 +3366,129 @@ public struct ChangesetOperation: Codable, Sendable {
     }
 }
 
+public struct CommentsSummary: Codable, Sendable {
+    /// The subscribable comments channel URI for the owning session
+    /// (typically `ahp-session:/<uuid>/comments`). Surfaced explicitly even
+    /// though it is derivable from the session URI so badge UI does not need
+    /// to know the derivation rule.
+    public var resource: String
+    /// Total number of {@link CommentThread} entries in the channel.
+    public var threadCount: Int
+    /// Total number of {@link Comment} entries across every thread.
+    public var commentCount: Int
+
+    public init(
+        resource: String,
+        threadCount: Int,
+        commentCount: Int
+    ) {
+        self.resource = resource
+        self.threadCount = threadCount
+        self.commentCount = commentCount
+    }
+}
+
+public struct CommentsState: Codable, Sendable {
+    /// Comment threads in this channel, keyed by {@link CommentThread.id}.
+    public var threads: [CommentThread]
+
+    public init(
+        threads: [CommentThread]
+    ) {
+        self.threads = threads
+    }
+}
+
+public struct CommentThread: Codable, Sendable {
+    /// Stable identifier within the comments channel. Server-assigned.
+    public var id: String
+    /// Turn that produced the file versions this thread is anchored to.
+    /// Matches a {@link Turn.id} on the owning session.
+    public var turnId: String
+    /// The file the thread is anchored to.
+    public var resource: String
+    /// Range within {@link resource} the thread is anchored to.
+    public var range: TextRange
+    /// Comments in this thread, in dispatch order (oldest first). MUST
+    /// contain at least one entry.
+    public var comments: [Comment]
+    /// Server-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case turnId
+        case resource
+        case range
+        case comments
+        case meta = "_meta"
+    }
+
+    public init(
+        id: String,
+        turnId: String,
+        resource: String,
+        range: TextRange,
+        comments: [Comment],
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.turnId = turnId
+        self.resource = resource
+        self.range = range
+        self.comments = comments
+        self.meta = meta
+    }
+}
+
+public struct Comment: Codable, Sendable {
+    /// Stable identifier within the enclosing thread. Server-assigned.
+    public var id: String
+    /// Comment body. Rendered as plain text unless the client opts into Markdown.
+    public var text: String
+    /// Server-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case text
+        case meta = "_meta"
+    }
+
+    public init(
+        id: String,
+        text: String,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.text = text
+        self.meta = meta
+    }
+}
+
+public struct NewComment: Codable, Sendable {
+    /// Comment body.
+    public var text: String
+    /// Server-defined opaque metadata, forwarded onto the resulting
+    /// {@link Comment._meta}.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case text
+        case meta = "_meta"
+    }
+
+    public init(
+        text: String,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.text = text
+        self.meta = meta
+    }
+}
+
 public struct TelemetryCapabilities: Codable, Sendable {
     /// Channel URI (or RFC 6570 URI template) for OTLP log records
     /// (`otlp/exportLogs` notifications).
@@ -3906,12 +4036,13 @@ public enum ToolResultContent: Codable, Sendable {
     }
 }
 
-/// The state payload of a snapshot — root, session, terminal, or changeset state.
+/// The state payload of a snapshot — root, session, terminal, changeset, or comments state.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
     case terminal(TerminalState)
     case changeset(ChangesetState)
+    case comments(CommentsState)
 
     public init(from decoder: Decoder) throws {
         // SessionState has required `summary` field, try it first
@@ -3921,6 +4052,8 @@ public enum SnapshotState: Codable, Sendable {
             self = .terminal(terminal)
         } else if let changeset = try? ChangesetState(from: decoder) {
             self = .changeset(changeset)
+        } else if let comments = try? CommentsState(from: decoder) {
+            self = .comments(comments)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -3932,6 +4065,7 @@ public enum SnapshotState: Codable, Sendable {
         case .session(let state): try state.encode(to: encoder)
         case .terminal(let state): try state.encode(to: encoder)
         case .changeset(let state): try state.encode(to: encoder)
+        case .comments(let state): try state.encode(to: encoder)
         }
     }
 }

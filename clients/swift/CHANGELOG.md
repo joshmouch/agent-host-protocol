@@ -24,6 +24,15 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
 - Optional `changes` field on `SessionSummary` (`ChangesSummary` with optional `additions`, `deletions`, and `files` counts) summarising a session's file-change footprint.
+- New comments channel wire types (`ahp-session:/<uuid>/comments`):
+  `CommentsState`, `CommentThread`, `Comment`, `NewComment`,
+  `CommentsSummary`; the
+  `comments/threadSet` / `comments/threadRemoved` / `comments/commentSet`
+  / `comments/commentRemoved` / `comments/cleared` cases on `StateAction`;
+  `CreateCommentThreadParams/Result`, `UpdateCommentThreadParams`,
+  `DeleteCommentThreadParams`, `AddCommentParams/Result`,
+  `EditCommentParams`, `DeleteCommentParams`; and `SnapshotState.comments`.
+  Reducer logic is deferred (matches the changeset/resource-watch parity).
 
 
 ### Changed

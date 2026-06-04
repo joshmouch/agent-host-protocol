@@ -35,6 +35,15 @@ Spec version: `0.3.0`
 - Added optional `changes` field of type `ChangesSummary` to `SessionSummary`,
   carrying optional `additions`, `deletions`, and `files` counts so servers
   can advertise an at-a-glance view of a session's file-change footprint.
+- Added a new comments channel exposed on `ahp-session:/<uuid>/comments`.
+  Threads anchor to a `(turnId, resource, range)` triple and always carry
+  at least one comment; new `createCommentThread`, `updateCommentThread`,
+  `deleteCommentThread`, `addComment`, `editComment`, `deleteComment`
+  commands drive mutations and echo as `comments/threadSet`,
+  `comments/threadRemoved`, `comments/commentSet`, `comments/commentRemoved`,
+  and `comments/cleared` actions. `SessionSummary.comments` advertises the
+  per-session `CommentsSummary` (`{ resource, threadCount, commentCount }`)
+  for badge UI.
 - Removed the `additions`, `deletions`, and `files` fields from
   `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`;
   per-changeset views derive their own totals from `ChangesetState.files`.

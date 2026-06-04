@@ -22,12 +22,13 @@ import {
   sessionReducer,
   terminalReducer,
   changesetReducer,
+  commentsReducer,
   resourceWatchReducer,
   isClientDispatchable,
 } from './reducers.js';
 import { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
 import { ActionType } from './actions.js';
-import type { RootState, SessionState, ChangesetState, ResourceWatchState } from './state.js';
+import type { RootState, SessionState, ChangesetState, CommentsState, ResourceWatchState } from './state.js';
 import {
   SessionLifecycle,
   SessionStatus,
@@ -55,6 +56,7 @@ function readChannelSources(baseName: string): string {
     'channels-session',
     'channels-terminal',
     'channels-changeset',
+    'channels-comments',
     'channels-resource-watch',
   ];
   return dirs
@@ -73,10 +75,10 @@ function readChannelSources(baseName: string): string {
 
 interface Fixture {
   description: string;
-  reducer: 'root' | 'session' | 'terminal' | 'changeset' | 'resourceWatch';
-  initial: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState;
+  reducer: 'root' | 'session' | 'terminal' | 'changeset' | 'comments' | 'resourceWatch';
+  initial: RootState | SessionState | TerminalState | ChangesetState | CommentsState | ResourceWatchState;
   actions: unknown[];
-  expected: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState;
+  expected: RootState | SessionState | TerminalState | ChangesetState | CommentsState | ResourceWatchState;
 }
 
 /**
@@ -134,6 +136,8 @@ describe('reducer fixtures', () => {
           state = terminalReducer(state as TerminalState, action as any);
         } else if (fixture.reducer === 'changeset') {
           state = changesetReducer(state as ChangesetState, action as any);
+        } else if (fixture.reducer === 'comments') {
+          state = commentsReducer(state as CommentsState, action as any);
         } else if (fixture.reducer === 'resourceWatch') {
           state = resourceWatchReducer(state as ResourceWatchState, action as any);
         } else {

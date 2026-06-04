@@ -143,9 +143,9 @@ import kotlinx.serialization.json.JsonElement
  * no mutation of [state] and no side effects.
  *
  * The companion top-level functions ([rootReducer], [sessionReducer],
- * [terminalReducer], [changesetReducer], [resourceWatchReducer]) are the canonical implementations.
+ * [terminalReducer], [changesetReducer], [commentsReducer], [resourceWatchReducer]) are the canonical implementations.
  * The object instances on this interface ([RootReducer], [SessionReducer],
- * [TerminalReducer], [ChangesetReducer]) wrap them for use as values where
+ * [TerminalReducer], [ChangesetReducer], [CommentsReducer]) wrap them for use as values where
  * an instance is needed.
  */
 public fun interface Reducer<S, A> {
@@ -174,6 +174,12 @@ public object TerminalReducer : Reducer<TerminalState, StateAction> {
 public object ChangesetReducer : Reducer<ChangesetState, StateAction> {
     override fun reduce(state: ChangesetState, action: StateAction): ChangesetState =
         changesetReducer(state, action)
+}
+
+/** Pure comments reducer as a [Reducer] instance. Delegates to [commentsReducer]. */
+public object CommentsReducer : Reducer<CommentsState, StateAction> {
+    override fun reduce(state: CommentsState, action: StateAction): CommentsState =
+        commentsReducer(state, action)
 }
 
 /** Pure resource-watch reducer as a [Reducer] instance. Delegates to [resourceWatchReducer]. */
@@ -1327,6 +1333,84 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
 
     is StateActionChangesetCleared ->
         if (state.files.isEmpty()) state else state.copy(files = emptyList())
+
+    else -> state
+}
+
+// ─── Comments Reducer ──────────────────────────────────────────
+
+/**
+ * Pure reducer for [CommentsState]. Handles all comments-channel action
+ * variants; actions belonging to other channels (or unknown variants) are
+ * no-ops that return [state] unchanged.
+ *
+ * The single-comment-minimum invariant is enforced by the server, not the
+ * reducer — a malformed server that removes a thread's last comment via
+ * `comments/commentRemoved` would leave an empty thread, which is
+ * observable but not catastrophic.
+ */
+public fun commentsReducer(state: CommentsState, action: StateAction): CommentsState = when (action) {
+    is StateActionCommentsThreadSet -> {
+        val thread = action.value.thread
+        val idx = state.threads.indexOfFirst { it.id == thread.id }
+        if (idx < 0) {
+            state.copy(threads = state.threads + thread)
+        } else {
+            val next = state.threads.toMutableList().also { it[idx] = thread }
+            state.copy(threads = next)
+        }
+    }
+
+    is StateActionCommentsThreadRemoved -> {
+        val idx = state.threads.indexOfFirst { it.id == action.value.threadId }
+        if (idx < 0) {
+            state
+        } else {
+            val next: List<CommentThread> = state.threads.toMutableList().also { it.removeAt(idx) }
+            state.copy(threads = next)
+        }
+    }
+
+    is StateActionCommentsCommentSet -> {
+        val tIdx = state.threads.indexOfFirst { it.id == action.value.threadId }
+        if (tIdx < 0) {
+            state
+        } else {
+            val thread = state.threads[tIdx]
+            val comment = action.value.comment
+            val cIdx = thread.comments.indexOfFirst { it.id == comment.id }
+            val nextComments = if (cIdx < 0) {
+                thread.comments + comment
+            } else {
+                thread.comments.toMutableList().also { it[cIdx] = comment }
+            }
+            val nextThreads = state.threads.toMutableList()
+                .also { it[tIdx] = thread.copy(comments = nextComments) }
+            state.copy(threads = nextThreads)
+        }
+    }
+
+    is StateActionCommentsCommentRemoved -> {
+        val tIdx = state.threads.indexOfFirst { it.id == action.value.threadId }
+        if (tIdx < 0) {
+            state
+        } else {
+            val thread = state.threads[tIdx]
+            val cIdx = thread.comments.indexOfFirst { it.id == action.value.commentId }
+            if (cIdx < 0) {
+                state
+            } else {
+                val nextComments: List<Comment> = thread.comments.toMutableList()
+                    .also { it.removeAt(cIdx) }
+                val nextThreads = state.threads.toMutableList()
+                    .also { it[tIdx] = thread.copy(comments = nextComments) }
+                state.copy(threads = nextThreads)
+            }
+        }
+    }
+
+    is StateActionCommentsCleared ->
+        if (state.threads.isEmpty()) state else state.copy(threads = emptyList())
 
     else -> state
 }

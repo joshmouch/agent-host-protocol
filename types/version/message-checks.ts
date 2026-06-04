@@ -74,7 +74,13 @@ type _ExpectedCommands =
   | 'resolveSessionConfig'
   | 'sessionConfigCompletions'
   | 'completions'
-  | 'invokeChangesetOperation';
+  | 'invokeChangesetOperation'
+  | 'createCommentThread'
+  | 'updateCommentThread'
+  | 'deleteCommentThread'
+  | 'addComment'
+  | 'editComment'
+  | 'deleteComment';
 
 /** All methods annotated `@messageType Notification` (client → server). */
 type _ExpectedClientNotifications =

@@ -66,6 +66,16 @@ import type {
   InvokeChangesetOperationParams,
   InvokeChangesetOperationResult,
 } from '../channels-changeset/commands.js';
+import type {
+  CreateCommentThreadParams,
+  CreateCommentThreadResult,
+  UpdateCommentThreadParams,
+  DeleteCommentThreadParams,
+  AddCommentParams,
+  AddCommentResult,
+  EditCommentParams,
+  DeleteCommentParams,
+} from '../channels-comments/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
 import type {
@@ -167,6 +177,12 @@ export interface CommandMap {
   'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
   'completions': { params: CompletionsParams; result: CompletionsResult };
   'invokeChangesetOperation': { params: InvokeChangesetOperationParams; result: InvokeChangesetOperationResult };
+  'createCommentThread': { params: CreateCommentThreadParams; result: CreateCommentThreadResult };
+  'updateCommentThread': { params: UpdateCommentThreadParams; result: null };
+  'deleteCommentThread': { params: DeleteCommentThreadParams; result: null };
+  'addComment': { params: AddCommentParams; result: AddCommentResult };
+  'editComment': { params: EditCommentParams; result: null };
+  'deleteComment': { params: DeleteCommentParams; result: null };
 }
 
 /**

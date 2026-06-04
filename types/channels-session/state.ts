@@ -17,8 +17,9 @@ import type {
   TextSelection,
   UsageInfo,
 } from '../common/state.js';
-import type { ModelSelection } from '../channels-root/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
+import type { CommentsSummary } from '../channels-comments/state.js';
+import type { ModelSelection } from '../channels-root/state.js';
 
 // ─── Pending Message Types ───────────────────────────────────────────────────
 
@@ -223,6 +224,13 @@ export interface SessionSummary {
   * client to subscribe to a changeset.
   */
   changes?: ChangesSummary;
+  /**
+   * Lightweight summary of this session's inline comments channel
+   * (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+   * thread / comment counts without subscribing. Absent when the session
+   * does not expose a comments channel.
+   */
+  comments?: CommentsSummary;
 }
 
 /**

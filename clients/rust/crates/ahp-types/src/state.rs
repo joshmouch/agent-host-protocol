@@ -795,6 +795,12 @@ pub struct SessionSummary {
     /// client to subscribe to a changeset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changes: Option<ChangesSummary>,
+    /// Lightweight summary of this session's inline comments channel
+    /// (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+    /// thread / comment counts without subscribing. Absent when the session
+    /// does not expose a comments channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<CommentsSummary>,
 }
 
 /// Aggregate counts describing the file changes associated with a session.
@@ -2585,6 +2591,95 @@ pub struct ChangesetOperation {
     pub error: Option<ErrorInfo>,
 }
 
+/// Lightweight per-session summary of the comments channel, surfaced on
+/// {@link SessionSummary.comments} so badge UI can render thread / comment
+/// counts without subscribing to the channel itself.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsSummary {
+    /// The subscribable comments channel URI for the owning session
+    /// (typically `ahp-session:/<uuid>/comments`). Surfaced explicitly even
+    /// though it is derivable from the session URI so badge UI does not need
+    /// to know the derivation rule.
+    pub resource: Uri,
+    /// Total number of {@link CommentThread} entries in the channel.
+    pub thread_count: i64,
+    /// Total number of {@link Comment} entries across every thread.
+    pub comment_count: i64,
+}
+
+/// Full state for a session's comments channel, returned when a client
+/// subscribes to an `ahp-session:/<uuid>/comments` URI.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsState {
+    /// Comment threads in this channel, keyed by {@link CommentThread.id}.
+    pub threads: Vec<CommentThread>,
+}
+
+/// A conversation anchored to a specific range in a specific file produced
+/// by a specific turn.
+///
+/// {@link turnId} anchors the thread to the file versions that turn
+/// produced, so a later turn that rewrites the same file does not silently
+/// invalidate the comment's anchor — clients can resolve {@link resource}
+/// and {@link range} against the turn's changeset.
+///
+/// Every thread MUST contain at least one {@link Comment}. The server
+/// enforces this invariant: {@link CreateCommentThreadParams |
+/// `createCommentThread`} requires an initial comment, and deleting the
+/// last remaining comment collapses the thread into a
+/// {@link CommentsThreadRemovedAction} rather than leaving an empty thread
+/// behind.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentThread {
+    /// Stable identifier within the comments channel. Server-assigned.
+    pub id: String,
+    /// Turn that produced the file versions this thread is anchored to.
+    /// Matches a {@link Turn.id} on the owning session.
+    pub turn_id: String,
+    /// The file the thread is anchored to.
+    pub resource: Uri,
+    /// Range within {@link resource} the thread is anchored to.
+    pub range: TextRange,
+    /// Comments in this thread, in dispatch order (oldest first). MUST
+    /// contain at least one entry.
+    pub comments: Vec<Comment>,
+    /// Server-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// A single comment within a {@link CommentThread}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    /// Stable identifier within the enclosing thread. Server-assigned.
+    pub id: String,
+    /// Comment body. Rendered as plain text unless the client opts into Markdown.
+    pub text: String,
+    /// Server-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Input shape passed to {@link CreateCommentThreadParams | `createCommentThread`}
+/// and {@link AddCommentParams | `addComment`}. The server assigns the
+/// resulting {@link Comment.id}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewComment {
+    /// Comment body.
+    pub text: String,
+    /// Server-defined opaque metadata, forwarded onto the resulting
+    /// {@link Comment._meta}.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
 /// OTLP telemetry channels the agent host emits.
 ///
 /// Each field, when present, is either a literal channel URI or an
@@ -2898,17 +2993,19 @@ pub enum CustomizationLoadState {
     Unknown(serde_json::Value),
 }
 
-/// The state payload of a snapshot — root, session, terminal, or
-/// changeset state.
+/// The state payload of a snapshot — root, session, terminal,
+/// changeset, or comments state.
 ///
 /// Deserialized by trying session first (has required `summary`), then
 /// terminal (has required `content`), then changeset (has required
-/// `status` and `files`), then root.
+/// `status` and `files`), then comments (has required `threads`),
+/// then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
     Session(Box<SessionState>),
     Terminal(Box<TerminalState>),
     Changeset(Box<ChangesetState>),
+    Comments(Box<CommentsState>),
     Root(Box<RootState>),
 }

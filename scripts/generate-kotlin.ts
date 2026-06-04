@@ -140,7 +140,8 @@ function mapType(tsType: string): string {
   if (
     tsType === 'RootState | SessionState' ||
     tsType === 'RootState | SessionState | TerminalState' ||
-    tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    tsType === 'RootState | SessionState | TerminalState | ChangesetState' ||
+    tsType === 'RootState | SessionState | TerminalState | ChangesetState | CommentsState'
   ) {
     return 'SnapshotState';
   }
@@ -625,7 +626,7 @@ internal object StringOrMarkdownSerializer : KSerializer<StringOrMarkdown> {
 
 function generateSnapshotState(): string {
   return `/**
- * The state payload of a snapshot — root, session, terminal, or changeset state.
+ * The state payload of a snapshot — root, session, terminal, changeset, or comments state.
  */
 @Serializable(with = SnapshotStateSerializer::class)
 sealed interface SnapshotState {
@@ -633,6 +634,7 @@ sealed interface SnapshotState {
     @JvmInline value class Session(val value: SessionState) : SnapshotState
     @JvmInline value class Terminal(val value: TerminalState) : SnapshotState
     @JvmInline value class Changeset(val value: ChangesetState) : SnapshotState
+    @JvmInline value class Comments(val value: CommentsState) : SnapshotState
 }
 
 internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
@@ -647,12 +649,14 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             ?: error("Expected JsonObject for SnapshotState")
         // Try the most distinctive shape first. SessionState has required
         // \`summary\`; ChangesetState has required \`status\` + \`files\`;
-        // TerminalState has \`uri\` / \`size\` / \`buffer\`; RootState is the
-        // catch-all.
+        // CommentsState has required \`threads\`; TerminalState has
+        // \`uri\` / \`size\` / \`buffer\`; RootState is the catch-all.
         return when {
             obj.containsKey("summary") -> SnapshotState.Session(input.json.decodeFromJsonElement(SessionState.serializer(), element))
             obj.containsKey("status") && obj.containsKey("files") ->
                 SnapshotState.Changeset(input.json.decodeFromJsonElement(ChangesetState.serializer(), element))
+            obj.containsKey("threads") ->
+                SnapshotState.Comments(input.json.decodeFromJsonElement(CommentsState.serializer(), element))
             obj.containsKey("size") || obj.containsKey("uri") || obj.containsKey("buffer") ->
                 SnapshotState.Terminal(input.json.decodeFromJsonElement(TerminalState.serializer(), element))
             else -> SnapshotState.Root(input.json.decodeFromJsonElement(RootState.serializer(), element))
@@ -667,6 +671,7 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             is SnapshotState.Session -> output.json.encodeToJsonElement(SessionState.serializer(), value.value)
             is SnapshotState.Terminal -> output.json.encodeToJsonElement(TerminalState.serializer(), value.value)
             is SnapshotState.Changeset -> output.json.encodeToJsonElement(ChangesetState.serializer(), value.value)
+            is SnapshotState.Comments -> output.json.encodeToJsonElement(CommentsState.serializer(), value.value)
         }
         output.encodeJsonElement(element)
     }
@@ -780,6 +785,7 @@ const STATE_STRUCTS = [
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
   'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'CommentsSummary', 'CommentsState', 'CommentThread', 'Comment', 'NewComment',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];
@@ -1036,6 +1042,11 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'changeset/operationsChanged', caseName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', caseName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', caseName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'comments/threadSet', caseName: 'CommentsThreadSet', tsInterface: 'CommentsThreadSetAction' },
+  { type: 'comments/threadRemoved', caseName: 'CommentsThreadRemoved', tsInterface: 'CommentsThreadRemovedAction' },
+  { type: 'comments/commentSet', caseName: 'CommentsCommentSet', tsInterface: 'CommentsCommentSetAction' },
+  { type: 'comments/commentRemoved', caseName: 'CommentsCommentRemoved', tsInterface: 'CommentsCommentRemovedAction' },
+  { type: 'comments/cleared', caseName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
   { type: 'root/terminalsChanged', caseName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'RootConfigChanged', tsInterface: 'RootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'TerminalData', tsInterface: 'TerminalDataAction' },
@@ -1214,6 +1225,12 @@ const COMMAND_STRUCTS = [
   'CompletionsParams', 'CompletionItem', 'CompletionsResult',
   'InvokeChangesetOperationParams', 'InvokeChangesetOperationResult',
   'ChangesetOperationFollowUp',
+  'CreateCommentThreadParams', 'CreateCommentThreadResult',
+  'UpdateCommentThreadParams',
+  'DeleteCommentThreadParams',
+  'AddCommentParams', 'AddCommentResult',
+  'EditCommentParams',
+  'DeleteCommentParams',
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -1603,6 +1620,24 @@ object AhpCommands {
 
     fun invokeChangesetOperation(id: Long, params: InvokeChangesetOperationParams): JsonRpcRequest<InvokeChangesetOperationParams> =
         JsonRpcRequest(id = id, method = "invokeChangesetOperation", params = params)
+
+    fun createCommentThread(id: Long, params: CreateCommentThreadParams): JsonRpcRequest<CreateCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "createCommentThread", params = params)
+
+    fun updateCommentThread(id: Long, params: UpdateCommentThreadParams): JsonRpcRequest<UpdateCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "updateCommentThread", params = params)
+
+    fun deleteCommentThread(id: Long, params: DeleteCommentThreadParams): JsonRpcRequest<DeleteCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "deleteCommentThread", params = params)
+
+    fun addComment(id: Long, params: AddCommentParams): JsonRpcRequest<AddCommentParams> =
+        JsonRpcRequest(id = id, method = "addComment", params = params)
+
+    fun editComment(id: Long, params: EditCommentParams): JsonRpcRequest<EditCommentParams> =
+        JsonRpcRequest(id = id, method = "editComment", params = params)
+
+    fun deleteComment(id: Long, params: DeleteCommentParams): JsonRpcRequest<DeleteCommentParams> =
+        JsonRpcRequest(id = id, method = "deleteComment", params = params)
 }
 
 /**

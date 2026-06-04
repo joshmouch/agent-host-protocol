@@ -54,6 +54,11 @@ public enum ActionType: String, Codable, Sendable {
     case changesetOperationsChanged = "changeset/operationsChanged"
     case changesetOperationStatusChanged = "changeset/operationStatusChanged"
     case changesetCleared = "changeset/cleared"
+    case commentsThreadSet = "comments/threadSet"
+    case commentsThreadRemoved = "comments/threadRemoved"
+    case commentsCommentSet = "comments/commentSet"
+    case commentsCommentRemoved = "comments/commentRemoved"
+    case commentsCleared = "comments/cleared"
     case rootTerminalsChanged = "root/terminalsChanged"
     case rootConfigChanged = "root/configChanged"
     case terminalData = "terminal/data"
@@ -1111,6 +1116,80 @@ public struct ChangesetClearedAction: Codable, Sendable {
     }
 }
 
+public struct CommentsThreadSetAction: Codable, Sendable {
+    public var type: ActionType
+    /// The new or replacement thread. MUST contain at least one comment.
+    public var thread: CommentThread
+
+    public init(
+        type: ActionType,
+        thread: CommentThread
+    ) {
+        self.type = type
+        self.thread = thread
+    }
+}
+
+public struct CommentsThreadRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link CommentThread.id} of the thread to remove.
+    public var threadId: String
+
+    public init(
+        type: ActionType,
+        threadId: String
+    ) {
+        self.type = type
+        self.threadId = threadId
+    }
+}
+
+public struct CommentsCommentSetAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link CommentThread.id} the comment belongs to.
+    public var threadId: String
+    /// The new or replacement comment.
+    public var comment: Comment
+
+    public init(
+        type: ActionType,
+        threadId: String,
+        comment: Comment
+    ) {
+        self.type = type
+        self.threadId = threadId
+        self.comment = comment
+    }
+}
+
+public struct CommentsCommentRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link CommentThread.id} the comment belongs to.
+    public var threadId: String
+    /// The {@link Comment.id} to remove.
+    public var commentId: String
+
+    public init(
+        type: ActionType,
+        threadId: String,
+        commentId: String
+    ) {
+        self.type = type
+        self.threadId = threadId
+        self.commentId = commentId
+    }
+}
+
+public struct CommentsClearedAction: Codable, Sendable {
+    public var type: ActionType
+
+    public init(
+        type: ActionType
+    ) {
+        self.type = type
+    }
+}
+
 public struct RootTerminalsChangedAction: Codable, Sendable {
     public var type: ActionType
     /// Updated terminal list (full replacement)
@@ -1378,6 +1457,11 @@ public enum StateAction: Codable, Sendable {
     case changesetOperationsChanged(ChangesetOperationsChangedAction)
     case changesetOperationStatusChanged(ChangesetOperationStatusChangedAction)
     case changesetCleared(ChangesetClearedAction)
+    case commentsThreadSet(CommentsThreadSetAction)
+    case commentsThreadRemoved(CommentsThreadRemovedAction)
+    case commentsCommentSet(CommentsCommentSetAction)
+    case commentsCommentRemoved(CommentsCommentRemovedAction)
+    case commentsCleared(CommentsClearedAction)
     case rootTerminalsChanged(RootTerminalsChangedAction)
     case rootConfigChanged(RootConfigChangedAction)
     case terminalData(TerminalDataAction)
@@ -1497,6 +1581,16 @@ public enum StateAction: Codable, Sendable {
             self = .changesetOperationStatusChanged(try ChangesetOperationStatusChangedAction(from: decoder))
         case "changeset/cleared":
             self = .changesetCleared(try ChangesetClearedAction(from: decoder))
+        case "comments/threadSet":
+            self = .commentsThreadSet(try CommentsThreadSetAction(from: decoder))
+        case "comments/threadRemoved":
+            self = .commentsThreadRemoved(try CommentsThreadRemovedAction(from: decoder))
+        case "comments/commentSet":
+            self = .commentsCommentSet(try CommentsCommentSetAction(from: decoder))
+        case "comments/commentRemoved":
+            self = .commentsCommentRemoved(try CommentsCommentRemovedAction(from: decoder))
+        case "comments/cleared":
+            self = .commentsCleared(try CommentsClearedAction(from: decoder))
         case "root/terminalsChanged":
             self = .rootTerminalsChanged(try RootTerminalsChangedAction(from: decoder))
         case "root/configChanged":
@@ -1580,6 +1674,11 @@ public enum StateAction: Codable, Sendable {
         case .changesetOperationsChanged(let v): try v.encode(to: encoder)
         case .changesetOperationStatusChanged(let v): try v.encode(to: encoder)
         case .changesetCleared(let v): try v.encode(to: encoder)
+        case .commentsThreadSet(let v): try v.encode(to: encoder)
+        case .commentsThreadRemoved(let v): try v.encode(to: encoder)
+        case .commentsCommentSet(let v): try v.encode(to: encoder)
+        case .commentsCommentRemoved(let v): try v.encode(to: encoder)
+        case .commentsCleared(let v): try v.encode(to: encoder)
         case .rootTerminalsChanged(let v): try v.encode(to: encoder)
         case .rootConfigChanged(let v): try v.encode(to: encoder)
         case .terminalData(let v): try v.encode(to: encoder)

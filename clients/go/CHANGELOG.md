@@ -21,6 +21,16 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
 - Optional `changes` field on `SessionSummary` (`ChangesSummary` with optional `additions`, `deletions`, and `files` counts) summarising a session's file-change footprint.
+- New comments channel wire types (`ahp-session:/<uuid>/comments`):
+  `CommentsState`, `CommentThread`, `Comment`, `NewComment`,
+  `CommentsSummary`; the `CommentsThreadSetAction`,
+  `CommentsThreadRemovedAction`, `CommentsCommentSetAction`,
+  `CommentsCommentRemovedAction`, `CommentsClearedAction` variants;
+  `CreateCommentThreadParams/Result`, `UpdateCommentThreadParams`,
+  `DeleteCommentThreadParams`, `AddCommentParams/Result`,
+  `EditCommentParams`, `DeleteCommentParams` command structs;
+  `ApplyActionToComments` (stub mirroring `ApplyActionToChangeset`); and
+  `SnapshotState.Comments`.
 
 
 ### Changed

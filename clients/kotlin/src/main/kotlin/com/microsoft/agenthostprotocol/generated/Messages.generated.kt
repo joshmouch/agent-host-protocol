@@ -145,6 +145,24 @@ object AhpCommands {
 
     fun invokeChangesetOperation(id: Long, params: InvokeChangesetOperationParams): JsonRpcRequest<InvokeChangesetOperationParams> =
         JsonRpcRequest(id = id, method = "invokeChangesetOperation", params = params)
+
+    fun createCommentThread(id: Long, params: CreateCommentThreadParams): JsonRpcRequest<CreateCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "createCommentThread", params = params)
+
+    fun updateCommentThread(id: Long, params: UpdateCommentThreadParams): JsonRpcRequest<UpdateCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "updateCommentThread", params = params)
+
+    fun deleteCommentThread(id: Long, params: DeleteCommentThreadParams): JsonRpcRequest<DeleteCommentThreadParams> =
+        JsonRpcRequest(id = id, method = "deleteCommentThread", params = params)
+
+    fun addComment(id: Long, params: AddCommentParams): JsonRpcRequest<AddCommentParams> =
+        JsonRpcRequest(id = id, method = "addComment", params = params)
+
+    fun editComment(id: Long, params: EditCommentParams): JsonRpcRequest<EditCommentParams> =
+        JsonRpcRequest(id = id, method = "editComment", params = params)
+
+    fun deleteComment(id: Long, params: DeleteCommentParams): JsonRpcRequest<DeleteCommentParams> =
+        JsonRpcRequest(id = id, method = "deleteComment", params = params)
 }
 
 /**

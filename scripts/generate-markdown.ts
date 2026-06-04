@@ -53,6 +53,7 @@ const DIR_TO_PAGE: Record<string, string> = {
   'channels-session': 'session',
   'channels-terminal': 'terminal',
   'channels-changeset': 'changeset',
+  'channels-comments': 'comments',
   'channels-otlp': 'otlp',
 };
 
@@ -1003,6 +1004,35 @@ function generateChangesetChannelPage(project: Project): string {
   return lines.join('\n');
 }
 
+function generateCommentsChannelPage(project: Project): string {
+  currentPage = 'comments';
+  const stateSf = findChannelSourceFile(project, 'channels-comments', 'state.ts');
+  const actionsSf = findChannelSourceFile(project, 'channels-comments', 'actions.ts');
+  const commandsSf = findChannelSourceFile(project, 'channels-comments', 'commands.ts');
+
+  const lines: string[] = [GENERATED_HEADER];
+  lines.push('# Comments Channel\n');
+  lines.push('Reference for the `ahp-session:/<uuid>/comments` channel — per-session inline file comments. Threads anchor to a `(turnId, resource, range)` triple and always carry at least one comment; mutations flow through dedicated commands so the server can enforce the single-comment-minimum invariant.\n');
+  lines.push(schemaLink('state.schema.json'));
+
+  if (stateSf) {
+    lines.push('## State Types\n');
+    lines.push(emitStateTypesSection([stateSf]));
+  }
+  if (actionsSf) {
+    lines.push('## Actions\n');
+    lines.push('Mutate `CommentsState`. Scoped to a comments URI via the enclosing `ActionEnvelope.channel`. Every comments action is server-only.\n');
+    lines.push(schemaLink('actions.schema.json'));
+    lines.push(emitActionsSection([actionsSf]));
+  }
+  if (commandsSf) {
+    lines.push('## Commands\n');
+    lines.push(schemaLink('commands.schema.json'));
+    lines.push(emitCommandsSection(project, [commandsSf]));
+  }
+  return lines.join('\n');
+}
+
 function generateOtlpChannelPage(project: Project): string {
   currentPage = 'otlp';
   const stateSf = findChannelSourceFile(project, 'channels-otlp', 'state.ts');
@@ -1243,6 +1273,7 @@ export function generateMarkdownDocs(project: Project, outDir: string): void {
     { filename: 'session.md', generator: generateSessionChannelPage },
     { filename: 'terminal.md', generator: generateTerminalChannelPage },
     { filename: 'changeset.md', generator: generateChangesetChannelPage },
+    { filename: 'comments.md', generator: generateCommentsChannelPage },
     { filename: 'otlp.md', generator: generateOtlpChannelPage },
     { filename: 'messages.md', generator: generateMessagesPage },
     { filename: 'error-codes.md', generator: generateErrorCodesPage },

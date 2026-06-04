@@ -68,6 +68,14 @@ import type {
 } from '../channels-changeset/actions.js';
 
 import type {
+  CommentsThreadSetAction,
+  CommentsThreadRemovedAction,
+  CommentsCommentSetAction,
+  CommentsCommentRemovedAction,
+  CommentsClearedAction,
+} from '../channels-comments/actions.js';
+
+import type {
   TerminalDataAction,
   TerminalInputAction,
   TerminalResizedAction,
@@ -141,6 +149,11 @@ export const enum ActionType {
   ChangesetOperationsChanged = 'changeset/operationsChanged',
   ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
   ChangesetCleared = 'changeset/cleared',
+  CommentsThreadSet = 'comments/threadSet',
+  CommentsThreadRemoved = 'comments/threadRemoved',
+  CommentsCommentSet = 'comments/commentSet',
+  CommentsCommentRemoved = 'comments/commentRemoved',
+  CommentsCleared = 'comments/cleared',
   RootTerminalsChanged = 'root/terminalsChanged',
   RootConfigChanged = 'root/configChanged',
   TerminalData = 'terminal/data',
@@ -241,6 +254,11 @@ export type StateAction =
   | ChangesetOperationsChangedAction
   | ChangesetOperationStatusChangedAction
   | ChangesetClearedAction
+  | CommentsThreadSetAction
+  | CommentsThreadRemovedAction
+  | CommentsCommentSetAction
+  | CommentsCommentRemovedAction
+  | CommentsClearedAction
   | TerminalDataAction
   | TerminalInputAction
   | TerminalResizedAction

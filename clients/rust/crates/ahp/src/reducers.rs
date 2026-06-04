@@ -1220,6 +1220,7 @@ mod tests {
                 agent: None,
                 working_directory: None,
                 changes: None,
+                comments: None,
             },
             lifecycle: SessionLifecycle::Creating,
             creation_error: None,
@@ -1516,6 +1517,11 @@ mod tests {
                 ),
                 "changeset" => {
                     // changeset reducer not yet implemented in Rust; skip.
+                    skipped += 1;
+                    continue;
+                }
+                "comments" => {
+                    // comments reducer not yet implemented in Rust; skip.
                     skipped += 1;
                     continue;
                 }

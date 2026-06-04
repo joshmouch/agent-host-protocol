@@ -26,16 +26,16 @@ const (
 // AHP application-specific error codes (above the JSON-RPC reserved
 // range).
 const (
-	ErrorCodeSessionNotFound            int32 = -32001
-	ErrorCodeProviderNotFound           int32 = -32002
-	ErrorCodeSessionAlreadyExists       int32 = -32003
-	ErrorCodeTurnInProgress             int32 = -32004
-	ErrorCodeUnsupportedProtocolVersion int32 = -32005
-	ErrorCodeContentNotFound            int32 = -32006
-	ErrorCodeAuthRequired               int32 = -32007
-	ErrorCodeNotFound                   int32 = -32008
-	ErrorCodePermissionDenied           int32 = -32009
-	ErrorCodeAlreadyExists              int32 = -32010
+	ErrorCodeSessionNotFound             int32 = -32001
+	ErrorCodeProviderNotFound            int32 = -32002
+	ErrorCodeSessionAlreadyExists        int32 = -32003
+	ErrorCodeTurnInProgress              int32 = -32004
+	ErrorCodeUnsupportedProtocolVersion  int32 = -32005
+	ErrorCodeContentNotFound             int32 = -32006
+	ErrorCodeAuthRequired                int32 = -32007
+	ErrorCodeNotFound                    int32 = -32008
+	ErrorCodePermissionDenied            int32 = -32009
+	ErrorCodeAlreadyExists               int32 = -32010
 )
 
 // AhpErrorCode is the type alias used by AHP application error codes.

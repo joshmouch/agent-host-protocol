@@ -1474,6 +1474,96 @@
         "type"
       ]
     },
+    "CommentsThreadSetAction": {
+      "type": "object",
+      "description": "Upsert a {@link CommentThread} in the comments channel — adds a new\nthread, or replaces an existing one identified by\n{@link CommentThread.id}. When replacing, the full thread payload\n(including its {@link CommentThread.comments | comments} list) is\nsubstituted; producers SHOULD prefer {@link CommentsCommentSetAction}\nfor per-comment edits to keep wire updates small.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.CommentsThreadSet"
+        },
+        "thread": {
+          "$ref": "#/$defs/CommentThread",
+          "description": "The new or replacement thread. MUST contain at least one comment."
+        }
+      },
+      "required": [
+        "type",
+        "thread"
+      ]
+    },
+    "CommentsThreadRemovedAction": {
+      "type": "object",
+      "description": "Remove a {@link CommentThread} from the channel by its id.\n\nThe server emits this in two cases:\n1. The client explicitly invoked\n   {@link DeleteCommentThreadParams | `deleteCommentThread`}.\n2. The client invoked {@link DeleteCommentParams | `deleteComment`} on\n   the last remaining comment in the thread — the protocol collapses\n   the thread rather than leaving an empty one behind.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.CommentsThreadRemoved"
+        },
+        "threadId": {
+          "type": "string",
+          "description": "The {@link CommentThread.id} of the thread to remove."
+        }
+      },
+      "required": [
+        "type",
+        "threadId"
+      ]
+    },
+    "CommentsCommentSetAction": {
+      "type": "object",
+      "description": "Upsert a {@link Comment} within an existing thread — adds a new\ncomment, or replaces one identified by {@link Comment.id}. If\n{@link threadId} does not match any current thread the action is a\nno-op.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.CommentsCommentSet"
+        },
+        "threadId": {
+          "type": "string",
+          "description": "The {@link CommentThread.id} the comment belongs to."
+        },
+        "comment": {
+          "$ref": "#/$defs/Comment",
+          "description": "The new or replacement comment."
+        }
+      },
+      "required": [
+        "type",
+        "threadId",
+        "comment"
+      ]
+    },
+    "CommentsCommentRemovedAction": {
+      "type": "object",
+      "description": "Remove a single {@link Comment} from a thread without collapsing the\nthread itself. Used when more than one comment remains — the server\nMUST dispatch {@link CommentsThreadRemovedAction} instead when removing\nthe last comment would otherwise leave the thread empty.\n\nIf either {@link threadId} or {@link commentId} does not match the\ncurrent state the action is a no-op.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.CommentsCommentRemoved"
+        },
+        "threadId": {
+          "type": "string",
+          "description": "The {@link CommentThread.id} the comment belongs to."
+        },
+        "commentId": {
+          "type": "string",
+          "description": "The {@link Comment.id} to remove."
+        }
+      },
+      "required": [
+        "type",
+        "threadId",
+        "commentId"
+      ]
+    },
+    "CommentsClearedAction": {
+      "type": "object",
+      "description": "Drop every thread from the comments channel.\n\nDispatched when the owning session is going away and the channel is\nabout to become un-subscribable. Clients SHOULD release references on\nreceipt and react to the corresponding session-level lifecycle signal\n(e.g. `root/sessionRemoved`) to fully tear down UI.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.CommentsCleared"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
     "ResourceWatchChangedAction": {
       "type": "object",
       "description": "A batch of resource changes observed by the watcher.\n\nWatch events are coalesced into batches by the server to keep the\naction stream tractable; an empty `changes.items` list MUST NOT be\ndispatched. The reducer does not retain change history — these\nactions exist purely to deliver events to subscribers, who consume\nthem directly off the action stream and apply their own logic.",
@@ -1916,6 +2006,9 @@
             },
             {
               "$ref": "#/$defs/ChangesetState"
+            },
+            {
+              "$ref": "#/$defs/CommentsState"
             }
           ],
           "description": "The current state of the resource"
@@ -2292,6 +2385,10 @@
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
           "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
+        },
+        "comments": {
+          "$ref": "#/$defs/CommentsSummary",
+          "description": "Lightweight summary of this session's inline comments channel\n(`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render\nthread / comment counts without subscribing. Absent when the session\ndoes not expose a comments channel."
         }
       },
       "required": [
@@ -4993,6 +5090,127 @@
         "status"
       ]
     },
+    "CommentsSummary": {
+      "type": "object",
+      "description": "Lightweight per-session summary of the comments channel, surfaced on\n{@link SessionSummary.comments} so badge UI can render thread / comment\ncounts without subscribing to the channel itself.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The subscribable comments channel URI for the owning session\n(typically `ahp-session:/<uuid>/comments`). Surfaced explicitly even\nthough it is derivable from the session URI so badge UI does not need\nto know the derivation rule."
+        },
+        "threadCount": {
+          "type": "number",
+          "description": "Total number of {@link CommentThread} entries in the channel."
+        },
+        "commentCount": {
+          "type": "number",
+          "description": "Total number of {@link Comment} entries across every thread."
+        }
+      },
+      "required": [
+        "resource",
+        "threadCount",
+        "commentCount"
+      ]
+    },
+    "CommentsState": {
+      "type": "object",
+      "description": "Full state for a session's comments channel, returned when a client\nsubscribes to an `ahp-session:/<uuid>/comments` URI.",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CommentThread"
+          },
+          "description": "Comment threads in this channel, keyed by {@link CommentThread.id}."
+        }
+      },
+      "required": [
+        "threads"
+      ]
+    },
+    "CommentThread": {
+      "type": "object",
+      "description": "A conversation anchored to a specific range in a specific file produced\nby a specific turn.\n\n{@link turnId} anchors the thread to the file versions that turn\nproduced, so a later turn that rewrites the same file does not silently\ninvalidate the comment's anchor — clients can resolve {@link resource}\nand {@link range} against the turn's changeset.\n\nEvery thread MUST contain at least one {@link Comment}. The server\nenforces this invariant: {@link CreateCommentThreadParams |\n`createCommentThread`} requires an initial comment, and deleting the\nlast remaining comment collapses the thread into a\n{@link CommentsThreadRemovedAction} rather than leaving an empty thread\nbehind.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the comments channel. Server-assigned."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "Turn that produced the file versions this thread is anchored to.\nMatches a {@link Turn.id} on the owning session."
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The file the thread is anchored to."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Range within {@link resource} the thread is anchored to."
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Comment"
+          },
+          "description": "Comments in this thread, in dispatch order (oldest first). MUST\ncontain at least one entry."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "turnId",
+        "resource",
+        "range",
+        "comments"
+      ]
+    },
+    "Comment": {
+      "type": "object",
+      "description": "A single comment within a {@link CommentThread}.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the enclosing thread. Server-assigned."
+        },
+        "text": {
+          "type": "string",
+          "description": "Comment body. Rendered as plain text unless the client opts into Markdown."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ]
+    },
+    "NewComment": {
+      "type": "object",
+      "description": "Input shape passed to {@link CreateCommentThreadParams | `createCommentThread`}\nand {@link AddCommentParams | `addComment`}. The server assigns the\nresulting {@link Comment.id}.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Comment body."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, forwarded onto the resulting\n{@link Comment._meta}."
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
     "TelemetryCapabilities": {
       "type": "object",
       "description": "OTLP telemetry channels the agent host emits.\n\nEach field, when present, is either a literal channel URI or an\n[RFC 6570](https://datatracker.ietf.org/doc/html/rfc6570) URI template\na client expands and then subscribes to. Absent fields indicate the host\ndoes not emit that signal.\n\nChannel URIs use the `ahp-otlp:` scheme. The scheme identifies the\nprotocol (OpenTelemetry over AHP) so clients can recognise the channel\ntype by URI alone; the host is free to choose any authority/path that\nmakes sense for its implementation. Clients MUST treat the URI as\nopaque (apart from expanding any well-known template variables defined\nbelow) and subscribe with the resulting concrete URI.\n\nPayloads delivered on these channels are OTLP/JSON values — see\n[opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto)\nfor the wire shapes (`ExportLogsServiceRequest`,\n`ExportTraceServiceRequest`, `ExportMetricsServiceRequest`).",
@@ -5478,6 +5696,21 @@
         },
         {
           "$ref": "#/$defs/ChangesetClearedAction"
+        },
+        {
+          "$ref": "#/$defs/CommentsThreadSetAction"
+        },
+        {
+          "$ref": "#/$defs/CommentsThreadRemovedAction"
+        },
+        {
+          "$ref": "#/$defs/CommentsCommentSetAction"
+        },
+        {
+          "$ref": "#/$defs/CommentsCommentRemovedAction"
+        },
+        {
+          "$ref": "#/$defs/CommentsClearedAction"
         },
         {
           "$ref": "#/$defs/TerminalDataAction"

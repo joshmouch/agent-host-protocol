@@ -30,6 +30,7 @@ function readChannelSources(baseName: string): string {
     'channels-session',
     'channels-terminal',
     'channels-changeset',
+    'channels-comments',
     'channels-resource-watch',
   ];
   return dirs

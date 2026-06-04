@@ -410,6 +410,9 @@
             },
             {
               "$ref": "#/$defs/ChangesetState"
+            },
+            {
+              "$ref": "#/$defs/CommentsState"
             }
           ],
           "description": "The current state of the resource"
@@ -786,6 +789,10 @@
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
           "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
+        },
+        "comments": {
+          "$ref": "#/$defs/CommentsSummary",
+          "description": "Lightweight summary of this session's inline comments channel\n(`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render\nthread / comment counts without subscribing. Absent when the session\ndoes not expose a comments channel."
         }
       },
       "required": [
@@ -3485,6 +3492,127 @@
         "label",
         "scopes",
         "status"
+      ]
+    },
+    "CommentsSummary": {
+      "type": "object",
+      "description": "Lightweight per-session summary of the comments channel, surfaced on\n{@link SessionSummary.comments} so badge UI can render thread / comment\ncounts without subscribing to the channel itself.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The subscribable comments channel URI for the owning session\n(typically `ahp-session:/<uuid>/comments`). Surfaced explicitly even\nthough it is derivable from the session URI so badge UI does not need\nto know the derivation rule."
+        },
+        "threadCount": {
+          "type": "number",
+          "description": "Total number of {@link CommentThread} entries in the channel."
+        },
+        "commentCount": {
+          "type": "number",
+          "description": "Total number of {@link Comment} entries across every thread."
+        }
+      },
+      "required": [
+        "resource",
+        "threadCount",
+        "commentCount"
+      ]
+    },
+    "CommentsState": {
+      "type": "object",
+      "description": "Full state for a session's comments channel, returned when a client\nsubscribes to an `ahp-session:/<uuid>/comments` URI.",
+      "properties": {
+        "threads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CommentThread"
+          },
+          "description": "Comment threads in this channel, keyed by {@link CommentThread.id}."
+        }
+      },
+      "required": [
+        "threads"
+      ]
+    },
+    "CommentThread": {
+      "type": "object",
+      "description": "A conversation anchored to a specific range in a specific file produced\nby a specific turn.\n\n{@link turnId} anchors the thread to the file versions that turn\nproduced, so a later turn that rewrites the same file does not silently\ninvalidate the comment's anchor — clients can resolve {@link resource}\nand {@link range} against the turn's changeset.\n\nEvery thread MUST contain at least one {@link Comment}. The server\nenforces this invariant: {@link CreateCommentThreadParams |\n`createCommentThread`} requires an initial comment, and deleting the\nlast remaining comment collapses the thread into a\n{@link CommentsThreadRemovedAction} rather than leaving an empty thread\nbehind.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the comments channel. Server-assigned."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "Turn that produced the file versions this thread is anchored to.\nMatches a {@link Turn.id} on the owning session."
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The file the thread is anchored to."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Range within {@link resource} the thread is anchored to."
+        },
+        "comments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Comment"
+          },
+          "description": "Comments in this thread, in dispatch order (oldest first). MUST\ncontain at least one entry."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "turnId",
+        "resource",
+        "range",
+        "comments"
+      ]
+    },
+    "Comment": {
+      "type": "object",
+      "description": "A single comment within a {@link CommentThread}.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the enclosing thread. Server-assigned."
+        },
+        "text": {
+          "type": "string",
+          "description": "Comment body. Rendered as plain text unless the client opts into Markdown."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ]
+    },
+    "NewComment": {
+      "type": "object",
+      "description": "Input shape passed to {@link CreateCommentThreadParams | `createCommentThread`}\nand {@link AddCommentParams | `addComment`}. The server assigns the\nresulting {@link Comment.id}.",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "Comment body."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Server-defined opaque metadata, forwarded onto the resulting\n{@link Comment._meta}."
+        }
+      },
+      "required": [
+        "text"
       ]
     },
     "TelemetryCapabilities": {

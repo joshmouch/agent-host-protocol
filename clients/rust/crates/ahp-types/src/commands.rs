@@ -15,9 +15,9 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 use crate::actions::{ActionEnvelope, StateAction};
 #[allow(unused_imports)]
 use crate::state::{
-    AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient,
+    AgentSelection, ContentRef, MessageAttachment, ModelSelection, NewComment, SessionActiveClient,
     SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities,
-    TerminalClaim, Turn,
+    TerminalClaim, TextRange, Turn,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -1018,6 +1018,136 @@ pub struct ChangesetOperationFollowUp {
     /// When `true`, open in an external handler rather than inline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub external: Option<bool>,
+}
+
+/// Create a new {@link CommentThread} anchored to a file range from a
+/// specific turn.
+///
+/// The initial comment is required — the protocol forbids empty threads,
+/// so thread creation and first-comment creation are fused into one
+/// command. The server assigns both {@link CreateCommentThreadResult.threadId}
+/// and {@link CreateCommentThreadResult.commentId}, then broadcasts a
+/// {@link CommentsThreadSetAction} on the channel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCommentThreadParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// Turn whose file versions {@link resource} + {@link range} address.
+    pub turn_id: String,
+    /// Anchored file URI.
+    pub resource: Uri,
+    /// Anchored range within {@link resource}.
+    pub range: TextRange,
+    /// First comment in the thread. The server assigns its {@link Comment.id}.
+    pub comment: NewComment,
+}
+
+/// Result of {@link CreateCommentThreadParams | `createCommentThread`}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateCommentThreadResult {
+    /// Server-assigned {@link CommentThread.id}.
+    pub thread_id: String,
+    /// Server-assigned {@link Comment.id} of the initial comment.
+    pub comment_id: String,
+}
+
+/// Re-anchor an existing {@link CommentThread} — typically used to re-pin
+/// a thread to a different range or a newer turn after an edit. Comments
+/// themselves are not modified by this command; use
+/// {@link AddCommentParams | `addComment`},
+/// {@link EditCommentParams | `editComment`}, or
+/// {@link DeleteCommentParams | `deleteComment`} for that.
+///
+/// Omitted optional fields preserve their current value. The server
+/// echoes the resulting thread state as a {@link CommentsThreadSetAction}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCommentThreadParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// The {@link CommentThread.id} to update.
+    pub thread_id: String,
+    /// New {@link CommentThread.turnId}, if changing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+    /// New anchored file URI, if changing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resource: Option<Uri>,
+    /// New anchored range, if changing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+}
+
+/// Delete an entire comment thread (and every comment it contains). The
+/// server echoes a {@link CommentsThreadRemovedAction} on the channel.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteCommentThreadParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// The {@link CommentThread.id} to delete.
+    pub thread_id: String,
+}
+
+/// Append a new {@link Comment} to an existing thread. The server assigns
+/// the resulting {@link Comment.id} and echoes a
+/// {@link CommentsCommentSetAction}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddCommentParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// Thread that receives the new comment.
+    pub thread_id: String,
+    /// Comment payload — the server assigns the id.
+    pub comment: NewComment,
+}
+
+/// Result of {@link AddCommentParams | `addComment`}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddCommentResult {
+    /// Server-assigned {@link Comment.id} of the new comment.
+    pub comment_id: String,
+}
+
+/// Edit the body of an existing comment in place. The server echoes a
+/// {@link CommentsCommentSetAction} carrying the updated comment.
+///
+/// Only the body is mutable through this command; to change
+/// {@link Comment.source} or {@link Comment._meta} delete and re-create
+/// the comment.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditCommentParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// Enclosing thread.
+    pub thread_id: String,
+    /// {@link Comment.id} to edit.
+    pub comment_id: String,
+    /// New comment body.
+    pub text: String,
+}
+
+/// Remove a single comment from a thread.
+///
+/// If the removal would leave the thread empty (i.e. the targeted comment
+/// is the only one remaining), the server collapses the thread instead
+/// — it dispatches a {@link CommentsThreadRemovedAction} and the thread
+/// disappears from {@link CommentsState.threads}. Otherwise the server
+/// echoes a {@link CommentsCommentRemovedAction}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteCommentParams {
+    /// Channel URI this command targets.
+    pub channel: Uri,
+    /// Enclosing thread.
+    pub thread_id: String,
+    /// {@link Comment.id} to remove.
+    pub comment_id: String,
 }
 
 // ─── ReconnectResult Union ────────────────────────────────────────────

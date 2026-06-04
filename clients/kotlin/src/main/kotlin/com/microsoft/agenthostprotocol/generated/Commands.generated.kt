@@ -1010,6 +1010,138 @@ data class ChangesetOperationFollowUp(
     val external: Boolean? = null
 )
 
+@Serializable
+data class CreateCommentThreadParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Turn whose file versions {@link resource} + {@link range} address.
+     */
+    val turnId: String,
+    /**
+     * Anchored file URI.
+     */
+    val resource: String,
+    /**
+     * Anchored range within {@link resource}.
+     */
+    val range: TextRange,
+    /**
+     * First comment in the thread. The server assigns its {@link Comment.id}.
+     */
+    val comment: NewComment
+)
+
+@Serializable
+data class CreateCommentThreadResult(
+    /**
+     * Server-assigned {@link CommentThread.id}.
+     */
+    val threadId: String,
+    /**
+     * Server-assigned {@link Comment.id} of the initial comment.
+     */
+    val commentId: String
+)
+
+@Serializable
+data class UpdateCommentThreadParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * The {@link CommentThread.id} to update.
+     */
+    val threadId: String,
+    /**
+     * New {@link CommentThread.turnId}, if changing.
+     */
+    val turnId: String? = null,
+    /**
+     * New anchored file URI, if changing.
+     */
+    val resource: String? = null,
+    /**
+     * New anchored range, if changing.
+     */
+    val range: TextRange? = null
+)
+
+@Serializable
+data class DeleteCommentThreadParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * The {@link CommentThread.id} to delete.
+     */
+    val threadId: String
+)
+
+@Serializable
+data class AddCommentParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Thread that receives the new comment.
+     */
+    val threadId: String,
+    /**
+     * Comment payload — the server assigns the id.
+     */
+    val comment: NewComment
+)
+
+@Serializable
+data class AddCommentResult(
+    /**
+     * Server-assigned {@link Comment.id} of the new comment.
+     */
+    val commentId: String
+)
+
+@Serializable
+data class EditCommentParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Enclosing thread.
+     */
+    val threadId: String,
+    /**
+     * {@link Comment.id} to edit.
+     */
+    val commentId: String,
+    /**
+     * New comment body.
+     */
+    val text: String
+)
+
+@Serializable
+data class DeleteCommentParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Enclosing thread.
+     */
+    val threadId: String,
+    /**
+     * {@link Comment.id} to remove.
+     */
+    val commentId: String
+)
+
 // ─── ReconnectResult Union ──────────────────────────────────────────────────
 
 @Serializable(with = ReconnectResultSerializer::class)

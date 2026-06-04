@@ -19,76 +19,81 @@ var _ = json.RawMessage(nil)
 type ActionType string
 
 const (
-	ActionTypeRootAgentsChanged                 ActionType = "root/agentsChanged"
-	ActionTypeRootActiveSessionsChanged         ActionType = "root/activeSessionsChanged"
-	ActionTypeSessionReady                      ActionType = "session/ready"
-	ActionTypeSessionCreationFailed             ActionType = "session/creationFailed"
-	ActionTypeSessionTurnStarted                ActionType = "session/turnStarted"
-	ActionTypeSessionDelta                      ActionType = "session/delta"
-	ActionTypeSessionResponsePart               ActionType = "session/responsePart"
-	ActionTypeSessionToolCallStart              ActionType = "session/toolCallStart"
-	ActionTypeSessionToolCallDelta              ActionType = "session/toolCallDelta"
-	ActionTypeSessionToolCallReady              ActionType = "session/toolCallReady"
-	ActionTypeSessionToolCallConfirmed          ActionType = "session/toolCallConfirmed"
-	ActionTypeSessionToolCallComplete           ActionType = "session/toolCallComplete"
-	ActionTypeSessionToolCallResultConfirmed    ActionType = "session/toolCallResultConfirmed"
-	ActionTypeSessionToolCallContentChanged     ActionType = "session/toolCallContentChanged"
-	ActionTypeSessionTurnComplete               ActionType = "session/turnComplete"
-	ActionTypeSessionTurnCancelled              ActionType = "session/turnCancelled"
-	ActionTypeSessionError                      ActionType = "session/error"
-	ActionTypeSessionTitleChanged               ActionType = "session/titleChanged"
-	ActionTypeSessionUsage                      ActionType = "session/usage"
-	ActionTypeSessionReasoning                  ActionType = "session/reasoning"
-	ActionTypeSessionModelChanged               ActionType = "session/modelChanged"
-	ActionTypeSessionAgentChanged               ActionType = "session/agentChanged"
-	ActionTypeSessionServerToolsChanged         ActionType = "session/serverToolsChanged"
-	ActionTypeSessionActiveClientChanged        ActionType = "session/activeClientChanged"
-	ActionTypeSessionActiveClientToolsChanged   ActionType = "session/activeClientToolsChanged"
-	ActionTypeSessionPendingMessageSet          ActionType = "session/pendingMessageSet"
-	ActionTypeSessionPendingMessageRemoved      ActionType = "session/pendingMessageRemoved"
-	ActionTypeSessionQueuedMessagesReordered    ActionType = "session/queuedMessagesReordered"
-	ActionTypeSessionInputRequested             ActionType = "session/inputRequested"
-	ActionTypeSessionInputAnswerChanged         ActionType = "session/inputAnswerChanged"
-	ActionTypeSessionInputCompleted             ActionType = "session/inputCompleted"
-	ActionTypeSessionCustomizationsChanged      ActionType = "session/customizationsChanged"
-	ActionTypeSessionCustomizationToggled       ActionType = "session/customizationToggled"
-	ActionTypeSessionCustomizationUpdated       ActionType = "session/customizationUpdated"
-	ActionTypeSessionCustomizationRemoved       ActionType = "session/customizationRemoved"
-	ActionTypeSessionTruncated                  ActionType = "session/truncated"
-	ActionTypeSessionIsReadChanged              ActionType = "session/isReadChanged"
-	ActionTypeSessionIsArchivedChanged          ActionType = "session/isArchivedChanged"
-	ActionTypeSessionActivityChanged            ActionType = "session/activityChanged"
-	ActionTypeSessionChangesetsChanged          ActionType = "session/changesetsChanged"
-	ActionTypeSessionConfigChanged              ActionType = "session/configChanged"
-	ActionTypeSessionMetaChanged                ActionType = "session/metaChanged"
-	ActionTypeChangesetStatusChanged            ActionType = "changeset/statusChanged"
-	ActionTypeChangesetFileSet                  ActionType = "changeset/fileSet"
-	ActionTypeChangesetFileRemoved              ActionType = "changeset/fileRemoved"
-	ActionTypeChangesetOperationsChanged        ActionType = "changeset/operationsChanged"
-	ActionTypeChangesetOperationStatusChanged   ActionType = "changeset/operationStatusChanged"
-	ActionTypeChangesetCleared                  ActionType = "changeset/cleared"
-	ActionTypeRootTerminalsChanged              ActionType = "root/terminalsChanged"
-	ActionTypeRootConfigChanged                 ActionType = "root/configChanged"
-	ActionTypeTerminalData                      ActionType = "terminal/data"
-	ActionTypeTerminalInput                     ActionType = "terminal/input"
-	ActionTypeTerminalResized                   ActionType = "terminal/resized"
-	ActionTypeTerminalClaimed                   ActionType = "terminal/claimed"
-	ActionTypeTerminalTitleChanged              ActionType = "terminal/titleChanged"
-	ActionTypeTerminalCwdChanged                ActionType = "terminal/cwdChanged"
-	ActionTypeTerminalExited                    ActionType = "terminal/exited"
-	ActionTypeTerminalCleared                   ActionType = "terminal/cleared"
+	ActionTypeRootAgentsChanged ActionType = "root/agentsChanged"
+	ActionTypeRootActiveSessionsChanged ActionType = "root/activeSessionsChanged"
+	ActionTypeSessionReady ActionType = "session/ready"
+	ActionTypeSessionCreationFailed ActionType = "session/creationFailed"
+	ActionTypeSessionTurnStarted ActionType = "session/turnStarted"
+	ActionTypeSessionDelta ActionType = "session/delta"
+	ActionTypeSessionResponsePart ActionType = "session/responsePart"
+	ActionTypeSessionToolCallStart ActionType = "session/toolCallStart"
+	ActionTypeSessionToolCallDelta ActionType = "session/toolCallDelta"
+	ActionTypeSessionToolCallReady ActionType = "session/toolCallReady"
+	ActionTypeSessionToolCallConfirmed ActionType = "session/toolCallConfirmed"
+	ActionTypeSessionToolCallComplete ActionType = "session/toolCallComplete"
+	ActionTypeSessionToolCallResultConfirmed ActionType = "session/toolCallResultConfirmed"
+	ActionTypeSessionToolCallContentChanged ActionType = "session/toolCallContentChanged"
+	ActionTypeSessionTurnComplete ActionType = "session/turnComplete"
+	ActionTypeSessionTurnCancelled ActionType = "session/turnCancelled"
+	ActionTypeSessionError ActionType = "session/error"
+	ActionTypeSessionTitleChanged ActionType = "session/titleChanged"
+	ActionTypeSessionUsage ActionType = "session/usage"
+	ActionTypeSessionReasoning ActionType = "session/reasoning"
+	ActionTypeSessionModelChanged ActionType = "session/modelChanged"
+	ActionTypeSessionAgentChanged ActionType = "session/agentChanged"
+	ActionTypeSessionServerToolsChanged ActionType = "session/serverToolsChanged"
+	ActionTypeSessionActiveClientChanged ActionType = "session/activeClientChanged"
+	ActionTypeSessionActiveClientToolsChanged ActionType = "session/activeClientToolsChanged"
+	ActionTypeSessionPendingMessageSet ActionType = "session/pendingMessageSet"
+	ActionTypeSessionPendingMessageRemoved ActionType = "session/pendingMessageRemoved"
+	ActionTypeSessionQueuedMessagesReordered ActionType = "session/queuedMessagesReordered"
+	ActionTypeSessionInputRequested ActionType = "session/inputRequested"
+	ActionTypeSessionInputAnswerChanged ActionType = "session/inputAnswerChanged"
+	ActionTypeSessionInputCompleted ActionType = "session/inputCompleted"
+	ActionTypeSessionCustomizationsChanged ActionType = "session/customizationsChanged"
+	ActionTypeSessionCustomizationToggled ActionType = "session/customizationToggled"
+	ActionTypeSessionCustomizationUpdated ActionType = "session/customizationUpdated"
+	ActionTypeSessionCustomizationRemoved ActionType = "session/customizationRemoved"
+	ActionTypeSessionTruncated ActionType = "session/truncated"
+	ActionTypeSessionIsReadChanged ActionType = "session/isReadChanged"
+	ActionTypeSessionIsArchivedChanged ActionType = "session/isArchivedChanged"
+	ActionTypeSessionActivityChanged ActionType = "session/activityChanged"
+	ActionTypeSessionChangesetsChanged ActionType = "session/changesetsChanged"
+	ActionTypeSessionConfigChanged ActionType = "session/configChanged"
+	ActionTypeSessionMetaChanged ActionType = "session/metaChanged"
+	ActionTypeChangesetStatusChanged ActionType = "changeset/statusChanged"
+	ActionTypeChangesetFileSet ActionType = "changeset/fileSet"
+	ActionTypeChangesetFileRemoved ActionType = "changeset/fileRemoved"
+	ActionTypeChangesetOperationsChanged ActionType = "changeset/operationsChanged"
+	ActionTypeChangesetOperationStatusChanged ActionType = "changeset/operationStatusChanged"
+	ActionTypeChangesetCleared ActionType = "changeset/cleared"
+	ActionTypeCommentsThreadSet ActionType = "comments/threadSet"
+	ActionTypeCommentsThreadRemoved ActionType = "comments/threadRemoved"
+	ActionTypeCommentsCommentSet ActionType = "comments/commentSet"
+	ActionTypeCommentsCommentRemoved ActionType = "comments/commentRemoved"
+	ActionTypeCommentsCleared ActionType = "comments/cleared"
+	ActionTypeRootTerminalsChanged ActionType = "root/terminalsChanged"
+	ActionTypeRootConfigChanged ActionType = "root/configChanged"
+	ActionTypeTerminalData ActionType = "terminal/data"
+	ActionTypeTerminalInput ActionType = "terminal/input"
+	ActionTypeTerminalResized ActionType = "terminal/resized"
+	ActionTypeTerminalClaimed ActionType = "terminal/claimed"
+	ActionTypeTerminalTitleChanged ActionType = "terminal/titleChanged"
+	ActionTypeTerminalCwdChanged ActionType = "terminal/cwdChanged"
+	ActionTypeTerminalExited ActionType = "terminal/exited"
+	ActionTypeTerminalCleared ActionType = "terminal/cleared"
 	ActionTypeTerminalCommandDetectionAvailable ActionType = "terminal/commandDetectionAvailable"
-	ActionTypeTerminalCommandExecuted           ActionType = "terminal/commandExecuted"
-	ActionTypeTerminalCommandFinished           ActionType = "terminal/commandFinished"
-	ActionTypeResourceWatchChanged              ActionType = "resourceWatch/changed"
+	ActionTypeTerminalCommandExecuted ActionType = "terminal/commandExecuted"
+	ActionTypeTerminalCommandFinished ActionType = "terminal/commandFinished"
+	ActionTypeResourceWatchChanged ActionType = "resourceWatch/changed"
 )
 
 // ─── Action Envelope ─────────────────────────────────────────────────
 
 // Identifies the client that originally dispatched an action.
 type ActionOrigin struct {
-	ClientId  string `json:"clientId"`
-	ClientSeq int64  `json:"clientSeq"`
+	ClientId string `json:"clientId"`
+	ClientSeq int64 `json:"clientSeq"`
 }
 
 // ActionEnvelope wraps every action with the channel URI it
@@ -195,7 +200,7 @@ type SessionToolCallStartAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// Internal tool name (for debugging/logging)
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
@@ -218,7 +223,7 @@ type SessionToolCallDeltaAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// Partial parameter content to append
 	Content string `json:"content"`
 	// Updated progress message
@@ -250,7 +255,7 @@ type SessionToolCallReadyAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// Message describing what the tool will do or what confirmation is needed
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
 	// Raw tool input
@@ -273,17 +278,17 @@ type SessionToolCallReadyAction struct {
 // SessionToolCallConfirmedAction is the client approves or denies a
 // pending tool call (merged approved + denied variants on the wire).
 type SessionToolCallConfirmedAction struct {
-	Type             ActionType                  `json:"type"`
-	TurnId           string                      `json:"turnId"`
-	ToolCallId       string                      `json:"toolCallId"`
-	Meta             map[string]json.RawMessage  `json:"_meta,omitempty"`
-	Approved         bool                        `json:"approved"`
-	Confirmed        *ToolCallConfirmationReason `json:"confirmed,omitempty"`
-	Reason           *ToolCallCancellationReason `json:"reason,omitempty"`
-	EditedToolInput  *string                     `json:"editedToolInput,omitempty"`
-	UserSuggestion   *Message                    `json:"userSuggestion,omitempty"`
-	ReasonMessage    *StringOrMarkdown           `json:"reasonMessage,omitempty"`
-	SelectedOptionId *string                     `json:"selectedOptionId,omitempty"`
+	Type            ActionType                     `json:"type"`
+	TurnId          string                         `json:"turnId"`
+	ToolCallId      string                         `json:"toolCallId"`
+	Meta            map[string]json.RawMessage     `json:"_meta,omitempty"`
+	Approved        bool                           `json:"approved"`
+	Confirmed       *ToolCallConfirmationReason    `json:"confirmed,omitempty"`
+	Reason          *ToolCallCancellationReason    `json:"reason,omitempty"`
+	EditedToolInput *string                        `json:"editedToolInput,omitempty"`
+	UserSuggestion  *Message                       `json:"userSuggestion,omitempty"`
+	ReasonMessage   *StringOrMarkdown              `json:"reasonMessage,omitempty"`
+	SelectedOptionId *string                       `json:"selectedOptionId,omitempty"`
 }
 
 // Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
@@ -308,7 +313,7 @@ type SessionToolCallCompleteAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// Execution result
 	Result ToolCallResult `json:"result"`
 	// If true, the result requires client approval before finalizing
@@ -330,7 +335,7 @@ type SessionToolCallResultConfirmedAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// Whether the result was approved
 	Approved bool `json:"approved"`
 }
@@ -600,10 +605,10 @@ type SessionCustomizationToggledAction struct {
 //
 // The reducer locates the existing entry by `customization.id`:
 //
-//   - If found, the entry is replaced entirely with `customization`,
-//     including its `children` array. To preserve existing children, the
-//     host must include them on the payload.
-//   - If not found, the entry is appended.
+// - If found, the entry is replaced entirely with `customization`,
+//   including its `children` array. To preserve existing children, the
+//   host must include them on the payload.
+// - If not found, the entry is appended.
 type SessionCustomizationUpdatedAction struct {
 	Type ActionType `json:"type"`
 	// The customization to upsert (matched by `customization.id`).
@@ -680,7 +685,7 @@ type SessionToolCallContentChangedAction struct {
 	// indicates the tool operated on a terminal (both `input` and `output` may
 	// contain escape sequences).
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
-	Type ActionType                 `json:"type"`
+	Type ActionType `json:"type"`
 	// The current partial content for the running tool call
 	Content []ToolResultContent `json:"content"`
 }
@@ -746,18 +751,81 @@ type ChangesetOperationStatusChangedAction struct {
 // Drop every file from the changeset.
 //
 // Two cases use this:
-//  1. The underlying source moved (branch switched, fork point invalidated,
-//     …) and the server is recomputing from scratch — subsequent
-//     {@link ChangesetFileSetAction} entries will repopulate it.
-//  2. The owning session has ended and the URI is becoming
-//     un-subscribable — the server will unsubscribe all clients shortly
-//     after dispatching this action.
+// 1. The underlying source moved (branch switched, fork point invalidated,
+//    …) and the server is recomputing from scratch — subsequent
+//    {@link ChangesetFileSetAction} entries will repopulate it.
+// 2. The owning session has ended and the URI is becoming
+//    un-subscribable — the server will unsubscribe all clients shortly
+//    after dispatching this action.
 //
 // Clients SHOULD release any references on receipt and SHOULD NOT
 // distinguish the two cases from the action alone — instead, react to
 // the corresponding session-level lifecycle signal (e.g.
 // `root/sessionRemoved`) for the "going away" case.
 type ChangesetClearedAction struct {
+	Type ActionType `json:"type"`
+}
+
+// Upsert a {@link CommentThread} in the comments channel — adds a new
+// thread, or replaces an existing one identified by
+// {@link CommentThread.id}. When replacing, the full thread payload
+// (including its {@link CommentThread.comments | comments} list) is
+// substituted; producers SHOULD prefer {@link CommentsCommentSetAction}
+// for per-comment edits to keep wire updates small.
+type CommentsThreadSetAction struct {
+	Type ActionType `json:"type"`
+	// The new or replacement thread. MUST contain at least one comment.
+	Thread CommentThread `json:"thread"`
+}
+
+// Remove a {@link CommentThread} from the channel by its id.
+//
+// The server emits this in two cases:
+// 1. The client explicitly invoked
+//    {@link DeleteCommentThreadParams | `deleteCommentThread`}.
+// 2. The client invoked {@link DeleteCommentParams | `deleteComment`} on
+//    the last remaining comment in the thread — the protocol collapses
+//    the thread rather than leaving an empty one behind.
+type CommentsThreadRemovedAction struct {
+	Type ActionType `json:"type"`
+	// The {@link CommentThread.id} of the thread to remove.
+	ThreadId string `json:"threadId"`
+}
+
+// Upsert a {@link Comment} within an existing thread — adds a new
+// comment, or replaces one identified by {@link Comment.id}. If
+// {@link threadId} does not match any current thread the action is a
+// no-op.
+type CommentsCommentSetAction struct {
+	Type ActionType `json:"type"`
+	// The {@link CommentThread.id} the comment belongs to.
+	ThreadId string `json:"threadId"`
+	// The new or replacement comment.
+	Comment Comment `json:"comment"`
+}
+
+// Remove a single {@link Comment} from a thread without collapsing the
+// thread itself. Used when more than one comment remains — the server
+// MUST dispatch {@link CommentsThreadRemovedAction} instead when removing
+// the last comment would otherwise leave the thread empty.
+//
+// If either {@link threadId} or {@link commentId} does not match the
+// current state the action is a no-op.
+type CommentsCommentRemovedAction struct {
+	Type ActionType `json:"type"`
+	// The {@link CommentThread.id} the comment belongs to.
+	ThreadId string `json:"threadId"`
+	// The {@link Comment.id} to remove.
+	CommentId string `json:"commentId"`
+}
+
+// Drop every thread from the comments channel.
+//
+// Dispatched when the owning session is going away and the channel is
+// about to become un-subscribable. Clients SHOULD release references on
+// receipt and react to the corresponding session-level lifecycle signal
+// (e.g. `root/sessionRemoved`) to fully tear down UI.
+type CommentsClearedAction struct {
 	Type ActionType `json:"type"`
 }
 
@@ -916,68 +984,73 @@ type StateAction struct {
 // concrete variant of StateAction.
 type isStateAction interface{ isStateAction() }
 
-func (*RootAgentsChangedAction) isStateAction()                 {}
-func (*RootActiveSessionsChangedAction) isStateAction()         {}
-func (*RootConfigChangedAction) isStateAction()                 {}
-func (*SessionReadyAction) isStateAction()                      {}
-func (*SessionCreationFailedAction) isStateAction()             {}
-func (*SessionTurnStartedAction) isStateAction()                {}
-func (*SessionDeltaAction) isStateAction()                      {}
-func (*SessionResponsePartAction) isStateAction()               {}
-func (*SessionToolCallStartAction) isStateAction()              {}
-func (*SessionToolCallDeltaAction) isStateAction()              {}
-func (*SessionToolCallReadyAction) isStateAction()              {}
-func (*SessionToolCallConfirmedAction) isStateAction()          {}
-func (*SessionToolCallCompleteAction) isStateAction()           {}
-func (*SessionToolCallResultConfirmedAction) isStateAction()    {}
-func (*SessionTurnCompleteAction) isStateAction()               {}
-func (*SessionTurnCancelledAction) isStateAction()              {}
-func (*SessionErrorAction) isStateAction()                      {}
-func (*SessionTitleChangedAction) isStateAction()               {}
-func (*SessionUsageAction) isStateAction()                      {}
-func (*SessionReasoningAction) isStateAction()                  {}
-func (*SessionModelChangedAction) isStateAction()               {}
-func (*SessionAgentChangedAction) isStateAction()               {}
-func (*SessionIsReadChangedAction) isStateAction()              {}
-func (*SessionIsArchivedChangedAction) isStateAction()          {}
-func (*SessionActivityChangedAction) isStateAction()            {}
-func (*SessionChangesetsChangedAction) isStateAction()          {}
-func (*SessionServerToolsChangedAction) isStateAction()         {}
-func (*SessionActiveClientChangedAction) isStateAction()        {}
-func (*SessionActiveClientToolsChangedAction) isStateAction()   {}
-func (*SessionPendingMessageSetAction) isStateAction()          {}
-func (*SessionPendingMessageRemovedAction) isStateAction()      {}
-func (*SessionQueuedMessagesReorderedAction) isStateAction()    {}
-func (*SessionInputRequestedAction) isStateAction()             {}
-func (*SessionInputAnswerChangedAction) isStateAction()         {}
-func (*SessionInputCompletedAction) isStateAction()             {}
-func (*SessionCustomizationsChangedAction) isStateAction()      {}
-func (*SessionCustomizationToggledAction) isStateAction()       {}
-func (*SessionCustomizationUpdatedAction) isStateAction()       {}
-func (*SessionCustomizationRemovedAction) isStateAction()       {}
-func (*SessionTruncatedAction) isStateAction()                  {}
-func (*SessionConfigChangedAction) isStateAction()              {}
-func (*SessionMetaChangedAction) isStateAction()                {}
-func (*SessionToolCallContentChangedAction) isStateAction()     {}
-func (*ChangesetStatusChangedAction) isStateAction()            {}
-func (*ChangesetFileSetAction) isStateAction()                  {}
-func (*ChangesetFileRemovedAction) isStateAction()              {}
-func (*ChangesetOperationsChangedAction) isStateAction()        {}
-func (*ChangesetOperationStatusChangedAction) isStateAction()   {}
-func (*ChangesetClearedAction) isStateAction()                  {}
-func (*RootTerminalsChangedAction) isStateAction()              {}
-func (*TerminalDataAction) isStateAction()                      {}
-func (*TerminalInputAction) isStateAction()                     {}
-func (*TerminalResizedAction) isStateAction()                   {}
-func (*TerminalClaimedAction) isStateAction()                   {}
-func (*TerminalTitleChangedAction) isStateAction()              {}
-func (*TerminalCwdChangedAction) isStateAction()                {}
-func (*TerminalExitedAction) isStateAction()                    {}
-func (*TerminalClearedAction) isStateAction()                   {}
+func (*RootAgentsChangedAction) isStateAction() {}
+func (*RootActiveSessionsChangedAction) isStateAction() {}
+func (*RootConfigChangedAction) isStateAction() {}
+func (*SessionReadyAction) isStateAction() {}
+func (*SessionCreationFailedAction) isStateAction() {}
+func (*SessionTurnStartedAction) isStateAction() {}
+func (*SessionDeltaAction) isStateAction() {}
+func (*SessionResponsePartAction) isStateAction() {}
+func (*SessionToolCallStartAction) isStateAction() {}
+func (*SessionToolCallDeltaAction) isStateAction() {}
+func (*SessionToolCallReadyAction) isStateAction() {}
+func (*SessionToolCallConfirmedAction) isStateAction() {}
+func (*SessionToolCallCompleteAction) isStateAction() {}
+func (*SessionToolCallResultConfirmedAction) isStateAction() {}
+func (*SessionTurnCompleteAction) isStateAction() {}
+func (*SessionTurnCancelledAction) isStateAction() {}
+func (*SessionErrorAction) isStateAction() {}
+func (*SessionTitleChangedAction) isStateAction() {}
+func (*SessionUsageAction) isStateAction() {}
+func (*SessionReasoningAction) isStateAction() {}
+func (*SessionModelChangedAction) isStateAction() {}
+func (*SessionAgentChangedAction) isStateAction() {}
+func (*SessionIsReadChangedAction) isStateAction() {}
+func (*SessionIsArchivedChangedAction) isStateAction() {}
+func (*SessionActivityChangedAction) isStateAction() {}
+func (*SessionChangesetsChangedAction) isStateAction() {}
+func (*SessionServerToolsChangedAction) isStateAction() {}
+func (*SessionActiveClientChangedAction) isStateAction() {}
+func (*SessionActiveClientToolsChangedAction) isStateAction() {}
+func (*SessionPendingMessageSetAction) isStateAction() {}
+func (*SessionPendingMessageRemovedAction) isStateAction() {}
+func (*SessionQueuedMessagesReorderedAction) isStateAction() {}
+func (*SessionInputRequestedAction) isStateAction() {}
+func (*SessionInputAnswerChangedAction) isStateAction() {}
+func (*SessionInputCompletedAction) isStateAction() {}
+func (*SessionCustomizationsChangedAction) isStateAction() {}
+func (*SessionCustomizationToggledAction) isStateAction() {}
+func (*SessionCustomizationUpdatedAction) isStateAction() {}
+func (*SessionCustomizationRemovedAction) isStateAction() {}
+func (*SessionTruncatedAction) isStateAction() {}
+func (*SessionConfigChangedAction) isStateAction() {}
+func (*SessionMetaChangedAction) isStateAction() {}
+func (*SessionToolCallContentChangedAction) isStateAction() {}
+func (*ChangesetStatusChangedAction) isStateAction() {}
+func (*ChangesetFileSetAction) isStateAction() {}
+func (*ChangesetFileRemovedAction) isStateAction() {}
+func (*ChangesetOperationsChangedAction) isStateAction() {}
+func (*ChangesetOperationStatusChangedAction) isStateAction() {}
+func (*ChangesetClearedAction) isStateAction() {}
+func (*CommentsThreadSetAction) isStateAction() {}
+func (*CommentsThreadRemovedAction) isStateAction() {}
+func (*CommentsCommentSetAction) isStateAction() {}
+func (*CommentsCommentRemovedAction) isStateAction() {}
+func (*CommentsClearedAction) isStateAction() {}
+func (*RootTerminalsChangedAction) isStateAction() {}
+func (*TerminalDataAction) isStateAction() {}
+func (*TerminalInputAction) isStateAction() {}
+func (*TerminalResizedAction) isStateAction() {}
+func (*TerminalClaimedAction) isStateAction() {}
+func (*TerminalTitleChangedAction) isStateAction() {}
+func (*TerminalCwdChangedAction) isStateAction() {}
+func (*TerminalExitedAction) isStateAction() {}
+func (*TerminalClearedAction) isStateAction() {}
 func (*TerminalCommandDetectionAvailableAction) isStateAction() {}
-func (*TerminalCommandExecutedAction) isStateAction()           {}
-func (*TerminalCommandFinishedAction) isStateAction()           {}
-func (*ResourceWatchChangedAction) isStateAction()              {}
+func (*TerminalCommandExecutedAction) isStateAction() {}
+func (*TerminalCommandFinishedAction) isStateAction() {}
+func (*ResourceWatchChangedAction) isStateAction() {}
 
 // StateActionUnknown carries an unrecognized StateAction variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
 type StateActionUnknown struct {
@@ -1283,6 +1356,36 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "changeset/cleared":
 		var value ChangesetClearedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments/threadSet":
+		var value CommentsThreadSetAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments/threadRemoved":
+		var value CommentsThreadRemovedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments/commentSet":
+		var value CommentsCommentSetAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments/commentRemoved":
+		var value CommentsCommentRemovedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments/cleared":
+		var value CommentsClearedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

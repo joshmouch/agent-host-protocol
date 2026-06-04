@@ -998,7 +998,14 @@ data class SessionSummary(
      * session's footprint (e.g., for list rendering) without requiring the
      * client to subscribe to a changeset.
      */
-    val changes: ChangesSummary? = null
+    val changes: ChangesSummary? = null,
+    /**
+     * Lightweight summary of this session's inline comments channel
+     * (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+     * thread / comment counts without subscribing. Absent when the session
+     * does not expose a comments channel.
+     */
+    val comments: CommentsSummary? = null
 )
 
 @Serializable
@@ -3062,6 +3069,97 @@ data class ChangesetOperation(
 )
 
 @Serializable
+data class CommentsSummary(
+    /**
+     * The subscribable comments channel URI for the owning session
+     * (typically `ahp-session:/<uuid>/comments`). Surfaced explicitly even
+     * though it is derivable from the session URI so badge UI does not need
+     * to know the derivation rule.
+     */
+    val resource: String,
+    /**
+     * Total number of {@link CommentThread} entries in the channel.
+     */
+    val threadCount: Long,
+    /**
+     * Total number of {@link Comment} entries across every thread.
+     */
+    val commentCount: Long
+)
+
+@Serializable
+data class CommentsState(
+    /**
+     * Comment threads in this channel, keyed by {@link CommentThread.id}.
+     */
+    val threads: List<CommentThread>
+)
+
+@Serializable
+data class CommentThread(
+    /**
+     * Stable identifier within the comments channel. Server-assigned.
+     */
+    val id: String,
+    /**
+     * Turn that produced the file versions this thread is anchored to.
+     * Matches a {@link Turn.id} on the owning session.
+     */
+    val turnId: String,
+    /**
+     * The file the thread is anchored to.
+     */
+    val resource: String,
+    /**
+     * Range within {@link resource} the thread is anchored to.
+     */
+    val range: TextRange,
+    /**
+     * Comments in this thread, in dispatch order (oldest first). MUST
+     * contain at least one entry.
+     */
+    val comments: List<Comment>,
+    /**
+     * Server-defined opaque metadata, surfaced to tooling but not
+     * interpreted by the protocol.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class Comment(
+    /**
+     * Stable identifier within the enclosing thread. Server-assigned.
+     */
+    val id: String,
+    /**
+     * Comment body. Rendered as plain text unless the client opts into Markdown.
+     */
+    val text: String,
+    /**
+     * Server-defined opaque metadata, surfaced to tooling but not
+     * interpreted by the protocol.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class NewComment(
+    /**
+     * Comment body.
+     */
+    val text: String,
+    /**
+     * Server-defined opaque metadata, forwarded onto the resulting
+     * {@link Comment._meta}.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
+)
+
+@Serializable
 data class TelemetryCapabilities(
     /**
      * Channel URI (or RFC 6570 URI template) for OTLP log records
@@ -3817,7 +3915,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
 }
 
 /**
- * The state payload of a snapshot — root, session, terminal, or changeset state.
+ * The state payload of a snapshot — root, session, terminal, changeset, or comments state.
  */
 @Serializable(with = SnapshotStateSerializer::class)
 sealed interface SnapshotState {
@@ -3825,6 +3923,7 @@ sealed interface SnapshotState {
     @JvmInline value class Session(val value: SessionState) : SnapshotState
     @JvmInline value class Terminal(val value: TerminalState) : SnapshotState
     @JvmInline value class Changeset(val value: ChangesetState) : SnapshotState
+    @JvmInline value class Comments(val value: CommentsState) : SnapshotState
 }
 
 internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
@@ -3839,12 +3938,14 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             ?: error("Expected JsonObject for SnapshotState")
         // Try the most distinctive shape first. SessionState has required
         // `summary`; ChangesetState has required `status` + `files`;
-        // TerminalState has `uri` / `size` / `buffer`; RootState is the
-        // catch-all.
+        // CommentsState has required `threads`; TerminalState has
+        // `uri` / `size` / `buffer`; RootState is the catch-all.
         return when {
             obj.containsKey("summary") -> SnapshotState.Session(input.json.decodeFromJsonElement(SessionState.serializer(), element))
             obj.containsKey("status") && obj.containsKey("files") ->
                 SnapshotState.Changeset(input.json.decodeFromJsonElement(ChangesetState.serializer(), element))
+            obj.containsKey("threads") ->
+                SnapshotState.Comments(input.json.decodeFromJsonElement(CommentsState.serializer(), element))
             obj.containsKey("size") || obj.containsKey("uri") || obj.containsKey("buffer") ->
                 SnapshotState.Terminal(input.json.decodeFromJsonElement(TerminalState.serializer(), element))
             else -> SnapshotState.Root(input.json.decodeFromJsonElement(RootState.serializer(), element))
@@ -3859,6 +3960,7 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             is SnapshotState.Session -> output.json.encodeToJsonElement(SessionState.serializer(), value.value)
             is SnapshotState.Terminal -> output.json.encodeToJsonElement(TerminalState.serializer(), value.value)
             is SnapshotState.Changeset -> output.json.encodeToJsonElement(ChangesetState.serializer(), value.value)
+            is SnapshotState.Comments -> output.json.encodeToJsonElement(CommentsState.serializer(), value.value)
         }
         output.encodeJsonElement(element)
     }

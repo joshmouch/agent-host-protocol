@@ -27,6 +27,13 @@ hotfix escape hatch.
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
 - Optional `changes` field on `SessionSummary` (`ChangesSummary` with optional `additions`, `deletions`, and `files` counts) summarising a session's file-change footprint.
+- New comments channel (`ahp-session:/<uuid>/comments`): `CommentsState`,
+  `CommentThread`, `Comment`, `NewComment`, `CommentsSummary`,
+  the `commentsReducer`, the `comments/threadSet`, `comments/threadRemoved`,
+  `comments/commentSet`, `comments/commentRemoved`, `comments/cleared` actions,
+  and the `createCommentThread`, `updateCommentThread`, `deleteCommentThread`,
+  `addComment`, `editComment`, `deleteComment` commands. `SessionSummary.comments`
+  surfaces the per-session `CommentsSummary` for badge UI.
 
 
 ### Changed

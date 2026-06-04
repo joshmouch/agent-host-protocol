@@ -17,7 +17,7 @@ const GENERATED_HEADER = `// Generated from types/actions.ts — do not edit
 // Run \`npm run generate\` to regenerate.
 `;
 
-type ActionScope = 'root' | 'session' | 'terminal' | 'changeset' | 'resourceWatch';
+type ActionScope = 'root' | 'session' | 'terminal' | 'changeset' | 'comments' | 'resourceWatch';
 
 interface ActionInfo {
   /** The interface name (e.g. 'RootAgentsChangedAction') */
@@ -152,6 +152,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
     const scope: ActionScope = category === 'Root Actions' ? 'root'
       : category === 'Terminal Actions' ? 'terminal'
       : category === 'Changeset Actions' ? 'changeset'
+      : category === 'Comments Actions' ? 'comments'
       : category === 'Resource Watch Actions' ? 'resourceWatch'
       : 'session';
     const isClientDispatchable = hasJsDocTag(node as any, 'clientDispatchable');
@@ -202,6 +203,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const sessionActions = actions.filter(a => a.scope === 'session');
   const terminalActions = actions.filter(a => a.scope === 'terminal');
   const changesetActions = actions.filter(a => a.scope === 'changeset');
+  const commentsActions = actions.filter(a => a.scope === 'comments');
   const resourceWatchActions = actions.filter(a => a.scope === 'resourceWatch');
   const clientRootActions = rootActions.filter(a => a.isClientDispatchable);
   const serverRootActions = rootActions.filter(a => !a.isClientDispatchable);
@@ -211,6 +213,8 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const serverTerminalActions = terminalActions.filter(a => !a.isClientDispatchable);
   const clientChangesetActions = changesetActions.filter(a => a.isClientDispatchable);
   const serverChangesetActions = changesetActions.filter(a => !a.isClientDispatchable);
+  const clientCommentsActions = commentsActions.filter(a => a.isClientDispatchable);
+  const serverCommentsActions = commentsActions.filter(a => !a.isClientDispatchable);
   const clientResourceWatchActions = resourceWatchActions.filter(a => a.isClientDispatchable);
   const serverResourceWatchActions = resourceWatchActions.filter(a => !a.isClientDispatchable);
 
@@ -340,6 +344,45 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   } else {
     for (let i = 0; i < serverChangesetActions.length; i++) {
       lines.push(`  | ${serverChangesetActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // CommentsAction
+  lines.push(`/** Union of all comments-scoped actions. */`);
+  lines.push(`export type CommentsAction =`);
+  if (commentsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < commentsActions.length; i++) {
+      lines.push(`  | ${commentsActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ClientCommentsAction
+  lines.push(`/** Union of comments actions that clients may dispatch. */`);
+  lines.push(`export type ClientCommentsAction =`);
+  if (clientCommentsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < clientCommentsActions.length; i++) {
+      lines.push(`  | ${clientCommentsActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ServerCommentsAction
+  lines.push(`/** Union of comments actions that only the server may produce. */`);
+  lines.push(`export type ServerCommentsAction =`);
+  if (serverCommentsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < serverCommentsActions.length; i++) {
+      lines.push(`  | ${serverCommentsActions[i].name}`);
     }
   }
   lines.push(`;`);

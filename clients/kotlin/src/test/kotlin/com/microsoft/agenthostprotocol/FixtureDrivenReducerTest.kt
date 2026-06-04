@@ -179,6 +179,18 @@ class FixtureDrivenReducerTest {
                 },
             )
 
+            "comments" -> compareFixture(
+                file = file,
+                initial = initial,
+                expected = expected,
+                serializer = CommentsState.serializer(),
+                run = { state ->
+                    var s = state
+                    for (action in actions) s = commentsReducer(s, action)
+                    s
+                },
+            )
+
             "resourceWatch" -> compareFixture(
                 file = file,
                 initial = initial,

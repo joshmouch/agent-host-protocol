@@ -59,20 +59,20 @@ type SessionRemovedParams struct {
 //
 // Semantics:
 //
-//   - Only fields present in `changes` have new values; omitted fields are
-//     unchanged on the client's cached summary.
-//   - Identity fields (`resource`, `provider`, `createdAt`) never change and
-//     are not carried.
-//   - Like all protocol notifications, this is ephemeral: it is **not**
-//     replayed on reconnect. On reconnect, clients should re-fetch the full
-//     catalog via `listSessions()` as usual.
-//   - The server SHOULD emit this notification whenever any mutable field on
-//     {@link SessionSummary | `SessionSummary`} changes for a session the
-//     server has surfaced via `listSessions()` or `root/sessionAdded`.
-//     Servers MAY coalesce or debounce updates for noisy fields (for example,
-//     `modifiedAt` bumps while a turn is streaming) at their discretion.
-//   - Clients that have no cached entry for `session` MAY ignore the
-//     notification; it is not a substitute for `root/sessionAdded`.
+// - Only fields present in `changes` have new values; omitted fields are
+//   unchanged on the client's cached summary.
+// - Identity fields (`resource`, `provider`, `createdAt`) never change and
+//   are not carried.
+// - Like all protocol notifications, this is ephemeral: it is **not**
+//   replayed on reconnect. On reconnect, clients should re-fetch the full
+//   catalog via `listSessions()` as usual.
+// - The server SHOULD emit this notification whenever any mutable field on
+//   {@link SessionSummary | `SessionSummary`} changes for a session the
+//   server has surfaced via `listSessions()` or `root/sessionAdded`.
+//   Servers MAY coalesce or debounce updates for noisy fields (for example,
+//   `modifiedAt` bumps while a turn is streaming) at their discretion.
+// - Clients that have no cached entry for `session` MAY ignore the
+//   notification; it is not a substitute for `root/sessionAdded`.
 type SessionSummaryChangedParams struct {
 	// Channel URI this notification belongs to (the root channel)
 	Channel URI `json:"channel"`
@@ -189,4 +189,9 @@ type PartialSessionSummary struct {
 	// session's footprint (e.g., for list rendering) without requiring the
 	// client to subscribe to a changeset.
 	Changes *ChangesSummary `json:"changes,omitempty"`
+	// Lightweight summary of this session's inline comments channel
+	// (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+	// thread / comment counts without subscribing. Absent when the session
+	// does not expose a comments channel.
+	Comments *CommentsSummary `json:"comments,omitempty"`
 }

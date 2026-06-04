@@ -53,6 +53,11 @@ import type {
   ChangesetOperationsChangedAction,
   ChangesetOperationStatusChangedAction,
   ChangesetClearedAction,
+  CommentsThreadSetAction,
+  CommentsThreadRemovedAction,
+  CommentsCommentSetAction,
+  CommentsCommentRemovedAction,
+  CommentsClearedAction,
   TerminalDataAction,
   TerminalInputAction,
   TerminalResizedAction,
@@ -242,6 +247,29 @@ export type ServerChangesetAction =
   | ChangesetClearedAction
 ;
 
+/** Union of all comments-scoped actions. */
+export type CommentsAction =
+  | CommentsThreadSetAction
+  | CommentsThreadRemovedAction
+  | CommentsCommentSetAction
+  | CommentsCommentRemovedAction
+  | CommentsClearedAction
+;
+
+/** Union of comments actions that clients may dispatch. */
+export type ClientCommentsAction =
+  never
+;
+
+/** Union of comments actions that only the server may produce. */
+export type ServerCommentsAction =
+  | CommentsThreadSetAction
+  | CommentsThreadRemovedAction
+  | CommentsCommentSetAction
+  | CommentsCommentRemovedAction
+  | CommentsClearedAction
+;
+
 /** Union of all resource-watch-scoped actions. */
 export type ResourceWatchAction =
   | ResourceWatchChangedAction
@@ -314,6 +342,11 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.ChangesetOperationsChanged]: false,
   [ActionType.ChangesetOperationStatusChanged]: false,
   [ActionType.ChangesetCleared]: false,
+  [ActionType.CommentsThreadSet]: false,
+  [ActionType.CommentsThreadRemoved]: false,
+  [ActionType.CommentsCommentSet]: false,
+  [ActionType.CommentsCommentRemoved]: false,
+  [ActionType.CommentsCleared]: false,
   [ActionType.TerminalData]: false,
   [ActionType.TerminalInput]: true,
   [ActionType.TerminalResized]: true,

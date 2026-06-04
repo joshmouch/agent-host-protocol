@@ -13,11 +13,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
     AgentInfo, AgentSelection, Changeset, ChangesetFile, ChangesetOperation,
-    ChangesetOperationStatus, ChangesetStatus, ConfirmationOption, Customization, ErrorInfo,
-    Message, ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient,
-    SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
-    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
-    ToolResultContent, UsageInfo,
+    ChangesetOperationStatus, ChangesetStatus, Comment, CommentThread, ConfirmationOption,
+    Customization, ErrorInfo, Message, ModelSelection, PendingMessageKind, ResponsePart,
+    SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind,
+    TerminalClaim, TerminalInfo, ToolCallCancellationReason, ToolCallConfirmationReason,
+    ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -121,6 +121,16 @@ pub enum ActionType {
     ChangesetOperationStatusChanged,
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared,
+    #[serde(rename = "comments/threadSet")]
+    CommentsThreadSet,
+    #[serde(rename = "comments/threadRemoved")]
+    CommentsThreadRemoved,
+    #[serde(rename = "comments/commentSet")]
+    CommentsCommentSet,
+    #[serde(rename = "comments/commentRemoved")]
+    CommentsCommentRemoved,
+    #[serde(rename = "comments/cleared")]
+    CommentsCleared,
     #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged,
     #[serde(rename = "root/configChanged")]
@@ -929,6 +939,73 @@ pub struct ChangesetOperationStatusChangedAction {
 #[serde(rename_all = "camelCase")]
 pub struct ChangesetClearedAction {}
 
+/// Upsert a {@link CommentThread} in the comments channel — adds a new
+/// thread, or replaces an existing one identified by
+/// {@link CommentThread.id}. When replacing, the full thread payload
+/// (including its {@link CommentThread.comments | comments} list) is
+/// substituted; producers SHOULD prefer {@link CommentsCommentSetAction}
+/// for per-comment edits to keep wire updates small.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsThreadSetAction {
+    /// The new or replacement thread. MUST contain at least one comment.
+    pub thread: CommentThread,
+}
+
+/// Remove a {@link CommentThread} from the channel by its id.
+///
+/// The server emits this in two cases:
+/// 1. The client explicitly invoked
+///    {@link DeleteCommentThreadParams | `deleteCommentThread`}.
+/// 2. The client invoked {@link DeleteCommentParams | `deleteComment`} on
+///    the last remaining comment in the thread — the protocol collapses
+///    the thread rather than leaving an empty one behind.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsThreadRemovedAction {
+    /// The {@link CommentThread.id} of the thread to remove.
+    pub thread_id: String,
+}
+
+/// Upsert a {@link Comment} within an existing thread — adds a new
+/// comment, or replaces one identified by {@link Comment.id}. If
+/// {@link threadId} does not match any current thread the action is a
+/// no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsCommentSetAction {
+    /// The {@link CommentThread.id} the comment belongs to.
+    pub thread_id: String,
+    /// The new or replacement comment.
+    pub comment: Comment,
+}
+
+/// Remove a single {@link Comment} from a thread without collapsing the
+/// thread itself. Used when more than one comment remains — the server
+/// MUST dispatch {@link CommentsThreadRemovedAction} instead when removing
+/// the last comment would otherwise leave the thread empty.
+///
+/// If either {@link threadId} or {@link commentId} does not match the
+/// current state the action is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsCommentRemovedAction {
+    /// The {@link CommentThread.id} the comment belongs to.
+    pub thread_id: String,
+    /// The {@link Comment.id} to remove.
+    pub comment_id: String,
+}
+
+/// Drop every thread from the comments channel.
+///
+/// Dispatched when the owning session is going away and the channel is
+/// about to become un-subscribable. Clients SHOULD release references on
+/// receipt and react to the corresponding session-level lifecycle signal
+/// (e.g. `root/sessionRemoved`) to fully tear down UI.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentsClearedAction {}
+
 /// Fired when the list of known terminals changes.
 ///
 /// Full-replacement semantics: the `terminals` array replaces the previous
@@ -1191,6 +1268,16 @@ pub enum StateAction {
     ChangesetOperationStatusChanged(ChangesetOperationStatusChangedAction),
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared(ChangesetClearedAction),
+    #[serde(rename = "comments/threadSet")]
+    CommentsThreadSet(CommentsThreadSetAction),
+    #[serde(rename = "comments/threadRemoved")]
+    CommentsThreadRemoved(CommentsThreadRemovedAction),
+    #[serde(rename = "comments/commentSet")]
+    CommentsCommentSet(CommentsCommentSetAction),
+    #[serde(rename = "comments/commentRemoved")]
+    CommentsCommentRemoved(CommentsCommentRemovedAction),
+    #[serde(rename = "comments/cleared")]
+    CommentsCleared(CommentsClearedAction),
     #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged(RootTerminalsChangedAction),
     #[serde(rename = "terminal/data")]

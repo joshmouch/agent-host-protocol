@@ -146,7 +146,8 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
 
   if (tsType === 'IRootState | ISessionState' || tsType === 'IRootState | ISessionState | ITerminalState'
     || tsType === 'RootState | SessionState' || tsType === 'RootState | SessionState | TerminalState'
-    || tsType === 'RootState | SessionState | TerminalState | ChangesetState') {
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | CommentsState') {
     return 'SnapshotState';
   }
 
@@ -625,6 +626,11 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'ChangesetState' },
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },
+  { name: 'CommentsSummary' },
+  { name: 'CommentsState' },
+  { name: 'CommentThread' },
+  { name: 'Comment' },
+  { name: 'NewComment' },
   { name: 'TelemetryCapabilities' },
   { name: 'ResourceWatchState' },
   { name: 'ResourceChange' },
@@ -789,18 +795,20 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
 };
 
 function generateSnapshotState(): string {
-  return `/// The state payload of a snapshot — root, session, terminal, or
-/// changeset state.
+  return `/// The state payload of a snapshot — root, session, terminal,
+/// changeset, or comments state.
 ///
 /// Deserialized by trying session first (has required \`summary\`), then
 /// terminal (has required \`content\`), then changeset (has required
-/// \`status\` and \`files\`), then root.
+/// \`status\` and \`files\`), then comments (has required \`threads\`),
+/// then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
     Session(Box<SessionState>),
     Terminal(Box<TerminalState>),
     Changeset(Box<ChangesetState>),
+    Comments(Box<CommentsState>),
     Root(Box<RootState>),
 }`;
 }
@@ -918,6 +926,11 @@ const ACTION_VARIANTS: {
   { type: 'changeset/operationsChanged', variantName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', variantName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', variantName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'comments/threadSet', variantName: 'CommentsThreadSet', tsInterface: 'CommentsThreadSetAction' },
+  { type: 'comments/threadRemoved', variantName: 'CommentsThreadRemoved', tsInterface: 'CommentsThreadRemovedAction' },
+  { type: 'comments/commentSet', variantName: 'CommentsCommentSet', tsInterface: 'CommentsCommentSetAction' },
+  { type: 'comments/commentRemoved', variantName: 'CommentsCommentRemoved', tsInterface: 'CommentsCommentRemovedAction' },
+  { type: 'comments/cleared', variantName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
   { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },
   { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'TerminalInputAction' },
@@ -968,7 +981,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset, Comment, CommentThread};');
   lines.push('');
 
   // ActionType enum
@@ -1076,6 +1089,12 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: s
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
   { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
   { name: 'ChangesetOperationFollowUp' },
+  { name: 'CreateCommentThreadParams' }, { name: 'CreateCommentThreadResult' },
+  { name: 'UpdateCommentThreadParams' },
+  { name: 'DeleteCommentThreadParams' },
+  { name: 'AddCommentParams' }, { name: 'AddCommentResult' },
+  { name: 'EditCommentParams' },
+  { name: 'DeleteCommentParams' },
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -1093,7 +1112,7 @@ function generateCommandsFile(project: Project): string {
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, Turn};');
+  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, NewComment, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, TextRange, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1176,7 +1195,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesSummary, Changeset, CommentsSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');

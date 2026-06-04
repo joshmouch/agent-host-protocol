@@ -198,5 +198,12 @@ data class PartialSessionSummary(
      * session's footprint (e.g., for list rendering) without requiring the
      * client to subscribe to a changeset.
      */
-    val changes: ChangesSummary? = null
+    val changes: ChangesSummary? = null,
+    /**
+     * Lightweight summary of this session's inline comments channel
+     * (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+     * thread / comment counts without subscribing. Absent when the session
+     * does not expose a comments channel.
+     */
+    val comments: CommentsSummary? = null
 )

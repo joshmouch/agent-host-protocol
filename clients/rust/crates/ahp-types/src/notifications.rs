@@ -13,8 +13,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
 use crate::state::{
-    AgentSelection, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo,
-    SessionStatus, SessionSummary,
+    AgentSelection, ChangesSummary, Changeset, CommentsSummary, FileEdit, ModelSelection,
+    ProjectInfo, SessionStatus, SessionSummary,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -223,4 +223,10 @@ pub struct PartialSessionSummary {
     /// client to subscribe to a changeset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub changes: Option<ChangesSummary>,
+    /// Lightweight summary of this session's inline comments channel
+    /// (`ahp-session:/<uuid>/comments`). Surfaced so badge UI can render
+    /// thread / comment counts without subscribing. Absent when the session
+    /// does not expose a comments channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<CommentsSummary>,
 }

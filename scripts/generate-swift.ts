@@ -106,7 +106,8 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   // Known unions
   if (tsType === 'RootState | SessionState'
     || tsType === 'RootState | SessionState | TerminalState'
-    || tsType === 'RootState | SessionState | TerminalState | ChangesetState') return 'SnapshotState';
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | CommentsState') return 'SnapshotState';
 
   // T | null → T?
   const nullMatch = tsType.match(/^(.+?)\s*\|\s*null$/);
@@ -537,6 +538,7 @@ const STATE_STRUCTS = [
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
   'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'CommentsSummary', 'CommentsState', 'CommentThread', 'Comment', 'NewComment',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];
@@ -751,12 +753,13 @@ public enum StringOrMarkdown: Codable, Sendable, Equatable {
 }
 
 function generateSnapshotState(): string {
-  return `/// The state payload of a snapshot — root, session, terminal, or changeset state.
+  return `/// The state payload of a snapshot — root, session, terminal, changeset, or comments state.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
     case terminal(TerminalState)
     case changeset(ChangesetState)
+    case comments(CommentsState)
 
     public init(from decoder: Decoder) throws {
         // SessionState has required \`summary\` field, try it first
@@ -766,6 +769,8 @@ public enum SnapshotState: Codable, Sendable {
             self = .terminal(terminal)
         } else if let changeset = try? ChangesetState(from: decoder) {
             self = .changeset(changeset)
+        } else if let comments = try? CommentsState(from: decoder) {
+            self = .comments(comments)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -777,6 +782,7 @@ public enum SnapshotState: Codable, Sendable {
         case .session(let state): try state.encode(to: encoder)
         case .terminal(let state): try state.encode(to: encoder)
         case .changeset(let state): try state.encode(to: encoder)
+        case .comments(let state): try state.encode(to: encoder)
         }
     }
 }`;
@@ -895,6 +901,11 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'changeset/operationsChanged', caseName: 'changesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', caseName: 'changesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', caseName: 'changesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'comments/threadSet', caseName: 'commentsThreadSet', tsInterface: 'CommentsThreadSetAction' },
+  { type: 'comments/threadRemoved', caseName: 'commentsThreadRemoved', tsInterface: 'CommentsThreadRemovedAction' },
+  { type: 'comments/commentSet', caseName: 'commentsCommentSet', tsInterface: 'CommentsCommentSetAction' },
+  { type: 'comments/commentRemoved', caseName: 'commentsCommentRemoved', tsInterface: 'CommentsCommentRemovedAction' },
+  { type: 'comments/cleared', caseName: 'commentsCleared', tsInterface: 'CommentsClearedAction' },
   { type: 'root/terminalsChanged', caseName: 'rootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'rootConfigChanged', tsInterface: 'RootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'terminalData', tsInterface: 'TerminalDataAction' },
@@ -1079,6 +1090,12 @@ const COMMAND_STRUCTS = [
   'CompletionsParams', 'CompletionItem', 'CompletionsResult',
   'InvokeChangesetOperationParams', 'InvokeChangesetOperationResult',
   'ChangesetOperationFollowUp',
+  'CreateCommentThreadParams', 'CreateCommentThreadResult',
+  'UpdateCommentThreadParams',
+  'DeleteCommentThreadParams',
+  'AddCommentParams', 'AddCommentResult',
+  'EditCommentParams',
+  'DeleteCommentParams',
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
