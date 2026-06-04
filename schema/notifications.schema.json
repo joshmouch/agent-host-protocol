@@ -3801,8 +3801,8 @@
           "description": "Stable identifier within the enclosing thread. Server-assigned."
         },
         "text": {
-          "type": "string",
-          "description": "Comment body. Rendered as plain text unless the client opts into Markdown."
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Comment body. A bare `string` is rendered as plain text; pass\n`{ markdown: \"…\" }` to opt into Markdown rendering. See\n{@link StringOrMarkdown}."
         },
         "_meta": {
           "type": "object",
@@ -3820,8 +3820,8 @@
       "description": "Input shape passed to {@link CreateCommentThreadParams | `createCommentThread`}\nand {@link AddCommentParams | `addComment`}. The server assigns the\nresulting {@link Comment.id}.",
       "properties": {
         "text": {
-          "type": "string",
-          "description": "Comment body."
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Comment body. See {@link Comment.text}."
         },
         "_meta": {
           "type": "object",

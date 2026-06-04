@@ -12,7 +12,7 @@
  * @module channels-comments/commands
  */
 
-import type { URI, TextRange } from '../common/state.js';
+import type { URI, StringOrMarkdown, TextRange } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
 import type { NewComment } from './state.js';
 
@@ -165,8 +165,8 @@ export interface EditCommentParams extends BaseParams {
   threadId: string;
   /** {@link Comment.id} to edit. */
   commentId: string;
-  /** New comment body. */
-  text: string;
+  /** New comment body. See {@link Comment.text}. */
+  text: StringOrMarkdown;
 }
 
 // ─── deleteComment ───────────────────────────────────────────────────────────

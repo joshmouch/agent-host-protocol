@@ -526,7 +526,7 @@ const STATE_ENUMS = [
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
-  'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
+  'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'CommentSource', 'ResourceChangeType',
 ];
 
 /**
@@ -630,7 +630,6 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'CommentsState' },
   { name: 'CommentThread' },
   { name: 'Comment' },
-  { name: 'NewComment' },
   { name: 'TelemetryCapabilities' },
   { name: 'ResourceWatchState' },
   { name: 'ResourceChange' },
@@ -903,6 +902,7 @@ const ACTION_VARIANTS: {
   { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
   { type: 'session/changesetsChanged', variantName: 'SessionChangesetsChanged', tsInterface: 'SessionChangesetsChangedAction' },
+  { type: 'session/commentsChanged', variantName: 'SessionCommentsChanged', tsInterface: 'SessionCommentsChangedAction' },
   { type: 'session/serverToolsChanged', variantName: 'SessionServerToolsChanged', tsInterface: 'SessionServerToolsChangedAction' },
   { type: 'session/activeClientChanged', variantName: 'SessionActiveClientChanged', tsInterface: 'SessionActiveClientChangedAction' },
   { type: 'session/activeClientToolsChanged', variantName: 'SessionActiveClientToolsChanged', tsInterface: 'SessionActiveClientToolsChangedAction' },
@@ -926,11 +926,11 @@ const ACTION_VARIANTS: {
   { type: 'changeset/operationsChanged', variantName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', variantName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', variantName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
-  { type: 'comments/threadSet', variantName: 'CommentsThreadSet', tsInterface: 'CommentsThreadSetAction' },
-  { type: 'comments/threadRemoved', variantName: 'CommentsThreadRemoved', tsInterface: 'CommentsThreadRemovedAction' },
-  { type: 'comments/commentSet', variantName: 'CommentsCommentSet', tsInterface: 'CommentsCommentSetAction' },
-  { type: 'comments/commentRemoved', variantName: 'CommentsCommentRemoved', tsInterface: 'CommentsCommentRemovedAction' },
-  { type: 'comments/cleared', variantName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
+  { type: 'comment/threadSet', variantName: 'CommentThreadSet', tsInterface: 'CommentThreadSetAction' },
+  { type: 'comment/threadRemoved', variantName: 'CommentThreadRemoved', tsInterface: 'CommentThreadRemovedAction' },
+  { type: 'comment/set', variantName: 'CommentSet', tsInterface: 'CommentSetAction' },
+  { type: 'comment/removed', variantName: 'CommentRemoved', tsInterface: 'CommentRemovedAction' },
+  { type: 'comment/cleared', variantName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
   { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },
   { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'TerminalInputAction' },
@@ -981,7 +981,11 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset, Comment, CommentThread};');
+<<<<<<< Updated upstream
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset};');
+=======
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, ChangesetSummary, CommentsSummary, CommentThread, Comment};');
+>>>>>>> Stashed changes
   lines.push('');
 
   // ActionType enum
@@ -1089,6 +1093,7 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: s
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
   { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
   { name: 'ChangesetOperationFollowUp' },
+  { name: 'NewComment' },
   { name: 'CreateCommentThreadParams' }, { name: 'CreateCommentThreadResult' },
   { name: 'UpdateCommentThreadParams' },
   { name: 'DeleteCommentThreadParams' },
@@ -1112,7 +1117,7 @@ function generateCommandsFile(project: Project): string {
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, NewComment, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, TextRange, Turn};');
+  lines.push('use crate::state::{AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1195,7 +1200,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ChangesSummary, Changeset, CommentsSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');

@@ -1128,8 +1128,8 @@ pub struct EditCommentParams {
     pub thread_id: String,
     /// {@link Comment.id} to edit.
     pub comment_id: String,
-    /// New comment body.
-    pub text: String,
+    /// New comment body. See {@link Comment.text}.
+    pub text: StringOrMarkdown,
 }
 
 /// Remove a single comment from a thread.

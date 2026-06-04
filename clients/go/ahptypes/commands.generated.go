@@ -946,8 +946,8 @@ type EditCommentParams struct {
 	ThreadId string `json:"threadId"`
 	// {@link Comment.id} to edit.
 	CommentId string `json:"commentId"`
-	// New comment body.
-	Text string `json:"text"`
+	// New comment body. See {@link Comment.text}.
+	Text StringOrMarkdown `json:"text"`
 }
 
 // Remove a single comment from a thread.

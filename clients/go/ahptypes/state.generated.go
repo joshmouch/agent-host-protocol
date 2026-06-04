@@ -2192,8 +2192,10 @@ type CommentThread struct {
 type Comment struct {
 	// Stable identifier within the enclosing thread. Server-assigned.
 	Id string `json:"id"`
-	// Comment body. Rendered as plain text unless the client opts into Markdown.
-	Text string `json:"text"`
+	// Comment body. A bare `string` is rendered as plain text; pass
+	// `{ markdown: "…" }` to opt into Markdown rendering. See
+	// {@link StringOrMarkdown}.
+	Text StringOrMarkdown `json:"text"`
 	// Server-defined opaque metadata, surfaced to tooling but not
 	// interpreted by the protocol.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
@@ -2203,8 +2205,8 @@ type Comment struct {
 // and {@link AddCommentParams | `addComment`}. The server assigns the
 // resulting {@link Comment.id}.
 type NewComment struct {
-	// Comment body.
-	Text string `json:"text"`
+	// Comment body. See {@link Comment.text}.
+	Text StringOrMarkdown `json:"text"`
 	// Server-defined opaque metadata, forwarded onto the resulting
 	// {@link Comment._meta}.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`

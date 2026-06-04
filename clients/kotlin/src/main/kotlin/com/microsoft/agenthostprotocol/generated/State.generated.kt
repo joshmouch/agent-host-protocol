@@ -3134,9 +3134,11 @@ data class Comment(
      */
     val id: String,
     /**
-     * Comment body. Rendered as plain text unless the client opts into Markdown.
+     * Comment body. A bare `string` is rendered as plain text; pass
+     * `{ markdown: "…" }` to opt into Markdown rendering. See
+     * {@link StringOrMarkdown}.
      */
-    val text: String,
+    val text: StringOrMarkdown,
     /**
      * Server-defined opaque metadata, surfaced to tooling but not
      * interpreted by the protocol.
@@ -3148,9 +3150,9 @@ data class Comment(
 @Serializable
 data class NewComment(
     /**
-     * Comment body.
+     * Comment body. See {@link Comment.text}.
      */
-    val text: String,
+    val text: StringOrMarkdown,
     /**
      * Server-defined opaque metadata, forwarded onto the resulting
      * {@link Comment._meta}.

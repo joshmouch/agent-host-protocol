@@ -140,8 +140,8 @@ function mapType(tsType: string): string {
   if (
     tsType === 'RootState | SessionState' ||
     tsType === 'RootState | SessionState | TerminalState' ||
-    tsType === 'RootState | SessionState | TerminalState | ChangesetState' ||
-    tsType === 'RootState | SessionState | TerminalState | ChangesetState | CommentsState'
+    tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | CommentsState'
   ) {
     return 'SnapshotState';
   }
@@ -626,7 +626,8 @@ internal object StringOrMarkdownSerializer : KSerializer<StringOrMarkdown> {
 
 function generateSnapshotState(): string {
   return `/**
- * The state payload of a snapshot — root, session, terminal, changeset, or comments state.
+ * The state payload of a snapshot — root, session, terminal, changeset,
+ * or comments state.
  */
 @Serializable(with = SnapshotStateSerializer::class)
 sealed interface SnapshotState {
@@ -649,8 +650,8 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             ?: error("Expected JsonObject for SnapshotState")
         // Try the most distinctive shape first. SessionState has required
         // \`summary\`; ChangesetState has required \`status\` + \`files\`;
-        // CommentsState has required \`threads\`; TerminalState has
-        // \`uri\` / \`size\` / \`buffer\`; RootState is the catch-all.
+        // CommentsState has required \`threads\`; TerminalState has \`uri\`
+        // / \`size\` / \`buffer\`; RootState is the catch-all.
         return when {
             obj.containsKey("summary") -> SnapshotState.Session(input.json.decodeFromJsonElement(SessionState.serializer(), element))
             obj.containsKey("status") && obj.containsKey("files") ->
@@ -746,7 +747,7 @@ const STATE_ENUMS = [
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
-  'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
+  'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'CommentSource', 'ResourceChangeType',
 ];
 
 const STATE_STRUCTS = [
@@ -784,8 +785,12 @@ const STATE_STRUCTS = [
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
+<<<<<<< Updated upstream
   'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
-  'CommentsSummary', 'CommentsState', 'CommentThread', 'Comment', 'NewComment',
+=======
+  'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'CommentsSummary', 'CommentsState', 'CommentThread', 'Comment',
+>>>>>>> Stashed changes
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];
@@ -1042,11 +1047,12 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'changeset/operationsChanged', caseName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', caseName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', caseName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
-  { type: 'comments/threadSet', caseName: 'CommentsThreadSet', tsInterface: 'CommentsThreadSetAction' },
-  { type: 'comments/threadRemoved', caseName: 'CommentsThreadRemoved', tsInterface: 'CommentsThreadRemovedAction' },
-  { type: 'comments/commentSet', caseName: 'CommentsCommentSet', tsInterface: 'CommentsCommentSetAction' },
-  { type: 'comments/commentRemoved', caseName: 'CommentsCommentRemoved', tsInterface: 'CommentsCommentRemovedAction' },
-  { type: 'comments/cleared', caseName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
+  { type: 'session/commentsChanged', caseName: 'SessionCommentsChanged', tsInterface: 'SessionCommentsChangedAction' },
+  { type: 'comment/threadSet', caseName: 'CommentThreadSet', tsInterface: 'CommentThreadSetAction' },
+  { type: 'comment/threadRemoved', caseName: 'CommentThreadRemoved', tsInterface: 'CommentThreadRemovedAction' },
+  { type: 'comment/set', caseName: 'CommentSet', tsInterface: 'CommentSetAction' },
+  { type: 'comment/removed', caseName: 'CommentRemoved', tsInterface: 'CommentRemovedAction' },
+  { type: 'comment/cleared', caseName: 'CommentsCleared', tsInterface: 'CommentsClearedAction' },
   { type: 'root/terminalsChanged', caseName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'RootConfigChanged', tsInterface: 'RootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'TerminalData', tsInterface: 'TerminalDataAction' },
@@ -1224,13 +1230,14 @@ const COMMAND_STRUCTS = [
   'SessionConfigValueItem',
   'CompletionsParams', 'CompletionItem', 'CompletionsResult',
   'InvokeChangesetOperationParams', 'InvokeChangesetOperationResult',
-  'ChangesetOperationFollowUp',
+  'NewComment',
   'CreateCommentThreadParams', 'CreateCommentThreadResult',
   'UpdateCommentThreadParams',
   'DeleteCommentThreadParams',
   'AddCommentParams', 'AddCommentResult',
   'EditCommentParams',
   'DeleteCommentParams',
+  'ChangesetOperationFollowUp',
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {

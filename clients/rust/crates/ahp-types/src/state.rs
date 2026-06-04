@@ -2658,8 +2658,10 @@ pub struct CommentThread {
 pub struct Comment {
     /// Stable identifier within the enclosing thread. Server-assigned.
     pub id: String,
-    /// Comment body. Rendered as plain text unless the client opts into Markdown.
-    pub text: String,
+    /// Comment body. A bare `string` is rendered as plain text; pass
+    /// `{ markdown: "…" }` to opt into Markdown rendering. See
+    /// {@link StringOrMarkdown}.
+    pub text: StringOrMarkdown,
     /// Server-defined opaque metadata, surfaced to tooling but not
     /// interpreted by the protocol.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
@@ -2672,8 +2674,8 @@ pub struct Comment {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NewComment {
-    /// Comment body.
-    pub text: String,
+    /// Comment body. See {@link Comment.text}.
+    pub text: StringOrMarkdown,
     /// Server-defined opaque metadata, forwarded onto the resulting
     /// {@link Comment._meta}.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]

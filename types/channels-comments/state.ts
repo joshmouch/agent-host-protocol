@@ -9,7 +9,7 @@
  * @module channels-comments/state
  */
 
-import type { URI, TextRange } from '../common/state.js';
+import type { URI, StringOrMarkdown, TextRange } from '../common/state.js';
 
 // ─── Comments Summary ────────────────────────────────────────────────────────
 
@@ -101,8 +101,12 @@ export interface CommentThread {
 export interface Comment {
   /** Stable identifier within the enclosing thread. Server-assigned. */
   id: string;
-  /** Comment body. Rendered as plain text unless the client opts into Markdown. */
-  text: string;
+  /**
+   * Comment body. A bare `string` is rendered as plain text; pass
+   * `{ markdown: "…" }` to opt into Markdown rendering. See
+   * {@link StringOrMarkdown}.
+   */
+  text: StringOrMarkdown;
   /**
    * Server-defined opaque metadata, surfaced to tooling but not
    * interpreted by the protocol.
@@ -120,8 +124,8 @@ export interface Comment {
  * @category Comments
  */
 export interface NewComment {
-  /** Comment body. */
-  text: string;
+  /** Comment body. See {@link Comment.text}. */
+  text: StringOrMarkdown;
   /**
    * Server-defined opaque metadata, forwarded onto the resulting
    * {@link Comment._meta}.

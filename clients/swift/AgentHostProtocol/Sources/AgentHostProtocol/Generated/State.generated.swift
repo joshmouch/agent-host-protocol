@@ -3445,8 +3445,10 @@ public struct CommentThread: Codable, Sendable {
 public struct Comment: Codable, Sendable {
     /// Stable identifier within the enclosing thread. Server-assigned.
     public var id: String
-    /// Comment body. Rendered as plain text unless the client opts into Markdown.
-    public var text: String
+    /// Comment body. A bare `string` is rendered as plain text; pass
+    /// `{ markdown: "…" }` to opt into Markdown rendering. See
+    /// {@link StringOrMarkdown}.
+    public var text: StringOrMarkdown
     /// Server-defined opaque metadata, surfaced to tooling but not
     /// interpreted by the protocol.
     public var meta: [String: AnyCodable]?
@@ -3459,7 +3461,7 @@ public struct Comment: Codable, Sendable {
 
     public init(
         id: String,
-        text: String,
+        text: StringOrMarkdown,
         meta: [String: AnyCodable]? = nil
     ) {
         self.id = id
@@ -3469,8 +3471,8 @@ public struct Comment: Codable, Sendable {
 }
 
 public struct NewComment: Codable, Sendable {
-    /// Comment body.
-    public var text: String
+    /// Comment body. See {@link Comment.text}.
+    public var text: StringOrMarkdown
     /// Server-defined opaque metadata, forwarded onto the resulting
     /// {@link Comment._meta}.
     public var meta: [String: AnyCodable]?
@@ -3481,7 +3483,7 @@ public struct NewComment: Codable, Sendable {
     }
 
     public init(
-        text: String,
+        text: StringOrMarkdown,
         meta: [String: AnyCodable]? = nil
     ) {
         self.text = text

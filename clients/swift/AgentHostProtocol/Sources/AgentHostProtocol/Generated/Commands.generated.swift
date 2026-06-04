@@ -1280,14 +1280,14 @@ public struct EditCommentParams: Codable, Sendable {
     public var threadId: String
     /// {@link Comment.id} to edit.
     public var commentId: String
-    /// New comment body.
-    public var text: String
+    /// New comment body. See {@link Comment.text}.
+    public var text: StringOrMarkdown
 
     public init(
         channel: String,
         threadId: String,
         commentId: String,
-        text: String
+        text: StringOrMarkdown
     ) {
         self.channel = channel
         self.threadId = threadId

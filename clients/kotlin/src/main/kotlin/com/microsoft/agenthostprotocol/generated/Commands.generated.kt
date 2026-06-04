@@ -1121,9 +1121,9 @@ data class EditCommentParams(
      */
     val commentId: String,
     /**
-     * New comment body.
+     * New comment body. See {@link Comment.text}.
      */
-    val text: String
+    val text: StringOrMarkdown
 )
 
 @Serializable
