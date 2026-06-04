@@ -294,7 +294,9 @@ internal sealed class HostEntry
     public string ClientId { get; set; }
 
     private readonly Gate _gate = new();
-    private AhpClient? _client;
+    // Published reference, read lock-free via CurrentClient. A reference read is
+    // atomic; `volatile` supplies the visibility a lock would otherwise provide.
+    private volatile AhpClient? _client;
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
@@ -310,14 +312,17 @@ internal sealed class HostEntry
         Id = id; Config = config; ClientId = clientId;
     }
 
-    /// <summary>The current client (under the lock), or null if not connected.</summary>
-    public AhpClient? CurrentClient
-    {
-        get { lock (_gate) { return _client; } }
-    }
+    /// <summary>
+    /// The current client, or null if not connected. Lock-free: a reference read
+    /// is atomic and <c>_client</c> is <c>volatile</c>, so no lock is needed just
+    /// to read one published reference.
+    /// </summary>
+    public AhpClient? CurrentClient => _client;
 
     public void SetClient(AhpClient? client, string protoVer)
     {
+        // _protoVer is read together with _state/_updatedAt by Snapshot(), so the
+        // write stays under the lock; the _client write is a volatile publish.
         lock (_gate) { _client = client; _protoVer = protoVer; }
     }
 

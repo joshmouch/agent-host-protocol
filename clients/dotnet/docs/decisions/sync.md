@@ -66,7 +66,7 @@ each problem."
 | 3 | Append to + snapshot a list | subscription/event subscriber lists | `lock` |
 | 4 | Serialize an **awaited** I/O call (no concurrent sends) | `WebSocketTransport.SendAsync` | `SemaphoreSlim` |
 | 5 | Single-value atomic counter | JSON-RPC request id, client sequence | `Interlocked` |
-| 6 | Publish a single field / flag visibly | shutdown flag, client-id-store reference | `Volatile` / `volatile` |
+| 6 | Publish a single field / flag visibly | shutdown flag, client-id-store reference, current per-host client | `Volatile` / `volatile` (a reference read is atomic, so no lock is needed for one field) |
 | 7 | Producer/consumer fan-out with backpressure | subscription + host event delivery | `System.Threading.Channels` |
 | 8 | Request/response correlation by id | `AhpClient` pending-request table | `ConcurrentDictionary<ulong, TaskCompletionSource<…>>` |
 | 9 | One-shot completion signal | client `Completion` / `Done` | `TaskCompletionSource` |
