@@ -865,13 +865,6 @@
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
         },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Changeset"
-          },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
-        },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
           "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."

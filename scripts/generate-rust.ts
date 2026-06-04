@@ -894,7 +894,6 @@ const ACTION_VARIANTS: {
   { type: 'session/isReadChanged', variantName: 'SessionIsReadChanged', tsInterface: 'SessionIsReadChangedAction' },
   { type: 'session/isArchivedChanged', variantName: 'SessionIsArchivedChanged', tsInterface: 'SessionIsArchivedChangedAction' },
   { type: 'session/activityChanged', variantName: 'SessionActivityChanged', tsInterface: 'SessionActivityChangedAction' },
-  { type: 'session/changesetsChanged', variantName: 'SessionChangesetsChanged', tsInterface: 'SessionChangesetsChangedAction' },
   { type: 'session/serverToolsChanged', variantName: 'SessionServerToolsChanged', tsInterface: 'SessionServerToolsChangedAction' },
   { type: 'session/activeClientChanged', variantName: 'SessionActiveClientChanged', tsInterface: 'SessionActiveClientChangedAction' },
   { type: 'session/activeClientToolsChanged', variantName: 'SessionActiveClientToolsChanged', tsInterface: 'SessionActiveClientToolsChangedAction' },
@@ -968,7 +967,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus};');
   lines.push('');
 
   // ActionType enum

@@ -79,8 +79,7 @@ pub struct SessionRemovedParams {
 ///   {@link SessionSummary | `SessionSummary`} changes for a session the
 ///   server has surfaced via `listSessions()` or `root/sessionAdded`.
 ///   Servers MAY coalesce or debounce updates for noisy fields (for example,
-///   `modifiedAt` bumps while a turn is streaming, or rapidly changing
-///   `changesets`) at their discretion.
+///   `modifiedAt` bumps while a turn is streaming) at their discretion.
 /// - Clients that have no cached entry for `session` MAY ignore the
 ///   notification; it is not a substitute for `root/sessionAdded`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -218,13 +217,6 @@ pub struct PartialSessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link Changeset} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<Changeset>>,
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the

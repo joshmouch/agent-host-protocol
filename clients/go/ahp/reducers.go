@@ -498,9 +498,6 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 	case *ahptypes.SessionActivityChangedAction:
 		state.Summary.Activity = a.Activity
 		return ReduceOutcomeApplied
-	case *ahptypes.SessionChangesetsChangedAction:
-		state.Summary.Changesets = append([]ahptypes.Changeset(nil), a.Changesets...)
-		return ReduceOutcomeApplied
 	case *ahptypes.SessionConfigChangedAction:
 		if state.Config == nil {
 			return ReduceOutcomeNoOp

@@ -104,8 +104,6 @@ enum class ActionType {
     SESSION_IS_ARCHIVED_CHANGED,
     @SerialName("session/activityChanged")
     SESSION_ACTIVITY_CHANGED,
-    @SerialName("session/changesetsChanged")
-    SESSION_CHANGESETS_CHANGED,
     @SerialName("session/configChanged")
     SESSION_CONFIG_CHANGED,
     @SerialName("session/metaChanged")
@@ -578,15 +576,6 @@ data class SessionActivityChangedAction(
 )
 
 @Serializable
-data class SessionChangesetsChangedAction(
-    val type: ActionType,
-    /**
-     * New catalogue, or `undefined` to clear it
-     */
-    val changesets: List<Changeset>? = null
-)
-
-@Serializable
 data class SessionServerToolsChangedAction(
     val type: ActionType,
     /**
@@ -1039,7 +1028,6 @@ sealed interface StateAction
 @JvmInline value class StateActionSessionIsReadChanged(val value: SessionIsReadChangedAction) : StateAction
 @JvmInline value class StateActionSessionIsArchivedChanged(val value: SessionIsArchivedChangedAction) : StateAction
 @JvmInline value class StateActionSessionActivityChanged(val value: SessionActivityChangedAction) : StateAction
-@JvmInline value class StateActionSessionChangesetsChanged(val value: SessionChangesetsChangedAction) : StateAction
 @JvmInline value class StateActionSessionServerToolsChanged(val value: SessionServerToolsChangedAction) : StateAction
 @JvmInline value class StateActionSessionActiveClientChanged(val value: SessionActiveClientChangedAction) : StateAction
 @JvmInline value class StateActionSessionActiveClientToolsChanged(val value: SessionActiveClientToolsChangedAction) : StateAction
@@ -1116,7 +1104,6 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "session/isReadChanged" -> StateActionSessionIsReadChanged(input.json.decodeFromJsonElement(SessionIsReadChangedAction.serializer(), element))
             "session/isArchivedChanged" -> StateActionSessionIsArchivedChanged(input.json.decodeFromJsonElement(SessionIsArchivedChangedAction.serializer(), element))
             "session/activityChanged" -> StateActionSessionActivityChanged(input.json.decodeFromJsonElement(SessionActivityChangedAction.serializer(), element))
-            "session/changesetsChanged" -> StateActionSessionChangesetsChanged(input.json.decodeFromJsonElement(SessionChangesetsChangedAction.serializer(), element))
             "session/serverToolsChanged" -> StateActionSessionServerToolsChanged(input.json.decodeFromJsonElement(SessionServerToolsChangedAction.serializer(), element))
             "session/activeClientChanged" -> StateActionSessionActiveClientChanged(input.json.decodeFromJsonElement(SessionActiveClientChangedAction.serializer(), element))
             "session/activeClientToolsChanged" -> StateActionSessionActiveClientToolsChanged(input.json.decodeFromJsonElement(SessionActiveClientToolsChangedAction.serializer(), element))
@@ -1186,7 +1173,6 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionSessionIsReadChanged -> output.json.encodeToJsonElement(SessionIsReadChangedAction.serializer(), value.value)
             is StateActionSessionIsArchivedChanged -> output.json.encodeToJsonElement(SessionIsArchivedChangedAction.serializer(), value.value)
             is StateActionSessionActivityChanged -> output.json.encodeToJsonElement(SessionActivityChangedAction.serializer(), value.value)
-            is StateActionSessionChangesetsChanged -> output.json.encodeToJsonElement(SessionChangesetsChangedAction.serializer(), value.value)
             is StateActionSessionServerToolsChanged -> output.json.encodeToJsonElement(SessionServerToolsChangedAction.serializer(), value.value)
             is StateActionSessionActiveClientChanged -> output.json.encodeToJsonElement(SessionActiveClientChangedAction.serializer(), value.value)
             is StateActionSessionActiveClientToolsChanged -> output.json.encodeToJsonElement(SessionActiveClientToolsChangedAction.serializer(), value.value)

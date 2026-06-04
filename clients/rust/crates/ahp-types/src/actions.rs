@@ -12,12 +12,11 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, AgentSelection, Changeset, ChangesetFile, ChangesetOperation,
-    ChangesetOperationStatus, ChangesetStatus, ConfirmationOption, Customization, ErrorInfo,
-    Message, ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient,
-    SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
-    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
-    ToolResultContent, UsageInfo,
+    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetOperationStatus,
+    ChangesetStatus, ConfirmationOption, Customization, ErrorInfo, Message, ModelSelection,
+    PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
+    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
+    ToolCallConfirmationReason, ToolCallResult, ToolDefinition, ToolResultContent, UsageInfo,
 };
 
 // ─── ActionType ──────────────────────────────────────────────────────
@@ -103,8 +102,6 @@ pub enum ActionType {
     SessionIsArchivedChanged,
     #[serde(rename = "session/activityChanged")]
     SessionActivityChanged,
-    #[serde(rename = "session/changesetsChanged")]
-    SessionChangesetsChanged,
     #[serde(rename = "session/configChanged")]
     SessionConfigChanged,
     #[serde(rename = "session/metaChanged")]
@@ -573,23 +570,6 @@ pub struct SessionActivityChangedAction {
     /// Human-readable description of current activity, or `undefined` to clear
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<String>,
-}
-
-/// The {@link Changeset | catalogue of changesets} the agent host
-/// advertises for this session changed. Replaces
-/// `state.summary.changesets` entirely (full-replacement semantics) — set
-/// to `undefined` to clear the catalogue.
-///
-/// Producers dispatch this whenever entries are added or removed. The
-/// fan-out happens through this action so observers see catalogue
-/// mutations in the same {@link ChangesetAction | per-changeset} action
-/// stream they already follow for file-level updates.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionChangesetsChangedAction {
-    /// New catalogue, or `undefined` to clear it
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<Changeset>>,
 }
 
 /// Server tools for this session have changed.
@@ -1142,8 +1122,6 @@ pub enum StateAction {
     SessionIsArchivedChanged(SessionIsArchivedChangedAction),
     #[serde(rename = "session/activityChanged")]
     SessionActivityChanged(SessionActivityChangedAction),
-    #[serde(rename = "session/changesetsChanged")]
-    SessionChangesetsChanged(SessionChangesetsChangedAction),
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged(SessionServerToolsChangedAction),
     #[serde(rename = "session/activeClientChanged")]

@@ -58,7 +58,6 @@ const (
 	ActionTypeSessionIsReadChanged              ActionType = "session/isReadChanged"
 	ActionTypeSessionIsArchivedChanged          ActionType = "session/isArchivedChanged"
 	ActionTypeSessionActivityChanged            ActionType = "session/activityChanged"
-	ActionTypeSessionChangesetsChanged          ActionType = "session/changesetsChanged"
 	ActionTypeSessionConfigChanged              ActionType = "session/configChanged"
 	ActionTypeSessionMetaChanged                ActionType = "session/metaChanged"
 	ActionTypeChangesetStatusChanged            ActionType = "changeset/statusChanged"
@@ -439,21 +438,6 @@ type SessionActivityChangedAction struct {
 	Type ActionType `json:"type"`
 	// Human-readable description of current activity, or `undefined` to clear
 	Activity *string `json:"activity,omitempty"`
-}
-
-// The {@link Changeset | catalogue of changesets} the agent host
-// advertises for this session changed. Replaces
-// `state.summary.changesets` entirely (full-replacement semantics) — set
-// to `undefined` to clear the catalogue.
-//
-// Producers dispatch this whenever entries are added or removed. The
-// fan-out happens through this action so observers see catalogue
-// mutations in the same {@link ChangesetAction | per-changeset} action
-// stream they already follow for file-level updates.
-type SessionChangesetsChangedAction struct {
-	Type ActionType `json:"type"`
-	// New catalogue, or `undefined` to clear it
-	Changesets []Changeset `json:"changesets,omitempty"`
 }
 
 // Server tools for this session have changed.
@@ -940,7 +924,6 @@ func (*SessionAgentChangedAction) isStateAction()               {}
 func (*SessionIsReadChangedAction) isStateAction()              {}
 func (*SessionIsArchivedChangedAction) isStateAction()          {}
 func (*SessionActivityChangedAction) isStateAction()            {}
-func (*SessionChangesetsChangedAction) isStateAction()          {}
 func (*SessionServerToolsChangedAction) isStateAction()         {}
 func (*SessionActiveClientChangedAction) isStateAction()        {}
 func (*SessionActiveClientToolsChangedAction) isStateAction()   {}
@@ -1138,12 +1121,6 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "session/activityChanged":
 		var value SessionActivityChangedAction
-		if err := json.Unmarshal(data, &value); err != nil {
-			return err
-		}
-		u.Value = &value
-	case "session/changesetsChanged":
-		var value SessionChangesetsChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

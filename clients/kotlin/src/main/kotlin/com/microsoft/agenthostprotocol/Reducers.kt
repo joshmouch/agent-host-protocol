@@ -60,7 +60,6 @@ import com.microsoft.agenthostprotocol.generated.StateActionSessionActiveClientC
 import com.microsoft.agenthostprotocol.generated.StateActionSessionActiveClientToolsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionActivityChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionAgentChanged
-import com.microsoft.agenthostprotocol.generated.StateActionSessionChangesetsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionConfigChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCreationFailed
 import com.microsoft.agenthostprotocol.generated.StateActionSessionCustomizationRemoved
@@ -921,12 +920,6 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
 
     is StateActionSessionActivityChanged -> state.copy(
         summary = state.summary.copy(activity = action.value.activity),
-    )
-
-    is StateActionSessionChangesetsChanged -> state.copy(
-        // Clear the field entirely when no changesets are provided, matching
-        // TS `{ ...summaryWithoutChangesets }` semantics (omits the key).
-        summary = state.summary.copy(changesets = action.value.changesets),
     )
 
     is StateActionSessionConfigChanged -> {

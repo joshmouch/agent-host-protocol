@@ -164,12 +164,6 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link Changeset} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [Changeset]?
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the
@@ -188,7 +182,6 @@ public struct PartialSessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [Changeset]? = nil,
         changes: ChangesSummary? = nil
     ) {
         self.resource = resource
@@ -202,7 +195,6 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.model = model
         self.agent = agent
         self.workingDirectory = workingDirectory
-        self.changesets = changesets
         self.changes = changes
     }
 }

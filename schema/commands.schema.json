@@ -1933,13 +1933,6 @@
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
         },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Changeset"
-          },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
-        },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
           "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
@@ -5522,26 +5515,6 @@
       "required": [
         "type",
         "activity"
-      ]
-    },
-    "SessionChangesetsChangedAction": {
-      "type": "object",
-      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
-        },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Changeset"
-          },
-          "description": "New catalogue, or `undefined` to clear it"
-        }
-      },
-      "required": [
-        "type",
-        "changesets"
       ]
     },
     "SessionServerToolsChangedAction": {

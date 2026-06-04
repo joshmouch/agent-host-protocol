@@ -618,10 +618,6 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             state.summary.activity = a.activity.clone();
             ReduceOutcome::Applied
         }
-        StateAction::SessionChangesetsChanged(a) => {
-            state.summary.changesets = a.changesets.clone();
-            ReduceOutcome::Applied
-        }
         StateAction::SessionConfigChanged(a) => {
             let Some(config) = state.config.as_mut() else {
                 return ReduceOutcome::NoOp;
@@ -1219,7 +1215,6 @@ mod tests {
                 model: None,
                 agent: None,
                 working_directory: None,
-                changesets: None,
                 changes: None,
             },
             lifecycle: SessionLifecycle::Creating,

@@ -25,11 +25,12 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Changed
 
-- Renamed the `ChangesetSummary` type to `Changeset` (catalogue entry on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+- Renamed the `ChangesetSummary` type to `Changeset`. The on-the-wire shape is unchanged.
 
 ### Removed
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
+- Removed the `changesets` catalogue from `SessionSummary` and the matching `session/changesetsChanged` action. Clients discover changeset URIs out of band and subscribe to them directly.
 
 ## [0.1.0] — 2026-05-28
 
