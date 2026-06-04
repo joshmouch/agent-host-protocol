@@ -13,6 +13,53 @@ namespace Microsoft.AgentHostProtocol;
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+/// <summary>
+/// Optional transport liveness policy for an <see cref="AhpClient"/>. Port of the
+/// Swift <c>AHPKeepAlivePolicy</c> (clients/swift/.../AHPClientConfig.swift).
+/// <para>
+/// Keep-alive is disabled by default. When enabled, the client sends periodic
+/// transport-level pings if the configured transport implements
+/// <see cref="IKeepAliveTransport"/>; ping failures are treated as transport
+/// failures and tear the client down.
+/// </para>
+/// </summary>
+public sealed class KeepAlivePolicy
+{
+    private KeepAlivePolicy(bool isEnabled, TimeSpan interval, TimeSpan timeout)
+    {
+        IsEnabled = isEnabled;
+        Interval = interval;
+        Timeout = timeout;
+    }
+
+    /// <summary>Whether the keep-alive ping loop runs.</summary>
+    public bool IsEnabled { get; }
+
+    /// <summary>How often a ping is sent (only meaningful when <see cref="IsEnabled"/>).</summary>
+    public TimeSpan Interval { get; }
+
+    /// <summary>How long each ping waits for its pong before failing.</summary>
+    public TimeSpan Timeout { get; }
+
+    /// <summary>Do not run a keep-alive task. Mirrors Swift <c>.disabled</c>.</summary>
+    public static KeepAlivePolicy Disabled { get; } =
+        new(isEnabled: false, interval: TimeSpan.Zero, timeout: TimeSpan.Zero);
+
+    /// <summary>
+    /// Periodically send a transport-level ping. Mirrors Swift
+    /// <c>.ping(interval:timeout:)</c>.
+    /// </summary>
+    public static KeepAlivePolicy Ping(TimeSpan interval, TimeSpan timeout) =>
+        new(isEnabled: true, interval: interval, timeout: timeout);
+
+    /// <summary>
+    /// Convenience for the common WebSocket ping policy (30 s interval, 5 s
+    /// timeout by default). Mirrors Swift <c>.enabled(interval:timeout:)</c>.
+    /// </summary>
+    public static KeepAlivePolicy Enabled(TimeSpan? interval = null, TimeSpan? timeout = null) =>
+        Ping(interval ?? TimeSpan.FromSeconds(30), timeout ?? TimeSpan.FromSeconds(5));
+}
+
 /// <summary>Tuning knobs for an <see cref="AhpClient"/>.</summary>
 public sealed class ClientConfig
 {
@@ -28,8 +75,34 @@ public sealed class ClientConfig
     /// </summary>
     public int SubscriptionBufferCapacity { get; set; } = 256;
 
+    /// <summary>
+    /// Optional transport liveness policy. Defaults to
+    /// <see cref="KeepAlivePolicy.Disabled"/>. Mirrors the Swift
+    /// <c>AHPClientConfig.keepAlive</c> field.
+    /// </summary>
+    public KeepAlivePolicy KeepAlive { get; set; } = KeepAlivePolicy.Disabled;
+
     /// <summary>Returns a config with sensible defaults (30 s timeout, 256-message buffer).</summary>
     public static ClientConfig Default { get; } = new();
+}
+
+// ─── Connection state ──────────────────────────────────────────────────────────
+
+/// <summary>
+/// Connection state observable on <see cref="AhpClient.ConnectionState"/> and the
+/// <see cref="AhpClient.CreateStateChangeStream"/> multicast stream. Port of the
+/// Swift <c>ConnectionState</c> enum (clients/swift/.../AHPClientEvents.swift).
+/// </summary>
+public enum ConnectionState
+{
+    /// <summary>No active receive loop; the transport may or may not be open.</summary>
+    Disconnected,
+
+    /// <summary>A connection attempt is in progress.</summary>
+    Connecting,
+
+    /// <summary>The receive loop is running; the transport is treated as live.</summary>
+    Connected,
 }
 
 // ─── Server-initiated request handling ─────────────────────────────────────────
@@ -71,6 +144,26 @@ public sealed class AhpClient : IAsyncDisposable
     private readonly Gate _subsLock = new();
     private readonly Dictionary<string, List<Subscription>> _subscriptions = new();
     private readonly List<EventStream> _eventListeners = new();
+
+    // Multicast connection-state fan-out. Guarded by `_subsLock` (same lock as the
+    // event listeners — every fan-out path already takes it).
+    private readonly List<StateChangeStream> _stateListeners = new();
+
+    // Current connection state. `volatile` supplies the visibility a lock would
+    // otherwise give for the lock-free `ConnectionState` reader.
+    private volatile ConnectionStateBox _connectionState = new(AgentHostProtocol.ConnectionState.Connected);
+
+    // Boxes the enum so it can live behind a `volatile` field (enums aren't valid
+    // `volatile` targets directly).
+    private sealed class ConnectionStateBox
+    {
+        public ConnectionState Value { get; }
+        public ConnectionStateBox(ConnectionState value) => Value = value;
+    }
+
+    // Keep-alive ping loop (null when disabled or the transport isn't ping-capable).
+    private readonly CancellationTokenSource _keepAliveCts = new();
+    private readonly Task? _keepAliveTask;
 
     // Monotonically incrementing counters (no lock needed — Interlocked).
     private ulong _nextId = 1;
@@ -116,6 +209,14 @@ public sealed class AhpClient : IAsyncDisposable
             });
         _readerTask = Task.Run(RunReaderAsync);
         _writerTask = Task.Run(RunWriterAsync);
+
+        // Start the keep-alive ping loop iff a ping policy is configured AND the
+        // transport advertises the ping capability. Mirrors the Swift
+        // `startKeepAliveIfNeeded()` guard (`case .ping` + `as? AHPKeepAliveTransport`).
+        if (_cfg.KeepAlive.IsEnabled && _transport is IKeepAliveTransport pingTransport)
+        {
+            _keepAliveTask = Task.Run(() => RunKeepAliveAsync(pingTransport));
+        }
     }
 
     /// <summary>
@@ -195,6 +296,10 @@ public sealed class AhpClient : IAsyncDisposable
         // Signal the done task so Done-waiters unblock.
         _doneTcs.TrySetResult();
 
+        // Stop the keep-alive loop (no more pings once we're tearing down). Mirrors
+        // the Swift `keepAliveTask?.cancel()` in both shutdown and failure paths.
+        _keepAliveCts.Cancel();
+
         // Close the transport so any blocked ReceiveAsync unblocks.
         using var shutdownCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         try
@@ -234,6 +339,100 @@ public sealed class AhpClient : IAsyncDisposable
         }
         foreach (var sub in allSubs) sub.Close();
         foreach (var lst in allListeners) lst.Close();
+
+        // Fan out a final `.Disconnected` transition, then finish the state-change
+        // streams. Mirrors the Swift shutdown tail: `transition(to: .disconnected)`
+        // immediately followed by `finishAllStateListeners()`. State streams (unlike
+        // the event taps) deliver this terminal transition before completing, so a
+        // consumer awaiting the stream sees `Disconnected` as the last item.
+        Transition(AgentHostProtocol.ConnectionState.Disconnected);
+        List<StateChangeStream> allStateListeners;
+        lock (_subsLock)
+        {
+            allStateListeners = new List<StateChangeStream>(_stateListeners);
+            _stateListeners.Clear();
+        }
+        foreach (var st in allStateListeners) st.Close();
+    }
+
+    // ── Connection state ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// The current connection state, readable synchronously. Mirrors the Swift
+    /// <c>connectionState</c> property. The client is <see cref="ConnectionState.Connected"/>
+    /// from construction (the read/write loops start immediately in <see cref="Connect"/>)
+    /// and transitions to <see cref="ConnectionState.Disconnected"/> on shutdown or
+    /// transport failure.
+    /// </summary>
+    public ConnectionState ConnectionState => _connectionState.Value;
+
+    /// <summary>
+    /// Returns a fresh multicast <see cref="StateChangeStream"/> of future
+    /// <see cref="ConnectionState"/> transitions. Mirrors the Swift
+    /// <c>stateChanges</c> stream: each call returns an independent stream that
+    /// delivers only transitions occurring after attachment; the current value is
+    /// available synchronously via <see cref="ConnectionState"/>.
+    /// </summary>
+    public StateChangeStream CreateStateChangeStream()
+    {
+        var stream = new StateChangeStream(Math.Max(8, _cfg.SubscriptionBufferCapacity));
+        lock (_subsLock)
+        {
+            _stateListeners.Add(stream);
+        }
+        return stream;
+    }
+
+    /// <summary>
+    /// Records a new connection state and fans it out to every attached
+    /// <see cref="StateChangeStream"/>. Mirrors the Swift <c>transition(to:)</c>.
+    /// Idempotent on repeated identical states is NOT enforced (Swift fans out on
+    /// every call); callers transition only on real edges.
+    /// </summary>
+    private void Transition(ConnectionState newState)
+    {
+        _connectionState = new ConnectionStateBox(newState);
+        List<StateChangeStream> listeners;
+        lock (_subsLock)
+        {
+            listeners = new List<StateChangeStream>(_stateListeners);
+        }
+        foreach (var st in listeners) st.TrySend(newState);
+    }
+
+    // ── Keep-alive ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The keep-alive ping loop. Sleeps for the configured interval, then sends a
+    /// transport-level ping; a ping failure is treated as a transport failure and
+    /// tears the client down. Port of the Swift <c>keepAliveTask</c> loop in
+    /// <c>startKeepAliveIfNeeded()</c>.
+    /// </summary>
+    private async Task RunKeepAliveAsync(IKeepAliveTransport pingTransport)
+    {
+        var policy = _cfg.KeepAlive;
+        var ct = _keepAliveCts.Token;
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(policy.Interval, ct).ConfigureAwait(false);
+                if (ct.IsCancellationRequested) return;
+                await pingTransport.SendPingAsync(policy.Timeout, ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Normal teardown — the cancellation came from our own shutdown path.
+        }
+        catch (Exception ex)
+        {
+            // A ping failure (or pong timeout) is a transport failure: tear down
+            // exactly as the receive/writer loops do on error. Mirrors the Swift
+            // `handleTransportFailure(error)` call from the keep-alive loop.
+            await ShutdownWithErrorAsync(
+                new Exception($"ahp: keep-alive ping: {ex.Message}", ex)).ConfigureAwait(false);
+        }
     }
 
     // ── Writer loop ───────────────────────────────────────────────────────
@@ -773,5 +972,65 @@ public sealed class AhpClient : IAsyncDisposable
             _eventListeners.Add(stream);
         }
         return stream;
+    }
+}
+
+// ─── Connection-state stream ────────────────────────────────────────────────────
+
+/// <summary>
+/// A multicast stream of <see cref="ConnectionState"/> transitions, returned by
+/// <see cref="AhpClient.CreateStateChangeStream"/>. Port of the Swift
+/// <c>stateChanges</c> AsyncStream.
+/// <para>
+/// Each stream delivers only transitions that occur after it was created; the
+/// current value is available synchronously via <see cref="AhpClient.ConnectionState"/>.
+/// On shutdown the client fans out a terminal <see cref="ConnectionState.Disconnected"/>
+/// transition and then completes the stream, so a consumer draining the stream sees
+/// <see cref="ConnectionState.Disconnected"/> as the last item.
+/// </para>
+/// </summary>
+public sealed class StateChangeStream : IDisposable
+{
+    private readonly System.Threading.Channels.Channel<ConnectionState> _channel;
+    private int _closed;
+
+    /// <summary>Creates a new state-change stream.</summary>
+    internal StateChangeStream(int bufferCapacity)
+    {
+        _channel = System.Threading.Channels.Channel.CreateBounded<ConnectionState>(
+            new System.Threading.Channels.BoundedChannelOptions(bufferCapacity)
+            {
+                FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest,
+                SingleReader = false,
+                SingleWriter = false,
+            });
+    }
+
+    /// <summary>
+    /// The reader side of the stream. Read from this to receive
+    /// <see cref="ConnectionState"/> transitions as they occur.
+    /// </summary>
+    public System.Threading.Channels.ChannelReader<ConnectionState> States => _channel.Reader;
+
+    /// <summary>Stops the stream. Safe to call multiple times.</summary>
+    public void Close()
+    {
+        if (Interlocked.CompareExchange(ref _closed, 1, 0) == 0)
+        {
+            _channel.Writer.TryComplete();
+        }
+    }
+
+    /// <inheritdoc cref="Close"/>
+    public void Dispose() => Close();
+
+    /// <summary>
+    /// Attempts to deliver a transition. Drops it on a full channel (overflow
+    /// protection mirrors the event/subscription <c>TrySend</c>).
+    /// </summary>
+    internal void TrySend(ConnectionState state)
+    {
+        if (Volatile.Read(ref _closed) == 1) return;
+        _channel.Writer.TryWrite(state);
     }
 }

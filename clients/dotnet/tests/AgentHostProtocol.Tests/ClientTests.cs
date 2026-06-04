@@ -632,4 +632,215 @@ public sealed class ClientTests
         Assert.Contains("\"ok\":true", resultJson);
         Assert.Contains("permission/request", resultJson);
     }
+
+    // ── Parity batch P2-A (matrix group D): connection-state + keep-alive ───
+    // Ported from the Swift AHPClientTests (clients/swift/.../AHPClientTests.swift):
+    //   testKeepAlivePingsCapableTransport     -> KeepAlive_PingsWhenCapable
+    //   testKeepAliveDisabledDoesNotPing       -> KeepAlive_DisabledByConfig
+    //   testKeepAliveFailureDisconnectsClient  -> KeepAlive_DisconnectsOnPingFailure
+    //   testShutdownTerminatesAllStreams (state assertions)
+    //                                          -> ConnectionState_TransitionsThroughStateChanges
+    //
+    // Each drives the REAL AhpClient. The ping tests use PingCountingTransport — a
+    // genuine ITransport + IKeepAliveTransport implementation that counts real
+    // SendPingAsync calls (the .NET equivalent of Swift's `PingCountingTransport`
+    // actor), NOT a mock of the client or a mocking-framework stub.
+
+    /// <summary>
+    /// Polls <paramref name="condition"/> until it returns <see langword="true"/> or
+    /// <paramref name="timeout"/> elapses. Mirrors the Swift test helper
+    /// <c>waitUntil</c>: a deterministic alternative to a fixed sleep. Throws on
+    /// timeout so a never-satisfied condition fails the test loudly.
+    /// </summary>
+    private static async Task WaitUntilAsync(
+        Func<bool> condition, TimeSpan? timeout = null, string? because = null)
+    {
+        var deadline = DateTime.UtcNow + (timeout ?? TimeSpan.FromSeconds(2));
+        while (DateTime.UtcNow < deadline)
+        {
+            if (condition()) return;
+            await Task.Delay(5).ConfigureAwait(false);
+        }
+        if (condition()) return;
+        throw new Xunit.Sdk.XunitException(
+            $"WaitUntilAsync timed out after {(timeout ?? TimeSpan.FromSeconds(2)).TotalMilliseconds}ms"
+            + (because is null ? "" : $": {because}"));
+    }
+
+    // D: connectionState/stateChanges — the client is Connected from construction
+    // and transitions to Disconnected on shutdown, fanning the transition out to
+    // every attached StateChangeStream before completing it. Mirrors the Swift
+    // `testShutdownTerminatesAllStreams` state assertions (`lastState == .disconnected`).
+    [Fact]
+    public async Task ConnectionState_TransitionsThroughStateChanges()
+    {
+        var (clientSide, _) = MemTransport.CreatePair();
+        var client = await AhpClient.ConnectAsync(clientSide);
+
+        // The read/write loops start at construction, so the client is Connected.
+        Assert.Equal(ConnectionState.Connected, client.ConnectionState);
+
+        // Attach a state-change stream BEFORE shutdown so it observes the transition.
+        var states = client.CreateStateChangeStream();
+
+        await client.ShutdownAsync();
+
+        // The synchronous accessor reflects the terminal state.
+        Assert.Equal(ConnectionState.Disconnected, client.ConnectionState);
+
+        // Draining the stream yields the Connected->Disconnected transition: the
+        // stream delivers the final Disconnected then completes, so the last item is
+        // Disconnected. (Connected was the pre-attachment value, available only via
+        // the synchronous accessor — the stream carries future transitions only.)
+        ConnectionState? lastState = null;
+        var transitions = 0;
+        using var drainCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await foreach (var state in states.States.ReadAllAsync(drainCts.Token))
+        {
+            lastState = state;
+            transitions++;
+        }
+        Assert.Equal(ConnectionState.Disconnected, lastState);
+        Assert.Equal(1, transitions);
+    }
+
+    // D: keep-alive pings — with a ping policy and a ping-capable transport, the
+    // client sends periodic pings. Mirrors Swift `testKeepAlivePingsCapableTransport`.
+    [Fact]
+    public async Task KeepAlive_PingsWhenCapable()
+    {
+        var transport = new PingCountingTransport();
+        var client = AhpClient.Connect(
+            transport,
+            new ClientConfig
+            {
+                KeepAlive = KeepAlivePolicy.Enabled(
+                    interval: TimeSpan.FromMilliseconds(10),
+                    timeout: TimeSpan.FromMilliseconds(10)),
+            });
+
+        // The ping loop runs from construction; wait until it has pinged at least
+        // twice (proving the loop repeats, not just fires once).
+        await WaitUntilAsync(
+            () => transport.PingCount >= 2,
+            because: "keep-alive loop should issue repeated pings on a capable transport");
+
+        Assert.True(transport.PingCount >= 2, $"expected >=2 pings, got {transport.PingCount}");
+
+        await client.ShutdownAsync();
+    }
+
+    // D: keep-alive disabled — with KeepAlivePolicy.Disabled the client never pings,
+    // even on a ping-capable transport. Mirrors Swift `testKeepAliveDisabledDoesNotPing`.
+    [Fact]
+    public async Task KeepAlive_DisabledByConfig()
+    {
+        var transport = new PingCountingTransport();
+        var client = AhpClient.Connect(
+            transport,
+            new ClientConfig { KeepAlive = KeepAlivePolicy.Disabled });
+
+        await Task.Delay(50);
+
+        Assert.Equal(0, transport.PingCount);
+
+        await client.ShutdownAsync();
+    }
+
+    // D: keep-alive ping failure — a failed ping is treated as a transport failure:
+    // the client tears down (ConnectionState -> Disconnected) and the transport is
+    // closed exactly once. Mirrors Swift `testKeepAliveFailureDisconnectsClient`.
+    [Fact]
+    public async Task KeepAlive_DisconnectsOnPingFailure()
+    {
+        var transport = new PingCountingTransport(failPing: true);
+        var client = AhpClient.Connect(
+            transport,
+            new ClientConfig
+            {
+                KeepAlive = KeepAlivePolicy.Enabled(
+                    interval: TimeSpan.FromMilliseconds(10),
+                    timeout: TimeSpan.FromMilliseconds(10)),
+            });
+
+        // The first ping throws; the client must observe that as a transport failure
+        // and transition to Disconnected.
+        await WaitUntilAsync(
+            () => client.ConnectionState == ConnectionState.Disconnected,
+            because: "a ping failure should tear the client down");
+
+        Assert.Equal(ConnectionState.Disconnected, client.ConnectionState);
+        // The teardown closes the transport exactly once.
+        Assert.Equal(1, transport.CloseCount);
+        Assert.NotNull(client.Error);
+    }
+}
+
+// ── Ping-counting transport (real ITransport + IKeepAliveTransport) ─────────────
+
+/// <summary>
+/// A real in-memory transport that counts <see cref="SendPingAsync"/> calls and can
+/// optionally fail every ping. Port of the Swift test double
+/// <c>PingCountingTransport</c> (an <c>actor</c> conforming to
+/// <c>AHPKeepAliveTransport</c>). This is a genuine <see cref="IKeepAliveTransport"/>
+/// implementation exercised by the real <see cref="AhpClient"/> — NOT a mock of the
+/// client or a mocking-framework stub.
+/// <para>
+/// <see cref="ReceiveAsync"/> parks until <see cref="CloseAsync"/> is called, then
+/// reports a clean close by throwing <see cref="TransportClosedException"/> (the .NET
+/// equivalent of Swift's <c>recv()</c> returning <c>nil</c>). <see cref="SendAsync"/>
+/// is a no-op while open; the keep-alive tests never push wire frames.
+/// </para>
+/// </summary>
+internal sealed class PingCountingTransport : IKeepAliveTransport
+{
+    private readonly bool _failPing;
+    private readonly TaskCompletionSource _closedTcs =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _pings;
+    private int _closes;
+    private int _closed;
+
+    public PingCountingTransport(bool failPing = false) => _failPing = failPing;
+
+    /// <summary>The number of <see cref="SendPingAsync"/> calls observed so far.</summary>
+    public int PingCount => Volatile.Read(ref _pings);
+
+    /// <summary>The number of times <see cref="CloseAsync"/> transitioned to closed.</summary>
+    public int CloseCount => Volatile.Read(ref _closes);
+
+    public ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _closed) == 1) throw new AhpTransportException("closed");
+        return ValueTask.CompletedTask;
+    }
+
+    public async ValueTask<TransportMessage> ReceiveAsync(CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _closed) == 1) throw new TransportClosedException();
+        // Park until the transport is closed, then signal a clean close. The keep-alive
+        // tests drive the client purely through the ping loop, so no inbound frames arrive.
+        await _closedTcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        throw new TransportClosedException();
+    }
+
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+    {
+        if (Interlocked.CompareExchange(ref _closed, 1, 0) == 0)
+        {
+            Interlocked.Increment(ref _closes);
+            _closedTcs.TrySetResult();
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask SendPingAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _closed) == 1) throw new AhpTransportException("closed");
+        Interlocked.Increment(ref _pings);
+        if (_failPing) throw new AhpTransportException("io", "ping failed");
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DisposeAsync() => CloseAsync();
 }
