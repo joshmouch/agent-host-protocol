@@ -5,6 +5,7 @@
 #nullable enable
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;          // mirror/client tests that build wire payloads
@@ -151,7 +152,7 @@ public sealed class MultiHostClientTests
         var m = new MultiHostClient();
         await using var disposeMulti = m;
 
-        Func<HostId, CancellationToken, Task<ITransport>> factory = (hostId, ct) =>
+        HostTransportFactory factory = (hostId, ct) =>
         {
             var (c, s) = MemTransport.CreatePair();
             _ = Task.Run(() => RunFakeServerAsync(s, ct)); // fire-and-forget fake server
@@ -250,7 +251,7 @@ public sealed class MultiHostClientTests
         // behavior this row names is therefore exercised at the observable level:
         // actions delivered after the reconnect carry the newer serverSeq.
         var attempt = 0;
-        Func<HostId, CancellationToken, Task<ITransport>> factory = (hostId, ct) =>
+        HostTransportFactory factory = (hostId, ct) =>
         {
             var n = Interlocked.Increment(ref attempt);
             var (c, s) = MemTransport.CreatePair();
@@ -580,7 +581,7 @@ public sealed class MultiHostClientTests
         catch (System.Threading.Channels.ChannelClosedException) { return (false, default!); }
     }
 
-    private static Func<HostId, CancellationToken, Task<ITransport>> FullFactory(
+    private static HostTransportFactory FullFactory(
         CancellationToken outerCt,
         IReadOnlyList<SessionSummary>? sessions = null,
         IReadOnlyList<AgentInfo>? agents = null,
@@ -600,7 +601,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         await m.AddHostAsync(new HostConfig
         {
@@ -626,7 +627,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         var initial = MakeSummary("ahp-session:/s1", "Initial title", modifiedAt: 1_000);
         var added = MakeSummary("ahp-session:/s2", "Added later", modifiedAt: 2_000);
@@ -657,7 +658,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Two hosts, each advertising one agent in its root snapshot.
         await m.AddHostAsync(new HostConfig
@@ -695,7 +696,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Unknown host throws (Swift returns nil; .NET surface throws typed error).
         Assert.Throws<UnknownHostException>(() => m.HostSnapshots(new HostId("missing")));
@@ -737,7 +738,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Unknown host throws.
         Assert.Throws<UnknownHostException>(() => m.SessionSummariesForHost(new HostId("missing")));
@@ -778,7 +779,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         var initial = MakeSummary("ahp-session:/sess", "init", modifiedAt: 100);
         var added = MakeSummary("ahp-session:/added", "post", modifiedAt: 200);
@@ -812,12 +813,12 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
-        Func<HostId, CancellationToken, Task<ITransport>> factory = (id, ct) =>
+        HostTransportFactory factory = (id, ct) =>
         {
             var (c, s) = MemTransport.CreatePair();
-            _ = Task.Run(() => RunReconnectFakeServerAsync(s, replaySeq: 42, missing: new[] { "copilot:/missing" }, outerCt: cts.Token));
+            _ = Task.Run(() => RunReconnectFakeServerAsync(s, replaySeq: 42, missing: new[] { "copilot:/missing" }, ct: cts.Token));
             return Task.FromResult<ITransport>(c);
         };
 
@@ -861,7 +862,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         await m.AddHostAsync(new HostConfig
         {
@@ -889,14 +890,14 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Attempt 1 connects then drops → with a disabled reconnect policy the
         // supervisor parks the host in .failed (exhausted/disabled). A manual
         // ReconnectAsync bypasses the disabled policy and wakes it; attempt 2
         // connects and stays up.
         var attempts = 0;
-        Func<HostId, CancellationToken, Task<ITransport>> factory = (id, ct) =>
+        HostTransportFactory factory = (id, ct) =>
         {
             var n = Interlocked.Increment(ref attempts);
             var (c, s) = MemTransport.CreatePair();
@@ -967,11 +968,11 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Host A: connects and stays connected.
         var aAttempts = 0;
-        Func<HostId, CancellationToken, Task<ITransport>> factoryA = (id, ct) =>
+        HostTransportFactory factoryA = (id, ct) =>
         {
             Interlocked.Increment(ref aAttempts);
             var (c, s) = MemTransport.CreatePair();
@@ -983,7 +984,7 @@ public sealed class MultiHostClientTests
         // reconnect's next attempt succeeds.
         var bFirstFailed = 0;
         var bAttempts = 0;
-        Func<HostId, CancellationToken, Task<ITransport>> factoryB = (id, ct) =>
+        HostTransportFactory factoryB = (id, ct) =>
         {
             Interlocked.Increment(ref bAttempts);
             if (Interlocked.CompareExchange(ref bFirstFailed, 1, 0) == 0)
@@ -1025,7 +1026,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // With every registered host connected, the unavailable-set is empty,
         // so the per-host error map is empty (the success shape of the return).
@@ -1053,14 +1054,14 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // Attempt 1 connects normally. After a forced reconnect, attempt 2's
         // factory blocks until cancelled (slow factory). A SECOND manual
         // reconnect must abort that hung attempt; attempt 3 then succeeds.
         var attempts = 0;
         var attempt2Aborted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Func<HostId, CancellationToken, Task<ITransport>> factory = async (id, ct) =>
+        HostTransportFactory factory = async (id, ct) =>
         {
             var n = Interlocked.Increment(ref attempts);
             if (n == 2)
@@ -1114,7 +1115,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // EventsForHost on an unknown host throws a typed UnknownHostException
         // (Swift returns nil; the .NET surface throws, per the test contract).
@@ -1134,7 +1135,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         var action = new StateAction(new SessionTitleChangedAction
         {
@@ -1154,13 +1155,13 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         // A host whose initial connect fails is removed by AddHostAsync; rather
         // than rely on that, build a host that connects then drops with a
         // disabled policy so it parks in .failed (registered, NOT connected).
         var connectOnce = 0;
-        Func<HostId, CancellationToken, Task<ITransport>> factory = (id, ct) =>
+        HostTransportFactory factory = (id, ct) =>
         {
             var n = Interlocked.Increment(ref connectOnce);
             var (c, s) = MemTransport.CreatePair();
@@ -1220,7 +1221,7 @@ public sealed class MultiHostClientTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var m = new MultiHostClient();
-        await using var _ = m;
+        await using var _mh = m;
 
         await m.AddHostAsync(new HostConfig
         {
