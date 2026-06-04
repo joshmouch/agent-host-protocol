@@ -27,10 +27,50 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 Spec version: `0.3.0`
 
+### Added
+
+- `McpServerCustomization` now models MCP servers as first-class session
+  customizations: `enabled`, `state` (a discriminated
+  `McpServerState` union covering `starting`, `ready`, `authRequired`,
+  `error`, `stopped`), an optional `channel` URI for an `mcp://`
+  side-channel into the upstream server, and an optional `mcpApp` block
+  carrying `AhpMcpUiHostCapabilities` so clients can render
+  [MCP Apps](https://github.com/modelcontextprotocol/ext-apps).
+- `McpServerAuthRequiredState` carries `ProtectedResourceMetadata` plus
+  `reason` / `requiredScopes` / `description`, letting clients drive the
+  existing `authenticate` command for per-MCP-server auth challenges.
+- `Customization` now includes `McpServerCustomization` at the top level
+  (hosts MAY surface globally-configured MCP servers directly rather
+  than only inside a plugin or directory). MCP servers remain valid as
+  children of a container.
+- New `session/mcpServerStateChanged` action — narrow upsert of
+  `state` + `channel` on an existing `McpServerCustomization`
+  by id, intended for the high-frequency
+  `starting`/`ready`/`authRequired` transitions. Other customization
+  fields stay in `session/customizationUpdated` territory.
+- `InitializeParams.capabilities` — optional client-capability bag
+  declared during the handshake. First entry is `mcpApps?: {}`; hosts
+  SHOULD only populate `McpServerCustomization.mcpApp` / `channel` for
+  clients that declared it.
+- New guide page `docs/guide/mcp.md` (with an MCP Apps subsection) and
+  new spec page `docs/specification/mcp-channel.md`.
+- Added `changeKind` to `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`) so clients can
+  group, sort, or pick an icon without parsing `uriTemplate`.
 - Added `status` and `error` to `ChangesetOperation` and a new
   `changeset/operationStatusChanged` action so servers can reflect an
   operation's execution lifecycle (`idle → running → error`) back into
   changeset state.
+
+### Changed
+
+- Replaced `ToolCallBase.toolClientId?: string` with a discriminated
+  `ToolCallBase.contributor?: ToolCallContributor` union
+  (`ToolCallClientContributor` / `ToolCallMcpContributor`) so MCP-served
+  tool calls can be attributed back to their originating
+  `McpServerCustomization`. `session/toolCallStart` carries the new
+  `contributor?` field in place of `toolClientId?`.
+
 - Added optional `_meta` provider metadata to `AgentCustomization`.
 - Added optional `changes` field of type `ChangesSummary` to `SessionSummary`,
   carrying optional `additions`, `deletions`, and `files` counts so servers

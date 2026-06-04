@@ -17,6 +17,24 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `McpServerCustomization` now exposes the full MCP lifecycle: `enabled`,
+  the discriminated `McpServerState` enum
+  (`Starting`/`Ready`/`AuthRequired`/`Error`/`Stopped`), optional
+  `channel` URI for the `mcp://` side-channel, and optional `mcp_app`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `reason` / `required_scopes` / `description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization::McpServer` top-level variant — hosts MAY now surface
+  bare MCP servers directly rather than only inside a plugin or
+  directory.
+- `SessionMcpServerStateChanged` action and matching reducer arm —
+  narrow upsert of `state` + `channel` on an existing MCP
+  server customization by id.
+- `ClientCapabilities` struct on `InitializeParams.capabilities` with
+  first entry `mcp_apps`.
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -42,6 +60,13 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
+### Changed
+
+- `ToolCallBase.tool_client_id: Option<String>` replaced by
+  `ToolCallBase.contributor: Option<ToolCallContributor>` (enum with
+  `Client { client_id }` and `Mcp { customization_id }` variants).
+  `SessionToolCallStartAction` carries the new `contributor` field as
+  well. The reducer follows the rename.
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`. Bumps the `ahp-types`, `ahp`, and `ahp-ws` crates

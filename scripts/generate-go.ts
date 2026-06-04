@@ -184,7 +184,9 @@ function mapType(tsType: string): string {
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
   if (recordMatch) {
     const inner = recordMatch[1].trim();
-    if (inner === 'unknown') return 'map[string]json.RawMessage';
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'unknown' || inner === 'never') return 'map[string]json.RawMessage';
     return `map[string]${mapTypeForSliceElem(inner)}`;
   }
 
@@ -629,8 +631,9 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
-  'ConfirmationOptionKind',
+  'ConfirmationOptionKind', 'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -712,6 +715,15 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'RuleCustomization' },
   { name: 'HookCustomization' },
   { name: 'McpServerCustomization' },
+  { name: 'McpServerCustomizationApps' },
+  { name: 'AhpMcpUiHostCapabilities' },
+  { name: 'McpServerStartingState' },
+  { name: 'McpServerReadyState' },
+  { name: 'McpServerAuthRequiredState' },
+  { name: 'McpServerErrorState' },
+  { name: 'McpServerStoppedState' },
+  { name: 'ToolCallClientContributor' },
+  { name: 'ToolCallMcpContributor' },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
   { name: 'TerminalClientClaim' },
@@ -858,10 +870,11 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 const CUSTOMIZATION_UNION: UnionConfig = {
   name: 'Customization',
   discriminantField: 'type',
-  doc: 'Customization is a top-level customization (plugin or directory).',
+  doc: 'Customization is a top-level customization (plugin, directory, or bare MCP server).',
   variants: [
     { variantName: 'Plugin', innerType: 'PluginCustomization', wireValue: 'plugin' },
     { variantName: 'Directory', innerType: 'DirectoryCustomization', wireValue: 'directory' },
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
   ],
   unknown: true,
 };
@@ -890,6 +903,31 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { variantName: 'Loaded', innerType: 'CustomizationLoadedState', wireValue: 'loaded' },
     { variantName: 'Degraded', innerType: 'CustomizationDegradedState', wireValue: 'degraded' },
     { variantName: 'Error', innerType: 'CustomizationErrorState', wireValue: 'error' },
+  ],
+  unknown: true,
+};
+
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  doc: 'McpServerState is the discriminated lifecycle status of an MCP server customization.',
+  variants: [
+    { variantName: 'Starting', innerType: 'McpServerStartingState', wireValue: 'starting' },
+    { variantName: 'Ready', innerType: 'McpServerReadyState', wireValue: 'ready' },
+    { variantName: 'AuthRequired', innerType: 'McpServerAuthRequiredState', wireValue: 'authRequired' },
+    { variantName: 'Error', innerType: 'McpServerErrorState', wireValue: 'error' },
+    { variantName: 'Stopped', innerType: 'McpServerStoppedState', wireValue: 'stopped' },
+  ],
+  unknown: true,
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  doc: 'ToolCallContributor identifies the contributor (client or MCP server) of a tool call.',
+  variants: [
+    { variantName: 'Client', innerType: 'ToolCallClientContributor', wireValue: 'client' },
+    { variantName: 'Mcp', innerType: 'ToolCallMcpContributor', wireValue: 'mcp' },
   ],
   unknown: true,
 };
@@ -1030,6 +1068,10 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
 
@@ -1082,6 +1124,7 @@ const ACTION_VARIANTS: {
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', variantName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', variantName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1213,6 +1256,7 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
+  { name: 'ClientCapabilities' },
   { name: 'ReconnectParams' },
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
   { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
@@ -1713,6 +1757,8 @@ function checkExhaustiveness(project: Project): void {
     'ChildCustomization',
     'ChildCustomizationType',
     'CustomizationLoadState',
+    'McpServerState',
+    'ToolCallContributor',
     'ReconnectResult',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',

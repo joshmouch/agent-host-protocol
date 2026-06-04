@@ -19,6 +19,24 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Added
 
+- `McpServerCustomization` now exposes the full MCP lifecycle: `enabled`,
+  the discriminated `McpServerState` enum
+  (`.starting`/`.ready`/`.authRequired`/`.error`/`.stopped`), optional
+  `channel` URI for the `mcp://` side-channel, and optional `mcpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` carries `ProtectedResourceMetadata`
+  plus `reason` / `requiredScopes` / `description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization.mcpServer` top-level case — hosts MAY surface bare
+  MCP servers directly rather than only inside a plugin or directory.
+- `SessionMcpServerStateChangedAction` and matching reducer arm —
+  narrow upsert of `state` + `channel` on an existing MCP
+  server customization by id. Wired through both `Reducers.swift` and
+  the protocol-based `NativeReducer.swift`.
+- `ClientCapabilities` struct on `InitializeParams.capabilities` with
+  first entry `mcpApps`.
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -44,6 +62,14 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
+### Changed
+
+- `ToolCallBase.toolClientId: String?` replaced by
+  `ToolCallBase.contributor: ToolCallContributor?` (enum with
+  `.client(ToolCallClientContributor)` and `.mcp(ToolCallMcpContributor)`
+  cases). `SessionToolCallStartAction` carries the new `contributor`
+  field as well. `Reducers.swift`, `NativeReducer.swift`, and
+  `ToolCallStateExtensions.swift` follow the rename.
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

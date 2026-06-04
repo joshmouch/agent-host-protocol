@@ -50,7 +50,7 @@ public struct SessionSummaryChangedParams: Codable, Sendable {
     /// URI of the session whose summary changed
     public var session: String
     /// Mutable summary fields that changed; omitted fields are unchanged.
-    /// 
+    ///
     /// Identity fields (`resource`, `provider`, `createdAt`) never change and
     /// MUST be omitted by senders; receivers SHOULD ignore them if present.
     public var changes: PartialSessionSummary
@@ -158,7 +158,7 @@ public struct PartialSessionSummary: Codable, Sendable {
     /// Currently selected model
     public var model: ModelSelection?
     /// Currently selected custom agent.
-    /// 
+    ///
     /// Absent (`undefined`) means no custom agent is selected for this session
     /// — the session uses the provider's default behavior.
     public var agent: AgentSelection?

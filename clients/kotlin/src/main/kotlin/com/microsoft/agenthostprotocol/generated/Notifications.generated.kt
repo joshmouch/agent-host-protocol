@@ -76,7 +76,7 @@ data class SessionSummaryChangedParams(
     val session: String,
     /**
      * Mutable summary fields that changed; omitted fields are unchanged.
-     * 
+     *
      * Identity fields (`resource`, `provider`, `createdAt`) never change and
      * MUST be omitted by senders; receivers SHOULD ignore them if present.
      */
@@ -183,7 +183,7 @@ data class PartialSessionSummary(
     val model: ModelSelection? = null,
     /**
      * Currently selected custom agent.
-     * 
+     *
      * Absent (`undefined`) means no custom agent is selected for this session
      * — the session uses the provider's default behavior.
      */

@@ -22,6 +22,24 @@ hotfix escape hatch.
 
 ### Added
 
+- `McpServerCustomization` now exposes the full MCP lifecycle: `enabled`,
+  the discriminated `McpServerState` union
+  (`starting`/`ready`/`authRequired`/`error`/`stopped`), optional
+  `channel` URI for the `mcp://` side-channel, and optional `mcpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `reason` / `requiredScopes` / `description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization` top-level union now includes `McpServerCustomization`
+  — hosts MAY surface bare MCP servers directly rather than only inside
+  a plugin or directory.
+- `session/mcpServerStateChanged` action and matching reducer case —
+  narrow upsert of `state` + `channel` on an existing MCP
+  server customization by id.
+- `ClientCapabilities` type on `InitializeParams.capabilities` with
+  first entry `mcpApps`.
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -45,6 +63,13 @@ hotfix escape hatch.
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
+### Changed
+
+- `ToolCallBase.toolClientId?: string` replaced by
+  `ToolCallBase.contributor?: ToolCallContributor` (discriminated union
+  with `{ kind: 'client'; clientId }` and `{ kind: 'mcp'; customizationId }`
+  variants). `session/toolCallStart` carries the new `contributor`
+  field as well.
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

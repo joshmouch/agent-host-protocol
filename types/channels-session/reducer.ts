@@ -16,6 +16,7 @@ import type {
   Turn,
   PendingMessage,
   ConfirmationOption,
+  McpServerCustomization,
 } from './state.js';
 import {
   SessionLifecycle,
@@ -26,6 +27,7 @@ import {
   ToolCallCancellationReason,
   ResponsePartKind,
   PendingMessageKind,
+  CustomizationType,
 } from './state.js';
 import type { SessionAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
@@ -38,7 +40,7 @@ function tcBase(tc: ToolCallState) {
     toolCallId: tc.toolCallId,
     toolName: tc.toolName,
     displayName: tc.displayName,
-    toolClientId: tc.toolClientId,
+    contributor: tc.contributor,
     _meta: tc._meta,
   };
 }
@@ -359,7 +361,7 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
                 toolCallId: action.toolCallId,
                 toolName: action.toolName,
                 displayName: action.displayName,
-                toolClientId: action.toolClientId,
+                contributor: action.contributor,
                 _meta: action._meta,
                 status: ToolCallStatus.Streaming,
               },
@@ -654,6 +656,9 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       }
       let changed = false;
       const updated = list.map(container => {
+        if (container.type === CustomizationType.McpServer) {
+          return container;
+        }
         const children = container.children;
         if (!children) {
           return container;
@@ -665,6 +670,59 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
         changed = true;
         const newChildren = children.slice();
         newChildren.splice(childIdx, 1);
+        return { ...container, children: newChildren };
+      });
+      if (!changed) {
+        return state;
+      }
+      return { ...state, customizations: updated };
+    }
+
+    case ActionType.SessionMcpServerStateChanged: {
+      const list = state.customizations;
+      if (!list) {
+        return state;
+      }
+      const topIdx = list.findIndex(c => c.id === action.id);
+      if (topIdx >= 0) {
+        const entry = list[topIdx];
+        if (entry.type !== CustomizationType.McpServer) {
+          return state;
+        }
+        const updatedEntry: McpServerCustomization = {
+          ...entry,
+          state: action.state,
+          channel: action.channel,
+        };
+        const updated = list.slice();
+        updated[topIdx] = updatedEntry;
+        return { ...state, customizations: updated };
+      }
+      let changed = false;
+      const updated = list.map(container => {
+        if (container.type === CustomizationType.McpServer) {
+          return container;
+        }
+        const children = container.children;
+        if (!children) {
+          return container;
+        }
+        const childIdx = children.findIndex(c => c.id === action.id);
+        if (childIdx < 0) {
+          return container;
+        }
+        const child = children[childIdx];
+        if (child.type !== CustomizationType.McpServer) {
+          return container;
+        }
+        changed = true;
+        const updatedChild: McpServerCustomization = {
+          ...child,
+          state: action.state,
+          channel: action.channel,
+        };
+        const newChildren = children.slice();
+        newChildren[childIdx] = updatedChild;
         return { ...container, children: newChildren };
       });
       if (!changed) {

@@ -16,6 +16,24 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `McpServerCustomization` now exposes the full MCP lifecycle: `Enabled`,
+  the discriminated `McpServerState` union
+  (`Starting`/`Ready`/`AuthRequired`/`Error`/`Stopped`), optional
+  `Channel` URI for the `mcp://` side-channel, and optional `McpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `Reason` / `RequiredScopes` / `Description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization` top-level union now includes `McpServer` — hosts MAY
+  surface bare MCP servers directly rather than only inside a plugin or
+  directory.
+- `SessionMcpServerStateChangedAction` and matching reducer case —
+  narrow upsert of `State` + `Channel` on an existing MCP
+  server customization by id.
+- `ClientCapabilities` struct on `InitializeParams.Capabilities` with
+  first entry `McpApps`.
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -42,6 +60,13 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
+### Changed
+
+- `ToolCallBase.ToolClientId *string` replaced by
+  `ToolCallBase.Contributor *ToolCallContributor` (union with
+  `Client { ClientId }` and `Mcp { CustomizationId }` variants).
+  `SessionToolCallStartAction` carries the new `Contributor` field as
+  well. The reducer follows the rename.
 ## [0.1.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

@@ -32,9 +32,9 @@ public enum ResourceType: String, Codable, Sendable {
 }
 
 /// How {@link ResourceWriteParams.data} is placed within the target file.
-/// 
+///
 /// Each mode interprets {@link ResourceWriteParams.position} differently:
-/// 
+///
 /// - `truncate` (default): rooted at the **start** of the file. The file is
 /// truncated at `position` (0 by default) and `data` is written from that
 /// offset, so the resulting file is `existing[0..position] + data`. With
@@ -64,7 +64,7 @@ public struct InitializeParams: Codable, Sendable {
     /// Protocol versions the client is willing to speak, ordered from most
     /// preferred to least preferred. Each entry is a [SemVer](https://semver.org)
     /// `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
-    /// 
+    ///
     /// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
     /// If the server cannot speak any of the offered versions, it MUST return
     /// error code `-32005` (`UnsupportedProtocolVersion`).
@@ -77,19 +77,27 @@ public struct InitializeParams: Codable, Sendable {
     /// (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
     /// user-facing strings such as confirmation option labels.
     public var locale: String?
+    /// Optional client capability declarations.
+    ///
+    /// Servers SHOULD only advertise features whose corresponding client
+    /// capability is set here. Absent means "not declared" — the server
+    /// MUST assume the client does not support the feature.
+    public var capabilities: ClientCapabilities?
 
     public init(
         channel: String,
         protocolVersions: [String],
         clientId: String,
         initialSubscriptions: [String]? = nil,
-        locale: String? = nil
+        locale: String? = nil,
+        capabilities: ClientCapabilities? = nil
     ) {
         self.channel = channel
         self.protocolVersions = protocolVersions
         self.clientId = clientId
         self.initialSubscriptions = initialSubscriptions
         self.locale = locale
+        self.capabilities = capabilities
     }
 }
 
@@ -130,6 +138,27 @@ public struct InitializeResult: Codable, Sendable {
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters
         self.telemetry = telemetry
+    }
+}
+
+public struct ClientCapabilities: Codable, Sendable {
+    /// Client can render
+    /// [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+    /// it can host the View sandbox, run the `ui/*` protocol against it,
+    /// and forward `mcp://`-channel traffic on the App's behalf.
+    ///
+    /// Hosts SHOULD only populate
+    /// {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+    /// (and expose the corresponding
+    /// {@link McpServerCustomization.channel | `mcp://` channel}) when this
+    /// capability is declared. Clients that omit it MUST treat
+    /// App-bearing tool calls as ordinary MCP tool calls.
+    public var mcpApps: [String: AnyCodable]?
+
+    public init(
+        mcpApps: [String: AnyCodable]? = nil
+    ) {
+        self.mcpApps = mcpApps
     }
 }
 
@@ -238,7 +267,7 @@ public struct CreateSessionParams: Codable, Sendable {
     /// Model selection (ID and optional model-specific configuration)
     public var model: ModelSelection?
     /// Initial custom agent selection for the new session.
-    /// 
+    ///
     /// Omit to start the session with no custom agent selected (provider default).
     public var agent: AgentSelection?
     /// Working directory for the session
@@ -250,7 +279,7 @@ public struct CreateSessionParams: Codable, Sendable {
     /// Keys and values correspond to the schema returned by the server.
     public var config: [String: AnyCodable]?
     /// Eagerly claim the active client role for the new session.
-    /// 
+    ///
     /// When provided, the server initializes the session with this client as the
     /// active client, equivalent to dispatching a `session/activeClientChanged`
     /// action immediately after creation. The `clientId` MUST match the
@@ -1072,9 +1101,9 @@ public struct CompletionItem: Codable, Sendable {
     /// by `insertText`. The range is the half-open interval
     /// `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
     /// units.
-    /// 
+    ///
     /// When omitted, the client SHOULD insert `insertText` at the cursor.
-    /// 
+    ///
     /// Note: this range refers to positions in the *current* input. The
     /// attachment's own `rangeStart`/`rangeEnd` (when present) refer to
     /// positions in the final {@link Message.text} after the item is

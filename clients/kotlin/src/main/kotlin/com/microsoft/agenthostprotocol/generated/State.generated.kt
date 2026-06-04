@@ -116,7 +116,7 @@ enum class SessionLifecycle {
 
 /**
  * Bitset of summary-level session status flags.
- * 
+ *
  * Use bitwise checks instead of equality for non-terminal activity. For example,
  * `status & SessionStatus.InProgress` matches both ordinary in-progress turns
  * and turns that are paused waiting for input.
@@ -314,7 +314,7 @@ enum class ToolCallStatus {
 
 /**
  * How a tool call was confirmed for execution.
- * 
+ *
  * - `NotNeeded` — No confirmation required (auto-approved)
  * - `UserAction` — User explicitly approved
  * - `Setting` — Approved by a persistent user setting
@@ -353,6 +353,14 @@ enum class ConfirmationOptionKind {
     DENY
 }
 
+@Serializable
+enum class ToolCallContributorKind {
+    @SerialName("client")
+    CLIENT,
+    @SerialName("mcp")
+    MCP
+}
+
 /**
  * Discriminant for tool result content types.
  */
@@ -374,12 +382,14 @@ enum class ToolResultContentType {
 
 /**
  * Discriminant for the kind of customization.
- * 
+ *
  * Top-level entries in {@link SessionState.customizations} and
- * {@link AgentInfo.customizations} are always
- * {@link CustomizationType.Plugin | `Plugin`} or
- * {@link CustomizationType.Directory | `Directory`}; the remaining
- * types appear only as children of those containers.
+ * {@link AgentInfo.customizations} are either container customizations
+ * ({@link CustomizationType.Plugin | `Plugin`} or
+ * {@link CustomizationType.Directory | `Directory`}) or
+ * {@link CustomizationType.McpServer | `McpServer`} entries surfaced
+ * directly by the host. The remaining types appear only as children of
+ * a container.
  */
 @Serializable
 enum class CustomizationType {
@@ -428,6 +438,81 @@ enum class TerminalClaimKind {
 }
 
 /**
+ * Discriminant for the {@link McpServerState} union.
+ */
+@Serializable
+enum class McpServerStatus {
+    /**
+     * Server has been registered but is not yet running.
+     */
+    @SerialName("starting")
+    STARTING,
+    /**
+     * Server is running and serving requests.
+     */
+    @SerialName("ready")
+    READY,
+    /**
+     * Server is reachable but requires additional authentication before it
+     * can start, or before it can serve a particular request. Carries the
+     * RFC 9728 Protected Resource Metadata the client needs to obtain a
+     * token; the client then pushes the token via the existing
+     * `authenticate` command.
+     */
+    @SerialName("authRequired")
+    AUTH_REQUIRED,
+    /**
+     * Server failed to start, crashed, or otherwise transitioned to a fatal error.
+     */
+    @SerialName("error")
+    ERROR,
+    /**
+     * Server has been shut down.
+     */
+    @SerialName("stopped")
+    STOPPED
+}
+
+/**
+ * Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+ * state. Mirrors the three failure modes defined by the
+ * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+ */
+@Serializable
+enum class McpAuthRequiredReason {
+    /**
+     * No token has been provided yet (HTTP 401, no prior token).
+     */
+    @SerialName("required")
+    REQUIRED,
+    /**
+     * A previously valid token expired or was revoked (HTTP 401).
+     */
+    @SerialName("expired")
+    EXPIRED,
+    /**
+     * Step-up auth: a token is present but its scopes are insufficient for
+     * the requested operation (HTTP 403 with
+     * `WWW-Authenticate: Bearer error="insufficient_scope"`).
+     *
+     * Unlike {@link Required} and {@link Expired} — which typically surface
+     * before any tool work is in flight — `InsufficientScope` is almost
+     * always triggered by an MCP request issued mid-turn (a `tools/call`,
+     * `resources/read`, etc.). The host SHOULD pair the
+     * {@link McpServerAuthRequiredState} transition with
+     * {@link SessionStatus.InputNeeded} on
+     * {@link SessionSummary.status | the session} so the activity becomes
+     * visible at the session-summary level, and clients SHOULD watch for
+     * this kind on any
+     * {@link McpServerCustomization | MCP server} backing a running tool
+     * call so they can present an explicit "grant more access" affordance
+     * tied to the blocked tool call.
+     */
+    @SerialName("insufficientScope")
+    INSUFFICIENT_SCOPE
+}
+
+/**
  * Computation lifecycle of a {@link ChangesetState}.
  */
 @Serializable
@@ -452,7 +537,7 @@ enum class ChangesetStatus {
 
 /**
  * Execution lifecycle of a {@link ChangesetOperation}.
- * 
+ *
  * An operation is invoked imperatively via `invokeChangesetOperation`, but
  * its progress and outcome are reflected back into changeset state so that
  * every subscriber observes a consistent view (e.g. a spinner on a "Create
@@ -521,10 +606,10 @@ data class Icon(
     /**
      * A standard URI pointing to an icon resource. May be an HTTP/HTTPS URL or a
      * `data:` URI with Base64-encoded image data.
-     * 
+     *
      * Consumers SHOULD take steps to ensure URLs serving icons are from the
      * same domain as the client/server or a trusted domain.
-     * 
+     *
      * Consumers SHOULD take appropriate precautions when consuming SVGs as they can contain
      * executable JavaScript.
      */
@@ -537,7 +622,7 @@ data class Icon(
     /**
      * Optional array of strings that specify sizes at which the icon can be used.
      * Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
-     * 
+     *
      * If not provided, the client should assume that the icon can be used at any size.
      */
     val sizes: List<String>? = null,
@@ -545,7 +630,7 @@ data class Icon(
      * Optional specifier for the theme this icon is designed for. `"light"` indicates
      * the icon is designed to be used with a light background, and `"dark"` indicates
      * the icon is designed to be used with a dark background.
-     * 
+     *
      * If not provided, the client should assume the icon can be used with any theme.
      */
     val theme: String? = null
@@ -615,13 +700,13 @@ data class ProtectedResourceMetadata(
     val resourceTosUri: String? = null,
     /**
      * AHP extension. Whether authentication is required for this resource.
-     * 
+     *
      * - `true` (default) — the agent cannot be used without a valid token.
      * The server SHOULD return `AuthRequired` (`-32007`) if the client
      * attempts to use the agent without authenticating.
      * - `false` — the agent works without authentication but MAY offer
      * enhanced capabilities when a token is provided.
-     * 
+     *
      * Clients SHOULD treat an absent field the same as `true`.
      */
     val required: Boolean? = null
@@ -679,7 +764,7 @@ data class AgentInfo(
     val models: List<SessionModelInfo>,
     /**
      * Protected resources this agent requires authentication for.
-     * 
+     *
      * Each entry describes an OAuth 2.0 protected resource using
      * [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) semantics.
      * Clients should obtain tokens from the declared `authorization_servers`
@@ -689,14 +774,16 @@ data class AgentInfo(
     val protectedResources: List<ProtectedResourceMetadata>? = null,
     /**
      * Customizations associated with this agent.
-     * 
-     * Always container customizations —
+     *
+     * Either container customizations —
      * {@link PluginCustomization | `PluginCustomization`} entries the agent
      * bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-     * entries it watches in any workspace it's used with. When a session is
-     * created with this agent, these entries are augmented (e.g. directory
-     * URIs are resolved against the workspace, children are parsed) and
-     * propagated into the session's `customizations` list.
+     * entries it watches in any workspace it's used with — or top-level
+     * {@link McpServerCustomization | `McpServerCustomization`} entries
+     * the agent host declares directly. When a session is created with
+     * this agent, these entries are augmented (e.g. directory URIs are
+     * resolved against the workspace, children are parsed) and propagated
+     * into the session's `customizations` list.
      */
     val customizations: List<Customization>? = null
 )
@@ -735,7 +822,7 @@ data class SessionModelInfo(
     val configSchema: ConfigSchema? = null,
     /**
      * Additional provider-specific metadata for this model.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `pricing` key may carry model pricing metadata.
      */
@@ -887,16 +974,24 @@ data class SessionState(
     val config: SessionConfigState? = null,
     /**
      * Top-level customizations active in this session.
-     * 
-     * Always container customizations — {@link PluginCustomization} or
-     * {@link DirectoryCustomization}. Children (agents, skills, prompts,
-     * rules, hooks, MCP servers) live in each container's
+     *
+     * Always one of the {@link Customization} variants:
+     *
+     * - Container customizations ({@link PluginCustomization},
+     * {@link DirectoryCustomization}) whose children — agents, skills,
+     * prompts, rules, hooks, MCP servers — live in each container's
      * {@link ContainerCustomizationBase.children | `children`} array.
-     * 
+     * - Top-level {@link McpServerCustomization} entries the host
+     * surfaces directly (for example a globally-configured MCP server
+     * that isn't bundled in a plugin or directory). MCP servers may
+     * also appear as children of a container.
+     *
      * Client-published plugins arrive via
      * {@link SessionActiveClient.customizations | `activeClient.customizations`}
      * and the host propagates them into this list (typically with the
-     * container's `clientId` set and `children` populated).
+     * container's `clientId` set and `children` populated). Clients
+     * publish in container shape only; bare MCP servers at the top level
+     * are server-originated.
      */
     val customizations: List<Customization>? = null,
     /**
@@ -909,7 +1004,7 @@ data class SessionState(
     val changesets: List<Changeset>? = null,
     /**
      * Additional provider-specific metadata for this session.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `git` key may provide extra git metadata about the session's
      * workingDirectory.
@@ -934,7 +1029,7 @@ data class SessionActiveClient(
     val tools: List<ToolDefinition>,
     /**
      * Plugin customizations this client contributes to the session.
-     * 
+     *
      * Clients publish in [Open Plugins](https://open-plugins.com/) format
      * — i.e. always container-shaped plugins. They MAY synthesize virtual
      * plugins in memory and rely on the host to expand them into concrete
@@ -983,7 +1078,7 @@ data class SessionSummary(
     val model: ModelSelection? = null,
     /**
      * Currently selected custom agent.
-     * 
+     *
      * Absent (`undefined`) means no custom agent is selected for this session
      * — the session uses the provider's default behavior.
      */
@@ -1060,7 +1155,7 @@ data class Turn(
     val message: Message,
     /**
      * All response content in stream order: text, tool calls, reasoning, and content refs.
-     * 
+     *
      * Consumers should derive display text by concatenating markdown parts,
      * and find tool calls by filtering for `ToolCall` parts.
      */
@@ -1091,7 +1186,7 @@ data class ActiveTurn(
     val message: Message,
     /**
      * All response content in stream order: text, tool calls, reasoning, and content refs.
-     * 
+     *
      * Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
      */
     val responseParts: List<ResponsePart>,
@@ -1117,7 +1212,7 @@ data class Message(
     val attachments: List<MessageAttachment>? = null,
     /**
      * Additional provider-specific metadata for this message.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI, and
      * agent hosts MAY use it to carry context that does not fit any other
      * field. Mirrors the MCP `_meta` convention.
@@ -1440,20 +1535,20 @@ data class SimpleMessageAttachment(
     /**
      * Advisory display hint for clients rendering this attachment. Recognized
      * values include:
-     * 
+     *
      * - `'image'`: the attachment is an image
      * - `'document'`: the attachment is a textual document
      * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
      * - `'directory'`: the attachment is a folder
      * - `'selection'`: the attachment is a selection within a document
-     * 
+     *
      * Implementations MAY provide additional values; clients SHOULD fall back
      * to a reasonable default when an unknown value is encountered.
      */
     val displayKind: String? = null,
     /**
      * Additional implementation-defined metadata for the attachment.
-     * 
+     *
      * If the attachment was produced by the `completions` command, the client
      * MUST preserve every property of `_meta` originally returned by the agent
      * host when sending the user message containing the accepted completion.
@@ -1466,7 +1561,7 @@ data class SimpleMessageAttachment(
     val type: MessageAttachmentKind,
     /**
      * Representation of the attachment as it should be shown to the model.
-     * 
+     *
      * If the attachment was produced by the client, this property MUST be
      * defined so the agent host can correctly interpret the attachment. This
      * property MAY be omitted when the attachment originated from a
@@ -1490,20 +1585,20 @@ data class MessageEmbeddedResourceAttachment(
     /**
      * Advisory display hint for clients rendering this attachment. Recognized
      * values include:
-     * 
+     *
      * - `'image'`: the attachment is an image
      * - `'document'`: the attachment is a textual document
      * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
      * - `'directory'`: the attachment is a folder
      * - `'selection'`: the attachment is a selection within a document
-     * 
+     *
      * Implementations MAY provide additional values; clients SHOULD fall back
      * to a reasonable default when an unknown value is encountered.
      */
     val displayKind: String? = null,
     /**
      * Additional implementation-defined metadata for the attachment.
-     * 
+     *
      * If the attachment was produced by the `completions` command, the client
      * MUST preserve every property of `_meta` originally returned by the agent
      * host when sending the user message containing the accepted completion.
@@ -1524,7 +1619,7 @@ data class MessageEmbeddedResourceAttachment(
     val contentType: String,
     /**
      * Optional selection within the attached textual resource.
-     * 
+     *
      * Only meaningful for textual resources.
      */
     val selection: TextSelection? = null
@@ -1545,20 +1640,20 @@ data class MessageResourceAttachment(
     /**
      * Advisory display hint for clients rendering this attachment. Recognized
      * values include:
-     * 
+     *
      * - `'image'`: the attachment is an image
      * - `'document'`: the attachment is a textual document
      * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
      * - `'directory'`: the attachment is a folder
      * - `'selection'`: the attachment is a selection within a document
-     * 
+     *
      * Implementations MAY provide additional values; clients SHOULD fall back
      * to a reasonable default when an unknown value is encountered.
      */
     val displayKind: String? = null,
     /**
      * Additional implementation-defined metadata for the attachment.
-     * 
+     *
      * If the attachment was produced by the `completions` command, the client
      * MUST preserve every property of `_meta` originally returned by the agent
      * host when sending the user message containing the accepted completion.
@@ -1583,7 +1678,7 @@ data class MessageResourceAttachment(
     val type: MessageAttachmentKind,
     /**
      * Optional selection within the referenced textual resource.
-     * 
+     *
      * Only meaningful for textual resources.
      */
     val selection: TextSelection? = null
@@ -1693,13 +1788,13 @@ data class ToolCallResult(
     val pastTenseMessage: StringOrMarkdown,
     /**
      * Unstructured result content blocks.
-     * 
+     *
      * This mirrors the `content` field of MCP `CallToolResult`.
      */
     val content: List<ToolResultContent>? = null,
     /**
      * Optional structured result object.
-     * 
+     *
      * This mirrors the `structuredContent` field of MCP `CallToolResult`.
      */
     val structuredContent: Map<String, JsonElement>? = null,
@@ -1724,20 +1819,15 @@ data class ToolCallStreamingState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -1767,20 +1857,15 @@ data class ToolCallPendingConfirmationState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -1829,20 +1914,15 @@ data class ToolCallRunningState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -1865,7 +1945,7 @@ data class ToolCallRunningState(
     val selectedOption: ConfirmationOption? = null,
     /**
      * Partial content produced while the tool is still executing.
-     * 
+     *
      * For example, a terminal content block lets clients subscribe to live
      * output before the tool completes.
      */
@@ -1887,20 +1967,15 @@ data class ToolCallPendingResultConfirmationState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -1922,13 +1997,13 @@ data class ToolCallPendingResultConfirmationState(
     val pastTenseMessage: StringOrMarkdown,
     /**
      * Unstructured result content blocks.
-     * 
+     *
      * This mirrors the `content` field of MCP `CallToolResult`.
      */
     val content: List<ToolResultContent>? = null,
     /**
      * Optional structured result object.
-     * 
+     *
      * This mirrors the `structuredContent` field of MCP `CallToolResult`.
      */
     val structuredContent: Map<String, JsonElement>? = null,
@@ -1962,20 +2037,15 @@ data class ToolCallCompletedState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -1997,13 +2067,13 @@ data class ToolCallCompletedState(
     val pastTenseMessage: StringOrMarkdown,
     /**
      * Unstructured result content blocks.
-     * 
+     *
      * This mirrors the `content` field of MCP `CallToolResult`.
      */
     val content: List<ToolResultContent>? = null,
     /**
      * Optional structured result object.
-     * 
+     *
      * This mirrors the `structuredContent` field of MCP `CallToolResult`.
      */
     val structuredContent: Map<String, JsonElement>? = null,
@@ -2037,20 +2107,15 @@ data class ToolCallCancelledState(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
-     * 
-     * When set, the identified client is responsible for executing the tool and
-     * dispatching `session/toolCallComplete` with the result.
+     * Reference to the contributor of the tool being called.
      */
-    val toolClientId: String? = null,
+    val contributor: ToolCallContributor? = null,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
-     * Clients MAY look for well-known keys here to provide enhanced UI.
-     * For example, a `ptyTerminal` key with `{ input: string; output: string }`
-     * indicates the tool operated on a terminal (both `input` and `output` may
-     * contain escape sequences).
+     *
+     * This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+     * `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+     * with the {@link contributor} to serve MCP Apps.
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null,
@@ -2097,7 +2162,7 @@ data class ConfirmationOption(
     val kind: ConfirmationOptionKind,
     /**
      * Logical group number for visual categorisation.
-     * 
+     *
      * Clients SHOULD display options in the order they are defined and MAY
      * use differing group numbers to insert dividers between logical clusters
      * of options.
@@ -2121,14 +2186,14 @@ data class ToolDefinition(
     val description: String? = null,
     /**
      * JSON Schema defining the expected input parameters.
-     * 
+     *
      * Optional because client-provided tools may not have formal schemas.
      * Mirrors MCP `Tool.inputSchema`.
      */
     val inputSchema: JsonElement? = null,
     /**
      * JSON Schema defining the structure of the tool's output.
-     * 
+     *
      * Mirrors MCP `Tool.outputSchema`.
      */
     val outputSchema: JsonElement? = null,
@@ -2138,7 +2203,7 @@ data class ToolDefinition(
     val annotations: ToolAnnotations? = null,
     /**
      * Additional provider-specific metadata.
-     * 
+     *
      * Mirrors the MCP `_meta` convention.
      */
     @SerialName("_meta")
@@ -2298,7 +2363,7 @@ data class PluginCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2336,7 +2401,7 @@ data class PluginCustomization(
     val load: CustomizationLoadState? = null,
     /**
      * Children discovered inside this container.
-     * 
+     *
      * Absent means the host has not parsed this container yet. An empty
      * array means the host parsed the container and it contributes
      * nothing.
@@ -2356,7 +2421,7 @@ data class ClientPluginCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2394,7 +2459,7 @@ data class ClientPluginCustomization(
     val load: CustomizationLoadState? = null,
     /**
      * Children discovered inside this container.
-     * 
+     *
      * Absent means the host has not parsed this container yet. An empty
      * array means the host parsed the container and it contributes
      * nothing.
@@ -2418,7 +2483,7 @@ data class DirectoryCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2456,7 +2521,7 @@ data class DirectoryCustomization(
     val load: CustomizationLoadState? = null,
     /**
      * Children discovered inside this container.
-     * 
+     *
      * Absent means the host has not parsed this container yet. An empty
      * array means the host parsed the container and it contributes
      * nothing.
@@ -2484,7 +2549,7 @@ data class AgentCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2514,7 +2579,7 @@ data class AgentCustomization(
     val description: String? = null,
     /**
      * Additional provider-specific metadata for this custom agent.
-     * 
+     *
      * Mirrors the MCP `_meta` convention.
      */
     @SerialName("_meta")
@@ -2532,7 +2597,7 @@ data class SkillCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2579,7 +2644,7 @@ data class PromptCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2619,7 +2684,7 @@ data class RuleCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2670,7 +2735,7 @@ data class HookCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2706,7 +2771,7 @@ data class McpServerCustomization(
     /**
      * Source URI for this customization. A plugin URL, a file URI, or a
      * directory URI.
-     * 
+     *
      * For declarations that live inside a larger file — e.g. an MCP
      * server declared inline in a `plugins.json` manifest — `uri` points
      * to the containing file and {@link CustomizationBase.range | `range`}
@@ -2728,7 +2793,144 @@ data class McpServerCustomization(
      * Absent when the customization covers the whole resource.
      */
     val range: TextRange? = null,
-    val type: CustomizationType
+    val type: CustomizationType,
+    /**
+     * Whether this MCP server is currently enabled.
+     */
+    val enabled: Boolean,
+    /**
+     * Current lifecycle state of the MCP server.
+     */
+    val state: McpServerState,
+    /**
+     * An `mcp://`-protocol channel the client uses to side-channel traffic
+     * into the upstream MCP server itself. The channel is NOT a fresh raw MCP
+     * connection: it piggybacks on the AHP transport
+     * and skips the MCP `initialize` sequence.
+     *
+     * The agent host MAY only serve a subset of MCP on this
+     * channel; the served subset is described by domain-specific
+     * capabilities such as those in
+     * {@link McpServerCustomizationApps.capabilities}.
+     *
+     * The channel URI SHOULD be stable across the server's lifetime, but
+     * the agent host MAY change it (for example across a restart) and
+     * MAY only expose it while the server is in
+     * {@link McpServerStatus.Ready | `Ready`}. Absence means no
+     * side-channel is currently available.
+     */
+    val channel: String? = null,
+    /**
+     * MCP App support. This property SHOULD be advertised for MCP servers
+     * which support apps.
+     */
+    val mcpApp: McpServerCustomizationApps? = null
+)
+
+@Serializable
+data class McpServerCustomizationApps(
+    /**
+     * The subset of MCP App
+     * [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+     * the AHP host can satisfy for Views backed by this server. The
+     * client feeds these straight through into the `hostCapabilities` of
+     * the `ui/initialize` response delivered to the View.
+     */
+    val capabilities: AhpMcpUiHostCapabilities
+)
+
+@Serializable
+data class AhpMcpUiHostCapabilities(
+    /**
+     * Producer proxies the MCP `tools/​*` methods to the upstream server.
+     */
+    val serverTools: JsonElement? = null,
+    /**
+     * Producer proxies the MCP `resources/​*` methods to the upstream server.
+     */
+    val serverResources: JsonElement? = null,
+    /**
+     * Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+     */
+    val logging: Map<String, JsonElement>? = null,
+    /**
+     * Producer serves `sampling/createMessage` via `mcpMethodCall`.
+     */
+    val sampling: JsonElement? = null
+)
+
+@Serializable
+data class McpServerStartingState(
+    val kind: McpServerStatus
+)
+
+@Serializable
+data class McpServerReadyState(
+    val kind: McpServerStatus
+)
+
+@Serializable
+data class McpServerAuthRequiredState(
+    val kind: McpServerStatus,
+    /**
+     * Why authentication is required.
+     */
+    val reason: McpAuthRequiredReason,
+    /**
+     * RFC 9728 Protected Resource Metadata. The `resource` field is the
+     * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+     * indicator. `authorization_servers` is REQUIRED by the MCP
+     * authorization spec.
+     */
+    val resource: ProtectedResourceMetadata,
+    /**
+     * Scopes required for the current challenge, parsed from the
+     * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+     * fallback). Authoritative for the next authorization request — clients
+     * MUST NOT assume any subset/superset relationship to
+     * `resource.scopes_supported`.
+     */
+    val requiredScopes: List<String>? = null,
+    /**
+     * Human-readable hint, typically from the OAuth `error_description`.
+     */
+    val description: String? = null
+)
+
+@Serializable
+data class McpServerErrorState(
+    val kind: McpServerStatus,
+    /**
+     * Error details.
+     */
+    val error: ErrorInfo
+)
+
+@Serializable
+data class McpServerStoppedState(
+    val kind: McpServerStatus
+)
+
+@Serializable
+data class ToolCallClientContributor(
+    val kind: ToolCallContributorKind,
+    /**
+     * If this tool is provided by a client, the `clientId` of the owning client.
+     * Absent for server-side tools.
+     *
+     * When set, the identified client is responsible for executing the tool and
+     * dispatching `session/toolCallComplete` with the result.
+     */
+    val clientId: String
+)
+
+@Serializable
+data class ToolCallMcpContributor(
+    val kind: ToolCallContributorKind,
+    /**
+     * Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+     */
+    val customizationId: String
 )
 
 @Serializable
@@ -2819,10 +3021,10 @@ data class TerminalState(
     val rows: Long? = null,
     /**
      * Typed content parts, replacing the flat `content: string`.
-     * 
+     *
      * Naive consumers that only need the raw VT stream can reconstruct it with:
      * `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
-     * 
+     *
      * Consumers that need command boundaries can filter by part type.
      */
     val content: List<TerminalContentPart>,
@@ -2837,7 +3039,7 @@ data class TerminalState(
     /**
      * Whether this terminal emits `terminal/commandExecuted` and
      * `terminal/commandFinished` actions and populates `command`-typed parts.
-     * 
+     *
      * Clients MUST check this flag before relying on command detection.
      * Do NOT use the presence of a `command` part as a feature flag — parts
      * are absent in the normal idle state.
@@ -2957,24 +3159,44 @@ data class Changeset(
      * RFC 6570 URI template. Clients parse the variables directly out of the
      * template using the standard `{name}` syntax — they are not redeclared
      * here.
-     * 
+     *
      * Only the following template shapes are defined by this protocol; any
      * other variable name MUST be ignored by clients (there is no
      * protocol-defined way to obtain values for unknown variables):
-     * 
+     *
      * | Variables in template                       | Meaning                                                                              |
      * | ------------------------------------------- | ------------------------------------------------------------------------------------ |
      * | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
      * | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
      * | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
-     * 
+     *
      * Future protocol versions MAY add new well-known variables.
      */
     val uriTemplate: String,
     /**
      * Optional longer description.
      */
-    val description: String? = null
+    val description: String? = null,
+    /**
+     * Advisory hint describing what kind of changeset this is, so clients can
+     * group, sort, or render an appropriate icon without parsing
+     * {@link uriTemplate}. Recognized values include:
+     *
+     * - `'session'`: a static, session-wide changeset covering all changes the
+     * agent has produced in this session.
+     * - `'branch'`: changes relative to a base branch (e.g. a feature branch
+     * diffed against `main`).
+     * - `'uncommitted'`: the workspace's current uncommitted changes.
+     * - `'turn'`: changes produced by a single turn. Typically paired with a
+     * `{turnId}` variable in {@link uriTemplate}.
+     * - `'compare-turns'`: a diff between two turns. Typically paired with
+     * `{originalTurnId}` and `{modifiedTurnId}` variables in
+     * {@link uriTemplate}.
+     *
+     * Implementations MAY provide additional values; clients SHOULD fall back
+     * to a reasonable default when an unknown value is encountered.
+     */
+    val changeKind: String
 )
 
 @Serializable
@@ -3055,7 +3277,7 @@ data class ChangesetOperation(
      * is in flight, {@link ChangesetOperationStatus.Error | Error} when the
      * most recent invocation failed, and
      * {@link ChangesetOperationStatus.Idle | Idle} otherwise.
-     * 
+     *
      * Clients SHOULD reflect this state in the UI — e.g. disabling the
      * control or showing a spinner while `Running`, and surfacing
      * {@link error} while `Error`.
@@ -3166,20 +3388,20 @@ data class TelemetryCapabilities(
     /**
      * Channel URI (or RFC 6570 URI template) for OTLP log records
      * (`otlp/exportLogs` notifications).
-     * 
+     *
      * The following template variables are defined by this protocol; any
      * other variable name MUST be ignored by clients (there is no
      * protocol-defined way to obtain values for unknown variables):
-     * 
+     *
      * | Variables in template | Meaning                                                                                                 |
      * | --------------------- | ------------------------------------------------------------------------------------------------------- |
      * | _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |
      * | `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |
-     * 
+     *
      * Hosts SHOULD honour the expanded `{level}`; clients MUST still filter
      * defensively in case a host ignores the parameter. Hosts that do not
      * advertise `{level}` deliver all severities.
-     * 
+     *
      * Future protocol versions MAY add new well-known variables (e.g. scope
      * or attribute filters).
      */
@@ -3695,6 +3917,8 @@ sealed interface Customization
 value class CustomizationPlugin(val value: PluginCustomization) : Customization
 @JvmInline
 value class CustomizationDirectory(val value: DirectoryCustomization) : Customization
+@JvmInline
+value class CustomizationMcpServer(val value: McpServerCustomization) : Customization
 /**
  * Forward-compat catch-all for unknown Customization discriminators.
  *
@@ -3721,6 +3945,7 @@ internal object CustomizationSerializer : KSerializer<Customization> {
         return when (discriminant) {
             "plugin" -> CustomizationPlugin(input.json.decodeFromJsonElement(PluginCustomization.serializer(), element))
             "directory" -> CustomizationDirectory(input.json.decodeFromJsonElement(DirectoryCustomization.serializer(), element))
+            "mcpServer" -> CustomizationMcpServer(input.json.decodeFromJsonElement(McpServerCustomization.serializer(), element))
             else -> CustomizationUnknown(obj)
         }
     }
@@ -3731,6 +3956,7 @@ internal object CustomizationSerializer : KSerializer<Customization> {
         val element: JsonElement = when (value) {
             is CustomizationPlugin -> output.json.encodeToJsonElement(PluginCustomization.serializer(), value.value)
             is CustomizationDirectory -> output.json.encodeToJsonElement(DirectoryCustomization.serializer(), value.value)
+            is CustomizationMcpServer -> output.json.encodeToJsonElement(McpServerCustomization.serializer(), value.value)
             is CustomizationUnknown -> value.raw
         }
         output.encodeJsonElement(element)
@@ -3854,6 +4080,116 @@ internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoad
             is CustomizationLoadStateDegraded -> output.json.encodeToJsonElement(CustomizationDegradedState.serializer(), value.value)
             is CustomizationLoadStateError -> output.json.encodeToJsonElement(CustomizationErrorState.serializer(), value.value)
             is CustomizationLoadStateUnknown -> value.raw
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = McpServerStateSerializer::class)
+sealed interface McpServerState
+
+@JvmInline
+value class McpServerStateStarting(val value: McpServerStartingState) : McpServerState
+@JvmInline
+value class McpServerStateReady(val value: McpServerReadyState) : McpServerState
+@JvmInline
+value class McpServerStateAuthRequired(val value: McpServerAuthRequiredState) : McpServerState
+@JvmInline
+value class McpServerStateError(val value: McpServerErrorState) : McpServerState
+@JvmInline
+value class McpServerStateStopped(val value: McpServerStoppedState) : McpServerState
+/**
+ * Forward-compat catch-all for unknown McpServerState discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class McpServerStateUnknown(val raw: JsonObject) : McpServerState
+
+internal object McpServerStateSerializer : KSerializer<McpServerState> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("McpServerState")
+
+    override fun deserialize(decoder: Decoder): McpServerState {
+        val input = decoder as? JsonDecoder
+            ?: error("McpServerState can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for McpServerState")
+        val discriminant = (obj["kind"] as? JsonPrimitive)?.content
+            ?: return McpServerStateUnknown(obj)
+        return when (discriminant) {
+            "starting" -> McpServerStateStarting(input.json.decodeFromJsonElement(McpServerStartingState.serializer(), element))
+            "ready" -> McpServerStateReady(input.json.decodeFromJsonElement(McpServerReadyState.serializer(), element))
+            "authRequired" -> McpServerStateAuthRequired(input.json.decodeFromJsonElement(McpServerAuthRequiredState.serializer(), element))
+            "error" -> McpServerStateError(input.json.decodeFromJsonElement(McpServerErrorState.serializer(), element))
+            "stopped" -> McpServerStateStopped(input.json.decodeFromJsonElement(McpServerStoppedState.serializer(), element))
+            else -> McpServerStateUnknown(obj)
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: McpServerState) {
+        val output = encoder as? JsonEncoder
+            ?: error("McpServerState can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is McpServerStateStarting -> output.json.encodeToJsonElement(McpServerStartingState.serializer(), value.value)
+            is McpServerStateReady -> output.json.encodeToJsonElement(McpServerReadyState.serializer(), value.value)
+            is McpServerStateAuthRequired -> output.json.encodeToJsonElement(McpServerAuthRequiredState.serializer(), value.value)
+            is McpServerStateError -> output.json.encodeToJsonElement(McpServerErrorState.serializer(), value.value)
+            is McpServerStateStopped -> output.json.encodeToJsonElement(McpServerStoppedState.serializer(), value.value)
+            is McpServerStateUnknown -> value.raw
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = ToolCallContributorSerializer::class)
+sealed interface ToolCallContributor
+
+@JvmInline
+value class ToolCallContributorClient(val value: ToolCallClientContributor) : ToolCallContributor
+@JvmInline
+value class ToolCallContributorMcp(val value: ToolCallMcpContributor) : ToolCallContributor
+/**
+ * Forward-compat catch-all for unknown ToolCallContributor discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class ToolCallContributorUnknown(val raw: JsonObject) : ToolCallContributor
+
+internal object ToolCallContributorSerializer : KSerializer<ToolCallContributor> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("ToolCallContributor")
+
+    override fun deserialize(decoder: Decoder): ToolCallContributor {
+        val input = decoder as? JsonDecoder
+            ?: error("ToolCallContributor can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for ToolCallContributor")
+        val discriminant = (obj["kind"] as? JsonPrimitive)?.content
+            ?: return ToolCallContributorUnknown(obj)
+        return when (discriminant) {
+            "client" -> ToolCallContributorClient(input.json.decodeFromJsonElement(ToolCallClientContributor.serializer(), element))
+            "mcp" -> ToolCallContributorMcp(input.json.decodeFromJsonElement(ToolCallMcpContributor.serializer(), element))
+            else -> ToolCallContributorUnknown(obj)
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: ToolCallContributor) {
+        val output = encoder as? JsonEncoder
+            ?: error("ToolCallContributor can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is ToolCallContributorClient -> output.json.encodeToJsonElement(ToolCallClientContributor.serializer(), value.value)
+            is ToolCallContributorMcp -> output.json.encodeToJsonElement(ToolCallMcpContributor.serializer(), value.value)
+            is ToolCallContributorUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }

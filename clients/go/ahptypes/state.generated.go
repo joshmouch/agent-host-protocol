@@ -186,6 +186,13 @@ const (
 	ConfirmationOptionKindDeny ConfirmationOptionKind = "deny"
 )
 
+type ToolCallContributorKind string
+
+const (
+	ToolCallContributorKindClient ToolCallContributorKind = "client"
+	ToolCallContributorKindMCP ToolCallContributorKind = "mcp"
+)
+
 // Discriminant for tool result content types.
 type ToolResultContentType string
 
@@ -201,10 +208,12 @@ const (
 // Discriminant for the kind of customization.
 //
 // Top-level entries in {@link SessionState.customizations} and
-// {@link AgentInfo.customizations} are always
-// {@link CustomizationType.Plugin | `Plugin`} or
-// {@link CustomizationType.Directory | `Directory`}; the remaining
-// types appear only as children of those containers.
+// {@link AgentInfo.customizations} are either container customizations
+// ({@link CustomizationType.Plugin | `Plugin`} or
+// {@link CustomizationType.Directory | `Directory`}) or
+// {@link CustomizationType.McpServer | `McpServer`} entries surfaced
+// directly by the host. The remaining types appear only as children of
+// a container.
 type CustomizationType string
 
 const (
@@ -234,6 +243,55 @@ type TerminalClaimKind string
 const (
 	TerminalClaimKindClient TerminalClaimKind = "client"
 	TerminalClaimKindSession TerminalClaimKind = "session"
+)
+
+// Discriminant for the {@link McpServerState} union.
+type McpServerStatus string
+
+const (
+	// Server has been registered but is not yet running.
+	McpServerStatusStarting McpServerStatus = "starting"
+	// Server is running and serving requests.
+	McpServerStatusReady McpServerStatus = "ready"
+	// Server is reachable but requires additional authentication before it
+	// can start, or before it can serve a particular request. Carries the
+	// RFC 9728 Protected Resource Metadata the client needs to obtain a
+	// token; the client then pushes the token via the existing
+	// `authenticate` command.
+	McpServerStatusAuthRequired McpServerStatus = "authRequired"
+	// Server failed to start, crashed, or otherwise transitioned to a fatal error.
+	McpServerStatusError McpServerStatus = "error"
+	// Server has been shut down.
+	McpServerStatusStopped McpServerStatus = "stopped"
+)
+
+// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+// state. Mirrors the three failure modes defined by the
+// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+type McpAuthRequiredReason string
+
+const (
+	// No token has been provided yet (HTTP 401, no prior token).
+	McpAuthRequiredReasonRequired McpAuthRequiredReason = "required"
+	// A previously valid token expired or was revoked (HTTP 401).
+	McpAuthRequiredReasonExpired McpAuthRequiredReason = "expired"
+	// Step-up auth: a token is present but its scopes are insufficient for
+	// the requested operation (HTTP 403 with
+	// `WWW-Authenticate: Bearer error="insufficient_scope"`).
+	//
+	// Unlike {@link Required} and {@link Expired} — which typically surface
+	// before any tool work is in flight — `InsufficientScope` is almost
+	// always triggered by an MCP request issued mid-turn (a `tools/call`,
+	// `resources/read`, etc.). The host SHOULD pair the
+	// {@link McpServerAuthRequiredState} transition with
+	// {@link SessionStatus.InputNeeded} on
+	// {@link SessionSummary.status | the session} so the activity becomes
+	// visible at the session-summary level, and clients SHOULD watch for
+	// this kind on any
+	// {@link McpServerCustomization | MCP server} backing a running tool
+	// call so they can present an explicit "grant more access" affordance
+	// tied to the blocked tool call.
+	McpAuthRequiredReasonInsufficientScope McpAuthRequiredReason = "insufficientScope"
 )
 
 // Computation lifecycle of a {@link ChangesetState}.
@@ -403,13 +461,15 @@ type AgentInfo struct {
 	ProtectedResources []ProtectedResourceMetadata `json:"protectedResources,omitempty"`
 	// Customizations associated with this agent.
 	//
-	// Always container customizations —
+	// Either container customizations —
 	// {@link PluginCustomization | `PluginCustomization`} entries the agent
 	// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-	// entries it watches in any workspace it's used with. When a session is
-	// created with this agent, these entries are augmented (e.g. directory
-	// URIs are resolved against the workspace, children are parsed) and
-	// propagated into the session's `customizations` list.
+	// entries it watches in any workspace it's used with — or top-level
+	// {@link McpServerCustomization | `McpServerCustomization`} entries
+	// the agent host declares directly. When a session is created with
+	// this agent, these entries are augmented (e.g. directory URIs are
+	// resolved against the workspace, children are parsed) and propagated
+	// into the session's `customizations` list.
 	Customizations []Customization `json:"customizations,omitempty"`
 }
 
@@ -545,15 +605,23 @@ type SessionState struct {
 	Config *SessionConfigState `json:"config,omitempty"`
 	// Top-level customizations active in this session.
 	//
-	// Always container customizations — {@link PluginCustomization} or
-	// {@link DirectoryCustomization}. Children (agents, skills, prompts,
-	// rules, hooks, MCP servers) live in each container's
-	// {@link ContainerCustomizationBase.children | `children`} array.
+	// Always one of the {@link Customization} variants:
+	//
+	// - Container customizations ({@link PluginCustomization},
+	//   {@link DirectoryCustomization}) whose children — agents, skills,
+	//   prompts, rules, hooks, MCP servers — live in each container's
+	//   {@link ContainerCustomizationBase.children | `children`} array.
+	// - Top-level {@link McpServerCustomization} entries the host
+	//   surfaces directly (for example a globally-configured MCP server
+	//   that isn't bundled in a plugin or directory). MCP servers may
+	//   also appear as children of a container.
 	//
 	// Client-published plugins arrive via
 	// {@link SessionActiveClient.customizations | `activeClient.customizations`}
 	// and the host propagates them into this list (typically with the
-	// container's `clientId` set and `children` populated).
+	// container's `clientId` set and `children` populated). Clients
+	// publish in container shape only; bare MCP servers at the top level
+	// are server-originated.
 	Customizations []Customization `json:"customizations,omitempty"`
 	// Catalogue of changesets the server can produce for this session. Each
 	// entry advertises a subscribable view of file changes (uncommitted,
@@ -1183,18 +1251,13 @@ type ToolCallStreamingState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	Status ToolCallStatus `json:"status"`
 	// Partial parameters accumulated so far
@@ -1212,18 +1275,13 @@ type ToolCallPendingConfirmationState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	// Message describing what the tool will do
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
@@ -1251,18 +1309,13 @@ type ToolCallRunningState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	// Message describing what the tool will do
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
@@ -1288,18 +1341,13 @@ type ToolCallPendingResultConfirmationState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	// Message describing what the tool will do
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
@@ -1334,18 +1382,13 @@ type ToolCallCompletedState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	// Message describing what the tool will do
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
@@ -1380,18 +1423,13 @@ type ToolCallCancelledState struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	//
-	// When set, the identified client is responsible for executing the tool and
-	// dispatching `session/toolCallComplete` with the result.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 	// Additional provider-specific metadata for this tool call.
 	//
-	// Clients MAY look for well-known keys here to provide enhanced UI.
-	// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-	// indicates the tool operated on a terminal (both `input` and `output` may
-	// contain escape sequences).
+	// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+	// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+	// with the {@link contributor} to serve MCP Apps.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 	// Message describing what the tool will do
 	InvocationMessage StringOrMarkdown `json:"invocationMessage"`
@@ -1860,12 +1898,14 @@ type HookCustomization struct {
 	Type CustomizationType `json:"type"`
 }
 
-// An MCP manifest contributed by a plugin or directory.
+// An MCP server contributed by a plugin or directory.
 //
 // When the server is declared inline in the containing plugin manifest,
 // `uri` points at the manifest file and
 // {@link CustomizationBase.range | `range`} narrows it to the
 // declaration's span.
+//
+// The MCP server customization also reflects its current status.
 type McpServerCustomization struct {
 	// Session-unique opaque identifier. Used by every action that targets a
 	// specific customization. Minted by whoever publishes the customization
@@ -1889,6 +1929,166 @@ type McpServerCustomization struct {
 	// Absent when the customization covers the whole resource.
 	Range *TextRange `json:"range,omitempty"`
 	Type CustomizationType `json:"type"`
+	// Whether this MCP server is currently enabled.
+	Enabled bool `json:"enabled"`
+	// Current lifecycle state of the MCP server.
+	State McpServerState `json:"state"`
+	// An `mcp://`-protocol channel the client uses to side-channel traffic
+	// into the upstream MCP server itself. The channel is NOT a fresh raw MCP
+	// connection: it piggybacks on the AHP transport
+	// and skips the MCP `initialize` sequence.
+	//
+	// The agent host MAY only serve a subset of MCP on this
+	// channel; the served subset is described by domain-specific
+	// capabilities such as those in
+	// {@link McpServerCustomizationApps.capabilities}.
+	//
+	// The channel URI SHOULD be stable across the server's lifetime, but
+	// the agent host MAY change it (for example across a restart) and
+	// MAY only expose it while the server is in
+	// {@link McpServerStatus.Ready | `Ready`}. Absence means no
+	// side-channel is currently available.
+	Channel *URI `json:"channel,omitempty"`
+	// MCP App support. This property SHOULD be advertised for MCP servers
+	// which support apps.
+	McpApp *McpServerCustomizationApps `json:"mcpApp,omitempty"`
+}
+
+// Information from the agent host needed to render MCP Apps served
+// by this MCP server.
+type McpServerCustomizationApps struct {
+	// The subset of MCP App
+	// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+	// the AHP host can satisfy for Views backed by this server. The
+	// client feeds these straight through into the `hostCapabilities` of
+	// the `ui/initialize` response delivered to the View.
+	Capabilities AhpMcpUiHostCapabilities `json:"capabilities"`
+}
+
+// The subset of MCP App
+// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+// an AHP host can derive from the upstream MCP server (and from AHP's own
+// forwarding plumbing). Advertised on
+// {@link McpServerCustomizationApps.capabilities} so clients can pass it
+// through into the `hostCapabilities` of the `ui/initialize` response
+// delivered to an MCP App View.
+//
+// Field names mirror the MCP Apps spec exactly, so the AHP-side producer
+// can pass them straight through into the `hostCapabilities` of the
+// `ui/initialize` response delivered to the View.
+//
+// Capabilities outside this set (`openLinks`, `downloadFile`, `sandbox`,
+// `experimental`) are decided locally by whichever AHP client renders the
+// View and are NOT part of this AHP-level advertisement — only the
+// server-derived subset is.
+//
+// An agent host MUST only advertise a capability when it actually accepts the
+// corresponding methods/notifications on the `mcp://` channel:
+//
+// - {@link serverTools}: host proxies `tools/list` and `tools/call` to
+//   the MCP server. When `listChanged` is `true`, the host also forwards
+//   `notifications/tools/list_changed`.
+// - {@link serverResources}: host proxies `resources/read`,
+//   `resources/list`, and `resources/templates/list` to the MCP server.
+//   When `listChanged` is `true`, the host also forwards
+//   `notifications/resources/list_changed`.
+// - {@link logging}: host accepts `notifications/message` log entries
+//   from the App and forwards them via `mcpNotification` (and forwards
+//   `logging/setLevel` calls to the server).
+// - {@link sampling}: host serves `sampling/createMessage` via
+//   `mcpMethodCall`. When `sampling.tools` is present, the host also
+//   accepts SEP-1577 `tools` / `toolChoice` / `tool_use` content blocks
+//   inside `CreateMessageRequest`.
+type AhpMcpUiHostCapabilities struct {
+	// Producer proxies the MCP `tools/*` methods to the upstream server.
+	ServerTools *json.RawMessage `json:"serverTools,omitempty"`
+	// Producer proxies the MCP `resources/*` methods to the upstream server.
+	ServerResources *json.RawMessage `json:"serverResources,omitempty"`
+	// Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+	Logging map[string]json.RawMessage `json:"logging,omitempty"`
+	// Producer serves `sampling/createMessage` via `mcpMethodCall`.
+	Sampling *json.RawMessage `json:"sampling,omitempty"`
+}
+
+// Server is registered with the host but has not yet started.
+type McpServerStartingState struct {
+	Kind McpServerStatus `json:"kind"`
+}
+
+// Server is running and serving requests.
+type McpServerReadyState struct {
+	Kind McpServerStatus `json:"kind"`
+}
+
+// Server is reachable but cannot serve requests until the client
+// authenticates. Mirrors the discovery flow defined by
+// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
+// (Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge
+// semantics required by the MCP authorization spec.
+//
+// Clients react to this state by calling the existing `authenticate`
+// command with the {@link ProtectedResourceMetadata.resource | resource}
+// carried here. There is **no** `notify/authRequired` notification for
+// MCP servers — the action stream is the single source of truth.
+//
+// When the transition is triggered by a request issued during a turn
+// — most commonly
+// {@link McpAuthRequiredReason.InsufficientScope | `InsufficientScope`}
+// surfacing mid-tool-call — the host SHOULD also raise
+// {@link SessionStatus.InputNeeded} on the session so the block is
+// visible at the summary level. Clients SHOULD watch this status on
+// any MCP server backing a running tool call and surface an explicit
+// affordance (e.g. a "grant additional access" prompt) tied to that
+// tool call, rather than relying on the user to notice the
+// customization’s status badge.
+type McpServerAuthRequiredState struct {
+	Kind McpServerStatus `json:"kind"`
+	// Why authentication is required.
+	Reason McpAuthRequiredReason `json:"reason"`
+	// RFC 9728 Protected Resource Metadata. The `resource` field is the
+	// canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+	// indicator. `authorization_servers` is REQUIRED by the MCP
+	// authorization spec.
+	Resource ProtectedResourceMetadata `json:"resource"`
+	// Scopes required for the current challenge, parsed from the
+	// `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+	// fallback). Authoritative for the next authorization request — clients
+	// MUST NOT assume any subset/superset relationship to
+	// `resource.scopes_supported`.
+	RequiredScopes []string `json:"requiredScopes,omitempty"`
+	// Human-readable hint, typically from the OAuth `error_description`.
+	Description *string `json:"description,omitempty"`
+}
+
+// Server failed to start, crashed, or otherwise transitioned to a
+// non-recoverable error. Use {@link McpServerStatus.AuthRequired}
+// for authentication failures.
+type McpServerErrorState struct {
+	Kind McpServerStatus `json:"kind"`
+	// Error details.
+	Error ErrorInfo `json:"error"`
+}
+
+// Server has been shut down. The host MAY remove the server from the
+// session entirely shortly after this state.
+type McpServerStoppedState struct {
+	Kind McpServerStatus `json:"kind"`
+}
+
+type ToolCallClientContributor struct {
+	Kind ToolCallContributorKind `json:"kind"`
+	// If this tool is provided by a client, the `clientId` of the owning client.
+	// Absent for server-side tools.
+	//
+	// When set, the identified client is responsible for executing the tool and
+	// dispatching `session/toolCallComplete` with the result.
+	ClientId string `json:"clientId"`
+}
+
+type ToolCallMcpContributor struct {
+	Kind ToolCallContributorKind `json:"kind"`
+	// Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+	CustomizationId string `json:"customizationId"`
 }
 
 // Describes a file modification with before/after state and diff metadata.
@@ -2061,6 +2261,24 @@ type Changeset struct {
 	UriTemplate string `json:"uriTemplate"`
 	// Optional longer description.
 	Description *string `json:"description,omitempty"`
+	// Advisory hint describing what kind of changeset this is, so clients can
+	// group, sort, or render an appropriate icon without parsing
+	// {@link uriTemplate}. Recognized values include:
+	//
+	// - `'session'`: a static, session-wide changeset covering all changes the
+	//   agent has produced in this session.
+	// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+	//   diffed against `main`).
+	// - `'uncommitted'`: the workspace's current uncommitted changes.
+	// - `'turn'`: changes produced by a single turn. Typically paired with a
+	//   `{turnId}` variable in {@link uriTemplate}.
+	// - `'compare-turns'`: a diff between two turns. Typically paired with
+	//   `{originalTurnId}` and `{modifiedTurnId}` variables in
+	//   {@link uriTemplate}.
+	//
+	// Implementations MAY provide additional values; clients SHOULD fall back
+	// to a reasonable default when an unknown value is encountered.
+	ChangeKind string `json:"changeKind"`
 }
 
 // Full state for a single changeset, returned when a client subscribes to
@@ -2972,7 +3190,7 @@ func (u MessageAttachment) MarshalJSON() ([]byte, error) {
 	return json.Marshal(u.Value)
 }
 
-// Customization is a top-level customization (plugin or directory).
+// Customization is a top-level customization (plugin, directory, or bare MCP server).
 type Customization struct {
 	Value isCustomization
 }
@@ -2983,6 +3201,7 @@ type isCustomization interface{ isCustomization() }
 
 func (*PluginCustomization) isCustomization() {}
 func (*DirectoryCustomization) isCustomization() {}
+func (*McpServerCustomization) isCustomization() {}
 
 // CustomizationUnknown carries an unrecognized Customization variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
 type CustomizationUnknown struct {
@@ -3006,6 +3225,12 @@ func (u *Customization) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "directory":
 		var value DirectoryCustomization
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "mcpServer":
+		var value McpServerCustomization
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}
@@ -3183,6 +3408,147 @@ func (u *CustomizationLoadState) UnmarshalJSON(data []byte) error {
 // MarshalJSON encodes the active variant back to JSON.
 func (u CustomizationLoadState) MarshalJSON() ([]byte, error) {
 	if unk, ok := u.Value.(*CustomizationLoadStateUnknown); ok {
+		if len(unk.Raw) == 0 {
+			return []byte("null"), nil
+		}
+		return unk.Raw, nil
+	}
+	if u.Value == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(u.Value)
+}
+
+// McpServerState is the discriminated lifecycle status of an MCP server customization.
+type McpServerState struct {
+	Value isMcpServerState
+}
+
+// isMcpServerState is the marker interface implemented by every
+// concrete variant of McpServerState.
+type isMcpServerState interface{ isMcpServerState() }
+
+func (*McpServerStartingState) isMcpServerState() {}
+func (*McpServerReadyState) isMcpServerState() {}
+func (*McpServerAuthRequiredState) isMcpServerState() {}
+func (*McpServerErrorState) isMcpServerState() {}
+func (*McpServerStoppedState) isMcpServerState() {}
+
+// McpServerStateUnknown carries an unrecognized McpServerState variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
+type McpServerStateUnknown struct {
+	Raw json.RawMessage
+}
+
+func (*McpServerStateUnknown) isMcpServerState() {}
+
+// UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
+func (u *McpServerState) UnmarshalJSON(data []byte) error {
+	disc, _, err := readDiscriminator(data, "kind")
+	if err != nil {
+		return err
+	}
+	switch disc {
+	case "starting":
+		var value McpServerStartingState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "ready":
+		var value McpServerReadyState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "authRequired":
+		var value McpServerAuthRequiredState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "error":
+		var value McpServerErrorState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "stopped":
+		var value McpServerStoppedState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	default:
+		raw := make(json.RawMessage, len(data))
+		copy(raw, data)
+		u.Value = &McpServerStateUnknown{Raw: raw}
+	}
+	return nil
+}
+
+// MarshalJSON encodes the active variant back to JSON.
+func (u McpServerState) MarshalJSON() ([]byte, error) {
+	if unk, ok := u.Value.(*McpServerStateUnknown); ok {
+		if len(unk.Raw) == 0 {
+			return []byte("null"), nil
+		}
+		return unk.Raw, nil
+	}
+	if u.Value == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(u.Value)
+}
+
+// ToolCallContributor identifies the contributor (client or MCP server) of a tool call.
+type ToolCallContributor struct {
+	Value isToolCallContributor
+}
+
+// isToolCallContributor is the marker interface implemented by every
+// concrete variant of ToolCallContributor.
+type isToolCallContributor interface{ isToolCallContributor() }
+
+func (*ToolCallClientContributor) isToolCallContributor() {}
+func (*ToolCallMcpContributor) isToolCallContributor() {}
+
+// ToolCallContributorUnknown carries an unrecognized ToolCallContributor variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
+type ToolCallContributorUnknown struct {
+	Raw json.RawMessage
+}
+
+func (*ToolCallContributorUnknown) isToolCallContributor() {}
+
+// UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
+func (u *ToolCallContributor) UnmarshalJSON(data []byte) error {
+	disc, _, err := readDiscriminator(data, "kind")
+	if err != nil {
+		return err
+	}
+	switch disc {
+	case "client":
+		var value ToolCallClientContributor
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "mcp":
+		var value ToolCallMcpContributor
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	default:
+		raw := make(json.RawMessage, len(data))
+		copy(raw, data)
+		u.Value = &ToolCallContributorUnknown{Raw: raw}
+	}
+	return nil
+}
+
+// MarshalJSON encodes the active variant back to JSON.
+func (u ToolCallContributor) MarshalJSON() ([]byte, error) {
+	if unk, ok := u.Value.(*ToolCallContributorUnknown); ok {
 		if len(unk.Raw) == 0 {
 			return []byte("null"), nil
 		}

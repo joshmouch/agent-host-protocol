@@ -14,13 +14,16 @@ import type {
   ToolDefinition,
   SessionActiveClient,
   Customization,
+  McpServerState,
   SessionInputAnswer,
   SessionInputRequest,
   SessionInputResponseKind,
   ConfirmationOption,
   AgentSelection,
+  ToolCallContributor,
 } from './state.js';
 import type { ModelSelection } from '../channels-root/state.js';
+import type { URI } from '../common/state.js';
 import {
   ToolCallConfirmationReason,
   ToolCallCancellationReason,
@@ -79,7 +82,7 @@ export interface SessionCreationFailedAction {
 
 /**
  * A new message has been sent to the agent, and a new turn starts.
- * 
+ *
  * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Session Actions
@@ -132,9 +135,11 @@ export interface SessionResponsePartAction {
 /**
  * A tool call begins — parameters are streaming from the LM.
  *
- * For client-provided tools, the server sets `toolClientId` to identify the
- * owning client. That client is responsible for executing the tool once it
- * reaches the `running` state and dispatching `session/toolCallComplete`.
+ * The server sets {@link ToolCallContributor | `contributor`} to identify
+ * the origin of the tool. For client-provided tools, the named client is
+ * responsible for executing the tool once it reaches the `running` state
+ * and dispatching `session/toolCallComplete`. For MCP-served tools, the
+ * server executes the call against the named `McpServerCustomization`.
  *
  * @category Session Actions
  * @version 1
@@ -146,10 +151,10 @@ export interface SessionToolCallStartAction extends ToolCallActionBase {
   /** Human-readable tool name */
   displayName: string;
   /**
-   * If this tool is provided by a client, the `clientId` of the owning client.
-   * Absent for server-side tools.
+   * Reference to the contributor of the tool being called. Absent for
+   * server-side tools that are not contributed by a client or MCP server.
    */
-  toolClientId?: string;
+  contributor?: ToolCallContributor;
 }
 
 /**
@@ -633,6 +638,45 @@ export interface SessionCustomizationRemovedAction {
   id: string;
 }
 
+/**
+ * Updates the runtime fields of an existing
+ * {@link McpServerCustomization} — narrow alternative to
+ * {@link SessionCustomizationUpdatedAction} for the high-frequency
+ * `starting` ↔ `ready` ↔ `authRequired` transitions.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container.
+ * Replaces the entry's {@link McpServerCustomization.state | `state`}
+ * and {@link McpServerCustomization.channel | `channel`}
+ * (full-replacement semantics: omit `channel` to clear an existing
+ * channel URI). Other fields of the customization are preserved.
+ *
+ * Is a no-op when no matching `McpServerCustomization` is found. To
+ * update any other field (name, icons, `mcpApp` capabilities, etc.) use
+ * {@link SessionCustomizationUpdatedAction} instead.
+ *
+ * When the transition is to {@link McpServerStatus.AuthRequired}
+ * because of a request issued mid-turn, the host SHOULD also raise
+ * {@link SessionStatus.InputNeeded} on the session — see
+ * {@link McpServerAuthRequiredState} for the rationale.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionMcpServerStateChangedAction {
+  type: ActionType.SessionMcpServerStateChanged;
+  /** The id of the {@link McpServerCustomization} to update. */
+  id: string;
+  /** The new lifecycle state. */
+  state: McpServerState;
+  /**
+   * Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+   * an existing channel (typical when leaving
+   * {@link McpServerStatus.Ready | `Ready`}).
+   */
+  channel?: URI;
+}
+
 // ─── Config Actions ──────────────────────────────────────────────────────────
 
 /**
@@ -701,7 +745,7 @@ export interface SessionTruncatedAction {
  * updated in place; otherwise it is appended to the queue. If the session is
  * idle when a queued message is set, the server SHOULD immediately consume it
  * and start a new turn.
- * 
+ *
  * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Session Actions

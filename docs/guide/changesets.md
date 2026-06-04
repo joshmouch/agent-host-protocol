@@ -28,6 +28,11 @@ Changeset {
   /** RFC 6570 URI template; expand to obtain a subscribable URI. */
   uriTemplate: string
   description?: string
+  /**
+   * Advisory hint: one of `'session'`, `'branch'`, `'uncommitted'`,
+   * `'turn'`, or `'compare-turns'`. Other values allowed.
+   */
+  changeKind: string
   additions?: number
   deletions?: number
   files?: number
