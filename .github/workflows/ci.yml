@@ -296,3 +296,11 @@ jobs:
       - name: Test .NET solution
         run: dotnet test --no-build --configuration Release
 
+      # Blocking test-parity gate: fails while any test in the parity manifest
+      # (clients/dotnet/tests/parity-manifest.txt) is missing, enumerating exactly
+      # which methods to add. Green only at full Swift/TS parity. See OpenAgency
+      # plan 2026-06-04-0137-ahp-dotnet-client-test-parity. Runs last so the
+      # build/test signal above is still reported while parity is in progress.
+      - name: Enforce .NET test parity (blocking; enumerates missing tests)
+        run: bash clients/dotnet/scripts/check-test-parity.sh
+

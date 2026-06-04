@@ -70,6 +70,36 @@ client in any language ships a real-socket integration test — they are all
 mock-transport-based; this validation is run out-of-band rather than committed,
 since it needs a Node host + the published package.)
 
+### Test-parity gate
+
+Two layers enforce the cross-language parity target (OpenAgency plan
+`2026-06-04-0137-ahp-dotnet-client-test-parity`). Both run
+[`scripts/check-test-parity.sh`](scripts/check-test-parity.sh) against
+[`tests/parity-manifest.txt`](tests/parity-manifest.txt) — the expected parity
+test methods in executable form — plus the count floor in
+[`tests/MIN_TEST_COUNT`](tests/MIN_TEST_COUNT).
+
+- **CI (blocking):** `.github/workflows/ci.yml` runs the gate in COMPLETE mode —
+  it **fails the build while any manifest test is missing**, and the error
+  enumerates exactly which test methods to add (grouped by phase) and references
+  the plan. Green only at full parity.
+- **Local pre-push (ratchet):** the hook runs `--ratchet`, which blocks a push
+  only if the discrete `[Fact]`/`[Theory]` count drops below the floor (catches
+  deletions). It never blocks in-progress work, so the incremental commits that
+  climb toward parity push fine.
+
+Commands:
+
+- **Activate the local hook** (per-clone; git hooks are never shared — run once
+  from the repo root): `git config core.hooksPath scripts/git-hooks`
+- **See what's still missing:** `clients/dotnet/scripts/check-test-parity.sh --list`
+- **Raise the count floor after adding tests:**
+  `clients/dotnet/scripts/check-test-parity.sh --bump`
+
+Neither layer runs `dotnet test`; test *correctness* is enforced by the
+`dotnet test` step in CI. The 163 shared reducer fixtures count as one `[Theory]`,
+so they do not inflate the floor.
+
 ## Architecture decisions
 
 - [`docs/decisions/sync.md`](docs/decisions/sync.md)
