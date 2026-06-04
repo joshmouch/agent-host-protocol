@@ -112,7 +112,7 @@ public sealed class ReconnectPolicy
     /// default 0 disables jitter — matching the other AHP clients' behavior.
     /// 0.2 is a reasonable production value. This is the dependency-free
     /// equivalent of the "exponential backoff with jitter" that the .NET
-    /// resilience libraries recommend; see docs/adr/ADR-RECONNECT.md.
+    /// resilience libraries recommend; see docs/decisions/reconnect.md.
     /// </summary>
     public double Jitter { get; init; }
 

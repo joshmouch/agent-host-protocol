@@ -50,23 +50,23 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 
 ## Architecture decisions
 
-- [`docs/adr/ADR-SYNC.md`](docs/adr/ADR-SYNC.md)
+- [`docs/decisions/sync.md`](docs/decisions/sync.md)
   — the full menu of .NET synchronization primitives, the distinct concurrency
   use cases in the client, which primitive each gets (`ConcurrentDictionary`
   for the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim`
   only for the WebSocket send path, `Channels`/`Interlocked`/`volatile`
   elsewhere), and why the libraries multi-target `net8.0;net9.0` to use
   `System.Threading.Lock` on .NET 9.
-- [`docs/adr/ADR-SERIALIZATION.md`](docs/adr/ADR-SERIALIZATION.md)
+- [`docs/decisions/serialization.md`](docs/decisions/serialization.md)
   — System.Text.Json (default, in-box, fastest) behind the `IAhpSerializer`
   seam, versus Newtonsoft / lazy-DOM / validating options, across speed,
   memory, lazy-vs-eager, validation, dependencies, and AOT.
-- [`docs/adr/ADR-RECONNECT.md`](docs/adr/ADR-RECONNECT.md)
+- [`docs/decisions/reconnect.md`](docs/decisions/reconnect.md)
   — hand-rolled exponential backoff (with opt-in jitter) versus
   Polly / `Microsoft.Extensions.Resilience`, and why the core stays
   dependency-free.
 
-ADRs live under `docs/` and are repo-only — they are not packed into any NuGet
+These decision records live under `docs/decisions/` and are repo-only — they are not packed into any NuGet
 package (only `README.md` is).
 
 ## Releasing

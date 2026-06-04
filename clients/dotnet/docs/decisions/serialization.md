@@ -1,4 +1,4 @@
-# ADR-SERIALIZATION — JSON serialization engine
+# JSON serialization engine
 
 - **Status:** Accepted
 - **Scope:** `clients/dotnet` (the `Microsoft.AgentHostProtocol*` packages)

@@ -1,4 +1,4 @@
-# ADR-SYNC — Synchronization & concurrency primitives
+# Synchronization & concurrency primitives
 
 - **Status:** Accepted
 - **Scope:** `clients/dotnet` (the `Microsoft.AgentHostProtocol*` packages)
