@@ -106,6 +106,16 @@ public sealed class ReconnectPolicy
     /// <summary>If true, resets the attempt counter after a successful reconnect.</summary>
     public bool ResetOnSuccess { get; init; }
 
+    /// <summary>
+    /// Randomizes each backoff by ±this fraction (clamped to 0–1) to avoid
+    /// reconnect storms when many hosts drop at once ("thundering herd"). The
+    /// default 0 disables jitter — matching the other AHP clients' behavior.
+    /// 0.2 is a reasonable production value. This is the dependency-free
+    /// equivalent of the "exponential backoff with jitter" that the .NET
+    /// resilience libraries recommend; see docs/adr/0003-reconnect-retry.md.
+    /// </summary>
+    public double Jitter { get; init; }
+
     /// <summary>Whether reconnection is effectively disabled (zero initial backoff).</summary>
     public bool IsDisabled => InitialBackoff <= TimeSpan.Zero;
 
@@ -136,6 +146,18 @@ public sealed class ReconnectPolicy
         for (uint i = 1; i < attempt; i++) b *= mult;
         var result = TimeSpan.FromTicks((long)b);
         if (MaxBackoff > TimeSpan.Zero && result > MaxBackoff) result = MaxBackoff;
+
+        if (Jitter > 0)
+        {
+            // Symmetric jitter: result * (1 ± Jitter), never negative and never
+            // above MaxBackoff. Random.Shared is thread-safe.
+            var j = Math.Clamp(Jitter, 0.0, 1.0);
+            var factor = 1.0 + (Random.Shared.NextDouble() * 2.0 - 1.0) * j;
+            var ticks = Math.Max(0L, (long)(result.Ticks * factor));
+            result = TimeSpan.FromTicks(ticks);
+            if (MaxBackoff > TimeSpan.Zero && result > MaxBackoff) result = MaxBackoff;
+        }
+
         return result;
     }
 }

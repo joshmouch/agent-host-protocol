@@ -51,10 +51,20 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 ## Architecture decisions
 
 - [`docs/adr/0001-concurrency-primitives.md`](docs/adr/0001-concurrency-primitives.md)
-  — which synchronization primitive is used where (`ConcurrentDictionary` for
-  the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim` only
-  for the WebSocket send path) and why the libraries multi-target
-  `net8.0;net9.0` to use `System.Threading.Lock` on .NET 9.
+  — the full menu of .NET synchronization primitives, the distinct concurrency
+  use cases in the client, which primitive each gets (`ConcurrentDictionary`
+  for the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim`
+  only for the WebSocket send path, `Channels`/`Interlocked`/`volatile`
+  elsewhere), and why the libraries multi-target `net8.0;net9.0` to use
+  `System.Threading.Lock` on .NET 9.
+- [`docs/adr/0002-json-serialization.md`](docs/adr/0002-json-serialization.md)
+  — System.Text.Json (default, in-box, fastest) behind the `IAhpSerializer`
+  seam, versus Newtonsoft / lazy-DOM / validating options, across speed,
+  memory, lazy-vs-eager, validation, dependencies, and AOT.
+- [`docs/adr/0003-reconnect-retry.md`](docs/adr/0003-reconnect-retry.md)
+  — hand-rolled exponential backoff (with opt-in jitter) versus
+  Polly / `Microsoft.Extensions.Resilience`, and why the core stays
+  dependency-free.
 
 ADRs live under `docs/` and are repo-only — they are not packed into any NuGet
 package (only `README.md` is).

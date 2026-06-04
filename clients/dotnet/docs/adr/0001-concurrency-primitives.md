@@ -25,15 +25,51 @@ pattern and why, so the choice isn't re-litigated (or re-broken) later.
 
 ## Options considered
 
-| Primitive | Good for | Notes / why not (here) |
+The full menu of .NET synchronization options (see the
+[Microsoft Learn overview](https://learn.microsoft.com/en-us/dotnet/standard/threading/overview-of-synchronization-primitives)),
+and where each lands for this client:
+
+| Option | Category | Verdict here |
 | --- | --- | --- |
-| `lock` (Monitor) | short, synchronous critical sections | Simple and correct. Cannot be held across `await`. On .NET 9 the dedicated `System.Threading.Lock` is faster (see below). |
-| `System.Threading.Lock` (.NET 9 / C# 13) | same as `lock`, ~25% faster under contention | A purpose-built lock; the compiler emits `Lock.EnterScope()` instead of going through the object header's sync block. **net9.0+ only** — not available at our `net8.0` target. |
-| `SemaphoreSlim` | mutual exclusion where you **await inside** the critical section | The only place that fits is the WebSocket send path (`ClientWebSocket.SendAsync` is awaited and forbids concurrent calls). Heavier than `lock` and allocates a `Task` per non-async use. |
-| `ReaderWriterLockSlim` | read-heavy maps with non-trivial critical sections | Under load, contention on the read lock makes it lose to `ConcurrentDictionary`; recursion/async pitfalls. Not worth it here. |
-| `ConcurrentDictionary<K,V>` | concurrent maps with independent, mostly single-key ops | Lock-free reads, fine-grained (striped) writes. Atomic `TryAdd`/`GetOrAdd`/`AddOrUpdate` express check-then-act without an external lock. Caveat: an operation spanning two calls is still not atomic. |
-| `ImmutableDictionary` + `Interlocked` | read-mostly maps where you want a free consistent snapshot | Copy-on-write; elegant but more allocation on writes than `ConcurrentDictionary`. Overkill for our small, low-write registry. |
-| `Interlocked` / `Volatile` | single-value atomics / single-field visibility | Used for the request-id and client-seq counters, and the `volatile` client-id-store reference. |
+| `lock` / `Monitor` | exclusive lock | **Used** — `HostEntry` field-bundle, channel-list append. Cannot be held across `await`. |
+| `System.Threading.Lock` (.NET 9 / C# 13) | exclusive lock | **Used on net9** via a conditional alias — ~25% faster than `Monitor` (compiler emits `Lock.EnterScope()`). net9.0+ only; net8 falls back to `Monitor`. |
+| `Mutex` | cross-**process** lock | No — everything is in-process; `Mutex` is a kernel object, far heavier. |
+| `SpinLock` | busy-wait exclusive (struct) | No — only wins for nanosecond-scale sections on hot paths; ours aren't that hot, and it's easy to misuse. |
+| `SemaphoreSlim` | count-limited / async-capable lock | **Used** — WebSocket send (the one place we `await` *inside* the critical section). |
+| `Semaphore` | count-limited, cross-process (kernel) | No — kernel object; `SemaphoreSlim` suffices in-process. |
+| `ReaderWriterLockSlim` | read-heavy maps, non-trivial sections | No — loses to `ConcurrentDictionary` under load; recursion/async footguns. |
+| `ReaderWriterLock` (legacy) | read/write lock | No — deprecated. |
+| `ManualResetEventSlim` / `AutoResetEvent` / `EventWaitHandle` | thread signaling | No — we coordinate via `TaskCompletionSource` and `Channels` (async), not thread events. |
+| `Barrier` / `CountdownEvent` | phase / fan-in coordination | No — not our pattern. |
+| `Interlocked` | single-value atomics (CAS/increment) | **Used** — request-id and client-seq counters. |
+| `Volatile` / `volatile` | single-field visibility | **Used** — shutdown flag (`Volatile.Read`), client-id-store reference. |
+| `Lazy<T>` / `LazyInitializer` | thread-safe one-time init | No — no expensive one-time init to guard. |
+| `ConcurrentDictionary<K,V>` | concurrent keyed map | **Used** — host registry, client-id store, state mirror. Lock-free reads; atomic `TryAdd`/`GetOrAdd`/`AddOrUpdate`. |
+| `ConcurrentQueue` / `ConcurrentStack` / `ConcurrentBag` | lock-free FIFO/LIFO/bag | No — our producer/consumer fan-out is `Channels`. |
+| `BlockingCollection<T>` | blocking producer/consumer | No — superseded by `System.Threading.Channels` for async backpressure. |
+| `ImmutableDictionary` + `ImmutableInterlocked` | read-mostly, free consistent snapshot | No — more write allocation than `ConcurrentDictionary`; overkill for a small, low-write registry. |
+| `FrozenDictionary` / `FrozenSet` (.NET 8) | read-only after build, fastest reads | No — our maps mutate at runtime (hosts come and go); frozen sets are build-once. |
+| `System.Threading.Channels` | async producer/consumer | **Used** — subscription/event fan-out (bounded, drop-oldest). |
+| `TaskCompletionSource` | one-shot async completion | **Used** — request/response correlation and the client "done" signal. |
+
+## Distinct concurrency use cases
+
+There isn't a single locking pattern — the client has **several distinct
+concurrency use cases**, and each gets the primitive that fits it. That is the
+whole point of this ADR: not "what's our lock," but "what's the right tool for
+each problem."
+
+| # | Use case | Where | Primitive |
+| --- | --- | --- | --- |
+| 1 | Concurrent keyed map (independent entries) | host registry, client-id store, state mirror | `ConcurrentDictionary` |
+| 2 | Update/read a small bundle of related fields **atomically** | `HostEntry` (`_client`/`_state`/`_protoVer`/`_generation`/`_updatedAt`) | `lock` |
+| 3 | Append to + snapshot a list | subscription/event subscriber lists | `lock` |
+| 4 | Serialize an **awaited** I/O call (no concurrent sends) | `WebSocketTransport.SendAsync` | `SemaphoreSlim` |
+| 5 | Single-value atomic counter | JSON-RPC request id, client sequence | `Interlocked` |
+| 6 | Publish a single field / flag visibly | shutdown flag, client-id-store reference | `Volatile` / `volatile` |
+| 7 | Producer/consumer fan-out with backpressure | subscription + host event delivery | `System.Threading.Channels` |
+| 8 | Request/response correlation by id | `AhpClient` pending-request table | `ConcurrentDictionary<ulong, TaskCompletionSource<…>>` |
+| 9 | One-shot completion signal | client `Completion` / `Done` | `TaskCompletionSource` |
 
 ## Decision
 
