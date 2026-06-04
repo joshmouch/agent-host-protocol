@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Microsoft.AgentHostProtocol</RootNamespace>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <AssemblyName>Microsoft.AgentHostProtocol</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Microsoft.AgentHostProtocol</PackageId>

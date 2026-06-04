@@ -48,6 +48,17 @@ fixtures under `types/test-cases/reducers/*.json` are the cross-language parity
 gate — run them with `dotnet test`. The `changeset` and `resourceWatch`
 reducers are intentional stubs (parity with the Rust and Go clients).
 
+## Architecture decisions
+
+- [`docs/adr/0001-concurrency-primitives.md`](docs/adr/0001-concurrency-primitives.md)
+  — which synchronization primitive is used where (`ConcurrentDictionary` for
+  the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim` only
+  for the WebSocket send path) and why the libraries multi-target
+  `net8.0;net9.0` to use `System.Threading.Lock` on .NET 9.
+
+ADRs live under `docs/` and are repo-only — they are not packed into any NuGet
+package (only `README.md` is).
+
 ## Releasing
 
 Sub-package releases use the `dotnet/vX.Y.Z` tag namespace; `publish-dotnet.yml`

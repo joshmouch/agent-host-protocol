@@ -7,8 +7,11 @@
     and metadata settings.
   -->
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <LangVersion>12</LangVersion>
+    <!-- TFM is set per project: the libraries multi-target net8.0;net9.0 (so
+         net9 consumers get System.Threading.Lock), tests/examples target
+         net8.0. LangVersion 13 enables the net9 `lock` optimization while
+         remaining valid for the net8.0 build (which doesn't use that type). -->
+    <LangVersion>13</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>

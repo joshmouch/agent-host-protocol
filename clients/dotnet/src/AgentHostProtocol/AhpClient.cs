@@ -56,7 +56,7 @@ public sealed class AhpClient : IAsyncDisposable
     private readonly ConcurrentDictionary<ulong, TaskCompletionSource<JsonElement>> _pending = new();
 
     // Per-URI subscription fan-out.
-    private readonly object _subsLock = new();
+    private readonly Gate _subsLock = new();
     private readonly Dictionary<string, List<Subscription>> _subscriptions = new();
     private readonly List<EventStream> _eventListeners = new();
 

@@ -271,7 +271,7 @@ internal sealed class HostEntry
     public HostConfig Config { get; }
     public string ClientId { get; set; }
 
-    private readonly object _gate = new();
+    private readonly Gate _gate = new();
     private AhpClient? _client;
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
@@ -333,10 +333,10 @@ public sealed class MultiHostClient : IAsyncDisposable
     private volatile IClientIdStore _store;
 
     private readonly List<System.Threading.Channels.Channel<HostEvent>> _eventChannels = new();
-    private readonly object _eventsLock = new();
+    private readonly Gate _eventsLock = new();
 
     private readonly List<System.Threading.Channels.Channel<HostSubscriptionEvent>> _subChannels = new();
-    private readonly object _subsLock = new();
+    private readonly Gate _subsLock = new();
 
     private readonly CancellationTokenSource _rootCts = new();
 

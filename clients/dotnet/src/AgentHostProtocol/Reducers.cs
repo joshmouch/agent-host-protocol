@@ -33,7 +33,7 @@ public static class Reducers
 {
     // ─── Injectable timestamp ──────────────────────────────────────────────
 
-    private static readonly object s_nowLock = new();
+    private static readonly Gate s_nowLock = new();
     private static Func<long> s_now = () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
     /// <summary>

@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- Multi-target so the suite runs against both library builds: the
+         net8.0 (Monitor) and net9.0 (System.Threading.Lock) lock paths. -->
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
     <IsPublishable>false</IsPublishable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
