@@ -988,10 +988,10 @@ data class SessionSummary(
      * Catalogue of changesets the server can produce for this session. Each
      * entry advertises a subscribable view of file changes (uncommitted,
      * session-wide, per-turn, etc.) and the URI template the client expands
-     * before subscribing. See {@link ChangesetSummary} for the full shape and
+     * before subscribing. See {@link Changeset} for the full shape and
      * {@link /guide/changesets | Changesets} for an overview of the model.
      */
-    val changesets: List<ChangesetSummary>? = null,
+    val changesets: List<Changeset>? = null,
     /**
      * Aggregate summary of file changes associated with this session. Servers
      * may populate this to give clients a quick at-a-glance view of the
@@ -2941,7 +2941,7 @@ data class Snapshot(
 )
 
 @Serializable
-data class ChangesetSummary(
+data class Changeset(
     /**
      * Human-readable label, e.g. `"Uncommitted Changes"`.
      */

@@ -785,10 +785,10 @@ pub struct SessionSummary {
     /// Catalogue of changesets the server can produce for this session. Each
     /// entry advertises a subscribable view of file changes (uncommitted,
     /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// before subscribing. See {@link Changeset} for the full shape and
     /// {@link /guide/changesets | Changesets} for an overview of the model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<ChangesetSummary>>,
+    pub changesets: Option<Vec<Changeset>>,
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the
@@ -2477,7 +2477,7 @@ pub struct Snapshot {
 /// expanding {@link uriTemplate}.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChangesetSummary {
+pub struct Changeset {
     /// Human-readable label, e.g. `"Uncommitted Changes"`.
     pub label: String,
     /// RFC 6570 URI template. Clients parse the variables directly out of the

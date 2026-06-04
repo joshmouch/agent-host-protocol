@@ -22,6 +22,11 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 - `AgentCustomization._meta` provider metadata field.
 - Optional `changes` field on `SessionSummary` (`ChangesSummary` with optional `additions`, `deletions`, and `files` counts) summarising a session's file-change footprint.
 
+
+### Changed
+
+- Renamed the `ChangesetSummary` type to `Changeset` (catalogue entry on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+
 ### Removed
 
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.

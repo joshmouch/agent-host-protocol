@@ -779,7 +779,7 @@ const STATE_STRUCTS = [
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
-  'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];

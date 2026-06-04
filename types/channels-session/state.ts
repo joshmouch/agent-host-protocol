@@ -17,7 +17,7 @@ import type {
   TextSelection,
   UsageInfo,
 } from '../common/state.js';
-import type { ChangesetSummary } from '../channels-changeset/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 
 // ─── Pending Message Types ───────────────────────────────────────────────────
@@ -212,10 +212,10 @@ export interface SessionSummary {
    * Catalogue of changesets the server can produce for this session. Each
    * entry advertises a subscribable view of file changes (uncommitted,
    * session-wide, per-turn, etc.) and the URI template the client expands
-   * before subscribing. See {@link ChangesetSummary} for the full shape and
+   * before subscribing. See {@link Changeset} for the full shape and
    * {@link /guide/changesets | Changesets} for an overview of the model.
    */
-  changesets?: ChangesetSummary[];
+  changesets?: Changeset[];
   /**
   * Aggregate summary of file changes associated with this session. Servers
   * may populate this to give clients a quick at-a-glance view of the

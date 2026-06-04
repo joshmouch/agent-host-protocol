@@ -621,7 +621,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'UsageInfo' },
   { name: 'ErrorInfo' },
   { name: 'Snapshot' },
-  { name: 'ChangesetSummary' },
+  { name: 'Changeset' },
   { name: 'ChangesetState' },
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },
@@ -968,7 +968,7 @@ pub struct SessionToolCallConfirmedAction {
 
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
-  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, ChangesetSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, ConfirmationOption, Customization, ErrorInfo, ModelSelection, ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallResult, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolResultContent, UsageInfo, Message, PendingMessageKind, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset};');
   lines.push('');
 
   // ActionType enum
@@ -1176,7 +1176,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ChangesSummary, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');

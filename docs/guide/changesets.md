@@ -19,10 +19,10 @@ references a full subscribable `ChangesetState` by URI.
 ```typescript
 SessionSummary {
   // ...existing fields...
-  changesets?: ChangesetSummary[]
+  changesets?: Changeset[]
 }
 
-ChangesetSummary {
+Changeset {
   /** Human-readable label, e.g. `"Uncommitted Changes"`. */
   label: string
   /** RFC 6570 URI template; expand to obtain a subscribable URI. */

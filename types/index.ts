@@ -89,7 +89,7 @@ export type {
   TerminalContentPart,
   TerminalUnclassifiedPart,
   TerminalCommandPart,
-  ChangesetSummary,
+  Changeset,
   ChangesetState,
   ChangesetFile,
   ChangesetOperation,

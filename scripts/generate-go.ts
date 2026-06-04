@@ -721,7 +721,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'UsageInfo' },
   { name: 'ErrorInfo' },
   { name: 'Snapshot' },
-  { name: 'ChangesetSummary' },
+  { name: 'Changeset' },
   { name: 'ChangesetState' },
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },

@@ -20,7 +20,7 @@ import type { StringOrMarkdown, FileEdit, ErrorInfo } from '../common/state.js';
  *
  * @category Changesets
  */
-export interface ChangesetSummary {
+export interface Changeset {
   /** Human-readable label, e.g. `"Uncommitted Changes"`. */
   label: string;
   /**

@@ -125,9 +125,9 @@
             "changesets": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/ChangesetSummary"
+                "$ref": "#/$defs/Changeset"
               },
-              "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+              "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
             },
             "changes": {
               "$ref": "#/$defs/ChangesSummary",
@@ -1000,9 +1000,9 @@
         "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ChangesetSummary"
+            "$ref": "#/$defs/Changeset"
           },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
@@ -3584,7 +3584,7 @@
         "isComplete"
       ]
     },
-    "ChangesetSummary": {
+    "Changeset": {
       "type": "object",
       "description": "Catalogue entry describing one changeset the server can produce for a\nsession.\n\nCatalogue entries are intentionally lightweight — just enough to render a\nchip or list row without subscribing. Full per-changeset detail\n({@link ChangesetState}) lives on the subscribable URI obtained by\nexpanding {@link uriTemplate}.",
       "properties": {

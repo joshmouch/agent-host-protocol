@@ -809,7 +809,7 @@
     },
     "SessionChangesetsChangedAction": {
       "type": "object",
-      "description": "The {@link ChangesetSummary | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
+      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
@@ -817,7 +817,7 @@
         "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ChangesetSummary"
+            "$ref": "#/$defs/Changeset"
           },
           "description": "New catalogue, or `undefined` to clear it"
         }
@@ -2285,9 +2285,9 @@
         "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ChangesetSummary"
+            "$ref": "#/$defs/Changeset"
           },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
@@ -4869,7 +4869,7 @@
         "isComplete"
       ]
     },
-    "ChangesetSummary": {
+    "Changeset": {
       "type": "object",
       "description": "Catalogue entry describing one changeset the server can produce for a\nsession.\n\nCatalogue entries are intentionally lightweight — just enough to render a\nchip or list row without subscribing. Full per-changeset detail\n({@link ChangesetState}) lives on the subscribable URI obtained by\nexpanding {@link uriTemplate}.",
       "properties": {
