@@ -1936,9 +1936,13 @@
         "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ChangesetSummary"
+            "$ref": "#/$defs/Changeset"
           },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+        },
+        "changes": {
+          "$ref": "#/$defs/ChangesSummary",
+          "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
         }
       },
       "required": [
@@ -1949,6 +1953,24 @@
         "createdAt",
         "modifiedAt"
       ]
+    },
+    "ChangesSummary": {
+      "type": "object",
+      "description": "Aggregate counts describing the file changes associated with a session.\n\nAll fields are optional so servers can populate only the metrics they\ncheaply have available.",
+      "properties": {
+        "additions": {
+          "type": "number",
+          "description": "Total number of inserted lines across all changed files."
+        },
+        "deletions": {
+          "type": "number",
+          "description": "Total number of deleted lines across all changed files."
+        },
+        "files": {
+          "type": "number",
+          "description": "Number of files that have changes."
+        }
+      }
     },
     "AgentSelection": {
       "type": "object",
@@ -4498,7 +4520,7 @@
         "isComplete"
       ]
     },
-    "ChangesetSummary": {
+    "Changeset": {
       "type": "object",
       "description": "Catalogue entry describing one changeset the server can produce for a\nsession.\n\nCatalogue entries are intentionally lightweight — just enough to render a\nchip or list row without subscribing. Full per-changeset detail\n({@link ChangesetState}) lives on the subscribable URI obtained by\nexpanding {@link uriTemplate}.",
       "properties": {
@@ -4513,18 +4535,6 @@
         "description": {
           "type": "string",
           "description": "Optional longer description."
-        },
-        "additions": {
-          "type": "number",
-          "description": "Aggregate line additions across the changeset, when known."
-        },
-        "deletions": {
-          "type": "number",
-          "description": "Aggregate line deletions across the changeset, when known."
-        },
-        "files": {
-          "type": "number",
-          "description": "Number of files in the changeset, when known."
         }
       },
       "required": [
@@ -5516,7 +5526,7 @@
     },
     "SessionChangesetsChangedAction": {
       "type": "object",
-      "description": "The {@link ChangesetSummary | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added, removed, or have\ntheir aggregate counts (`additions` / `deletions` / `files`) refreshed.\nThe fan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
+      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
@@ -5524,7 +5534,7 @@
         "changesets": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/ChangesetSummary"
+            "$ref": "#/$defs/Changeset"
           },
           "description": "New catalogue, or `undefined` to clear it"
         }

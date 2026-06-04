@@ -798,9 +798,14 @@ public struct SessionSummary: Codable, Sendable {
     /// Catalogue of changesets the server can produce for this session. Each
     /// entry advertises a subscribable view of file changes (uncommitted,
     /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// before subscribing. See {@link Changeset} for the full shape and
     /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [ChangesetSummary]?
+    public var changesets: [Changeset]?
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    public var changes: ChangesSummary?
 
     public init(
         resource: String,
@@ -814,7 +819,8 @@ public struct SessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [ChangesetSummary]? = nil
+        changesets: [Changeset]? = nil,
+        changes: ChangesSummary? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -828,6 +834,26 @@ public struct SessionSummary: Codable, Sendable {
         self.agent = agent
         self.workingDirectory = workingDirectory
         self.changesets = changesets
+        self.changes = changes
+    }
+}
+
+public struct ChangesSummary: Codable, Sendable {
+    /// Total number of inserted lines across all changed files.
+    public var additions: Int?
+    /// Total number of deleted lines across all changed files.
+    public var deletions: Int?
+    /// Number of files that have changes.
+    public var files: Int?
+
+    public init(
+        additions: Int? = nil,
+        deletions: Int? = nil,
+        files: Int? = nil
+    ) {
+        self.additions = additions
+        self.deletions = deletions
+        self.files = files
     }
 }
 
@@ -3194,7 +3220,7 @@ public struct Snapshot: Codable, Sendable {
     }
 }
 
-public struct ChangesetSummary: Codable, Sendable {
+public struct Changeset: Codable, Sendable {
     /// Human-readable label, e.g. `"Uncommitted Changes"`.
     public var label: String
     /// RFC 6570 URI template. Clients parse the variables directly out of the
@@ -3215,27 +3241,15 @@ public struct ChangesetSummary: Codable, Sendable {
     public var uriTemplate: String
     /// Optional longer description.
     public var description: String?
-    /// Aggregate line additions across the changeset, when known.
-    public var additions: Int?
-    /// Aggregate line deletions across the changeset, when known.
-    public var deletions: Int?
-    /// Number of files in the changeset, when known.
-    public var files: Int?
 
     public init(
         label: String,
         uriTemplate: String,
-        description: String? = nil,
-        additions: Int? = nil,
-        deletions: Int? = nil,
-        files: Int? = nil
+        description: String? = nil
     ) {
         self.label = label
         self.uriTemplate = uriTemplate
         self.description = description
-        self.additions = additions
-        self.deletions = deletions
-        self.files = files
     }
 }
 

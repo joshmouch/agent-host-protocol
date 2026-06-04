@@ -441,20 +441,19 @@ type SessionActivityChangedAction struct {
 	Activity *string `json:"activity,omitempty"`
 }
 
-// The {@link ChangesetSummary | catalogue of changesets} the agent host
+// The {@link Changeset | catalogue of changesets} the agent host
 // advertises for this session changed. Replaces
 // `state.summary.changesets` entirely (full-replacement semantics) — set
 // to `undefined` to clear the catalogue.
 //
-// Producers dispatch this whenever entries are added, removed, or have
-// their aggregate counts (`additions` / `deletions` / `files`) refreshed.
-// The fan-out happens through this action so observers see catalogue
+// Producers dispatch this whenever entries are added or removed. The
+// fan-out happens through this action so observers see catalogue
 // mutations in the same {@link ChangesetAction | per-changeset} action
 // stream they already follow for file-level updates.
 type SessionChangesetsChangedAction struct {
 	Type ActionType `json:"type"`
 	// New catalogue, or `undefined` to clear it
-	Changesets []ChangesetSummary `json:"changesets,omitempty"`
+	Changesets []Changeset `json:"changesets,omitempty"`
 }
 
 // Server tools for this session have changed.

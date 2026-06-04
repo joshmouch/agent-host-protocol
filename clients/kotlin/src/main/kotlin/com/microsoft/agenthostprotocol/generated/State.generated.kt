@@ -988,10 +988,33 @@ data class SessionSummary(
      * Catalogue of changesets the server can produce for this session. Each
      * entry advertises a subscribable view of file changes (uncommitted,
      * session-wide, per-turn, etc.) and the URI template the client expands
-     * before subscribing. See {@link ChangesetSummary} for the full shape and
+     * before subscribing. See {@link Changeset} for the full shape and
      * {@link /guide/changesets | Changesets} for an overview of the model.
      */
-    val changesets: List<ChangesetSummary>? = null
+    val changesets: List<Changeset>? = null,
+    /**
+     * Aggregate summary of file changes associated with this session. Servers
+     * may populate this to give clients a quick at-a-glance view of the
+     * session's footprint (e.g., for list rendering) without requiring the
+     * client to subscribe to a changeset.
+     */
+    val changes: ChangesSummary? = null
+)
+
+@Serializable
+data class ChangesSummary(
+    /**
+     * Total number of inserted lines across all changed files.
+     */
+    val additions: Long? = null,
+    /**
+     * Total number of deleted lines across all changed files.
+     */
+    val deletions: Long? = null,
+    /**
+     * Number of files that have changes.
+     */
+    val files: Long? = null
 )
 
 @Serializable
@@ -2918,7 +2941,7 @@ data class Snapshot(
 )
 
 @Serializable
-data class ChangesetSummary(
+data class Changeset(
     /**
      * Human-readable label, e.g. `"Uncommitted Changes"`.
      */
@@ -2944,19 +2967,7 @@ data class ChangesetSummary(
     /**
      * Optional longer description.
      */
-    val description: String? = null,
-    /**
-     * Aggregate line additions across the changeset, when known.
-     */
-    val additions: Long? = null,
-    /**
-     * Aggregate line deletions across the changeset, when known.
-     */
-    val deletions: Long? = null,
-    /**
-     * Number of files in the changeset, when known.
-     */
-    val files: Long? = null
+    val description: String? = null
 )
 
 @Serializable

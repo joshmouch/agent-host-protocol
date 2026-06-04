@@ -1220,6 +1220,7 @@ mod tests {
                 agent: None,
                 working_directory: None,
                 changesets: None,
+                changes: None,
             },
             lifecycle: SessionLifecycle::Creating,
             creation_error: None,

@@ -13,8 +13,8 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
 use crate::state::{
-    AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus,
-    SessionSummary,
+    AgentSelection, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo,
+    SessionStatus, SessionSummary,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -221,8 +221,14 @@ pub struct PartialSessionSummary {
     /// Catalogue of changesets the server can produce for this session. Each
     /// entry advertises a subscribable view of file changes (uncommitted,
     /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
+    /// before subscribing. See {@link Changeset} for the full shape and
     /// {@link /guide/changesets | Changesets} for an overview of the model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<ChangesetSummary>>,
+    pub changesets: Option<Vec<Changeset>>,
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes: Option<ChangesSummary>,
 }
