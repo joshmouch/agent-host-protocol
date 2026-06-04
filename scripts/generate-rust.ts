@@ -1176,7 +1176,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, ChangesSummary, ChangesetSummary, FileEdit, ModelSelection, ProjectInfo, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
