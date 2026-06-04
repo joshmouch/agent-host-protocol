@@ -191,4 +191,9 @@ type PartialSessionSummary struct {
 	// before subscribing. See {@link ChangesetSummary} for the full shape and
 	// {@link /guide/changesets | Changesets} for an overview of the model.
 	Changesets []ChangesetSummary `json:"changesets,omitempty"`
+	// Aggregate summary of file changes associated with this session. Servers
+	// may populate this to give clients a quick at-a-glance view of the
+	// session's footprint (e.g., for list rendering) without requiring the
+	// client to subscribe to a changeset.
+	Changes *ChangesSummary `json:"changes,omitempty"`
 }

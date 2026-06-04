@@ -548,6 +548,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'SessionState' },
   { name: 'SessionActiveClient' },
   { name: 'SessionSummary' },
+  { name: 'ChangesSummary' },
   { name: 'ProjectInfo' },
   { name: 'SessionConfigPropertySchema' },
   { name: 'SessionConfigSchema' },

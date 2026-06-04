@@ -216,6 +216,30 @@ export interface SessionSummary {
    * {@link /guide/changesets | Changesets} for an overview of the model.
    */
   changesets?: ChangesetSummary[];
+  /**
+  * Aggregate summary of file changes associated with this session. Servers
+  * may populate this to give clients a quick at-a-glance view of the
+  * session's footprint (e.g., for list rendering) without requiring the
+  * client to subscribe to a changeset.
+  */
+  changes?: ChangesSummary;
+}
+
+/**
+ * Aggregate counts describing the file changes associated with a session.
+ *
+ * All fields are optional so servers can populate only the metrics they
+ * cheaply have available.
+ *
+ * @category Session State
+ */
+export interface ChangesSummary {
+  /** Total number of inserted lines across all changed files. */
+  additions?: number;
+  /** Total number of deleted lines across all changed files. */
+  deletions?: number;
+  /** Number of files that have changes. */
+  files?: number;
 }
 
 // ─── Model Selection ─────────────────────────────────────────────────────────

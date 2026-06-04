@@ -32,6 +32,12 @@ Spec version: `0.3.0`
   operation's execution lifecycle (`idle → running → error`) back into
   changeset state.
 - Added optional `_meta` provider metadata to `AgentCustomization`.
+- Added optional `changes` field of type `ChangesSummary` to `SessionSummary`,
+  carrying optional `additions`, `deletions`, and `files` counts so servers
+  can advertise an at-a-glance view of a session's file-change footprint.
+- Removed the `additions`, `deletions`, and `files` fields from
+  `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`;
+  per-changeset views derive their own totals from `ChangesetState.files`.
 - Renamed the `UserMessage` type to `Message` and surfaced it consistently
   across turn state (`Turn.message`, `ActiveTurn.message`, `PendingMessage.message`)
   and the actions that carry it (`session/turnStarted`,

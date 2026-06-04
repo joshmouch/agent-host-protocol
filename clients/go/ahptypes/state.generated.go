@@ -615,6 +615,24 @@ type SessionSummary struct {
 	// before subscribing. See {@link ChangesetSummary} for the full shape and
 	// {@link /guide/changesets | Changesets} for an overview of the model.
 	Changesets []ChangesetSummary `json:"changesets,omitempty"`
+	// Aggregate summary of file changes associated with this session. Servers
+	// may populate this to give clients a quick at-a-glance view of the
+	// session's footprint (e.g., for list rendering) without requiring the
+	// client to subscribe to a changeset.
+	Changes *ChangesSummary `json:"changes,omitempty"`
+}
+
+// Aggregate counts describing the file changes associated with a session.
+//
+// All fields are optional so servers can populate only the metrics they
+// cheaply have available.
+type ChangesSummary struct {
+	// Total number of inserted lines across all changed files.
+	Additions *int64 `json:"additions,omitempty"`
+	// Total number of deleted lines across all changed files.
+	Deletions *int64 `json:"deletions,omitempty"`
+	// Number of files that have changes.
+	Files *int64 `json:"files,omitempty"`
 }
 
 // Server-owned project metadata for a session.
@@ -2038,12 +2056,6 @@ type ChangesetSummary struct {
 	UriTemplate string `json:"uriTemplate"`
 	// Optional longer description.
 	Description *string `json:"description,omitempty"`
-	// Aggregate line additions across the changeset, when known.
-	Additions *int64 `json:"additions,omitempty"`
-	// Aggregate line deletions across the changeset, when known.
-	Deletions *int64 `json:"deletions,omitempty"`
-	// Number of files in the changeset, when known.
-	Files *int64 `json:"files,omitempty"`
 }
 
 // Full state for a single changeset, returned when a client subscribes to

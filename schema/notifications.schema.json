@@ -128,6 +128,10 @@
                 "$ref": "#/$defs/ChangesetSummary"
               },
               "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+            },
+            "changes": {
+              "$ref": "#/$defs/ChangesSummary",
+              "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
             }
           },
           "description": "Mutable summary fields that changed; omitted fields are unchanged.\n\nIdentity fields (`resource`, `provider`, `createdAt`) never change and\nMUST be omitted by senders; receivers SHOULD ignore them if present."
@@ -999,6 +1003,10 @@
             "$ref": "#/$defs/ChangesetSummary"
           },
           "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+        },
+        "changes": {
+          "$ref": "#/$defs/ChangesSummary",
+          "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
         }
       },
       "required": [
@@ -1009,6 +1017,24 @@
         "createdAt",
         "modifiedAt"
       ]
+    },
+    "ChangesSummary": {
+      "type": "object",
+      "description": "Aggregate counts describing the file changes associated with a session.\n\nAll fields are optional so servers can populate only the metrics they\ncheaply have available.",
+      "properties": {
+        "additions": {
+          "type": "number",
+          "description": "Total number of inserted lines across all changed files."
+        },
+        "deletions": {
+          "type": "number",
+          "description": "Total number of deleted lines across all changed files."
+        },
+        "files": {
+          "type": "number",
+          "description": "Number of files that have changes."
+        }
+      }
     },
     "AgentSelection": {
       "type": "object",
@@ -3573,18 +3599,6 @@
         "description": {
           "type": "string",
           "description": "Optional longer description."
-        },
-        "additions": {
-          "type": "number",
-          "description": "Aggregate line additions across the changeset, when known."
-        },
-        "deletions": {
-          "type": "number",
-          "description": "Aggregate line deletions across the changeset, when known."
-        },
-        "files": {
-          "type": "number",
-          "description": "Number of files in the changeset, when known."
         }
       },
       "required": [

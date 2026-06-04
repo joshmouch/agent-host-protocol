@@ -580,9 +580,8 @@ pub struct SessionActivityChangedAction {
 /// `state.summary.changesets` entirely (full-replacement semantics) — set
 /// to `undefined` to clear the catalogue.
 ///
-/// Producers dispatch this whenever entries are added, removed, or have
-/// their aggregate counts (`additions` / `deletions` / `files`) refreshed.
-/// The fan-out happens through this action so observers see catalogue
+/// Producers dispatch this whenever entries are added or removed. The
+/// fan-out happens through this action so observers see catalogue
 /// mutations in the same {@link ChangesetAction | per-changeset} action
 /// stream they already follow for file-level updates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

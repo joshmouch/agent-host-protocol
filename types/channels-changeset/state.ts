@@ -43,12 +43,6 @@ export interface ChangesetSummary {
   uriTemplate: string;
   /** Optional longer description. */
   description?: string;
-  /** Aggregate line additions across the changeset, when known. */
-  additions?: number;
-  /** Aggregate line deletions across the changeset, when known. */
-  deletions?: number;
-  /** Number of files in the changeset, when known. */
-  files?: number;
 }
 
 /**

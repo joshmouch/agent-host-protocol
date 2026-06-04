@@ -168,6 +168,6 @@ The `summary.diffs` field and the `session/diffsChanged` action were
 removed in v0.2.0. Servers that previously populated `summary.diffs`
 should expose an equivalent server-side changeset with a static
 `uriTemplate` ending in `/changeset/session` and surface its
-`additions`/`deletions`/`files` counts on the new `summary.changesets`
-catalogue entry. Clients that want a single "session-wide" diff view
-subscribe to that one changeset URI.
+aggregate counts on the new `summary.changes` field. Clients that
+want a single "session-wide" diff view subscribe to that one
+changeset URI.

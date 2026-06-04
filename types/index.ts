@@ -21,6 +21,7 @@ export type {
   AgentSelection,
   SessionState,
   SessionSummary,
+  ChangesSummary,
   SessionConfigState,
   Turn,
   ActiveTurn,
