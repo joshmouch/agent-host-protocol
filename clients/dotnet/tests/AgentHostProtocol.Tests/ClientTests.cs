@@ -576,4 +576,60 @@ public sealed class ClientTests
         await Assert.ThrowsAsync<AhpClientClosedException>(
             async () => await client.NotifyAsync<object?>("ping", null));
     }
+
+    // D: server req -> MethodNotFound.
+    // With no ServerRequestHandler installed, an inbound server-initiated request
+    // is answered with a JSON-RPC MethodNotFound (-32601) error, not dropped.
+    [Fact]
+    public async Task ServerRequest_NoHandler_RepliesMethodNotFound()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        await using var client = await AhpClient.ConnectAsync(clientSide);
+        // (no SetServerRequestHandler call)
+
+        // Server sends a request (note: it HAS an id -> it's a request, not a notif).
+        var req = new JsonRpcMessage
+        {
+            Request = new JsonRpcRequest { Id = 99, Method = "permission/request", Params = null },
+        };
+        await serverSide.SendAsync(Ser.EncodeMessage(req), cts.Token);
+
+        // The client replies with an error frame carrying the same id + -32601.
+        var replyFrame = await serverSide.ReceiveAsync(cts.Token);
+        var reply = Ser.DecodeMessage(replyFrame);
+        Assert.NotNull(reply.ErrorResponse);
+        Assert.Equal(99UL, reply.ErrorResponse!.Id);
+        Assert.Equal(JsonRpcErrorCodes.MethodNotFound, reply.ErrorResponse.Error.Code);
+    }
+
+    // D: server req -> handler result.
+    // With a ServerRequestHandler installed, the client replies with the handler's
+    // result for an inbound server-initiated request.
+    [Fact]
+    public async Task ServerRequest_Handler_RepliesResult()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        await using var client = await AhpClient.ConnectAsync(clientSide);
+        client.SetServerRequestHandler((method, @params) =>
+            Task.FromResult<object?>(new { ok = true, echoed = method }));
+
+        var req = new JsonRpcMessage
+        {
+            Request = new JsonRpcRequest { Id = 7, Method = "permission/request", Params = null },
+        };
+        await serverSide.SendAsync(Ser.EncodeMessage(req), cts.Token);
+
+        var replyFrame = await serverSide.ReceiveAsync(cts.Token);
+        var reply = Ser.DecodeMessage(replyFrame);
+        Assert.NotNull(reply.SuccessResponse);
+        Assert.Equal(7UL, reply.SuccessResponse!.Id);
+        // The handler's result object is serialized into the reply.
+        var resultJson = reply.SuccessResponse.Result.GetRawText();
+        Assert.Contains("\"ok\":true", resultJson);
+        Assert.Contains("permission/request", resultJson);
+    }
 }

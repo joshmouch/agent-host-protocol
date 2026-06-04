@@ -32,6 +32,18 @@ public sealed class ClientConfig
     public static ClientConfig Default { get; } = new();
 }
 
+// ─── Server-initiated request handling ─────────────────────────────────────────
+
+/// <summary>
+/// Handles a server-initiated JSON-RPC request. Return the result object to
+/// reply with success; throw <see cref="AhpRpcException"/> to reply with that
+/// JSON-RPC error. Receives the raw method name and the raw params element.
+/// </summary>
+/// <param name="method">The JSON-RPC method the server invoked.</param>
+/// <param name="params">The raw params element, or <see langword="null"/> if absent.</param>
+/// <returns>The result object to serialize into the success reply (may be null).</returns>
+public delegate Task<object?> ServerRequestHandler(string method, JsonElement? @params);
+
 // ─── AhpClient ────────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -63,6 +75,10 @@ public sealed class AhpClient : IAsyncDisposable
     // Monotonically incrementing counters (no lock needed — Interlocked).
     private ulong _nextId = 1;
     private long _nextClientSeq = 1;
+
+    // Optional handler for server-initiated requests. Published reference, read
+    // lock-free; `volatile` supplies the visibility a lock would otherwise give.
+    private volatile ServerRequestHandler? _serverRequestHandler;
 
     // Lifecycle
     private readonly TaskCompletionSource _doneTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -312,7 +328,13 @@ public sealed class AhpClient : IAsyncDisposable
         {
             HandleNotification(msg.Notification);
         }
-        // Server-initiated requests aren't supported in v0.1; drop.
+        else if (msg.Request is not null)
+        {
+            // Fire-and-forget: server-initiated request. Reply async so the reader
+            // loop is never blocked by handler work. (Lifts the v0.1 "drop server
+            // requests" limitation; mirrors the TS client's handleServerRequest.)
+            _ = HandleServerRequestAsync(msg.Request);
+        }
     }
 
     private void Deliver(ulong id, JsonElement result, AhpRpcException? rpcError)
@@ -324,6 +346,83 @@ public sealed class AhpClient : IAsyncDisposable
             else
                 tcs.TrySetResult(result);
         }
+    }
+
+    // ── Server-initiated requests ─────────────────────────────────────────
+
+    /// <summary>
+    /// Installs a handler for server-initiated requests. If none is installed, the
+    /// client auto-replies <c>MethodNotFound</c> so the server does not leak a
+    /// pending request. Pass <see langword="null"/> to clear.
+    /// </summary>
+    public void SetServerRequestHandler(ServerRequestHandler? handler) => _serverRequestHandler = handler;
+
+    /// <summary>
+    /// Replies to an inbound server-initiated request: <c>MethodNotFound</c> if no
+    /// handler is installed, otherwise the handler's result (or its thrown error).
+    /// Mirrors the TS client's <c>handleServerRequest</c>.
+    /// </summary>
+    private async Task HandleServerRequestAsync(JsonRpcRequest req)
+    {
+        var handler = _serverRequestHandler;
+        if (handler is null)
+        {
+            await ReplyErrorAsync(req.Id, JsonRpcErrorCodes.MethodNotFound,
+                $"no handler for server method \"{req.Method}\"").ConfigureAwait(false);
+            return;
+        }
+        try
+        {
+            var result = await handler(req.Method, req.Params).ConfigureAwait(false);
+            JsonElement resultEl;
+            if (result is null)
+            {
+                using var doc = JsonDocument.Parse("null");
+                resultEl = doc.RootElement.Clone();
+            }
+            else
+            {
+                using var doc = JsonDocument.Parse(_serializer.Serialize(result));
+                resultEl = doc.RootElement.Clone();
+            }
+            await ReplyResultAsync(req.Id, resultEl).ConfigureAwait(false);
+        }
+        catch (AhpRpcException rpc)
+        {
+            await ReplyErrorAsync(req.Id, rpc.Code, rpc.Message).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            await ReplyErrorAsync(req.Id, JsonRpcErrorCodes.InternalError, ex.Message).ConfigureAwait(false);
+        }
+    }
+
+    private Task ReplyResultAsync(ulong id, JsonElement result) =>
+        EnqueueReplyAsync(new JsonRpcMessage
+        {
+            SuccessResponse = new JsonRpcSuccessResponse { Id = id, Result = result },
+        });
+
+    private Task ReplyErrorAsync(ulong id, int code, string message) =>
+        EnqueueReplyAsync(new JsonRpcMessage
+        {
+            ErrorResponse = new JsonRpcErrorResponse
+            {
+                Id = id,
+                Error = new JsonRpcErrorObject { Code = code, Message = message },
+            },
+        });
+
+    // Enqueue a reply frame on the existing outbound channel. Best-effort: if the
+    // client is shutting down, the reply is dropped (the transport is gone anyway).
+    private async Task EnqueueReplyAsync(JsonRpcMessage msg)
+    {
+        if (Volatile.Read(ref _shutdownStarted) == 1) return;
+        try
+        {
+            await _outbound.Writer.WriteAsync(new OutboundMessage(msg)).ConfigureAwait(false);
+        }
+        catch { /* shutting down — best effort */ }
     }
 
     private void HandleNotification(JsonRpcNotification n)
