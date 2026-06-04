@@ -50,25 +50,25 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 
 ## Testing
 
-Four layers, all run by `dotnet test` (against both target frameworks):
+Run by `dotnet test` (against both target frameworks):
 
 1. **Shared conformance** — `FixtureDrivenReducerTests` replays the 163
    cross-language reducer fixtures (`types/test-cases/reducers/*.json`).
 2. **Native unit tests** — `ClientTests` (full `AhpClient` over an in-memory
    `MemTransport`, the port of Go's `client_test.go`), `HostsTests`,
    `TypesRoundTripTests`, `ReconnectPolicyTests`.
-3. **Real-socket integration** — `LiveSocketIntegrationTests` drives the full
-   `AhpClient` + `WebSocketTransport` over a real localhost WebSocket against a
-   minimal `HttpListener` AHP server (BCL-only): connect → `initialize`
-   request/response → live `action` notification → reduce.
-4. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
+3. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
    replays a session trace captured from an INDEPENDENT host (OpenAgency's
-   `AhpWsHost`, the canonical TS `sessionReducer`) and asserts byte-identical
-   convergence. The client was also validated LIVE against that host over a real
-   WebSocket (snapshot + replayed action stream both converge).
+   `AhpWsHost` on the canonical TS `sessionReducer`) and asserts byte-identical
+   convergence (`serverSeq` + host-authoritative `modifiedAt`).
 
-The suite runs sequentially (`DisableTestParallelization`) so the socket
-integration test isn't starved of the thread pool by parallel unit tests.
+Beyond CI, the **full `AhpClient` has been validated LIVE over a real WebSocket**
+against a spec-faithful AHP host built on the canonical `sessionReducer`: the
+real `initialize` request/response handshake, the snapshot in `InitializeResult`,
+and the live `action` notification stream all converge with the host. (No
+client in any language ships a real-socket integration test — they are all
+mock-transport-based; this validation is run out-of-band rather than committed,
+since it needs a Node host + the published package.)
 
 ## Architecture decisions
 
