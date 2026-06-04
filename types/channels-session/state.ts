@@ -5,7 +5,7 @@
  * @module channels-session/state
  */
 
-import type { ChangesetSummary } from '../channels-changeset/state.js';
+import type { Changeset } from '../channels-changeset/state.js';
 import type { ModelSelection } from '../channels-root/state.js';
 import type {
   ConfigPropertySchema,
@@ -221,10 +221,34 @@ export interface SessionSummary {
    * Catalogue of changesets the server can produce for this session. Each
    * entry advertises a subscribable view of file changes (uncommitted,
    * session-wide, per-turn, etc.) and the URI template the client expands
-   * before subscribing. See {@link ChangesetSummary} for the full shape and
+   * before subscribing. See {@link Changeset} for the full shape and
    * {@link /guide/changesets | Changesets} for an overview of the model.
    */
-  changesets?: ChangesetSummary[];
+  changesets?: Changeset[];
+  /**
+  * Aggregate summary of file changes associated with this session. Servers
+  * may populate this to give clients a quick at-a-glance view of the
+  * session's footprint (e.g., for list rendering) without requiring the
+  * client to subscribe to a changeset.
+  */
+  changes?: ChangesSummary;
+}
+
+/**
+ * Aggregate counts describing the file changes associated with a session.
+ *
+ * All fields are optional so servers can populate only the metrics they
+ * cheaply have available.
+ *
+ * @category Session State
+ */
+export interface ChangesSummary {
+  /** Total number of inserted lines across all changed files. */
+  additions?: number;
+  /** Total number of deleted lines across all changed files. */
+  deletions?: number;
+  /** Number of files that have changes. */
+  files?: number;
 }
 
 // ─── Model Selection ─────────────────────────────────────────────────────────

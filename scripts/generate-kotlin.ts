@@ -761,7 +761,7 @@ const STATE_STRUCTS = [
   'Icon', 'ProtectedResourceMetadata', 'RootState', 'RootConfigState', 'AgentInfo',
   'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
-  'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
+  'SessionSummary', 'ChangesSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
   'SessionInputOption',
   'SessionInputTextAnswerValue', 'SessionInputNumberAnswerValue',
   'SessionInputBooleanAnswerValue', 'SessionInputSelectedAnswerValue',
@@ -796,7 +796,7 @@ const STATE_STRUCTS = [
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
-  'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];

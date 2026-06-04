@@ -26,7 +26,7 @@ The rest of this page details the URI scheme and the lifecycle of a subscription
 | `ahp-root://` | `RootState` | Global state (agents, terminals, host config). Always present. |
 | `ahp-session:/<uuid>` | `SessionState` | Per-session state. The session's provider is carried on `SessionSummary.provider`, not in the URI scheme. |
 | `ahp-terminal:/<id>` | `TerminalState` | Per-terminal state. Server-defined id. |
-| `ahp-changeset:/<id>` | `ChangesetState` | Per-changeset state. URI is obtained by expanding a `ChangesetSummary.uriTemplate` advertised on a session; the id is server-defined. |
+| `ahp-changeset:/<id>` | `ChangesetState` | Per-changeset state. URI is obtained by expanding a `Changeset.uriTemplate` advertised on a session; the id is server-defined. |
 | `ahp-otlp:` _(authority/path host-defined)_ | _stateless_ | OpenTelemetry signal channels (logs, traces, metrics). Concrete URIs are advertised on `InitializeResult.telemetry`; clients MUST treat them as opaque. See [Telemetry Channel](/specification/telemetry-channel). |
 | `ahp-resource-watch:/<id>` | `ResourceWatchState` | Per-watch channel returned by `createResourceWatch`. Delivers `resourceWatch/changed` actions for file/directory changes under the watched URI. The id is caller-chosen. |
 

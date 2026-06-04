@@ -585,7 +585,7 @@ data class SessionChangesetsChangedAction(
     /**
      * New catalogue, or `undefined` to clear it
      */
-    val changesets: List<ChangesetSummary>? = null
+    val changesets: List<Changeset>? = null
 )
 
 @Serializable

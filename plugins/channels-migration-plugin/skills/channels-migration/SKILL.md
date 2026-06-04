@@ -62,7 +62,7 @@ Concretely:
 - **Terminal URI scheme** (docs/examples): `ahp-terminal:/<id>`. Server-
   defined; clients treat as opaque.
 - **Changeset URI scheme** (docs/examples): `ahp-changeset:/<id>`. Server-
-  defined; obtained by expanding a `ChangesetSummary.uriTemplate`.
+  defined; obtained by expanding a `Changeset.uriTemplate`.
   Changesets are a new channel type introduced in the same step.
 - **`channel` everywhere**: `subscribe`/`unsubscribe`/action-envelope/
   `dispatchAction`/every protocol notification AND every command has

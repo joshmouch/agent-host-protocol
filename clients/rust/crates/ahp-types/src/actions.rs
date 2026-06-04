@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetOperationStatus,
-    ChangesetStatus, ChangesetSummary, ConfirmationOption, Customization, ErrorInfo,
+    AgentInfo, AgentSelection, Changeset, ChangesetFile, ChangesetOperation,
+    ChangesetOperationStatus, ChangesetStatus, ConfirmationOption, Customization, ErrorInfo,
     McpServerState, Message, ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient,
     SessionInputAnswer, SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
     ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributor, ToolCallResult,
@@ -579,14 +579,13 @@ pub struct SessionActivityChangedAction {
     pub activity: Option<String>,
 }
 
-/// The {@link ChangesetSummary | catalogue of changesets} the agent host
+/// The {@link Changeset | catalogue of changesets} the agent host
 /// advertises for this session changed. Replaces
 /// `state.summary.changesets` entirely (full-replacement semantics) — set
 /// to `undefined` to clear the catalogue.
 ///
-/// Producers dispatch this whenever entries are added, removed, or have
-/// their aggregate counts (`additions` / `deletions` / `files`) refreshed.
-/// The fan-out happens through this action so observers see catalogue
+/// Producers dispatch this whenever entries are added or removed. The
+/// fan-out happens through this action so observers see catalogue
 /// mutations in the same {@link ChangesetAction | per-changeset} action
 /// stream they already follow for file-level updates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -594,7 +593,7 @@ pub struct SessionActivityChangedAction {
 pub struct SessionChangesetsChangedAction {
     /// New catalogue, or `undefined` to clear it
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<ChangesetSummary>>,
+    pub changesets: Option<Vec<Changeset>>,
 }
 
 /// Server tools for this session have changed.

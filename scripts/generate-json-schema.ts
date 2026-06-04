@@ -39,16 +39,23 @@ interface JsonSchema {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// JSDoc text picked up from .ts files may contain CRLF when the working tree
+// was checked out on Windows; normalize so generated schemas are byte-identical
+// across platforms.
+function normalizeDescription(text: string): string {
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+}
+
 function getPropertyDescription(prop: PropertySignature): string {
   const jsDocs = prop.getJsDocs();
   if (jsDocs.length === 0) return '';
-  return jsDocs[0].getDescription().trim();
+  return normalizeDescription(jsDocs[0].getDescription());
 }
 
 function getInterfaceDescription(node: InterfaceDeclaration): string {
   const jsDocs = node.getJsDocs();
   if (jsDocs.length === 0) return '';
-  return jsDocs[0].getDescription().trim();
+  return normalizeDescription(jsDocs[0].getDescription());
 }
 
 function getPropertyType(prop: PropertySignature): string {
@@ -322,7 +329,8 @@ function generateStateSchema(project: Project): JsonSchema {
       const typeText = ta.getTypeNode()?.getText() || '';
       if (typeText === 'string' || typeText.includes('[')) continue;
       schema.$defs![name] = typeTextToSchema(typeText, project);
-      const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+      const rawDesc = ta.getJsDocs()[0]?.getDescription();
+      const desc = rawDesc ? normalizeDescription(rawDesc) : '';
       if (desc) schema.$defs![name].description = desc;
     }
   }
@@ -353,7 +361,8 @@ function generateActionsSchema(project: Project): JsonSchema {
       if (name === 'StateAction') continue; // handled below
       const typeText = ta.getTypeNode()?.getText() || '';
       schema.$defs![name] = typeTextToSchema(typeText, project);
-      const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+      const rawDesc = ta.getJsDocs()[0]?.getDescription();
+      const desc = rawDesc ? normalizeDescription(rawDesc) : '';
       if (desc) schema.$defs![name].description = desc;
     }
   }
@@ -374,7 +383,8 @@ function generateActionsSchema(project: Project): JsonSchema {
       if (typeText === 'string' || typeText.includes('[')) continue;
       if (!schema.$defs![name]) {
         schema.$defs![name] = typeTextToSchema(typeText, project);
-        const desc = ta.getJsDocs()[0]?.getDescription()?.trim();
+        const rawDesc = ta.getJsDocs()[0]?.getDescription();
+        const desc = rawDesc ? normalizeDescription(rawDesc) : '';
         if (desc) schema.$defs![name].description = desc;
       }
     }

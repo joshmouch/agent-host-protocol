@@ -705,11 +705,11 @@ public struct SessionActivityChangedAction: Codable, Sendable {
 public struct SessionChangesetsChangedAction: Codable, Sendable {
     public var type: ActionType
     /// New catalogue, or `undefined` to clear it
-    public var changesets: [ChangesetSummary]?
+    public var changesets: [Changeset]?
 
     public init(
         type: ActionType,
-        changesets: [ChangesetSummary]? = nil
+        changesets: [Changeset]? = nil
     ) {
         self.type = type
         self.changesets = changesets

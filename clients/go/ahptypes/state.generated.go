@@ -680,9 +680,27 @@ type SessionSummary struct {
 	// Catalogue of changesets the server can produce for this session. Each
 	// entry advertises a subscribable view of file changes (uncommitted,
 	// session-wide, per-turn, etc.) and the URI template the client expands
-	// before subscribing. See {@link ChangesetSummary} for the full shape and
+	// before subscribing. See {@link Changeset} for the full shape and
 	// {@link /guide/changesets | Changesets} for an overview of the model.
-	Changesets []ChangesetSummary `json:"changesets,omitempty"`
+	Changesets []Changeset `json:"changesets,omitempty"`
+	// Aggregate summary of file changes associated with this session. Servers
+	// may populate this to give clients a quick at-a-glance view of the
+	// session's footprint (e.g., for list rendering) without requiring the
+	// client to subscribe to a changeset.
+	Changes *ChangesSummary `json:"changes,omitempty"`
+}
+
+// Aggregate counts describing the file changes associated with a session.
+//
+// All fields are optional so servers can populate only the metrics they
+// cheaply have available.
+type ChangesSummary struct {
+	// Total number of inserted lines across all changed files.
+	Additions *int64 `json:"additions,omitempty"`
+	// Total number of deleted lines across all changed files.
+	Deletions *int64 `json:"deletions,omitempty"`
+	// Number of files that have changes.
+	Files *int64 `json:"files,omitempty"`
 }
 
 // Server-owned project metadata for a session.
@@ -2217,7 +2235,7 @@ type Snapshot struct {
 // chip or list row without subscribing. Full per-changeset detail
 // ({@link ChangesetState}) lives on the subscribable URI obtained by
 // expanding {@link uriTemplate}.
-type ChangesetSummary struct {
+type Changeset struct {
 	// Human-readable label, e.g. `"Uncommitted Changes"`.
 	Label string `json:"label"`
 	// RFC 6570 URI template. Clients parse the variables directly out of the
@@ -2238,12 +2256,6 @@ type ChangesetSummary struct {
 	UriTemplate string `json:"uriTemplate"`
 	// Optional longer description.
 	Description *string `json:"description,omitempty"`
-	// Aggregate line additions across the changeset, when known.
-	Additions *int64 `json:"additions,omitempty"`
-	// Aggregate line deletions across the changeset, when known.
-	Deletions *int64 `json:"deletions,omitempty"`
-	// Number of files in the changeset, when known.
-	Files *int64 `json:"files,omitempty"`
 }
 
 // Full state for a single changeset, returned when a client subscribes to

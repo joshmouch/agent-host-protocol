@@ -19,10 +19,7 @@
       "changesets": [
         {
           "label": "Session Changes",
-          "uriTemplate": "copilot:/test-session/changeset/session",
-          "additions": 5,
-          "deletions": 2,
-          "files": 1
+          "uriTemplate": "copilot:/test-session/changeset/session"
         }
       ]
     }
@@ -38,10 +35,7 @@
       "changesets": [
         {
           "label": "Session Changes",
-          "uriTemplate": "copilot:/test-session/changeset/session",
-          "additions": 5,
-          "deletions": 2,
-          "files": 1
+          "uriTemplate": "copilot:/test-session/changeset/session"
         }
       ]
     },
