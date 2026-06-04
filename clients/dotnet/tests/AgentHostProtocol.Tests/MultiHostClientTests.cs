@@ -714,8 +714,9 @@ public sealed class MultiHostClientTests
         Assert.True(ok0);
         Assert.Equal(new HostId("h"), initial.Id);
 
-        // Pump until we observe a Connected snapshot.
-        var sawConnected = false;
+        // The initial snapshot is already Connected (AddHostAsync returned Connected
+        // before we subscribed), so count it; also pump in case a connect lands later.
+        var sawConnected = initial.State.Kind == HostStateKind.Connected;
         for (var i = 0; i < 30 && !sawConnected; i++)
         {
             var (ok, snap) = await ReadWithTimeoutAsync(reader, cts.Token, 500);
@@ -941,7 +942,8 @@ public sealed class MultiHostClientTests
     {
         try
         {
-            for (var i = 0; i < 4 && !ct.IsCancellationRequested; i++)
+            var sawInit = false; var sawList = false;
+            while (!ct.IsCancellationRequested && !(sawInit && sawList))
             {
                 TransportMessage frame;
                 try { frame = await serverSide.ReceiveAsync(ct).ConfigureAwait(false); }
@@ -950,12 +952,16 @@ public sealed class MultiHostClientTests
                 try { msg = Ser.DecodeMessage(frame); }
                 catch { break; }
                 if (msg.Request?.Method == "initialize")
-                    await RespondInitializeWithRootAsync(serverSide, msg.Request.Id, null, 0, ct).ConfigureAwait(false);
+                { await RespondInitializeWithRootAsync(serverSide, msg.Request.Id, null, 0, ct).ConfigureAwait(false); sawInit = true; }
                 else if (msg.Request?.Method == "listSessions")
-                    await RespondListSessionsAsync(serverSide, msg.Request.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false);
+                { await RespondListSessionsAsync(serverSide, msg.Request.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false); sawList = true; }
                 else if (msg.Request is not null)
                     await RespondEmptyAsync(serverSide, msg.Request.Id, ct).ConfigureAwait(false);
             }
+            // Handshake answered → the host reaches Connected (AddHostAsync awaits
+            // OpenHostAsync). Brief grace so it is Connected + supervised before we
+            // drop the transport, forcing a clean spontaneous drop.
+            await Task.Delay(100, ct).ConfigureAwait(false);
         }
         catch { /* ignore */ }
         finally { try { await serverSide.CloseAsync().ConfigureAwait(false); } catch { } }
@@ -1172,17 +1178,23 @@ public sealed class MultiHostClientTests
                 {
                     try
                     {
-                        for (var i = 0; i < 4 && !ct.IsCancellationRequested; i++)
+                        var sawInit = false; var sawList = false;
+                        while (!ct.IsCancellationRequested && !(sawInit && sawList))
                         {
                             var frame = await s.ReceiveAsync(ct).ConfigureAwait(false);
                             var msg = Ser.DecodeMessage(frame);
                             if (msg.Request?.Method == "initialize")
-                                await RespondInitializeWithRootAsync(s, msg.Request.Id, null, 0, ct).ConfigureAwait(false);
+                            { await RespondInitializeWithRootAsync(s, msg.Request.Id, null, 0, ct).ConfigureAwait(false); sawInit = true; }
                             else if (msg.Request?.Method == "listSessions")
-                                await RespondListSessionsAsync(s, msg.Request.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false);
+                            { await RespondListSessionsAsync(s, msg.Request.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false); sawList = true; }
                             else if (msg.Request is not null)
                                 await RespondEmptyAsync(s, msg.Request.Id, ct).ConfigureAwait(false);
                         }
+                        // Handshake answered → the host reaches Connected (AddHostAsync awaits
+                        // OpenHostAsync). Brief grace so it is Connected + supervised before we
+                        // drop the transport; a spontaneous drop on a disabled policy parks the
+                        // host in .failed (registered, not connected) — exactly what this test needs.
+                        await Task.Delay(100, ct).ConfigureAwait(false);
                     }
                     catch { /* ignore */ }
                     finally { await s.CloseAsync().ConfigureAwait(false); }

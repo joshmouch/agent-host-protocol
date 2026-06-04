@@ -521,7 +521,13 @@ internal sealed class HostEntry
     /// </summary>
     public async Task<bool> WaitForDropOrManualReconnectAsync(Task completion, CancellationToken ct)
     {
-        var manual = _manualReconnect.WaitAsync(ct);
+        // The manual wait must be cancellable independently of ct: if the DROP
+        // wins the race, a still-pending _manualReconnect.WaitAsync waiter would
+        // linger in the semaphore's FIFO queue and swallow the next
+        // ReconnectAsync Release() that is meant to wake the PARKED supervisor —
+        // leaving the host asleep forever (the manual reconnect never takes).
+        using var manualCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var manual = _manualReconnect.WaitAsync(manualCts.Token);
         var winner = await Task.WhenAny(completion, manual).ConfigureAwait(false);
         if (winner == manual)
         {
@@ -529,6 +535,12 @@ internal sealed class HostEntry
             try { await manual.ConfigureAwait(false); } catch { }
             return true;
         }
+        // Drop won. Cancel the loser to release its semaphore slot. If it raced to
+        // completion and actually took a permit, hand the permit back so the
+        // pending manual reconnect is not lost.
+        manualCts.Cancel();
+        try { await manual.ConfigureAwait(false); _manualReconnect.Release(); }
+        catch { /* cancelled before taking a permit — nothing to return */ }
         return false;
     }
 
