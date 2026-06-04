@@ -2499,6 +2499,24 @@ pub struct Changeset {
     /// Optional longer description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    ///
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    ///   agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    ///   diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    ///   `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    ///   `{originalTurnId}` and `{modifiedTurnId}` variables in
+    ///   {@link uriTemplate}.
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    pub change_kind: String,
 }
 
 /// Full state for a single changeset, returned when a client subscribes to

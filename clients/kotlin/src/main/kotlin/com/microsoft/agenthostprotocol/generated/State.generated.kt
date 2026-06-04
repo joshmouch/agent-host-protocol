@@ -2967,7 +2967,27 @@ data class Changeset(
     /**
      * Optional longer description.
      */
-    val description: String? = null
+    val description: String? = null,
+    /**
+     * Advisory hint describing what kind of changeset this is, so clients can
+     * group, sort, or render an appropriate icon without parsing
+     * {@link uriTemplate}. Recognized values include:
+     * 
+     * - `'session'`: a static, session-wide changeset covering all changes the
+     * agent has produced in this session.
+     * - `'branch'`: changes relative to a base branch (e.g. a feature branch
+     * diffed against `main`).
+     * - `'uncommitted'`: the workspace's current uncommitted changes.
+     * - `'turn'`: changes produced by a single turn. Typically paired with a
+     * `{turnId}` variable in {@link uriTemplate}.
+     * - `'compare-turns'`: a diff between two turns. Typically paired with
+     * `{originalTurnId}` and `{modifiedTurnId}` variables in
+     * {@link uriTemplate}.
+     * 
+     * Implementations MAY provide additional values; clients SHOULD fall back
+     * to a reasonable default when an unknown value is encountered.
+     */
+    val changeKind: String
 )
 
 @Serializable

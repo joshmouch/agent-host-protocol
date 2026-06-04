@@ -3242,15 +3242,35 @@ public struct Changeset: Codable, Sendable {
     public var uriTemplate: String
     /// Optional longer description.
     public var description: String?
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    /// 
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    /// agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    /// diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    /// `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    /// `{originalTurnId}` and `{modifiedTurnId}` variables in
+    /// {@link uriTemplate}.
+    /// 
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var changeKind: String
 
     public init(
         label: String,
         uriTemplate: String,
-        description: String? = nil
+        description: String? = nil,
+        changeKind: String
     ) {
         self.label = label
         self.uriTemplate = uriTemplate
         self.description = description
+        self.changeKind = changeKind
     }
 }
 

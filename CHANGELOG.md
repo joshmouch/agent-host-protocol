@@ -27,6 +27,9 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 Spec version: `0.3.0`
 
+- Added `changeKind` to `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`) so clients can
+  group, sort, or pick an icon without parsing `uriTemplate`.
 - Added `status` and `error` to `ChangesetOperation` and a new
   `changeset/operationStatusChanged` action so servers can reflect an
   operation's execution lifecycle (`idle → running → error`) back into

@@ -15,7 +15,8 @@
     "changesets": [
       {
         "label": "Session Changes",
-        "uriTemplate": "copilot:/test-session/changeset/session"
+        "uriTemplate": "copilot:/test-session/changeset/session",
+        "changeKind": "session"
       }
     ]
   },

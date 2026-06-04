@@ -3592,11 +3592,16 @@
         "description": {
           "type": "string",
           "description": "Optional longer description."
+        },
+        "changeKind": {
+          "type": "string",
+          "description": "Advisory hint describing what kind of changeset this is, so clients can\ngroup, sort, or render an appropriate icon without parsing\n{@link uriTemplate}. Recognized values include:\n\n- `'session'`: a static, session-wide changeset covering all changes the\n  agent has produced in this session.\n- `'branch'`: changes relative to a base branch (e.g. a feature branch\n  diffed against `main`).\n- `'uncommitted'`: the workspace's current uncommitted changes.\n- `'turn'`: changes produced by a single turn. Typically paired with a\n  `{turnId}` variable in {@link uriTemplate}.\n- `'compare-turns'`: a diff between two turns. Typically paired with\n  `{originalTurnId}` and `{modifiedTurnId}` variables in\n  {@link uriTemplate}.\n\nImplementations MAY provide additional values; clients SHOULD fall back\nto a reasonable default when an unknown value is encountered."
         }
       },
       "required": [
         "label",
-        "uriTemplate"
+        "uriTemplate",
+        "changeKind"
       ]
     },
     "ChangesetState": {
