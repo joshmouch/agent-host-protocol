@@ -297,7 +297,6 @@ internal sealed class HostEntry
     private AhpClient? _client;
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
-    private ulong _generation;
     private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
 
     public CancellationTokenSource LifetimeCts { get; } = new();
@@ -311,14 +310,15 @@ internal sealed class HostEntry
         Id = id; Config = config; ClientId = clientId;
     }
 
-    public (AhpClient? client, HostState state, string protoVer, ulong gen) Read()
+    /// <summary>The current client (under the lock), or null if not connected.</summary>
+    public AhpClient? CurrentClient
     {
-        lock (_gate) { return (_client, _state, _protoVer, _generation); }
+        get { lock (_gate) { return _client; } }
     }
 
     public void SetClient(AhpClient? client, string protoVer)
     {
-        lock (_gate) { _client = client; _protoVer = protoVer; if (client is not null) _generation++; }
+        lock (_gate) { _client = client; _protoVer = protoVer; }
     }
 
     public void SetState(HostState state)
@@ -326,6 +326,7 @@ internal sealed class HostEntry
         lock (_gate) { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
     }
 
+    /// <summary>An immutable, consistent snapshot of this host's public state.</summary>
     public HostHandle Snapshot()
     {
         lock (_gate)
@@ -491,7 +492,7 @@ public sealed class MultiHostClient : IAsyncDisposable
             throw new InvalidOperationException($"hosts: unknown host id: {id}");
 
         entry!.LifetimeCts.Cancel();
-        var (client, _, _, _) = entry.Read();
+        var client = entry.CurrentClient;
         if (client is not null)
         {
             try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
@@ -542,7 +543,7 @@ public sealed class MultiHostClient : IAsyncDisposable
         foreach (var entry in entries)
         {
             entry.LifetimeCts.Cancel();
-            var (client, _, _, _) = entry.Read();
+            var client = entry.CurrentClient;
             if (client is not null)
             {
                 try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
@@ -650,7 +651,7 @@ public sealed class MultiHostClient : IAsyncDisposable
 
         while (true)
         {
-            var (client, _, _, _) = entry.Read();
+            var client = entry.CurrentClient;
             if (client is null) return;
 
             try { await client.Completion.WaitAsync(ct).ConfigureAwait(false); }
