@@ -1,4 +1,4 @@
-# ADR 0001 — Concurrency primitives in the .NET client
+# ADR-SYNC — Synchronization & concurrency primitives
 
 - **Status:** Accepted
 - **Scope:** `clients/dotnet` (the `Microsoft.AgentHostProtocol*` packages)

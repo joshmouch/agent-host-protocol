@@ -50,18 +50,18 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 
 ## Architecture decisions
 
-- [`docs/adr/0001-concurrency-primitives.md`](docs/adr/0001-concurrency-primitives.md)
+- [`docs/adr/ADR-SYNC.md`](docs/adr/ADR-SYNC.md)
   — the full menu of .NET synchronization primitives, the distinct concurrency
   use cases in the client, which primitive each gets (`ConcurrentDictionary`
   for the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim`
   only for the WebSocket send path, `Channels`/`Interlocked`/`volatile`
   elsewhere), and why the libraries multi-target `net8.0;net9.0` to use
   `System.Threading.Lock` on .NET 9.
-- [`docs/adr/0002-json-serialization.md`](docs/adr/0002-json-serialization.md)
+- [`docs/adr/ADR-SERIALIZATION.md`](docs/adr/ADR-SERIALIZATION.md)
   — System.Text.Json (default, in-box, fastest) behind the `IAhpSerializer`
   seam, versus Newtonsoft / lazy-DOM / validating options, across speed,
   memory, lazy-vs-eager, validation, dependencies, and AOT.
-- [`docs/adr/0003-reconnect-retry.md`](docs/adr/0003-reconnect-retry.md)
+- [`docs/adr/ADR-RECONNECT.md`](docs/adr/ADR-RECONNECT.md)
   — hand-rolled exponential backoff (with opt-in jitter) versus
   Polly / `Microsoft.Extensions.Resilience`, and why the core stays
   dependency-free.

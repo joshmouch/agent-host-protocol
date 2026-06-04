@@ -1,4 +1,4 @@
-# ADR 0003 — Reconnect / retry strategy
+# ADR-RECONNECT — Reconnect / retry strategy
 
 - **Status:** Accepted
 - **Scope:** `clients/dotnet` — the multi-host reconnect supervisor
@@ -72,7 +72,7 @@ in; it provides the seam.
 - Advanced strategies (circuit breaker, per-attempt timeout, telemetry) are a
   documented future option — most naturally as an *optional* resilience-
   integration package (analogous to the planned validation package in
-  [ADR 0002](0002-json-serialization.md)), not a core dependency.
+  [ADR-SERIALIZATION](ADR-SERIALIZATION.md)), not a core dependency.
 
 ## References
 
