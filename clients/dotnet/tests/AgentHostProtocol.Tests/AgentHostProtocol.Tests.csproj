@@ -24,4 +24,8 @@
     <ProjectReference Include="../../src/AgentHostProtocol.WebSockets/AgentHostProtocol.WebSockets.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="interop/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -48,6 +48,28 @@ fixtures under `types/test-cases/reducers/*.json` are the cross-language parity
 gate — run them with `dotnet test`. The `changeset` and `resourceWatch`
 reducers are intentional stubs (parity with the Rust and Go clients).
 
+## Testing
+
+Four layers, all run by `dotnet test` (against both target frameworks):
+
+1. **Shared conformance** — `FixtureDrivenReducerTests` replays the 163
+   cross-language reducer fixtures (`types/test-cases/reducers/*.json`).
+2. **Native unit tests** — `ClientTests` (full `AhpClient` over an in-memory
+   `MemTransport`, the port of Go's `client_test.go`), `HostsTests`,
+   `TypesRoundTripTests`, `ReconnectPolicyTests`.
+3. **Real-socket integration** — `LiveSocketIntegrationTests` drives the full
+   `AhpClient` + `WebSocketTransport` over a real localhost WebSocket against a
+   minimal `HttpListener` AHP server (BCL-only): connect → `initialize`
+   request/response → live `action` notification → reduce.
+4. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
+   replays a session trace captured from an INDEPENDENT host (OpenAgency's
+   `AhpWsHost`, the canonical TS `sessionReducer`) and asserts byte-identical
+   convergence. The client was also validated LIVE against that host over a real
+   WebSocket (snapshot + replayed action stream both converge).
+
+The suite runs sequentially (`DisableTestParallelization`) so the socket
+integration test isn't starved of the thread pool by parallel unit tests.
+
 ## Architecture decisions
 
 - [`docs/decisions/sync.md`](docs/decisions/sync.md)
