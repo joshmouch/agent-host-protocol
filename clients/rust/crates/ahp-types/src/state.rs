@@ -791,6 +791,13 @@ pub struct SessionState {
     /// are server-originated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<Customization>>,
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link Changeset} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changesets: Option<Vec<Changeset>>,
     /// Additional provider-specific metadata for this session.
     ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -857,13 +864,6 @@ pub struct SessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link Changeset} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<Changeset>>,
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the
@@ -2722,6 +2722,24 @@ pub struct Changeset {
     /// Optional longer description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    ///
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    ///   agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    ///   diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    ///   `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    ///   `{originalTurnId}` and `{modifiedTurnId}` variables in
+    ///   {@link uriTemplate}.
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    pub change_kind: String,
 }
 
 /// Full state for a single changeset, returned when a client subscribes to

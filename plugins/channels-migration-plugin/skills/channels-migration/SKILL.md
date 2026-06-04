@@ -433,7 +433,7 @@ After the migration, your code should:
 - [ ] Resolve a session's provider via `SessionSummary.provider`, not via
       the URI scheme.
 - [ ] No `SessionDiffsChangedAction` / `summary.diffs` references; consume
-      `summary.changesets` plus the `changeset/*` action family instead.
+      `SessionState.changesets` plus the `changeset/*` action family instead.
 - [ ] Every command's params carries `channel: URI`. Channel-scoped
       commands (`createSession`, `disposeSession`, `createTerminal`,
       `disposeTerminal`, `fetchTurns`, `completions`,

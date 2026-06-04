@@ -930,9 +930,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
     )
 
     is StateActionSessionChangesetsChanged -> state.copy(
-        // Clear the field entirely when no changesets are provided, matching
-        // TS `{ ...summaryWithoutChangesets }` semantics (omits the key).
-        summary = state.summary.copy(changesets = action.value.changesets),
+        changesets = action.value.changesets,
     )
 
     is StateActionSessionConfigChanged -> {

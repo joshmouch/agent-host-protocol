@@ -995,6 +995,14 @@ data class SessionState(
      */
     val customizations: List<Customization>? = null,
     /**
+     * Catalogue of changesets the server can produce for this session. Each
+     * entry advertises a subscribable view of file changes (uncommitted,
+     * session-wide, per-turn, etc.) and the URI template the client expands
+     * before subscribing. See {@link Changeset} for the full shape and
+     * {@link /guide/changesets | Changesets} for an overview of the model.
+     */
+    val changesets: List<Changeset>? = null,
+    /**
      * Additional provider-specific metadata for this session.
      * 
      * Clients MAY look for well-known keys here to provide enhanced UI.
@@ -1079,14 +1087,6 @@ data class SessionSummary(
      * The working directory URI for this session
      */
     val workingDirectory: String? = null,
-    /**
-     * Catalogue of changesets the server can produce for this session. Each
-     * entry advertises a subscribable view of file changes (uncommitted,
-     * session-wide, per-turn, etc.) and the URI template the client expands
-     * before subscribing. See {@link Changeset} for the full shape and
-     * {@link /guide/changesets | Changesets} for an overview of the model.
-     */
-    val changesets: List<Changeset>? = null,
     /**
      * Aggregate summary of file changes associated with this session. Servers
      * may populate this to give clients a quick at-a-glance view of the
@@ -3169,7 +3169,27 @@ data class Changeset(
     /**
      * Optional longer description.
      */
-    val description: String? = null
+    val description: String? = null,
+    /**
+     * Advisory hint describing what kind of changeset this is, so clients can
+     * group, sort, or render an appropriate icon without parsing
+     * {@link uriTemplate}. Recognized values include:
+     * 
+     * - `'session'`: a static, session-wide changeset covering all changes the
+     * agent has produced in this session.
+     * - `'branch'`: changes relative to a base branch (e.g. a feature branch
+     * diffed against `main`).
+     * - `'uncommitted'`: the workspace's current uncommitted changes.
+     * - `'turn'`: changes produced by a single turn. Typically paired with a
+     * `{turnId}` variable in {@link uriTemplate}.
+     * - `'compare-turns'`: a diff between two turns. Typically paired with
+     * `{originalTurnId}` and `{modifiedTurnId}` variables in
+     * {@link uriTemplate}.
+     * 
+     * Implementations MAY provide additional values; clients SHOULD fall back
+     * to a reasonable default when an unknown value is encountered.
+     */
+    val changeKind: String
 )
 
 @Serializable

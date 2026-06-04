@@ -623,6 +623,12 @@ type SessionState struct {
 	// publish in container shape only; bare MCP servers at the top level
 	// are server-originated.
 	Customizations []Customization `json:"customizations,omitempty"`
+	// Catalogue of changesets the server can produce for this session. Each
+	// entry advertises a subscribable view of file changes (uncommitted,
+	// session-wide, per-turn, etc.) and the URI template the client expands
+	// before subscribing. See {@link Changeset} for the full shape and
+	// {@link /guide/changesets | Changesets} for an overview of the model.
+	Changesets []Changeset `json:"changesets,omitempty"`
 	// Additional provider-specific metadata for this session.
 	//
 	// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -677,12 +683,6 @@ type SessionSummary struct {
 	Agent *AgentSelection `json:"agent,omitempty"`
 	// The working directory URI for this session
 	WorkingDirectory *URI `json:"workingDirectory,omitempty"`
-	// Catalogue of changesets the server can produce for this session. Each
-	// entry advertises a subscribable view of file changes (uncommitted,
-	// session-wide, per-turn, etc.) and the URI template the client expands
-	// before subscribing. See {@link Changeset} for the full shape and
-	// {@link /guide/changesets | Changesets} for an overview of the model.
-	Changesets []Changeset `json:"changesets,omitempty"`
 	// Aggregate summary of file changes associated with this session. Servers
 	// may populate this to give clients a quick at-a-glance view of the
 	// session's footprint (e.g., for list rendering) without requiring the
@@ -2256,6 +2256,24 @@ type Changeset struct {
 	UriTemplate string `json:"uriTemplate"`
 	// Optional longer description.
 	Description *string `json:"description,omitempty"`
+	// Advisory hint describing what kind of changeset this is, so clients can
+	// group, sort, or render an appropriate icon without parsing
+	// {@link uriTemplate}. Recognized values include:
+	//
+	// - `'session'`: a static, session-wide changeset covering all changes the
+	//   agent has produced in this session.
+	// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+	//   diffed against `main`).
+	// - `'uncommitted'`: the workspace's current uncommitted changes.
+	// - `'turn'`: changes produced by a single turn. Typically paired with a
+	//   `{turnId}` variable in {@link uriTemplate}.
+	// - `'compare-turns'`: a diff between two turns. Typically paired with
+	//   `{originalTurnId}` and `{modifiedTurnId}` variables in
+	//   {@link uriTemplate}.
+	//
+	// Implementations MAY provide additional values; clients SHOULD fall back
+	// to a reasonable default when an unknown value is encountered.
+	ChangeKind string `json:"changeKind"`
 }
 
 // Full state for a single changeset, returned when a client subscribes to

@@ -35,7 +35,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   the protocol-based `NativeReducer.swift`.
 - `ClientCapabilities` struct on `InitializeParams.capabilities` with
   first entry `mcpApps`.
-### Added
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -45,7 +46,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Changed
 
-- Renamed the `ChangesetSummary` type to `Changeset` (catalogue entry on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+- Renamed the `ChangesetSummary` type to `Changeset`. The on-the-wire shape is unchanged.
+- Moved the `changesets` catalogue from `SessionSummary` to `SessionState`. The `session/changesetsChanged` action now updates `state.changesets` directly instead of `state.summary.changesets`.
 
 ### Removed
 

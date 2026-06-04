@@ -38,7 +38,8 @@ hotfix escape hatch.
   server customization by id.
 - `ClientCapabilities` type on `InitializeParams.capabilities` with
   first entry `mcpApps`.
-### Added
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
@@ -48,7 +49,8 @@ hotfix escape hatch.
 
 ### Changed
 
-- Renamed the `ChangesetSummary` type to `Changeset` (catalogue entry on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+- Renamed the `ChangesetSummary` type to `Changeset`. The on-the-wire shape is unchanged.
+- Moved the `changesets` catalogue from `SessionSummary` to `SessionState`. The `session/changesetsChanged` action now updates `state.changesets` directly instead of `state.summary.changesets`.
 
 ### Removed
 

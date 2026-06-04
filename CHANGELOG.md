@@ -54,6 +54,9 @@ Spec version: `0.3.0`
   clients that declared it.
 - New guide page `docs/guide/mcp.md` (with an MCP Apps subsection) and
   new spec page `docs/specification/mcp-channel.md`.
+- Added `changeKind` to `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`) so clients can
+  group, sort, or pick an icon without parsing `uriTemplate`.
 - Added `status` and `error` to `ChangesetOperation` and a new
   `changeset/operationStatusChanged` action so servers can reflect an
   operation's execution lifecycle (`idle → running → error`) back into
@@ -75,8 +78,11 @@ Spec version: `0.3.0`
 - Removed the `additions`, `deletions`, and `files` fields from
   `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`;
   per-changeset views derive their own totals from `ChangesetState.files`.
-- Renamed the `ChangesetSummary` interface to `Changeset` (catalogue entry
-  on `SessionSummary.changesets`). The on-the-wire shape is unchanged.
+- Moved the `changesets` catalogue from `SessionSummary` to
+  `SessionState`. The `session/changesetsChanged` action now updates
+  `state.changesets` directly instead of `state.summary.changesets`.
+- Renamed the `ChangesetSummary` interface to `Changeset`. The
+  on-the-wire shape is unchanged.
 - Renamed the `UserMessage` type to `Message` and surfaced it consistently
   across turn state (`Turn.message`, `ActiveTurn.message`, `PendingMessage.message`)
   and the actions that carry it (`session/turnStarted`,

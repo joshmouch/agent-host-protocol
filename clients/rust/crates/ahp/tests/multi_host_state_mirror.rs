@@ -56,7 +56,6 @@ fn session_state(title: &str, resource: &str) -> SessionState {
             model: None,
             agent: None,
             working_directory: None,
-            changesets: None,
             changes: None,
         },
         lifecycle: SessionLifecycle::Ready,
@@ -70,6 +69,7 @@ fn session_state(title: &str, resource: &str) -> SessionState {
         input_requests: None,
         config: None,
         customizations: None,
+        changesets: None,
         meta: None,
     }
 }
@@ -364,7 +364,6 @@ fn non_action_event_is_ignored() {
                 model: None,
                 agent: None,
                 working_directory: None,
-                changesets: None,
                 changes: None,
             },
         }),

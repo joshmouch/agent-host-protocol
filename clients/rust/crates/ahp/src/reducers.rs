@@ -621,7 +621,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionChangesetsChanged(a) => {
-            state.summary.changesets = a.changesets.clone();
+            state.changesets = a.changesets.clone();
             ReduceOutcome::Applied
         }
         StateAction::SessionConfigChanged(a) => {
@@ -1257,7 +1257,6 @@ mod tests {
                 model: None,
                 agent: None,
                 working_directory: None,
-                changesets: None,
                 changes: None,
             },
             lifecycle: SessionLifecycle::Creating,
@@ -1271,6 +1270,7 @@ mod tests {
             input_requests: None,
             config: None,
             customizations: None,
+            changesets: None,
             meta: None,
         }
     }

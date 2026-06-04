@@ -749,6 +749,12 @@ public struct SessionState: Codable, Sendable {
     /// publish in container shape only; bare MCP servers at the top level
     /// are server-originated.
     public var customizations: [Customization]?
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link Changeset} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    public var changesets: [Changeset]?
     /// Additional provider-specific metadata for this session.
     /// 
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -769,6 +775,7 @@ public struct SessionState: Codable, Sendable {
         case inputRequests
         case config
         case customizations
+        case changesets
         case meta = "_meta"
     }
 
@@ -785,6 +792,7 @@ public struct SessionState: Codable, Sendable {
         inputRequests: [SessionInputRequest]? = nil,
         config: SessionConfigState? = nil,
         customizations: [Customization]? = nil,
+        changesets: [Changeset]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.summary = summary
@@ -799,6 +807,7 @@ public struct SessionState: Codable, Sendable {
         self.inputRequests = inputRequests
         self.config = config
         self.customizations = customizations
+        self.changesets = changesets
         self.meta = meta
     }
 }
@@ -857,12 +866,6 @@ public struct SessionSummary: Codable, Sendable {
     public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link Changeset} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [Changeset]?
     /// Aggregate summary of file changes associated with this session. Servers
     /// may populate this to give clients a quick at-a-glance view of the
     /// session's footprint (e.g., for list rendering) without requiring the
@@ -881,7 +884,6 @@ public struct SessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [Changeset]? = nil,
         changes: ChangesSummary? = nil
     ) {
         self.resource = resource
@@ -895,7 +897,6 @@ public struct SessionSummary: Codable, Sendable {
         self.model = model
         self.agent = agent
         self.workingDirectory = workingDirectory
-        self.changesets = changesets
         self.changes = changes
     }
 }
@@ -3451,15 +3452,35 @@ public struct Changeset: Codable, Sendable {
     public var uriTemplate: String
     /// Optional longer description.
     public var description: String?
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    /// 
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    /// agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    /// diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    /// `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    /// `{originalTurnId}` and `{modifiedTurnId}` variables in
+    /// {@link uriTemplate}.
+    /// 
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var changeKind: String
 
     public init(
         label: String,
         uriTemplate: String,
-        description: String? = nil
+        description: String? = nil,
+        changeKind: String
     ) {
         self.label = label
         self.uriTemplate = uriTemplate
         self.description = description
+        self.changeKind = changeKind
     }
 }
 

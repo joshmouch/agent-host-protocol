@@ -829,7 +829,6 @@ private func applySummaryChanges(
     if let v = changes.project { existing.project = v }
     if let v = changes.model { existing.model = v }
     if let v = changes.workingDirectory { existing.workingDirectory = v }
-    if let v = changes.changesets { existing.changesets = v }
 }
 
 /// Protocol version offered on `initialize`. Mirrors the Rust SDK's use of

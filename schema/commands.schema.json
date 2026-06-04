@@ -1839,6 +1839,13 @@
           },
           "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
         },
+        "changesets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Changeset"
+          },
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+        },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
@@ -1947,13 +1954,6 @@
         "workingDirectory": {
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
-        },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Changeset"
-          },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         },
         "changes": {
           "$ref": "#/$defs/ChangesSummary",
@@ -4737,11 +4737,16 @@
         "description": {
           "type": "string",
           "description": "Optional longer description."
+        },
+        "changeKind": {
+          "type": "string",
+          "description": "Advisory hint describing what kind of changeset this is, so clients can\ngroup, sort, or render an appropriate icon without parsing\n{@link uriTemplate}. Recognized values include:\n\n- `'session'`: a static, session-wide changeset covering all changes the\n  agent has produced in this session.\n- `'branch'`: changes relative to a base branch (e.g. a feature branch\n  diffed against `main`).\n- `'uncommitted'`: the workspace's current uncommitted changes.\n- `'turn'`: changes produced by a single turn. Typically paired with a\n  `{turnId}` variable in {@link uriTemplate}.\n- `'compare-turns'`: a diff between two turns. Typically paired with\n  `{originalTurnId}` and `{modifiedTurnId}` variables in\n  {@link uriTemplate}.\n\nImplementations MAY provide additional values; clients SHOULD fall back\nto a reasonable default when an unknown value is encountered."
         }
       },
       "required": [
         "label",
-        "uriTemplate"
+        "uriTemplate",
+        "changeKind"
       ]
     },
     "ChangesetState": {
@@ -5728,7 +5733,7 @@
     },
     "SessionChangesetsChangedAction": {
       "type": "object",
-      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n`state.summary.changesets` entirely (full-replacement semantics) — set\nto `undefined` to clear the catalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
+      "description": "The {@link Changeset | catalogue of changesets} the agent host\nadvertises for this session changed. Replaces\n{@link SessionState.changesets | `state.changesets`} entirely\n(full-replacement semantics) — set to `undefined` to clear the\ncatalogue.\n\nProducers dispatch this whenever entries are added or removed. The\nfan-out happens through this action so observers see catalogue\nmutations in the same {@link ChangesetAction | per-changeset} action\nstream they already follow for file-level updates.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionChangesetsChanged"
