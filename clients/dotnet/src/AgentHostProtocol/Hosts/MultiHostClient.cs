@@ -1203,7 +1203,12 @@ public sealed class MultiHostClient : IAsyncDisposable
         var stream = client.CreateEventStream();
         try
         {
-            await foreach (var ev in stream.Events.ReadAllAsync().ConfigureAwait(false))
+            // Pass the lifetime token so a shutdown/removal (LifetimeCts.Cancel)
+            // reliably unblocks this read instead of relying solely on the event
+            // channel completing — a race that could hang teardown's `await
+            // PumpTask`. The OperationCanceledException is caught below as the
+            // normal-shutdown path.
+            await foreach (var ev in stream.Events.ReadAllAsync(entry.LifetimeCts.Token).ConfigureAwait(false))
             {
                 // Update per-host observable state BEFORE broadcasting so any
                 // observer reading the next snapshot sees the post-event state
