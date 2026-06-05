@@ -15,7 +15,9 @@ prefix). The `publish-swift.yml` workflow refuses to publish a `vX.Y.Z` tag
 whose matching `## [X.Y.Z]` heading is missing from this file, and verifies
 the tag matches the version pinned in [`VERSION`](VERSION).
 
-## [Unreleased]
+## [0.3.0] — 2026-06-05
+
+Implements AHP 0.3.0.
 
 ### Added
 

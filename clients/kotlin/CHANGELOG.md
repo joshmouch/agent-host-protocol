@@ -13,7 +13,9 @@ whose matching `## [X.Y.Z]` heading is missing from this file. Snapshot
 versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 `VERSION_NAME` in `gradle.properties` to a non-SNAPSHOT value before tagging.
 
-## [Unreleased]
+## [0.3.0] — 2026-06-05
+
+Implements AHP 0.3.0.
 
 ### Added
 

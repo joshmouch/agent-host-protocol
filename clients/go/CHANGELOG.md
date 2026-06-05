@@ -12,7 +12,9 @@ and the module follows [SemVer](https://semver.org).
 The `publish-go.yml` workflow refuses to publish a `clients/go/vX.Y.Z`
 tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
-## [Unreleased]
+## [0.3.0] — 2026-06-05
+
+Implements AHP 0.3.0.
 
 ### Added
 
