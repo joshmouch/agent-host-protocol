@@ -81,6 +81,31 @@ public sealed class MultiHostClientTests
                     // Fire-and-forget repeated push so the pump can't miss it.
                     _ = Task.Run(() => RepeatActionAsync(serverSide, actionChannel, serverSeq, ct));
                 }
+                else if (msg.Request?.Method == "reconnect")
+                {
+                    // The supervisor's reconnect issues a `reconnect` RPC
+                    // (lastSeenServerSeq) rather than re-initializing. Reply with a
+                    // replay carrying an action at the (advanced) serverSeq on the
+                    // action channel, mirroring a host that resumes from the gap.
+                    var replay = new ReconnectReplayResult
+                    {
+                        Actions = new System.Collections.Generic.List<ActionEnvelope>
+                        {
+                            new ActionEnvelope
+                            {
+                                Channel = actionChannel,
+                                ServerSeq = serverSeq,
+                                Action = new StateAction(new RootActiveSessionsChangedAction
+                                {
+                                    Type = ActionType.RootActiveSessionsChanged,
+                                    ActiveSessions = 7,
+                                }),
+                            },
+                        },
+                        Missing = new System.Collections.Generic.List<string>(),
+                    };
+                    await RespondResultAsync(serverSide, msg.Request.Id, new ReconnectResult(replay), ct).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) { }
@@ -241,15 +266,11 @@ public sealed class MultiHostClientTests
 
         // Per-attempt transport factory. The first connection's server pushes an
         // action at serverSeq=1 and then closes (simulating a drop). The fast
-        // ReconnectPolicy makes the supervisor reconnect; the SECOND connection's
-        // server pushes an action at the ADVANCED serverSeq=2. We assert that a
-        // post-reconnect event carries the higher serverSeq end-to-end.
-        //
-        // Note: the .NET MultiHostClient supervisor reconnects by opening a fresh
-        // transport + re-running `initialize` (OpenHostAsync), not by issuing a
-        // `reconnect` RPC with lastSeenServerSeq. The replay-with-advanced-seq
-        // behavior this row names is therefore exercised at the observable level:
-        // actions delivered after the reconnect carry the newer serverSeq.
+        // ReconnectPolicy makes the supervisor reconnect; on the SECOND connection
+        // the supervisor issues a `reconnect` RPC (lastSeenServerSeq) and the
+        // server replays an action at the ADVANCED serverSeq=2. We assert that a
+        // post-reconnect event carries the higher serverSeq end-to-end — the real
+        // reconnect-replay path (OpenHostAsync → ReconnectAsync), mirroring Swift.
         var attempt = 0;
         HostTransportFactory factory = (hostId, ct) =>
         {

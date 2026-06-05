@@ -1058,10 +1058,13 @@ public sealed class MultiHostClient : IAsyncDisposable
                     snap.ClientId, snap.ServerSeq, entry.Config.InitialSubscriptions, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
             {
                 // Host does not support `reconnect` (or it errored) — fall through
-                // to a fresh `initialize` on the still-live client below.
+                // to a fresh `initialize` on the still-live client below. A
+                // cancellation (shutdown/dispose) is NOT swallowed: it propagates
+                // so the supervisor tears down promptly instead of blocking on a
+                // fallback initialize.
             }
             if (reconnectResult?.Value is ReconnectReplayResult replay)
             {
