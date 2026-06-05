@@ -1115,8 +1115,12 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
   { name: 'ReconnectParams' },
-  { name: 'ReconnectReplayResult', omitDiscriminants: true },
-  { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
+  // Union variants MUST self-carry their `type` discriminator: UnionConverter<T>.Write
+  // serializes the inner value by its runtime type and relies on that property to
+  // emit the discriminator (matching ACTION_VARIANTS' includeDiscriminants). Omitting
+  // it silently drops `type` on write, breaking the reconnect-result round-trip.
+  { name: 'ReconnectReplayResult' },
+  { name: 'ReconnectSnapshotResult' },
   { name: 'SubscribeParams' }, { name: 'SubscribeResult' },
   { name: 'SessionForkSource' }, { name: 'CreateSessionParams' },
   { name: 'DisposeSessionParams' },

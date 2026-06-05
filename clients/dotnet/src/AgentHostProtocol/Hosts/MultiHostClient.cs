@@ -1033,7 +1033,7 @@ public sealed class MultiHostClient : IAsyncDisposable
 
     // ── Internal: openHost, supervisor, pumpEvents ────────────────────────
 
-    private async Task OpenHostAsync(HostEntry entry, CancellationToken cancellationToken)
+    private async Task OpenHostAsync(HostEntry entry, CancellationToken cancellationToken, bool isReconnect = false)
     {
         SetHostState(entry, new HostState { Kind = HostStateKind.Connecting });
 
@@ -1042,6 +1042,39 @@ public sealed class MultiHostClient : IAsyncDisposable
             transport,
             entry.Config.ClientConfig,
             null);
+
+        // On a reconnect with a known serverSeq, issue the AHP `reconnect` command
+        // (clientId + lastSeenServerSeq) so the host REPLAYS the actions missed
+        // while disconnected, instead of re-initializing from scratch. Mirrors
+        // Swift's HostRuntime reconnect path. Falls back to a fresh `initialize`
+        // on the still-live client if the host can't replay (errors / non-replay).
+        if (isReconnect)
+        {
+            var snap = entry.Snapshot();
+            ReconnectResult? reconnectResult = null;
+            try
+            {
+                reconnectResult = await client.ReconnectAsync(
+                    snap.ClientId, snap.ServerSeq, entry.Config.InitialSubscriptions, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch
+            {
+                // Host does not support `reconnect` (or it errored) — fall through
+                // to a fresh `initialize` on the still-live client below.
+            }
+            if (reconnectResult?.Value is ReconnectReplayResult replay)
+            {
+                entry.SetClient(client, snap.ProtocolVersion);
+                _ = ApplyReconnectReplay(entry, replay);
+                await SeedSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
+                SetHostState(entry, new HostState { Kind = HostStateKind.Connected });
+                NotifyPerHostSnapshot(entry);
+                NotifyPerHostSummaries(entry);
+                entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
+                return;
+            }
+        }
 
         InitializeResult result;
         try
@@ -1088,6 +1121,37 @@ public sealed class MultiHostClient : IAsyncDisposable
 
         // Fan events out to subscribers.
         entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
+    }
+
+    /// <summary>
+    /// Applies a reconnect-replay result: bumps the host generation (a reconnect
+    /// happened) + advances the serverSeq to the last replayed envelope, and fans
+    /// every replayed action out exactly like the live pump (host-state mirror +
+    /// global subscription fan-in + per-(host,uri) listeners) so consumers that
+    /// subscribed before the drop observe the actions missed while disconnected.
+    /// <c>Missing</c> URIs are left for the next subscribe cycle.
+    /// </summary>
+    private ulong ApplyReconnectReplay(HostEntry entry, ReconnectReplayResult replay)
+    {
+        var lastSeq = entry.Snapshot().ServerSeq;
+        if (replay.Actions is { } seqScan)
+            foreach (var env in seqScan) if (env.ServerSeq > lastSeq) lastSeq = env.ServerSeq;
+        var generation = entry.ApplyConnected(null, lastSeq);
+
+        if (replay.Actions is { } actions)
+        {
+            foreach (var env in actions)
+            {
+                var evt = new SubscriptionEventAction(env);
+                ApplyEventToHostState(entry, evt);
+                var hostEv = new HostSubscriptionEvent(entry.Id, env.Channel, evt);
+                List<System.Threading.Channels.Channel<HostSubscriptionEvent>> channels;
+                lock (_subsLock) { channels = new List<System.Threading.Channels.Channel<HostSubscriptionEvent>>(_subChannels); }
+                foreach (var ch in channels) ch.Writer.TryWrite(hostEv);
+                BroadcastPerResourceEvent(entry.Id, env.Channel, evt);
+            }
+        }
+        return generation;
     }
 
     /// <summary>
@@ -1246,7 +1310,7 @@ public sealed class MultiHostClient : IAsyncDisposable
                 var attemptCt = entry.BeginAttempt();
                 try
                 {
-                    await OpenHostAsync(entry, attemptCt).ConfigureAwait(false);
+                    await OpenHostAsync(entry, attemptCt, isReconnect: true).ConfigureAwait(false);
                     entry.EndAttempt();
                     entry.DrainManualReconnectSignals();
                     break; // reconnected successfully

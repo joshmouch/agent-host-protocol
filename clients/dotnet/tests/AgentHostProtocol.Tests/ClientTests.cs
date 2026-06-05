@@ -179,8 +179,9 @@ public sealed class ClientTests
     [Fact]
     public async Task Shutdown_FailsInFlightRequest()
     {
-        var (clientSide, _) = MemTransport.CreatePair();
-        // Don't set up a server — the request will hang until shutdown.
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        // The server reads the request frame but never responds — the request
+        // stays in-flight until shutdown.
 
         var client = await AhpClient.ConnectAsync(clientSide);
 
@@ -194,8 +195,11 @@ public sealed class ClientTests
             catch (Exception ex) { return ex; }
         });
 
-        // Give the task time to enqueue the request.
-        await Task.Delay(50);
+        // Deterministically wait until the request frame is actually on the wire
+        // (so the pending request is registered and truly in-flight) instead of
+        // racing a fixed 50ms delay, which flaked under load.
+        using (var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            await serverSide.ReceiveAsync(recvCts.Token);
         await client.ShutdownAsync();
 
         var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3));

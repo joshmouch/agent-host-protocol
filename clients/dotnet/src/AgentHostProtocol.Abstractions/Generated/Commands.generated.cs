@@ -247,6 +247,12 @@ public sealed class ReconnectParams
 public sealed class ReconnectReplayResult
 {
     /// <summary>
+    /// Discriminant
+    /// </summary>
+    [JsonPropertyName("type")]
+    public ReconnectResultType Type { get; set; }
+
+    /// <summary>
     /// Missed action envelopes since `lastSeenServerSeq`
     /// </summary>
     [JsonPropertyName("actions")]
@@ -267,6 +273,12 @@ public sealed class ReconnectReplayResult
 /// </summary>
 public sealed class ReconnectSnapshotResult
 {
+    /// <summary>
+    /// Discriminant
+    /// </summary>
+    [JsonPropertyName("type")]
+    public ReconnectResultType Type { get; set; }
+
     /// <summary>
     /// Fresh snapshots for each subscription
     /// </summary>
