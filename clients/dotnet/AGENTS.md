@@ -51,7 +51,7 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 ## Testing
 
 Run by `dotnet test` (against both target frameworks, `net8.0` and `net9.0`).
-The suite is **282 tests, all green on both TFMs** (0 skipped):
+The suite is **308 tests, all green on both TFMs** (0 skipped):
 
 1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays the 163
    cross-language reducer fixtures (`types/test-cases/reducers/*.json`). The
