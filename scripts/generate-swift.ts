@@ -566,6 +566,11 @@ const STATE_STRUCTS = [
 const RESPONSE_PART_UNION: UnionConfig = {
   name: 'ResponsePart',
   discriminantField: 'kind',
+  // Open union: an unrecognized `kind` (e.g. a future protocol part type) is
+  // preserved as a raw AnyCodable passthrough and re-encoded verbatim so that
+  // snapshot decode and round-trip both succeed and delta reducers that target
+  // other parts (by id) still work correctly. Mirrors .NET allowUnknown.
+  allowUnknown: true,
   variants: [
     { caseName: 'markdown', structName: 'MarkdownResponsePart', discriminantValue: 'markdown' },
     { caseName: 'contentRef', structName: 'ResourceReponsePart', discriminantValue: 'contentRef' },
@@ -578,6 +583,9 @@ const RESPONSE_PART_UNION: UnionConfig = {
 const TOOL_CALL_STATE_UNION: UnionConfig = {
   name: 'ToolCallState',
   discriminantField: 'status',
+  // Open union: a future protocol version may add new tool call statuses.
+  // Preserve unknown discriminants verbatim for round-trip fidelity.
+  allowUnknown: true,
   variants: [
     { caseName: 'streaming', structName: 'ToolCallStreamingState', discriminantValue: 'streaming' },
     { caseName: 'pendingConfirmation', structName: 'ToolCallPendingConfirmationState', discriminantValue: 'pending-confirmation' },
@@ -591,6 +599,8 @@ const TOOL_CALL_STATE_UNION: UnionConfig = {
 const TERMINAL_CLAIM_UNION: UnionConfig = {
   name: 'TerminalClaim',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new terminal claim kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'client', structName: 'TerminalClientClaim', discriminantValue: 'client' },
     { caseName: 'session', structName: 'TerminalSessionClaim', discriminantValue: 'session' },
@@ -600,6 +610,8 @@ const TERMINAL_CLAIM_UNION: UnionConfig = {
 const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
   name: 'TerminalContentPart',
   discriminantField: 'type',
+  // Open union: future protocol versions may add new terminal content types.
+  allowUnknown: true,
   variants: [
     { caseName: 'unclassified', structName: 'TerminalUnclassifiedPart', discriminantValue: 'unclassified' },
     { caseName: 'command', structName: 'TerminalCommandPart', discriminantValue: 'command' },
@@ -609,6 +621,8 @@ const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
 const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
   name: 'SessionInputQuestion',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new question kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'text', structName: 'SessionInputTextQuestion', discriminantValue: 'text' },
     { caseName: 'number', structName: 'SessionInputNumberQuestion', discriminantValue: 'number' },
@@ -622,6 +636,8 @@ const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
 const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
   name: 'SessionInputAnswerValue',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new answer value kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'text', structName: 'SessionInputTextAnswerValue', discriminantValue: 'text' },
     { caseName: 'number', structName: 'SessionInputNumberAnswerValue', discriminantValue: 'number' },
@@ -634,6 +650,8 @@ const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
 const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
   name: 'SessionInputAnswer',
   discriminantField: 'state',
+  // Open union: future protocol versions may add new answer states.
+  allowUnknown: true,
   variants: [
     { caseName: 'draft', structName: 'SessionInputAnswered', discriminantValue: 'draft' },
     { caseName: 'submitted', structName: 'SessionInputAnswered', discriminantValue: 'submitted' },
@@ -644,6 +662,8 @@ const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
 const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
   name: 'MessageAttachment',
   discriminantField: 'type',
+  // Open union: future protocol versions may add new attachment types.
+  allowUnknown: true,
   variants: [
     { caseName: 'simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'embeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
@@ -667,6 +687,10 @@ const CUSTOMIZATION_UNION: UnionConfig = {
 const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
   name: 'ChildCustomization',
   discriminantField: 'type',
+  // Open union: mirrors CUSTOMIZATION_UNION's allowUnknown policy. Future
+  // protocol versions may add new child customization types (e.g. new plugin
+  // child kinds). An unrecognized type is preserved verbatim.
+  allowUnknown: true,
   variants: [
     { caseName: 'agent', structName: 'AgentCustomization', discriminantValue: 'agent' },
     { caseName: 'skill', structName: 'SkillCustomization', discriminantValue: 'skill' },
@@ -680,6 +704,8 @@ const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
 const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
   name: 'CustomizationLoadState',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new load state kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'loading', structName: 'CustomizationLoadingState', discriminantValue: 'loading' },
     { caseName: 'loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
@@ -696,6 +722,9 @@ function generateToolResultContentUnion(): string {
     case fileEdit(ToolResultFileEditContent)
     case terminal(ToolResultTerminalContent)
     case subagent(ToolResultSubagentContent)
+    /// Unknown or future tool result content type; the raw payload is preserved
+    /// and re-encoded verbatim for forward-compatibility.
+    case unknown(AnyCodable)
 
     private enum Keys: String, CodingKey {
         case type
@@ -718,10 +747,7 @@ function generateToolResultContentUnion(): string {
             case "subagent":
                 self = .subagent(try ToolResultSubagentContent(from: decoder))
             default:
-                throw DecodingError.dataCorruptedError(
-                    forKey: .type, in: container,
-                    debugDescription: "Unknown ToolResultContent type: \\(type)"
-                )
+                self = .unknown(try AnyCodable(from: decoder))
             }
         } else {
             throw DecodingError.dataCorrupted(
@@ -739,6 +765,7 @@ function generateToolResultContentUnion(): string {
         case .fileEdit(let v): try v.encode(to: encoder)
         case .terminal(let v): try v.encode(to: encoder)
         case .subagent(let v): try v.encode(to: encoder)
+        case .unknown(let v): try v.encode(to: encoder)
         }
     }
 }`;

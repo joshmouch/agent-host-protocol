@@ -54,17 +54,7 @@ final class TypesRoundTripFixtureTests: XCTestCase {
     // Swift type change that closes a gap (or opens a new one) fails loudly and
     // forces this list to be updated.
     //
-    // 019 channel-scoped-notification-uri:
-    //     The wire payload is { channel, session } with NO `summary`. .NET's
-    //     SessionAddedParams.Summary is nullable, so the unknown `session` key is
-    //     dropped and `channel` survives. Swift's SessionAddedParams.summary is a
-    //     NON-optional SessionSummary, so decode throws keyNotFound("summary").
-    //     This is NOT a Swift fidelity bug: schema/notifications.schema.json
-    //     declares `summary` REQUIRED, so the fixture payload is schema-invalid
-    //     and Swift's strict rejection is the spec-correct behavior (.NET's
-    //     nullable `summary` is the deviation). Handled separately from the four
-    //     genuine encode-fidelity bugs below; see
-    //     types/test-cases/round-trips/KNOWN-FIDELITY-GAPS.md Gap 5.
+    // All previously known gaps are now CLOSED:
     //
     // 002 / 003 / 012 / 013 were genuine Swift encode-fidelity bugs and are now
     // FIXED at the codegen (scripts/generate-swift.ts) + regenerated sources, so
@@ -81,9 +71,10 @@ final class TypesRoundTripFixtureTests: XCTestCase {
     //     re-emit their constant `kind` discriminant on encode (custom encode with
     //     an EncodingKeys set; previously `kind` was a computed property excluded
     //     from CodingKeys and silently dropped).
-    private static let knownRepresentationalGaps: Set<String> = [
-        "019-channel-scoped-notification-uri",
-    ]
+    //   * 019 channel-scoped-notification-uri — fixture updated to include the
+    //     required `summary` field; Swift now decodes it successfully and the gap
+    //     no longer reproduces.
+    private static let knownRepresentationalGaps: Set<String> = []
 
     // MARK: - Fixture directory
 
@@ -438,6 +429,7 @@ final class TypesRoundTripFixtureTests: XCTestCase {
         case .boolean: return "SessionInputBooleanQuestion"
         case .singleSelect: return "SessionInputSingleSelectQuestion"
         case .multiSelect: return "SessionInputMultiSelectQuestion"
+        case .unknown: return nil
         }
     }
 

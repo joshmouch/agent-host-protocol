@@ -814,6 +814,13 @@ func childId(_ c: ChildCustomization) -> String {
     case .rule(let x): return x.id
     case .hook(let x): return x.id
     case .mcpServer(let x): return x.id
+    // Unknown/future child customization: recover `id` from the preserved raw
+    // payload if present (forward-compat), else an empty id.
+    case .unknown(let raw):
+        if let obj = raw.value as? [String: Any], let id = obj["id"] as? String {
+            return id
+        }
+        return ""
     }
 }
 
