@@ -161,5 +161,6 @@ pub use error::{ClientError, TransportError};
 pub use multi_host_state_mirror::{HostedResourceKey, MultiHostStateMirror};
 pub use reducers::{
     apply_action_to_root, apply_action_to_session, apply_action_to_terminal, ReduceOutcome,
+    clear_clock_override, set_clock_override,
 };
 pub use transport::{BoxedTransport, DynTransport, Transport, TransportMessage};

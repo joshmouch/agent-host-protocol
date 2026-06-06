@@ -78,7 +78,9 @@ use ahp_types::{PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS};
 //     ops. Any `u32` value now decodes, exposes its set bits, and re-encodes
 //     verbatim (forward-compat bits included). Fixtures 004/005 now run real
 //     `expectBitset` assertions.
-const KNOWN_REPRESENTATIONAL_GAPS: &[&str] = &["019-channel-scoped-notification-uri"];
+// 019-channel-scoped-notification-uri was a known gap (schema-invalid fixture),
+// but the corpus fixture was repaired and now passes — gap retired.
+const KNOWN_REPRESENTATIONAL_GAPS: &[&str] = &[];
 
 // ─── Fixture directory ──────────────────────────────────────────────────────
 

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" tests="99" skipped="0" failures="0" errors="0" timestamp="2026-06-06T14:15:36.653Z" hostname="Joshs-MacBook-Pro.local" time="9.501">
+  <properties/>
+  <testcase name="roundtrip.ActionEnvelope.edge.long-above-int32-max-preserved.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.353"/>
+  <testcase name="roundtrip.ActionEnvelope.happy.action-envelope-session-title-changed.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.137"/>
+  <testcase name="roundtrip.ChangesetOperationTarget.happy.changeset-target-range.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.144"/>
+  <testcase name="roundtrip.ChangesetOperationTarget.happy.changeset-target-resource.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.096"/>
+  <testcase name="roundtrip.Customization.edge.customization-unknown-type-preserved.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.085"/>
+  <testcase name="roundtrip.JsonRpcMessage.edge.jsonrpc-error.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.085"/>
+  <testcase name="roundtrip.JsonRpcMessage.happy.jsonrpc-notification.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.084"/>
+  <testcase name="roundtrip.JsonRpcMessage.happy.jsonrpc-request.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.088"/>
+  <testcase name="roundtrip.JsonRpcMessage.happy.jsonrpc-success.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="roundtrip.PartialSessionSummary.edge.partial-summary-all-null.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.092"/>
+  <testcase name="roundtrip.ProtocolVersion.happy.protocol-version-current-non-empty.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.091"/>
+  <testcase name="roundtrip.ProtocolVersion.happy.protocol-version-first-supported-is-current.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="roundtrip.ProtocolVersion.happy.protocol-version-supported-non-empty.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.091"/>
+  <testcase name="roundtrip.SessionAddedParams.edge.channel-scoped-notification-uri.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.107"/>
+  <testcase name="roundtrip.SessionInputQuestion.happy.session-input-question-integer.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.111"/>
+  <testcase name="roundtrip.SessionInputQuestion.happy.session-input-question-number.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.098"/>
+  <testcase name="roundtrip.SessionStatus.edge.session-status-bitset-flags.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.117"/>
+  <testcase name="roundtrip.SessionStatus.edge.session-status-unknown-bits-preserved.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="roundtrip.SessionSummary.edge.nested-optional-null-round-trip.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.077"/>
+  <testcase name="roundtrip.SessionSummary.edge.unknown-wire-keys-ignored.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.085"/>
+  <testcase name="roundtrip.StateAction.edge.state-action-unknown-variant-preserved.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="roundtrip.StringOrMarkdown.happy.string-or-markdown-object.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.08"/>
+  <testcase name="roundtrip.StringOrMarkdown.happy.string-or-markdown-plain.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="action.changeset-cleared.edge.changeset-cleared-empties-files.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="action.changeset-operationStatusChanged.edge.changeset-operationstatuschanged-error-then-recovers.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.083"/>
+  <testcase name="action.changeset-statusChanged.edge.changeset-status-changed-to-ready.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.081"/>
+  <testcase name="action.root-configChanged.happy.root-configchanged-merges-into-config-values.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.088"/>
+  <testcase name="action.session-activeClientChanged.happy.session-activeclientchanged-unsets-client.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.081"/>
+  <testcase name="action.session-agentChanged.happy.session-agentchanged-replaces-agent.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.075"/>
+  <testcase name="action.session-configChanged.happy.session-configchanged-merges-into-config-values.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.079"/>
+  <testcase name="action.session-customizationToggled.edge.session-customizationtoggled-is-no-op-for-unknown-id.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.083"/>
+  <testcase name="action.session-customizationUpdated.happy.session-customizationupdated-replaces-existing-container.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.084"/>
+  <testcase name="action.session-delta.edge.session-delta-with-wrong-turnid-is-no-op.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.089"/>
+  <testcase name="action.session-inputRequested.happy.session-input-requested-with-drafts-status.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.108"/>
+  <testcase name="action.session-metaChanged.happy.session-metachanged-sets-meta.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.088"/>
+  <testcase name="action.session-pendingMessageRemoved.edge.remove-queued-message-is-no-op-when-array-is-empty.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.09"/>
+  <testcase name="action.session-pendingMessageSet.happy.append-queued-message-when-id-is-new.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.089"/>
+  <testcase name="action.session-pendingMessageSet.happy.update-queued-message-in-place-when-id-already-exists.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.08"/>
+  <testcase name="action.session-queuedMessagesReordered.happy.reorders-queued-messages.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.094"/>
+  <testcase name="action.session-responsePart.happy.session-delta-appends-content.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="action.session-titleChanged.happy.session-titlechanged-updates-title.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.075"/>
+  <testcase name="action.session-toolCallDelta.edge.tool-call-actions-for-unknown-toolcallid-are-no-op.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.09"/>
+  <testcase name="action.session-toolCallResultConfirmed.edge.toolcallresultconfirmed-wrong-status-is-no-op.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.107"/>
+  <testcase name="action.session-toolCallStart.edge.toolcallready-transitions-running-tool-back-to-pending-confirmation.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.088"/>
+  <testcase name="action.session-toolCallStart.happy.selectedoption-carries-through-to-completed.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.095"/>
+  <testcase name="action.session-toolCallStart.happy.toolcallconfirmed-approved-with-selectedoption.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.081"/>
+  <testcase name="action.session-truncated.happy.session-truncated-clears-all-when-turnid-omitted.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.086"/>
+  <testcase name="action.session-turnCancelled.happy.session-turncancelled-finalizes-turn.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.121"/>
+  <testcase name="action.session-turnStarted.happy.full-turn-flow-with-tool-calls-and-re-confirmation.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.094"/>
+  <testcase name="action.session-turnStarted.happy.turnstarted-with-queuedmessageid-removes-matching-steering-message.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.086"/>
+  <testcase name="action.terminal-claimed.happy.terminal-claimed-session.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.094"/>
+  <testcase name="action.terminal-cwdChanged.happy.terminal-cwdchanged.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.086"/>
+  <testcase name="action.terminal-data.happy.terminal-data-appends.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.088"/>
+  <testcase name="auth.AuthRequired.error.data-resources-required.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.097"/>
+  <testcase name="auth.AuthRequired.error.unauthenticated-agent-use.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.118"/>
+  <testcase name="auth.auth-required.edge.expired-token-notification.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="auth.auth-required.edge.not-replayed-on-reconnect.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="auth.authenticate.error.invalid-token.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="error.AlreadyExists.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.085"/>
+  <testcase name="error.AlreadyExists.error.create-only-conflict.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.075"/>
+  <testcase name="error.AuthRequired.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.092"/>
+  <testcase name="error.Conflict.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.101"/>
+  <testcase name="error.Conflict.error.etag-mismatch.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.131"/>
+  <testcase name="error.ContentNotFound.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.109"/>
+  <testcase name="error.InternalError.error.jsonrpc-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.114"/>
+  <testcase name="error.InvalidParams.error.jsonrpc-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.123"/>
+  <testcase name="error.InvalidRequest.error.jsonrpc-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.107"/>
+  <testcase name="error.MethodNotFound.error.jsonrpc-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.116"/>
+  <testcase name="error.NotFound.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.102"/>
+  <testcase name="error.NotFound.error.resource-missing.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.099"/>
+  <testcase name="error.ParseError.error.jsonrpc-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.102"/>
+  <testcase name="error.PermissionDenied.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.095"/>
+  <testcase name="error.PermissionDenied.error.path-outside-workspace.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.122"/>
+  <testcase name="error.ProviderNotFound.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.1"/>
+  <testcase name="error.SessionAlreadyExists.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.142"/>
+  <testcase name="error.SessionNotFound.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.127"/>
+  <testcase name="error.TurnInProgress.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.123"/>
+  <testcase name="error.TurnInProgress.error.turn-active.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.093"/>
+  <testcase name="error.UnsupportedProtocolVersion.error.ahp-code.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.085"/>
+  <testcase name="reconnect.replay.edge.gap-exceeds-buffer-snapshot.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.082"/>
+  <testcase name="reconnect.replay.edge.missing-subscriptions.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.074"/>
+  <testcase name="reconnect.replay.edge.notifications-not-replayed.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.093"/>
+  <testcase name="reconnect.replay.edge.server-must-include-all-replay.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.084"/>
+  <testcase name="rpc.BaseParams.error.missing-channel-field.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.084"/>
+  <testcase name="rpc.InvalidParams.error.missing-required-field.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.094"/>
+  <testcase name="rpc.InvalidParams.error.wrong-type-field.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.089"/>
+  <testcase name="rpc.MethodNotFound.error.unknown-method.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.093"/>
+  <testcase name="rpc.ParseError.error.malformed-json.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.087"/>
+  <testcase name="rpc.initialize.error.duplicate-clientId.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.079"/>
+  <testcase name="rpc.ping.edge.pre-initialize-allowed.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.08"/>
+  <testcase name="rpc.resourceRead.edge.server-initiated-request.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.077"/>
+  <testcase name="subscription.subscribe.error.nonexistent-session.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.08"/>
+  <testcase name="subscription.subscribe.error.unknown-channel-scheme.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.076"/>
+  <testcase name="transport.disconnect.edge.in-progress-turn-failed.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.075"/>
+  <testcase name="transport.framing.edge.complete-messages.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.076"/>
+  <testcase name="transport.reliability.edge.no-silent-drops.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.073"/>
+  <testcase name="transport.serverSeq.edge.out-of-order-seq.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.068"/>
+  <testcase name="versioning.UnsupportedProtocolVersion.version.close-after-refuse.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.065"/>
+  <testcase name="versioning.UnsupportedProtocolVersion.version.no-overlap.scenario.json" classname="com.microsoft.agenthostprotocol.conformance.ScenarioConformanceTest" time="0.074"/>
+  <system-out><![CDATA[[AHP-B5] Kotlin conformance tranche: 99 scenarios (TRANCHE=brief)
+[AHP-B5] Host script: /Users/josh/Code/joshmouch/agent-host-protocol/conformance/host/scenario-host.mjs
+[AHP-B5] Node: node
+[AHP-B5 WARN] roundtrip.StringOrMarkdown.happy.string-or-markdown-plain.scenario.json: websocket error: Element class kotlinx.serialization.json.JsonLiteral (Kotlin reflection is not available) is not a JsonObject
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

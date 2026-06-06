@@ -76,15 +76,44 @@ pub enum ReduceOutcome {
     OutOfScope,
 }
 
+/// Global clock override for deterministic testing/conformance.
+///
+/// A value of `i64::MIN` means "not set; use SystemTime::now()".
+/// Set via [`set_clock_override`]; clear via [`clear_clock_override`].
+static GLOBAL_CLOCK_OVERRIDE: std::sync::atomic::AtomicI64 =
+    std::sync::atomic::AtomicI64::new(i64::MIN);
+
+/// Pin all `now_ms()` calls to `epoch_ms`.
+///
+/// Useful in conformance runners and deterministic tests that cannot use
+/// `#[cfg(test)]` thread-locals (e.g. when the reducer is exercised from a
+/// binary rather than a `cargo test` harness).
+pub fn set_clock_override(epoch_ms: i64) {
+    GLOBAL_CLOCK_OVERRIDE.store(epoch_ms, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Remove the global clock override; `now_ms()` reverts to `SystemTime::now()`.
+pub fn clear_clock_override() {
+    GLOBAL_CLOCK_OVERRIDE.store(i64::MIN, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[cfg(test)]
 thread_local! {
     static MOCK_NOW_MS: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
 }
 
 fn now_ms() -> i64 {
+    // Thread-local test override takes highest precedence (existing behaviour).
     #[cfg(test)]
     {
         if let Some(v) = MOCK_NOW_MS.with(|c| c.get()) {
+            return v;
+        }
+    }
+    // Global atomic override (for conformance binary, integration tests, etc.).
+    {
+        let v = GLOBAL_CLOCK_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed);
+        if v != i64::MIN {
             return v;
         }
     }
