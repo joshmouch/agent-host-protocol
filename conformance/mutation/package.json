@@ -1,0 +1,15 @@
+{
+  "name": "ahp-conformance-mutation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AHP conformance mutation-testing harness (build-phase B6). Runs StrykerJS over the canonical TypeScript reducers (clients/typescript/src/types/channels-*/reducer.ts + common/reducer-helpers.ts) and uses the in-process corpus replay (replay-corpus.mjs) as the kill-signal. DEV-ONLY: Stryker is isolated to THIS package and is NOT a dependency of the shipped @microsoft/agent-host-protocol client. Mutating the reducer and watching the conformance corpus fail proves the corpus has teeth; surviving mutants are the measured corpus gaps.",
+  "scripts": {
+    "replay": "node --import tsx replay-corpus.mjs",
+    "mutate": "stryker run stryker.conf.json"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "^8.7.1",
+    "tsx": "^4.19.0"
+  }
+}
