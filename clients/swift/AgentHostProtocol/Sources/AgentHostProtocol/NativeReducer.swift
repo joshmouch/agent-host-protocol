@@ -796,6 +796,13 @@ func customizationId(_ c: Customization) -> String {
     switch c {
     case .plugin(let p): return p.id
     case .directory(let d): return d.id
+    // Unknown/future customization: recover the `id` from the preserved raw
+    // payload if present (forward-compat), else an empty id.
+    case .unknown(let raw):
+        if let obj = raw.value as? [String: Any], let id = obj["id"] as? String {
+            return id
+        }
+        return ""
     }
 }
 
@@ -814,6 +821,8 @@ func customizationChildren(_ c: Customization) -> [ChildCustomization]? {
     switch c {
     case .plugin(let p): return p.children
     case .directory(let d): return d.children
+    // Unknown/future customization: no typed children to expose.
+    case .unknown: return nil
     }
 }
 
@@ -825,6 +834,9 @@ func setCustomizationChildren(_ c: inout Customization, _ children: [ChildCustom
     case .directory(var d):
         d.children = children
         c = .directory(d)
+    // Unknown/future customization: opaque payload, nothing to mutate.
+    case .unknown:
+        break
     }
 }
 
@@ -836,6 +848,9 @@ func setCustomizationEnabled(_ c: inout Customization, _ enabled: Bool) {
     case .directory(var d):
         d.enabled = enabled
         c = .directory(d)
+    // Unknown/future customization: opaque payload, nothing to mutate.
+    case .unknown:
+        break
     }
 }
 

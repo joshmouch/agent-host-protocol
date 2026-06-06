@@ -54,40 +54,34 @@ final class TypesRoundTripFixtureTests: XCTestCase {
     // Swift type change that closes a gap (or opens a new one) fails loudly and
     // forces this list to be updated.
     //
-    // 002 state-action-unknown-variant-preserved:
-    //     .NET keeps an unknown StateAction discriminator as a raw JsonElement
-    //     and re-encodes it byte-for-byte (foo:42 survives). Swift's StateAction
-    //     has `case unknown(type: String)` whose encode writes NOTHING
-    //     (`case .unknown: break`) and which drops every non-`type` field. The
-    //     fixture's `expect.foo == 42` and `reencodes` (byte-exact) cannot hold.
-    //
-    // 003 customization-unknown-type-preserved:
-    //     .NET's Customization union opts into allowUnknown (unknown `type`
-    //     decodes to a raw JsonElement, no throw, re-encodes verbatim). Swift's
-    //     Customization.init(from:) THROWS dataCorruptedError on an unknown
-    //     discriminant — there is no unknown/passthrough case. Decode fails.
-    //
     // 019 channel-scoped-notification-uri:
     //     The wire payload is { channel, session } with NO `summary`. .NET's
     //     SessionAddedParams.Summary is nullable, so the unknown `session` key is
     //     dropped and `channel` survives. Swift's SessionAddedParams.summary is a
     //     NON-optional SessionSummary, so decode throws keyNotFound("summary").
+    //     This is NOT a Swift fidelity bug: schema/notifications.schema.json
+    //     declares `summary` REQUIRED, so the fixture payload is schema-invalid
+    //     and Swift's strict rejection is the spec-correct behavior (.NET's
+    //     nullable `summary` is the deviation). Handled separately from the four
+    //     genuine encode-fidelity bugs below; see
+    //     types/test-cases/round-trips/KNOWN-FIDELITY-GAPS.md Gap 5.
     //
-    // 012 changeset-target-resource / 013 changeset-target-range:
-    //     ChangesetOperationTarget DECODES fine and the active Swift case maps to
-    //     the right concrete type (resource/range — expectVariant would pass).
-    //     But the corpus also asserts expect.kind ("resource"/"range") against
-    //     the RE-ENCODED wire (013 additionally asserts roundTripStable). Swift's
-    //     ChangesetOperationResourceTarget.kind / ...RangeTarget.kind are COMPUTED
-    //     properties excluded from CodingKeys, so the `kind` discriminant is NOT
-    //     re-emitted on encode (confirmed: resource re-encodes to
-    //     {"resource":...} with no kind). .NET re-emits kind, so this is a Swift
-    //     wire-type fidelity gap on the encode side, not a test shortcut.
+    // 002 / 003 / 012 / 013 were genuine Swift encode-fidelity bugs and are now
+    // FIXED at the codegen (scripts/generate-swift.ts) + regenerated sources, so
+    // they round-trip green and are NO LONGER in this set:
+    //   * 002 state-action-unknown-variant-preserved — StateAction's unknown case
+    //     now carries the raw payload as `AnyCodable` (was `unknown(type: String)`
+    //     with `encode → break`), so foo:42 + the `type` discriminant survive and
+    //     re-encode verbatim.
+    //   * 003 customization-unknown-type-preserved — the Customization union now
+    //     honors allowUnknown (mirrors .NET): an unrecognized `type` decodes to a
+    //     raw `AnyCodable` passthrough instead of throwing, and re-encodes
+    //     verbatim.
+    //   * 012 / 013 changeset-target-{resource,range} — the variant structs now
+    //     re-emit their constant `kind` discriminant on encode (custom encode with
+    //     an EncodingKeys set; previously `kind` was a computed property excluded
+    //     from CodingKeys and silently dropped).
     private static let knownRepresentationalGaps: Set<String> = [
-        "002-state-action-unknown-variant-preserved",
-        "003-customization-unknown-type-preserved",
-        "012-changeset-target-resource",
-        "013-changeset-target-range",
         "019-channel-scoped-notification-uri",
     ]
 
@@ -423,6 +417,7 @@ final class TypesRoundTripFixtureTests: XCTestCase {
         switch c {
         case .plugin: return "PluginCustomization"
         case .directory: return "DirectoryCustomization"
+        case .unknown: return "JsonElement" // corpus name for the passthrough case
         }
     }
 
