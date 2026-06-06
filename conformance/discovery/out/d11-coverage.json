@@ -1,0 +1,159 @@
+{
+  "generatedBy": "conformance/discovery/scripts/reconcile.mjs",
+  "totalAngleRows": 656,
+  "distinctCanonicalConcepts": 384,
+  "behaviorIdMergeNote": "D11 matrix has 652 lines but only collapsed 4 of 656 rows because behavior-ids diverge across angles. Canonical-concept normalization shows the true distinct-concept count is 384.",
+  "d1SchemaCoverage": {
+    "total": 122,
+    "touchedByScenarioAngle": 90,
+    "untouched": 32,
+    "untouchedList": [
+      "ActionEnvelope",
+      "OtlpExportLogs",
+      "OtlpExportMetrics",
+      "OtlpExportTraces",
+      "SessionAdded",
+      "SessionRemoved",
+      "SessionSummaryChanged",
+      "Snapshot",
+      "StateAction:SessionToolCallApproved",
+      "StateAction:SessionToolCallDenied",
+      "TelemetryCapabilities",
+      "changeset-channel",
+      "completions",
+      "createResourceWatch",
+      "createTerminal",
+      "disposeTerminal",
+      "fetchTurns",
+      "invokeChangesetOperation",
+      "protocolVersion",
+      "reconnect-resnapshot",
+      "resolveSessionConfig",
+      "resourceCopy",
+      "resourceDelete",
+      "resourceList",
+      "resourceMkdir",
+      "resourceMove",
+      "resourceRequest",
+      "resourceResolve",
+      "root-channel",
+      "session-channel",
+      "sessionConfigCompletions",
+      "terminal-channel"
+    ]
+  },
+  "d2StrongNormativeCoverage": {
+    "total": 30,
+    "touchedByScenarioAngle": 11,
+    "untouched": 19,
+    "untouchedList": [
+      {
+        "concept": "protocol-version",
+        "level": "MUST",
+        "behavior-id": "lifecycle.protocol-version.version.protocolversion-is-t"
+      },
+      {
+        "concept": "error-response",
+        "level": "MUST",
+        "behavior-id": "lifecycle.error-response.error.if-the-server-cannot"
+      },
+      {
+        "concept": "rpc",
+        "level": "MUST",
+        "behavior-id": "rpc.rpc.happy.a-json-rpc-request-h"
+      },
+      {
+        "concept": "notification",
+        "level": "MUST_NOT",
+        "behavior-id": "rpc.notification.edge.a-json-rpc-notificat"
+      },
+      {
+        "concept": "createResourceWatch",
+        "level": "MUST",
+        "behavior-id": "channel.createResourceWatch.happy.the-id-is-receiver-a"
+      },
+      {
+        "concept": "createResourceWatch",
+        "level": "MUST",
+        "behavior-id": "channel.createResourceWatch.error.the-receiver-must-ga"
+      },
+      {
+        "concept": "channel",
+        "level": "MUST",
+        "behavior-id": "channel.channel.edge.emitted-when-any-mut"
+      },
+      {
+        "concept": "channel",
+        "level": "MUST",
+        "behavior-id": "session.channel.error.when-the-server-rece"
+      },
+      {
+        "concept": "channel",
+        "level": "MUST",
+        "behavior-id": "session.channel.happy.any-action-referenci"
+      },
+      {
+        "concept": "session-action-toolCallConfirmed",
+        "level": "MUST",
+        "behavior-id": "session.session-action-toolCallConfirmed.error.session-toolcallconf"
+      },
+      {
+        "concept": "session-action-turnCancelled",
+        "level": "MUST",
+        "behavior-id": "session.session-action-turnCancelled.error.session-turncancelle"
+      },
+      {
+        "concept": "session-action-modelChanged",
+        "level": "MUST",
+        "behavior-id": "session.session-action-modelChanged.happy.session-modelchanged"
+      },
+      {
+        "concept": "session-action-agentChanged",
+        "level": "MUST",
+        "behavior-id": "session.session-action-agentChanged.happy.session-agentchanged"
+      },
+      {
+        "concept": "auth",
+        "level": "MUST",
+        "behavior-id": "subscription.auth.concurrency.ahp-otlp-authority-p"
+      },
+      {
+        "concept": "terminal",
+        "level": "MUST_NOT",
+        "behavior-id": "channel.terminal.happy.the-server-must-not"
+      },
+      {
+        "concept": "transport",
+        "level": "MUST",
+        "behavior-id": "transport.transport.happy.a-compliant-transpor"
+      },
+      {
+        "concept": "versioning",
+        "level": "MUST",
+        "behavior-id": "versioning.versioning.version.both-peers-must-use"
+      },
+      {
+        "concept": "versioning",
+        "level": "MUST",
+        "behavior-id": "versioning.versioning.version.within-a-compatible"
+      },
+      {
+        "concept": "versioning",
+        "level": "MUST_NOT",
+        "behavior-id": "versioning.versioning.version.3-on-a-successful-ne"
+      }
+    ]
+  },
+  "rowsByAngle": {
+    "d1-schema": 131,
+    "d2-spec": 77,
+    "d3-mined-client": 48,
+    "d4-host": 25,
+    "d5-fixture": 187,
+    "d6-lifecycle": 40,
+    "d7-negative": 46,
+    "d8-differential": 16,
+    "d9-mutation": 66,
+    "d10-property": 20
+  }
+}
