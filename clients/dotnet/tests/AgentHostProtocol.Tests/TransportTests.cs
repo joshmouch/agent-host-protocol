@@ -6,6 +6,7 @@
 #nullable enable
 
 using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol;
@@ -109,5 +110,159 @@ public sealed class TransportTests
         Assert.Equal("action", decoded.Notification!.Method);
 
         await a.CloseAsync(cts.Token);
+    }
+
+    // ── E: TransportMessage round-trip — success response ──────────────────
+    // Port of Swift InMemoryTransportTests.testTransportMessageRoundTripPreservesSuccessResponse.
+    // Encode a JSON-RPC success response via the REAL serializer, ship it over
+    // the REAL MemTransport, decode it back, and assert the variant + id +
+    // result survive. Uses EncodeMessage/DecodeMessage (the .NET analogue of
+    // Swift's TransportMessage.encode(...).intoParsed()).
+    [Fact]
+    public async Task TransportMessage_RoundTrip_SuccessResponse()
+    {
+        var (a, b) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var original = new JsonRpcMessage
+        {
+            SuccessResponse = new JsonRpcSuccessResponse
+            {
+                Id = 42,
+                Result = JsonDocument.Parse("{\"ok\":true}").RootElement,
+            },
+        };
+
+        await a.SendAsync(Ser.EncodeMessage(original), cts.Token);
+        var received = await b.ReceiveAsync(cts.Token);
+        Assert.Equal(TransportFrame.Text, received.Frame);
+
+        var decoded = Ser.DecodeMessage(received);
+        Assert.NotNull(decoded.SuccessResponse);
+        Assert.Null(decoded.Request);
+        Assert.Null(decoded.ErrorResponse);
+        Assert.Null(decoded.Notification);
+        Assert.Equal(42UL, decoded.SuccessResponse!.Id);
+        Assert.True(decoded.SuccessResponse.Result.GetProperty("ok").GetBoolean());
+
+        await a.CloseAsync(cts.Token);
+    }
+
+    // ── E: TransportMessage round-trip — error response ────────────────────
+    // Port of Swift InMemoryTransportTests.testTransportMessageRoundTripPreservesErrorResponse.
+    [Fact]
+    public async Task TransportMessage_RoundTrip_ErrorResponse()
+    {
+        var (a, b) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var original = new JsonRpcMessage
+        {
+            ErrorResponse = new JsonRpcErrorResponse
+            {
+                Id = 7,
+                Error = new JsonRpcErrorObject { Code = -32000, Message = "boom" },
+            },
+        };
+
+        await a.SendAsync(Ser.EncodeMessage(original), cts.Token);
+        var received = await b.ReceiveAsync(cts.Token);
+
+        var decoded = Ser.DecodeMessage(received);
+        Assert.NotNull(decoded.ErrorResponse);
+        Assert.Null(decoded.Request);
+        Assert.Null(decoded.SuccessResponse);
+        Assert.Null(decoded.Notification);
+        Assert.Equal(7UL, decoded.ErrorResponse!.Id);
+        Assert.Equal(-32000, decoded.ErrorResponse.Error.Code);
+        Assert.Equal("boom", decoded.ErrorResponse.Error.Message);
+
+        await a.CloseAsync(cts.Token);
+    }
+
+    // ── E: TransportMessage round-trip — request ───────────────────────────
+    // Port of Swift InMemoryTransportTests.testTransportMessageRoundTripPreservesRequest.
+    // A request is the (id + method) shape; the shape-probing converter must
+    // decode it as a Request (not a Notification, which lacks an id).
+    [Fact]
+    public async Task TransportMessage_RoundTrip_Request()
+    {
+        var (a, b) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var original = new JsonRpcMessage
+        {
+            Request = new JsonRpcRequest
+            {
+                Id = 1,
+                Method = "subscribe",
+                Params = JsonDocument.Parse("{\"channel\":\"ahp-root://\"}").RootElement,
+            },
+        };
+
+        await a.SendAsync(Ser.EncodeMessage(original), cts.Token);
+        var received = await b.ReceiveAsync(cts.Token);
+
+        var decoded = Ser.DecodeMessage(received);
+        Assert.NotNull(decoded.Request);
+        Assert.Null(decoded.Notification);
+        Assert.Null(decoded.SuccessResponse);
+        Assert.Null(decoded.ErrorResponse);
+        Assert.Equal(1UL, decoded.Request!.Id);
+        Assert.Equal("subscribe", decoded.Request.Method);
+        Assert.Equal("ahp-root://", decoded.Request.Params!.Value.GetProperty("channel").GetString());
+
+        await a.CloseAsync(cts.Token);
+    }
+
+    // ── E: subscription-buffer clamp — non-positive normalised ─────────────
+    // Parity row "subscription-buffer clamps (>=1, neg->1, positive)". The .NET
+    // clamp lives in AhpClient.Connect (AhpClient.cs ~line 233): a non-positive
+    // SubscriptionBufferCapacity is normalised to the default 256 (NOT to 1 as
+    // Swift's AHPClientConfig does — see featureGaps note). Exercise the REAL
+    // clamp by connecting a REAL AhpClient over a REAL MemTransport and reading
+    // the mutated config back. Theory covers the 0 and negative cases.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-42)]
+    public async Task ClientConfig_SubscriptionBuffer_NonPositiveClampsToDefault(int requested)
+    {
+        var (clientSide, _) = MemTransport.CreatePair();
+        var cfg = new ClientConfig { SubscriptionBufferCapacity = requested };
+
+        await using var client = AhpClient.Connect(clientSide, cfg);
+
+        // Connect normalised the non-positive request up to the 256 default.
+        Assert.Equal(256, cfg.SubscriptionBufferCapacity);
+    }
+
+    // ── E: subscription-buffer clamp — positive preserved ──────────────────
+    // The complement: a positive capacity passes through Connect untouched.
+    [Fact]
+    public async Task ClientConfig_SubscriptionBuffer_PositivePreserved()
+    {
+        var (clientSide, _) = MemTransport.CreatePair();
+        var cfg = new ClientConfig { SubscriptionBufferCapacity = 64 };
+
+        await using var client = AhpClient.Connect(clientSide, cfg);
+
+        Assert.Equal(64, cfg.SubscriptionBufferCapacity);
+    }
+
+    // ── E: defaults are reasonable ─────────────────────────────────────────
+    // Port of Swift InMemoryTransportTests.AHPClientConfigTests.testDefaultsAreReasonable.
+    // Asserts the REAL .NET ClientConfig.Default shape. The .NET buffer default
+    // matches Swift (256) and the request-timeout default matches Swift (30s);
+    // keep-alive defaults to Disabled, the .NET analogue of Swift's
+    // KeepAlive == .disabled.
+    [Fact]
+    public void ClientConfig_DefaultsAreReasonable()
+    {
+        var config = ClientConfig.Default;
+
+        Assert.Equal(256, config.SubscriptionBufferCapacity);
+        Assert.Equal(TimeSpan.FromSeconds(30), config.DefaultRequestTimeout);
+        Assert.False(config.KeepAlive.IsEnabled);
+        Assert.Same(KeepAlivePolicy.Disabled, config.KeepAlive);
     }
 }

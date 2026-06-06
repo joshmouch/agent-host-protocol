@@ -108,6 +108,37 @@ public sealed class MultiHostStateMirrorTests
         Assert.Equal(1, gotB!.ActiveSessions);    // other host unchanged
     }
 
+    // ── G: session action targets one ──────────────────────────────────────
+    // Port of Swift MultiHostStateMirrorTests.testApplySessionActionUpdatesOnlyTargetSession.
+    // Two hosts advertise the SAME session uri (ahp-session:/s1). A session-scoped
+    // action applied to host-a's session must NOT touch host-b's identically-named
+    // session. Like the root-action case above, the .NET mirror has no
+    // ApplySessionAction method — the behavior is composed from the real session
+    // reducer (Reducers.ApplyToSession) + PutSession, keyed by (hostId, uri).
+    [Fact]
+    public void StateMirror_ApplySessionAction_UpdatesOnlyTargetSession()
+    {
+        var m = new MultiHostStateMirror();
+        m.PutSession("host-a", "ahp-session:/s1", Session("Old"));
+        m.PutSession("host-b", "ahp-session:/s1", Session("Old"));
+
+        var (sessA, _) = m.Session("host-a", "ahp-session:/s1");
+        var action = new StateAction(new SessionTitleChangedAction
+        {
+            Type = ActionType.SessionTitleChanged,
+            Title = "New on host-a",
+        });
+        var outcome = Reducers.ApplyToSession(sessA!, action);
+        m.PutSession("host-a", "ahp-session:/s1", sessA!);
+
+        Assert.Equal(ReduceOutcome.Applied, outcome);
+
+        var (gotA, _) = m.Session("host-a", "ahp-session:/s1");
+        var (gotB, _) = m.Session("host-b", "ahp-session:/s1");
+        Assert.Equal("New on host-a", gotA!.Summary.Title);   // target session changed
+        Assert.Equal("Old", gotB!.Summary.Title);             // collision-twin untouched
+    }
+
     // ── G: forwards subscription event ─────────────────────────────────────
 
     [Fact]

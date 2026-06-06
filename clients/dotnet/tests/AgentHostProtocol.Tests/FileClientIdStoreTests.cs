@@ -141,4 +141,38 @@ public sealed class FileClientIdStoreTests : IDisposable
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, permBits);
         }
     }
+
+    // ── F: directory path is actually a file ──────────────────────────────────
+    // .NET-specific sub-case (Swift's FileClientIdStore swallows directory errors
+    // via `try?` in ensureDirectory; the .NET port surfaces them loudly instead).
+    // When the configured store directory is an EXISTING regular file,
+    // EnsureDirectory() -> Directory.CreateDirectory(<file>) throws IOException;
+    // StoreAsync propagates it (the throw happens before the temp-file
+    // try/catch). A real temp FILE stands in for the bad "directory" so we
+    // exercise the real FS + real store, no mocking.
+    [Fact]
+    public async Task FileClientIdStore_DirectoryPathIsFile_StoreThrows()
+    {
+        // Use a sibling path under the test temp root that we create AS A FILE,
+        // then point the store at it. (_tempDir itself is cleaned up on Dispose;
+        // this file lives inside it so it's cleaned up too.)
+        Directory.CreateDirectory(_tempDir);
+        var fileAsDir = Path.Combine(_tempDir, "not-a-directory");
+        await File.WriteAllTextAsync(fileAsDir, "i am a file, not a directory");
+
+        var store = new FileClientIdStore(fileAsDir);
+
+        // Storing forces EnsureDirectory(), which can't create a directory where
+        // a file already exists — the store surfaces this as an IOException
+        // rather than silently dropping the write.
+        var ex = await Record.ExceptionAsync(
+            async () => await store.StoreAsync(new HostId("h"), "value"));
+
+        Assert.NotNull(ex);
+        Assert.IsAssignableFrom<IOException>(ex);
+
+        // The stand-in file is untouched (the store didn't clobber it with a
+        // half-written client-id payload).
+        Assert.Equal("i am a file, not a directory", await File.ReadAllTextAsync(fileAsDir));
+    }
 }
