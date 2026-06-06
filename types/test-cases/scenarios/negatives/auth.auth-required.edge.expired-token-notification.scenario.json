@@ -1,0 +1,34 @@
+{
+  "id": "auth.auth-required.edge.expired-token-notification",
+  "behaviorIds": [
+    "auth.auth-required.edge.expired-token-notification"
+  ],
+  "description": "Negative/error-path: auth/required notification has params.reason in [\"required\", \"expired\"]. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: auth.auth-required.edge.expired-token-notification. Server MAY send auth/required notification with reason:\"expired\" when a previously valid token expires or is revoked.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send auth/required to trigger the error condition",
+      "method": "auth/required",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: auth-expiry-notification"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

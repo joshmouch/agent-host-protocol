@@ -1,0 +1,132 @@
+{
+  "id": "action.session-customizationUpdated.happy.session-customizationupdated-replaces-existing-container",
+  "behaviorIds": [
+    "action.session-customizationUpdated.happy.session-customizationupdated-replaces-existing-container"
+  ],
+  "description": "Reducer fixture: session/customizationUpdated replaces an existing container by id. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/137-session-customizationupdated-replaces-existing-container.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "creating",
+              "turns": [],
+              "customizations": [
+                {
+                  "type": "plugin",
+                  "id": "plugin-a",
+                  "uri": "https://plugins.example/a",
+                  "name": "Plugin A",
+                  "enabled": true,
+                  "load": {
+                    "kind": "loading"
+                  }
+                },
+                {
+                  "type": "plugin",
+                  "id": "plugin-b",
+                  "uri": "https://plugins.example/b",
+                  "name": "Plugin B",
+                  "enabled": true,
+                  "load": {
+                    "kind": "loaded"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/customizationUpdated",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/customizationUpdated",
+          "customization": {
+            "type": "plugin",
+            "id": "plugin-a",
+            "uri": "https://plugins.example/a",
+            "name": "Plugin A",
+            "enabled": true,
+            "load": {
+              "kind": "error",
+              "message": "Failed to load"
+            }
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 1000
+        },
+        "lifecycle": "creating",
+        "turns": [],
+        "customizations": [
+          {
+            "type": "plugin",
+            "id": "plugin-a",
+            "uri": "https://plugins.example/a",
+            "name": "Plugin A",
+            "enabled": true,
+            "load": {
+              "kind": "error",
+              "message": "Failed to load"
+            }
+          },
+          {
+            "type": "plugin",
+            "id": "plugin-b",
+            "uri": "https://plugins.example/b",
+            "name": "Plugin B",
+            "enabled": true,
+            "load": {
+              "kind": "loaded"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

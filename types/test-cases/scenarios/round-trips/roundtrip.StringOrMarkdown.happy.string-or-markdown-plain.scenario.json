@@ -1,0 +1,30 @@
+{
+  "id": "roundtrip.StringOrMarkdown.happy.string-or-markdown-plain",
+  "behaviorIds": [
+    "roundtrip.StringOrMarkdown.happy.string-or-markdown-plain"
+  ],
+  "description": "Round-trip: StringOrMarkdown plain form is a bare JSON string and re-encodes verbatim to the same bare string.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/006-string-or-markdown-plain.json. Type: StringOrMarkdown.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for StringOrMarkdown: string-or-markdown-plain",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": "hello",
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "decoded wire value preserved through decode",
+      "matches": {
+        "action": "hello"
+      }
+    }
+  ]
+}

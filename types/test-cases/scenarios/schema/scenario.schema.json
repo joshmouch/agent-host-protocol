@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/joshmouch/agent-host-protocol/types/test-cases/scenarios/schema/scenario.schema.json",
+  "title": "AHP Conformance — Scenario Fixture",
+  "description": "One language-neutral, DECLARATIVE conformance scenario: ordered metadata + an ordered list of steps that all six client runners and the host runner load and execute identically. A scenario is data, not script: each step is a single discriminated op (mirroring the round-trip corpus's neutral `type` discriminator) so every SDK can decode it with no language-specific hints. The convergence-assertion model is snapshot-and-stream: server.* steps drive the client's reducer; client.assert.* steps check the resulting client-reduced state / events / errors. See SCHEMA.md for the prose contract and the per-op field tables.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "behaviorIds", "description", "protocolVersion", "steps"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable scenario id. Mirrors the behavior-id grammar (<domain>.<concept>.<scenario-class>[.<discriminator>], 3-5 dot segments of [A-Za-z0-9-]) so an independent author naturally lands on the same id for the same scenario. This IS the file's merge key; the file is named <id>.scenario.json.",
+      "pattern": "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+){2,4}$"
+    },
+    "behaviorIds": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The discovery behavior-id(s) this scenario covers (cite from conformance/discovery/out/*.jsonl). Each is the same <domain>.<concept>.<scenario-class>[.<discriminator>] grammar. This is the back-link that makes the scenario discoverable from the coverage matrix and vice-versa — the convergence point between Part 1 (discovery) and Part 2 (authoring).",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+){2,4}$"
+      }
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable one-liner: what protocol behavior this scenario proves."
+    },
+    "protocolVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The AHP protocol version this scenario targets, e.g. '0.3.0'. Runners that negotiate a different version skip or fail the scenario per their policy."
+    },
+    "pinClock": {
+      "type": ["integer", "null"],
+      "description": "Optional scenario-level clock pin (epoch-ms). When set, the runner pins the impure clock (the host's Date.now / the client's now-provider) to this value BEFORE step 0 so impure reducer fields (e.g. summary.modifiedAt, microsoft/agent-host-protocol#186) are deterministic. A `pin.clock` step may re-pin mid-scenario. null / absent = runner default (no pin)."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-text: authoring notes, cross-references, divergence detail, known-skip reasons per client."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Ordered list of steps. Steps execute strictly in array order. Each step is exactly one op, discriminated by the `op` field.",
+      "items": {
+        "type": "object",
+        "required": ["op"],
+        "oneOf": [
+          {
+            "title": "client.request",
+            "description": "The client sends a JSON-RPC request (method+params+id) to the server. Models the client driving the protocol (e.g. initialize, subscribe). A later server.response with forId === this id supplies the reply.",
+            "additionalProperties": false,
+            "required": ["op", "method", "id"],
+            "properties": {
+              "op": { "const": "client.request" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "method": { "type": "string", "minLength": 1, "description": "JSON-RPC method, e.g. 'initialize', 'subscribe'." },
+              "params": { "description": "JSON-RPC params (any JSON value, or absent)." },
+              "id": { "type": ["string", "integer"], "description": "JSON-RPC request id; server.response.forId must match it." }
+            }
+          },
+          {
+            "title": "server.response",
+            "description": "The server replies to an earlier client.request. Exactly one of result / error is present (JSON-RPC success vs error response). The client decodes it and (for snapshot-bearing results like initialize/subscribe) seeds its reduced state from the snapshot.",
+            "additionalProperties": false,
+            "required": ["op", "forId"],
+            "properties": {
+              "op": { "const": "server.response" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "forId": { "type": ["string", "integer"], "description": "The id of the client.request this responds to." },
+              "result": { "description": "JSON-RPC success result (any JSON value). Mutually exclusive with `error`." },
+              "error": {
+                "type": "object",
+                "description": "JSON-RPC error object. Mutually exclusive with `result`.",
+                "required": ["code", "message"],
+                "additionalProperties": true,
+                "properties": {
+                  "code": { "type": "integer", "description": "JSON-RPC error code, e.g. -32601 (method not found)." },
+                  "message": { "type": "string", "description": "Human-readable error message." },
+                  "data": { "description": "Optional error data (any JSON value)." }
+                }
+              }
+            }
+          },
+          {
+            "title": "server.notify",
+            "description": "The server emits a JSON-RPC notification (method+params, no id) — e.g. an 'action' envelope the host emits. The client routes it through its reducer. This is the live action stream that drives convergence.",
+            "additionalProperties": false,
+            "required": ["op", "method"],
+            "properties": {
+              "op": { "const": "server.notify" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "method": { "type": "string", "minLength": 1, "description": "JSON-RPC notification method, e.g. 'action'." },
+              "params": { "description": "Notification params (any JSON value). For 'action', the ActionEnvelope { channel, action, serverSeq, origin }." }
+            }
+          },
+          {
+            "title": "client.assert.state",
+            "description": "Assert the client-reduced state at a dotted path equals an expected JSON value. `path` uses the same dotted-selector convention as the round-trip corpus's `expect` keys (e.g. 'summary.title', 'lifecycle', 'turns.0.id'). Absent `path` (or '') asserts the whole reduced state equals `equals` (the byte-for-byte convergence assertion).",
+            "additionalProperties": false,
+            "required": ["op", "equals"],
+            "properties": {
+              "op": { "const": "client.assert.state" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "channel": { "type": "string", "description": "Optional channel/resource URI to scope the assertion to a specific reduced channel when the runner tracks more than one (e.g. 'ahp-session:/compliant'). Absent = the scenario's single/primary channel." },
+              "path": { "type": "string", "description": "Dotted selector into the reduced state, e.g. 'summary.title'. Numeric segments index arrays. Empty / absent = whole-state assertion (convergence)." },
+              "equals": { "description": "Expected JSON value at `path` (deep-equal). Any JSON value, including null." }
+            }
+          },
+          {
+            "title": "client.assert.event",
+            "description": "Assert the client observed an event/action matching the given partial shape. `matches` is a partial object deep-contained in some observed event (e.g. { type: 'session/titleChanged', title: 'Hello' }). Mirrors the round-trip corpus's partial-`expect` discipline: only the named fields must match; unnamed fields are ignored.",
+            "additionalProperties": false,
+            "required": ["op", "matches"],
+            "properties": {
+              "op": { "const": "client.assert.event" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "matches": { "type": "object", "description": "Partial event shape that must be deep-contained in at least one observed event." }
+            }
+          },
+          {
+            "title": "client.assert.error",
+            "description": "Assert the client surfaced a protocol error with the given JSON-RPC code (and optionally a message substring). Used for negative / error-path scenarios (e.g. method-not-found, version-mismatch).",
+            "additionalProperties": false,
+            "required": ["op", "code"],
+            "properties": {
+              "op": { "const": "client.assert.error" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "code": { "type": "integer", "description": "Expected JSON-RPC error code, e.g. -32601." },
+              "message": { "type": "string", "description": "Optional: a substring the surfaced error message must contain." }
+            }
+          },
+          {
+            "title": "client.reconnect",
+            "description": "The client reconnects and resubscribes, optionally declaring the last server sequence it saw so the server can replay-from or resnapshot. Models reconnect-replay behavior. The following server.* steps supply the replay (delta-from-seq) or the resnapshot.",
+            "additionalProperties": false,
+            "required": ["op"],
+            "properties": {
+              "op": { "const": "client.reconnect" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "channel": { "type": "string", "description": "Optional channel/resource URI being resubscribed. Absent = the scenario's primary channel." },
+              "lastSeenServerSeq": { "type": ["integer", "null"], "description": "The highest serverSeq the client had applied before the disconnect. null / absent = the client has no cursor and expects a full resnapshot." }
+            }
+          },
+          {
+            "title": "pin.clock",
+            "description": "Pin the impure clock to a fixed epoch-ms value from this step forward, so impure reducer fields (summary.modifiedAt etc.) are deterministic across implementations. Usually used once at the top, but may re-pin mid-scenario. The scenario-level `pinClock` is the BEFORE-step-0 form; this op is the mid-stream form.",
+            "additionalProperties": false,
+            "required": ["op", "value"],
+            "properties": {
+              "op": { "const": "pin.clock" },
+              "label": { "type": "string", "description": "Optional human label for diagnostics." },
+              "value": { "type": "integer", "description": "Epoch-ms the clock returns from now on, e.g. 9999." }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

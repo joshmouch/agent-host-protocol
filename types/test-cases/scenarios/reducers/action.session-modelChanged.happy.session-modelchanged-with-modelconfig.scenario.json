@@ -1,0 +1,91 @@
+{
+  "id": "action.session-modelChanged.happy.session-modelchanged-with-modelconfig",
+  "behaviorIds": [
+    "action.session-modelChanged.happy.session-modelchanged-with-modelconfig"
+  ],
+  "description": "Reducer fixture: session/modelChanged with model config updates both model and config. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/126-session-modelchanged-with-modelconfig.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000,
+                "model": {
+                  "id": "gpt-4o"
+                }
+              },
+              "lifecycle": "ready",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/modelChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/modelChanged",
+          "model": {
+            "id": "o3",
+            "config": {
+              "thinkingLevel": "high"
+            }
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 9999,
+          "model": {
+            "id": "o3",
+            "config": {
+              "thinkingLevel": "high"
+            }
+          }
+        },
+        "lifecycle": "ready",
+        "turns": []
+      }
+    }
+  ]
+}

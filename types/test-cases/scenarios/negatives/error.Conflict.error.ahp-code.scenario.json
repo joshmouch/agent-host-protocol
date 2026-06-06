@@ -1,0 +1,37 @@
+{
+  "id": "error.Conflict.error.ahp-code",
+  "behaviorIds": [
+    "error.Conflict.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32011 when the described condition arises. Client surfaces JSON-RPC error code -32011.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.Conflict.error.ahp-code. AHP application error code -32011. Optimistic-concurrency precondition (etag) failed",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceWrite to trigger the error condition",
+      "method": "resourceWrite",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///some-file",
+        "ifMatch": "stale-etag",
+        "content": ""
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32011",
+      "forId": 1,
+      "error": {
+        "code": -32011,
+        "message": "Error: error:Conflict"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32011",
+      "code": -32011
+    }
+  ]
+}

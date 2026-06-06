@@ -1,0 +1,34 @@
+{
+  "id": "rpc.ParseError.error.malformed-json",
+  "behaviorIds": [
+    "rpc.ParseError.error.malformed-json"
+  ],
+  "description": "Negative/error-path: Sending \"not valid json{{\" receives error.code===-32700 or connection close. Client surfaces JSON-RPC error code -32700.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: rpc.ParseError.error.malformed-json. Sending a non-JSON text frame should produce ParseError (-32700); behavior defined by JSON-RPC 2.0.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "_malformed": true
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32700",
+      "forId": 1,
+      "error": {
+        "code": -32700,
+        "message": "Error: error:ParseError"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32700",
+      "code": -32700
+    }
+  ]
+}

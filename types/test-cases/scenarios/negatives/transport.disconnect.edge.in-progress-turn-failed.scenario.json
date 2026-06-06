@@ -1,0 +1,35 @@
+{
+  "id": "transport.disconnect.edge.in-progress-turn-failed",
+  "behaviorIds": [
+    "transport.disconnect.edge.in-progress-turn-failed"
+  ],
+  "description": "Negative/error-path: After reconnect following mid-turn transport drop, the turn state is \"error\" or absent from activeTurn. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: transport.disconnect.edge.in-progress-turn-failed. When the transport drops mid-turn, in-progress turns SHOULD be marked failed by the server.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send reconnect to trigger the error condition",
+      "method": "reconnect",
+      "params": {
+        "channel": "ahp-session:/test",
+        "lastSeenServerSeq": 0
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: transport-drop"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

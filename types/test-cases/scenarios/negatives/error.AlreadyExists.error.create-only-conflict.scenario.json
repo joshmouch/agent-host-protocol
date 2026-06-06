@@ -1,0 +1,37 @@
+{
+  "id": "error.AlreadyExists.error.create-only-conflict",
+  "behaviorIds": [
+    "error.AlreadyExists.error.create-only-conflict"
+  ],
+  "description": "Negative/error-path: resourceWrite{createOnly:true} to existing file returns error.code===-32010. Client surfaces JSON-RPC error code -32010.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.AlreadyExists.error.create-only-conflict. resourceWrite with createOnly:true targeting an existing path should return AlreadyExists (-32010).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceWrite to trigger the error condition",
+      "method": "resourceWrite",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///existing-file",
+        "createOnly": true,
+        "content": ""
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32010",
+      "forId": 1,
+      "error": {
+        "code": -32010,
+        "message": "Error: error:AlreadyExists"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32010",
+      "code": -32010
+    }
+  ]
+}

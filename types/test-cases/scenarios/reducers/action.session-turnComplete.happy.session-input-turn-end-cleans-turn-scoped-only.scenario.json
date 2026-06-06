@@ -1,0 +1,121 @@
+{
+  "id": "action.session-turnComplete.happy.session-input-turn-end-cleans-turn-scoped-only",
+  "behaviorIds": [
+    "action.session-turnComplete.happy.session-input-turn-end-cleans-turn-scoped-only"
+  ],
+  "description": "Reducer fixture: turn end clears outstanding session input requests. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/107-session-input-turn-end-cleans-turn-scoped-only.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 24,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "activeTurn": {
+                "id": "turn-1",
+                "message": {
+                  "text": "Hello",
+                  "origin": {
+                    "kind": "user"
+                  }
+                },
+                "responseParts": [],
+                "usage": null
+              },
+              "inputRequests": [
+                {
+                  "id": "url-input",
+                  "message": "Review this URL",
+                  "url": "https://example.com/form"
+                },
+                {
+                  "id": "form-input",
+                  "message": "Answer this form",
+                  "questions": [
+                    {
+                      "id": "q1",
+                      "kind": "boolean",
+                      "message": "Continue?"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/turnComplete",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/turnComplete",
+          "turnId": "turn-1"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 9999
+        },
+        "lifecycle": "ready",
+        "turns": [
+          {
+            "id": "turn-1",
+            "message": {
+              "text": "Hello",
+              "origin": {
+                "kind": "user"
+              }
+            },
+            "responseParts": [],
+            "usage": null,
+            "state": "complete",
+            "error": null
+          }
+        ],
+        "activeTurn": null
+      }
+    }
+  ]
+}

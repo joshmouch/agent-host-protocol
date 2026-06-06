@@ -1,0 +1,31 @@
+{
+  "id": "roundtrip.JsonRpcMessage.happy.jsonrpc-success",
+  "behaviorIds": [
+    "roundtrip.JsonRpcMessage.happy.jsonrpc-success"
+  ],
+  "description": "Round-trip: A JsonRpcMessage with id+result decodes as the success-response variant.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/010-jsonrpc-success.json. Type: JsonRpcMessage.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "request that will receive a response",
+      "method": "ping",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "JsonRpcMessage success: jsonrpc-success",
+      "forId": 1,
+      "result": {}
+    },
+    {
+      "op": "client.assert.state",
+      "label": "response decoded as the success variant (no error surfaced)",
+      "path": "lastResponseOk",
+      "equals": true
+    }
+  ]
+}

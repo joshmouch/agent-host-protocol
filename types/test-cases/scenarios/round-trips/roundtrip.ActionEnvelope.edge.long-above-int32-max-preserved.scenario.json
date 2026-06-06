@@ -1,0 +1,33 @@
+{
+  "id": "roundtrip.ActionEnvelope.edge.long-above-int32-max-preserved",
+  "behaviorIds": [
+    "roundtrip.ActionEnvelope.edge.long-above-int32-max-preserved"
+  ],
+  "description": "Round-trip: ActionEnvelope.serverSeq is a 64-bit integer; a value above Int32.MaxValue (2147483647) round-trips without 32-bit truncation. Here serverSeq = Int32.MaxValue + 1234567 = 2148131814.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/016-long-above-int32-max-preserved.json. Type: ActionEnvelope.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "action envelope: long-above-int32-max-preserved",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/s1",
+        "action": {
+          "type": "session/titleChanged",
+          "title": "x"
+        },
+        "serverSeq": 2148131814,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "field serverSeq === 2148131814",
+      "matches": {
+        "serverSeq": 2148131814
+      }
+    }
+  ]
+}

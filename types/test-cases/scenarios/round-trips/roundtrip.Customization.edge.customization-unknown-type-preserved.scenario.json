@@ -1,0 +1,36 @@
+{
+  "id": "roundtrip.Customization.edge.customization-unknown-type-preserved",
+  "behaviorIds": [
+    "roundtrip.Customization.edge.customization-unknown-type-preserved"
+  ],
+  "description": "Round-trip: The Customization union opts into allowUnknown: an unrecognized `type` decodes to a raw JsonElement, does not throw, and re-encodes verbatim.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/003-customization-unknown-type-preserved.json. Type: Customization.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for Customization: customization-unknown-type-preserved",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "type": "future/unknownCustomization",
+          "path": "/x",
+          "extra": 7
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "type": "future/unknownCustomization",
+        "path": "/x",
+        "extra": 7
+      }
+    }
+  ]
+}

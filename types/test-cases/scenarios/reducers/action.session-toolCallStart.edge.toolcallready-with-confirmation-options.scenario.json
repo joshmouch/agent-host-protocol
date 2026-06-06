@@ -1,0 +1,187 @@
+{
+  "id": "action.session-toolCallStart.edge.toolcallready-with-confirmation-options",
+  "behaviorIds": [
+    "action.session-toolCallStart.edge.toolcallready-with-confirmation-options"
+  ],
+  "description": "Reducer fixture: toolCallReady with options preserves them in pending-confirmation state. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/127-toolcallready-with-confirmation-options.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 8,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "activeTurn": {
+                "id": "turn-1",
+                "message": {
+                  "text": "Hello",
+                  "origin": {
+                    "kind": "user"
+                  }
+                },
+                "responseParts": [],
+                "usage": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallStart",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallStart",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "toolName": "bash",
+          "displayName": "Run Command"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallReady",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallReady",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "invocationMessage": "Run: echo hello",
+          "options": [
+            {
+              "id": "approve-once",
+              "label": "Approve",
+              "kind": "approve",
+              "group": 1
+            },
+            {
+              "id": "approve-session",
+              "label": "Approve in this Session",
+              "kind": "approve",
+              "group": 1
+            },
+            {
+              "id": "deny",
+              "label": "Deny",
+              "kind": "deny",
+              "group": 2
+            },
+            {
+              "id": "deny-reason",
+              "label": "Deny with reason",
+              "kind": "deny",
+              "group": 2
+            }
+          ]
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 24,
+          "createdAt": 1000,
+          "modifiedAt": 2000
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "activeTurn": {
+          "id": "turn-1",
+          "message": {
+            "text": "Hello",
+            "origin": {
+              "kind": "user"
+            }
+          },
+          "responseParts": [
+            {
+              "kind": "toolCall",
+              "toolCall": {
+                "status": "pending-confirmation",
+                "toolCallId": "tc-1",
+                "toolName": "bash",
+                "displayName": "Run Command",
+                "toolClientId": null,
+                "_meta": null,
+                "invocationMessage": "Run: echo hello",
+                "toolInput": null,
+                "confirmationTitle": null,
+                "edits": null,
+                "editable": null,
+                "options": [
+                  {
+                    "id": "approve-once",
+                    "label": "Approve",
+                    "kind": "approve",
+                    "group": 1
+                  },
+                  {
+                    "id": "approve-session",
+                    "label": "Approve in this Session",
+                    "kind": "approve",
+                    "group": 1
+                  },
+                  {
+                    "id": "deny",
+                    "label": "Deny",
+                    "kind": "deny",
+                    "group": 2
+                  },
+                  {
+                    "id": "deny-reason",
+                    "label": "Deny with reason",
+                    "kind": "deny",
+                    "group": 2
+                  }
+                ]
+              }
+            }
+          ],
+          "usage": null
+        }
+      }
+    }
+  ]
+}

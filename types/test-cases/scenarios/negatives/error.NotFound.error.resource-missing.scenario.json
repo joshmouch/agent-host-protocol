@@ -1,0 +1,35 @@
+{
+  "id": "error.NotFound.error.resource-missing",
+  "behaviorIds": [
+    "error.NotFound.error.resource-missing"
+  ],
+  "description": "Negative/error-path: resourceRead{uri:\"file:///nonexistent-path\"} returns error.code===-32008. Client surfaces JSON-RPC error code -32008.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.NotFound.error.resource-missing. resourceRead, resourceList etc. for a non-existent URI should return NotFound (-32008).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceRead to trigger the error condition",
+      "method": "resourceRead",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///nonexistent-path"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32008",
+      "forId": 1,
+      "error": {
+        "code": -32008,
+        "message": "Error: error:NotFound"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32008",
+      "code": -32008
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "auth.AuthRequired.error.data-resources-required",
+  "behaviorIds": [
+    "auth.AuthRequired.error.data-resources-required"
+  ],
+  "description": "Negative/error-path: AuthRequired error always has data.resources as a non-null array. Client surfaces JSON-RPC error code -32007.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: auth.AuthRequired.error.data-resources-required. The data field of AuthRequired (-32007) MUST be AuthRequiredErrorData with a resources array.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send createSession to trigger the error condition",
+      "method": "createSession",
+      "params": {
+        "channel": "ahp-session:/test",
+        "provider": "nonexistent-provider"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32007",
+      "forId": 1,
+      "error": {
+        "code": -32007,
+        "message": "Error: error:AuthRequired"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32007",
+      "code": -32007
+    }
+  ]
+}

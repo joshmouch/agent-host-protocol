@@ -1,0 +1,34 @@
+{
+  "id": "rpc.resourceRead.edge.server-initiated-request",
+  "behaviorIds": [
+    "rpc.resourceRead.edge.server-initiated-request"
+  ],
+  "description": "Negative/error-path: Client correctly handles server-initiated resourceRead requests and responds with the file content. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: rpc.resourceRead.edge.server-initiated-request. The resource* family (resourceRead, resourceWrite, resourceList, etc.) MAY be initiated by the server toward the client. Clients must handle incoming resource* requests from the server.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceRead to trigger the error condition",
+      "method": "resourceRead",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: server-initiated-resource-request"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

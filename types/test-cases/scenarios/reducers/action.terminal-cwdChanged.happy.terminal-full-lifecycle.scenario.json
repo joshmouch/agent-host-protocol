@@ -1,0 +1,157 @@
+{
+  "id": "action.terminal-cwdChanged.happy.terminal-full-lifecycle",
+  "behaviorIds": [
+    "action.terminal-cwdChanged.happy.terminal-full-lifecycle"
+  ],
+  "description": "Reducer fixture: full terminal lifecycle: cwd, data, resize, claim transfer, exit. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/083-terminal-full-lifecycle.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/cwdChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/cwdChanged",
+          "cwd": "file:///home/user"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/resized",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/resized",
+          "cols": 80,
+          "rows": 24
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/claimed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/claimed",
+          "claim": {
+            "kind": "session",
+            "session": "copilot:/s1",
+            "turnId": "t1",
+            "toolCallId": "tc1"
+          }
+        },
+        "serverSeq": 3,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "$ npm test\r\nAll tests passed\r\n"
+        },
+        "serverSeq": 4,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/claimed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/claimed",
+          "claim": {
+            "kind": "session",
+            "session": "copilot:/s1"
+          }
+        },
+        "serverSeq": 5,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/exited",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/exited",
+          "exitCode": 0
+        },
+        "serverSeq": 6,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "cwd": "file:///home/user",
+        "cols": 80,
+        "rows": 24,
+        "content": [
+          {
+            "type": "unclassified",
+            "value": "$ npm test\r\nAll tests passed\r\n"
+          }
+        ],
+        "claim": {
+          "kind": "session",
+          "session": "copilot:/s1"
+        },
+        "exitCode": 0
+      }
+    }
+  ]
+}

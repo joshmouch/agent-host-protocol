@@ -1,0 +1,37 @@
+{
+  "id": "error.UnsupportedProtocolVersion.error.ahp-code",
+  "behaviorIds": [
+    "error.UnsupportedProtocolVersion.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32005 when the described condition arises. Client surfaces JSON-RPC error code -32005.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.UnsupportedProtocolVersion.error.ahp-code. AHP application error code -32005. Server cannot speak any offered protocol version",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send initialize to trigger the error condition",
+      "method": "initialize",
+      "params": {
+        "protocolVersions": [
+          "999.0.0"
+        ],
+        "clientId": "test-client"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32005",
+      "forId": 1,
+      "error": {
+        "code": -32005,
+        "message": "Error: error:UnsupportedProtocolVersion"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32005",
+      "code": -32005
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "transport.reliability.edge.no-silent-drops",
+  "behaviorIds": [
+    "transport.reliability.edge.no-silent-drops"
+  ],
+  "description": "Negative/error-path: No action frames are silently dropped between server send and client receive during a session. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: transport.reliability.edge.no-silent-drops. A compliant transport MUST deliver messages reliably with no silent drops. This is a transport-layer conformance requirement.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send reconnect to trigger the error condition",
+      "method": "reconnect",
+      "params": {
+        "channel": "ahp-session:/test",
+        "lastSeenServerSeq": 0
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: transport-reliability"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "error.AuthRequired.error.ahp-code",
+  "behaviorIds": [
+    "error.AuthRequired.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32007 when the described condition arises. Client surfaces JSON-RPC error code -32007.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.AuthRequired.error.ahp-code. AHP application error code -32007. Client has not authenticated for a required resource",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32007",
+      "forId": 1,
+      "error": {
+        "code": -32007,
+        "message": "Error: error:AuthRequired"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32007",
+      "code": -32007
+    }
+  ]
+}

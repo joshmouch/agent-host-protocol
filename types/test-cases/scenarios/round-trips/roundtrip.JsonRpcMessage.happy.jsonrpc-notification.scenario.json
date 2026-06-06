@@ -1,0 +1,25 @@
+{
+  "id": "roundtrip.JsonRpcMessage.happy.jsonrpc-notification",
+  "behaviorIds": [
+    "roundtrip.JsonRpcMessage.happy.jsonrpc-notification"
+  ],
+  "description": "Round-trip: A JsonRpcMessage with method+params but no id decodes as the notification variant.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/009-jsonrpc-notification.json. Type: JsonRpcMessage.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "JsonRpcMessage (notification): jsonrpc-notification",
+      "method": "action",
+      "params": {}
+    },
+    {
+      "op": "client.assert.event",
+      "label": "message received with correct method",
+      "matches": {
+        "method": "action"
+      }
+    }
+  ]
+}

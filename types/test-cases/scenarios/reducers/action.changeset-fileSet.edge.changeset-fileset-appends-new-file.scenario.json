@@ -1,0 +1,120 @@
+{
+  "id": "action.changeset-fileSet.edge.changeset-fileset-appends-new-file",
+  "behaviorIds": [
+    "action.changeset-fileSet.edge.changeset-fileset-appends-new-file"
+  ],
+  "description": "Reducer fixture: changeset/fileSet appends a new file when its id is unknown. Verifies that the client's changeset reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/138-changeset-fileset-appends-new-file.json. Reducer: changeset.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-changeset:/test-changeset",
+            "fromSeq": 0,
+            "state": {
+              "status": "ready",
+              "files": [
+                {
+                  "id": "file:///src/a.ts",
+                  "edit": {
+                    "after": {
+                      "uri": "file:///src/a.ts",
+                      "content": {
+                        "uri": "content:/a"
+                      }
+                    },
+                    "diff": {
+                      "added": 1
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/fileSet",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/fileSet",
+          "file": {
+            "id": "file:///src/b.ts",
+            "edit": {
+              "after": {
+                "uri": "file:///src/b.ts",
+                "content": {
+                  "uri": "content:/b"
+                }
+              },
+              "diff": {
+                "added": 5,
+                "removed": 2
+              }
+            }
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-changeset:/test-changeset",
+      "equals": {
+        "status": "ready",
+        "files": [
+          {
+            "id": "file:///src/a.ts",
+            "edit": {
+              "after": {
+                "uri": "file:///src/a.ts",
+                "content": {
+                  "uri": "content:/a"
+                }
+              },
+              "diff": {
+                "added": 1
+              }
+            }
+          },
+          {
+            "id": "file:///src/b.ts",
+            "edit": {
+              "after": {
+                "uri": "file:///src/b.ts",
+                "content": {
+                  "uri": "content:/b"
+                }
+              },
+              "diff": {
+                "added": 5,
+                "removed": 2
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

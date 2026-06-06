@@ -1,0 +1,35 @@
+{
+  "id": "roundtrip.ProtocolVersion.happy.protocol-version-current-non-empty",
+  "behaviorIds": [
+    "roundtrip.ProtocolVersion.happy.protocol-version-current-non-empty"
+  ],
+  "description": "Round-trip: ProtocolVersion.Current is a non-empty version string.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/021-protocol-version-current-non-empty.json. Type: ProtocolVersion.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize to obtain a protocol version response",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server confirms protocol version",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": []
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "negotiated protocol version is non-empty",
+      "path": "protocolVersion",
+      "equals": "0.3.0"
+    }
+  ]
+}

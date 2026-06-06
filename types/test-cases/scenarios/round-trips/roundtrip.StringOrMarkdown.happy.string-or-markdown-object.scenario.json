@@ -1,0 +1,32 @@
+{
+  "id": "roundtrip.StringOrMarkdown.happy.string-or-markdown-object",
+  "behaviorIds": [
+    "roundtrip.StringOrMarkdown.happy.string-or-markdown-object"
+  ],
+  "description": "Round-trip: StringOrMarkdown object form carries a `markdown` field and re-encodes verbatim.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/007-string-or-markdown-object.json. Type: StringOrMarkdown.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for StringOrMarkdown: string-or-markdown-object",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "markdown": "# title"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "markdown": "# title"
+      }
+    }
+  ]
+}

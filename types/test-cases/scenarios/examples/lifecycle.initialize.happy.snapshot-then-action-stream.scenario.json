@@ -1,0 +1,140 @@
+{
+  "id": "lifecycle.initialize.happy.snapshot-then-action-stream",
+  "behaviorIds": [
+    "rpc.initialize.happy.snapshot-in-result",
+    "rpc.initialize.happy.action-stream-after-response",
+    "action.session-titleChanged.happy.session-titlechanged-updates-title"
+  ],
+  "description": "Full initialize handshake: client initializes, server replies with a session snapshot, then streams the action notifications; the client-reduced state converges byte-for-byte with the host's authoritative final state. Mirrors conformance/host/host.mjs (the live reference host) and its conformance/host/final.json expected state.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "The five actions and the convergence target are lifted verbatim from conformance/host/host.mjs `plan` + conformance/host/final.json. The clock is pinned to 9999 on both sides so the impure summary.modifiedAt (microsoft/agent-host-protocol#186) is deterministic — the host carries no authoritative meta, so client and host must each derive modifiedAt from the same reducer logic.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fresh snapshot at serverSeq 0",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/compliant",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/compliant",
+                "provider": "copilot",
+                "title": "Initial title",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "creating",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action 1 — titleChanged 'Live handshake one'",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/compliant",
+        "action": { "type": "session/titleChanged", "title": "Live handshake one" },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action 2 — isReadChanged true",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/compliant",
+        "action": { "type": "session/isReadChanged", "isRead": true },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action 3 — activityChanged streaming",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/compliant",
+        "action": { "type": "session/activityChanged", "activity": "streaming" },
+        "serverSeq": 3,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action 4 — titleChanged 'Live handshake two'",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/compliant",
+        "action": { "type": "session/titleChanged", "title": "Live handshake two" },
+        "serverSeq": 4,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action 5 — isArchivedChanged true",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/compliant",
+        "action": { "type": "session/isArchivedChanged", "isArchived": true },
+        "serverSeq": 5,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "the last title action was observed",
+      "matches": { "type": "session/titleChanged", "title": "Live handshake two" }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "title reflects the last titleChanged",
+      "channel": "ahp-session:/compliant",
+      "path": "summary.title",
+      "equals": "Live handshake two"
+    },
+    {
+      "op": "client.assert.state",
+      "label": "modifiedAt is the pinned clock (impure-field determinism)",
+      "channel": "ahp-session:/compliant",
+      "path": "summary.modifiedAt",
+      "equals": 9999
+    },
+    {
+      "op": "client.assert.state",
+      "label": "byte-for-byte convergence with the host authoritative final state (conformance/host/final.json)",
+      "channel": "ahp-session:/compliant",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/compliant",
+          "provider": "copilot",
+          "title": "Live handshake two",
+          "status": 97,
+          "createdAt": 1000,
+          "modifiedAt": 9999,
+          "activity": "streaming"
+        },
+        "lifecycle": "creating",
+        "turns": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "id": "action.terminal-resized.happy.terminal-resized",
+  "behaviorIds": [
+    "action.terminal-resized.happy.terminal-resized"
+  ],
+  "description": "Reducer fixture: terminal/resized updates cols and rows. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/074-terminal-resized.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "cols": 80,
+              "rows": 24,
+              "content": [],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/resized",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/resized",
+          "cols": 120,
+          "rows": 40
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "cols": 120,
+        "rows": 40,
+        "content": [],
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        }
+      }
+    }
+  ]
+}

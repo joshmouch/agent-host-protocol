@@ -1,0 +1,60 @@
+{
+  "id": "action.changeset-nonExistentAction.edge.changeset-unknown-action-type-is-no-op",
+  "behaviorIds": [
+    "action.changeset-nonExistentAction.edge.changeset-unknown-action-type-is-no-op"
+  ],
+  "description": "Reducer fixture: changeset unknown action type is no-op. Verifies that the client's changeset reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/144-changeset-unknown-action-type-is-no-op.json. Reducer: changeset.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-changeset:/test-changeset",
+            "fromSeq": 0,
+            "state": {
+              "status": "ready",
+              "files": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/nonExistentAction",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/nonExistentAction"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-changeset:/test-changeset",
+      "equals": {
+        "status": "ready",
+        "files": []
+      }
+    }
+  ]
+}

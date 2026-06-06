@@ -1,0 +1,85 @@
+{
+  "id": "action.terminal-cleared.happy.terminal-cleared-resets-content-parts",
+  "behaviorIds": [
+    "action.terminal-cleared.happy.terminal-cleared-resets-content-parts"
+  ],
+  "description": "Reducer fixture: terminal/cleared resets content to empty array with command detection. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/124-terminal-cleared-resets-content-parts.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [
+                {
+                  "type": "unclassified",
+                  "value": "$ "
+                },
+                {
+                  "type": "command",
+                  "commandId": "cmd-1",
+                  "commandLine": "echo hi",
+                  "output": "hi\r\n",
+                  "timestamp": 1700000000000,
+                  "isComplete": true,
+                  "exitCode": 0,
+                  "durationMs": 10
+                }
+              ],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              },
+              "supportsCommandDetection": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/cleared",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/cleared"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "content": [],
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        },
+        "supportsCommandDetection": true
+      }
+    }
+  ]
+}

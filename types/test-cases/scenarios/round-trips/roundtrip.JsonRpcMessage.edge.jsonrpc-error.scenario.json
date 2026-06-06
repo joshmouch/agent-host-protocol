@@ -1,0 +1,33 @@
+{
+  "id": "roundtrip.JsonRpcMessage.edge.jsonrpc-error",
+  "behaviorIds": [
+    "roundtrip.JsonRpcMessage.edge.jsonrpc-error"
+  ],
+  "description": "Round-trip: A JsonRpcMessage with id+error decodes as the error-response variant.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/011-jsonrpc-error.json. Type: JsonRpcMessage.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "request that will receive a response",
+      "method": "ping",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "JsonRpcMessage error: jsonrpc-error",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "x"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "error code is correct",
+      "code": -32601
+    }
+  ]
+}

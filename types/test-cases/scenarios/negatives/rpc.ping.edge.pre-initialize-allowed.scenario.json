@@ -1,0 +1,30 @@
+{
+  "id": "rpc.ping.edge.pre-initialize-allowed",
+  "behaviorIds": [
+    "rpc.ping.edge.pre-initialize-allowed"
+  ],
+  "description": "Negative/edge: ping sent before initialize receives a valid result (empty object)",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7: rpc.ping.edge.pre-initialize-allowed. ping MUST be answered even before initialize completes and even if client holds no subscriptions.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "ping before initialize — must be answered",
+      "method": "ping",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "ping result (even before initialize)",
+      "forId": 1,
+      "result": {}
+    },
+    {
+      "op": "client.assert.state",
+      "label": "no error surfaced; ping result received",
+      "path": "pingSeen",
+      "equals": null
+    }
+  ]
+}

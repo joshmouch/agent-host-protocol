@@ -1,0 +1,35 @@
+{
+  "id": "error.ProviderNotFound.error.ahp-code",
+  "behaviorIds": [
+    "error.ProviderNotFound.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32002 when the described condition arises. Client surfaces JSON-RPC error code -32002.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.ProviderNotFound.error.ahp-code. AHP application error code -32002. Requested agent provider is not registered",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send createSession to trigger the error condition",
+      "method": "createSession",
+      "params": {
+        "channel": "ahp-session:/test",
+        "provider": "nonexistent-provider"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32002",
+      "forId": 1,
+      "error": {
+        "code": -32002,
+        "message": "Error: error:ProviderNotFound"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32002",
+      "code": -32002
+    }
+  ]
+}

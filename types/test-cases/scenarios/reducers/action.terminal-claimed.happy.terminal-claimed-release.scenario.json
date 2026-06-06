@@ -1,0 +1,74 @@
+{
+  "id": "action.terminal-claimed.happy.terminal-claimed-release",
+  "behaviorIds": [
+    "action.terminal-claimed.happy.terminal-claimed-release"
+  ],
+  "description": "Reducer fixture: terminal/claimed narrows session claim (detach from tool call). Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/077-terminal-claimed-release.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [],
+              "claim": {
+                "kind": "session",
+                "session": "copilot:/s1",
+                "turnId": "t1",
+                "toolCallId": "tc1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/claimed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/claimed",
+          "claim": {
+            "kind": "session",
+            "session": "copilot:/s1"
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "content": [],
+        "claim": {
+          "kind": "session",
+          "session": "copilot:/s1"
+        }
+      }
+    }
+  ]
+}

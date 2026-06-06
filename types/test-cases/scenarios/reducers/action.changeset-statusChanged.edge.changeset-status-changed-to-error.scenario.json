@@ -1,0 +1,69 @@
+{
+  "id": "action.changeset-statusChanged.edge.changeset-status-changed-to-error",
+  "behaviorIds": [
+    "action.changeset-statusChanged.edge.changeset-status-changed-to-error"
+  ],
+  "description": "Reducer fixture: changeset/statusChanged with error attaches the error payload. Verifies that the client's changeset reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/137-changeset-status-changed-to-error.json. Reducer: changeset.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-changeset:/test-changeset",
+            "fromSeq": 0,
+            "state": {
+              "status": "computing",
+              "files": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/statusChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/statusChanged",
+          "status": "error",
+          "error": {
+            "errorType": "git",
+            "message": "fatal: not a git repository"
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-changeset:/test-changeset",
+      "equals": {
+        "status": "error",
+        "error": {
+          "errorType": "git",
+          "message": "fatal: not a git repository"
+        },
+        "files": []
+      }
+    }
+  ]
+}

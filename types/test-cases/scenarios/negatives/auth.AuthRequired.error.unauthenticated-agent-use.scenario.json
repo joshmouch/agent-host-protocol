@@ -1,0 +1,35 @@
+{
+  "id": "auth.AuthRequired.error.unauthenticated-agent-use",
+  "behaviorIds": [
+    "auth.AuthRequired.error.unauthenticated-agent-use"
+  ],
+  "description": "Negative/error-path: createSession for a required-auth agent without prior authenticate → error.code===-32007, error.data.resources is array. Client surfaces JSON-RPC error code -32007.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: auth.AuthRequired.error.unauthenticated-agent-use. Creating a session with an agent that requires auth, without calling authenticate first, should return AuthRequired (-32007) with AuthRequiredErrorData.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send createSession to trigger the error condition",
+      "method": "createSession",
+      "params": {
+        "channel": "ahp-session:/test",
+        "provider": "nonexistent-provider"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32007",
+      "forId": 1,
+      "error": {
+        "code": -32007,
+        "message": "Error: error:AuthRequired"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32007",
+      "code": -32007
+    }
+  ]
+}
