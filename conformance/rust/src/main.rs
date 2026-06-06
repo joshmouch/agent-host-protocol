@@ -32,10 +32,13 @@ use tokio::time::timeout;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
-use ahp::reducers::{apply_action_to_root, apply_action_to_session, apply_action_to_terminal};
+use ahp::reducers::{
+    apply_action_to_changeset, apply_action_to_root, apply_action_to_session,
+    apply_action_to_terminal,
+};
 use ahp::{clear_clock_override, set_clock_override};
 use ahp_types::actions::StateAction;
-use ahp_types::state::{ChangesetState, RootState, SessionState, TerminalState};
+use ahp_types::state::{ChangesetState, ChangesetStatus, RootState, SessionState, TerminalState};
 
 // ── Clock pin (mirrors JS pinClock) ─────────────────────────────────────────
 //
@@ -327,8 +330,30 @@ fn apply_notify_action(
                 ));
             }
         }
-        ReducerScope::Changeset | ReducerScope::Resource | ReducerScope::Unknown => {
-            // Not implemented in Rust yet — the event is still observed;
+        ReducerScope::Changeset => {
+            let Ok(action) = parsed else {
+                return;
+            };
+            let entry = channels
+                .entry(channel.to_string())
+                .or_insert_with(|| {
+                    ChannelState::Changeset(ChangesetState {
+                        status: ChangesetStatus::Computing,
+                        error: None,
+                        files: vec![],
+                        operations: None,
+                    })
+                });
+            if let ChannelState::Changeset(ref mut state) = entry {
+                apply_action_to_changeset(state, &action);
+            } else {
+                warnings.push(format!(
+                    "Channel {channel} expected Changeset state but held different type"
+                ));
+            }
+        }
+        ReducerScope::Resource | ReducerScope::Unknown => {
+            // resourceWatch not implemented in Rust yet — the event is still observed;
             // assert.state assertions against these channels will be SKIP.
         }
     }
@@ -626,11 +651,10 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
 
             if let Some(ch) = &step.channel {
                 // Skip assert.state for channels whose reducers aren't implemented
-                // in Rust yet (changeset, resourceWatch). The JS runner would fold
+                // in Rust yet (resourceWatch). The JS runner would fold
                 // the actions through the real reducer; Rust just skips convergence
                 // checks for these channel schemes.
-                let is_unimplemented = ch.starts_with("ahp-changeset:")
-                    || ch.starts_with("ahp-resource:");
+                let is_unimplemented = ch.starts_with("ahp-resource:");
                 if is_unimplemented {
                     return AssertResult {
                         ok: true,
@@ -702,8 +726,7 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
                 if result.channels.len() == 1 {
                     let (ch_key, state) = result.channels.iter().next().unwrap();
                     // Skip if the single channel is an unimplemented reducer type.
-                    let is_unimplemented = ch_key.starts_with("ahp-changeset:")
-                        || ch_key.starts_with("ahp-resource:");
+                    let is_unimplemented = ch_key.starts_with("ahp-resource:");
                     if is_unimplemented {
                         return AssertResult {
                             ok: true,

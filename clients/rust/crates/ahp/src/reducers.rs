@@ -54,13 +54,14 @@ use ahp_types::actions::{
     SessionToolCallResultConfirmedAction, SessionTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, ChildCustomization, ConfirmationOption, Customization, ErrorInfo, PendingMessage,
-    PendingMessageKind, ResponsePart, RootState, SessionInputRequest, SessionLifecycle,
-    SessionState, SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
-    TerminalUnclassifiedPart, ToolCallCancellationReason, ToolCallCancelledState,
-    ToolCallCompletedState, ToolCallConfirmationReason, ToolCallPendingConfirmationState,
-    ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
-    ToolCallState, ToolCallStreamingState, Turn, TurnState,
+    ActiveTurn, ChangesetOperationStatus, ChangesetState, ChildCustomization, ConfirmationOption,
+    Customization, ErrorInfo, PendingMessage, PendingMessageKind, ResponsePart, RootState,
+    SessionInputRequest, SessionLifecycle, SessionState, SessionStatus, TerminalCommandPart,
+    TerminalContentPart, TerminalState, TerminalUnclassifiedPart, ToolCallCancellationReason,
+    ToolCallCancelledState, ToolCallCompletedState, ToolCallConfirmationReason,
+    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState,
+    ToolCallResponsePart, ToolCallRunningState, ToolCallState, ToolCallStreamingState, Turn,
+    TurnState,
 };
 
 /// What happened when an action was applied.
@@ -1134,6 +1135,81 @@ fn apply_input_answer_changed(
     ReduceOutcome::Applied
 }
 
+// ─── Changeset Reducer ────────────────────────────────────────────────
+
+/// Apply a [`StateAction`] to a [`ChangesetState`] in place.
+///
+/// Mirrors the Kotlin `changesetReducer` and the TypeScript `changesetReducer`.
+/// Actions that target a different scope are returned as
+/// [`ReduceOutcome::OutOfScope`].
+pub fn apply_action_to_changeset(
+    state: &mut ChangesetState,
+    action: &StateAction,
+) -> ReduceOutcome {
+    match action {
+        StateAction::ChangesetStatusChanged(a) => {
+            // Carry `error` only when the new status is `Error` so we don't
+            // leave a stale error sitting on a recovered changeset.
+            if a.status == ahp_types::state::ChangesetStatus::Error {
+                state.status = a.status;
+                state.error = a.error.clone();
+            } else {
+                state.status = a.status;
+                state.error = None;
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetFileSet(a) => {
+            let file = a.file.clone();
+            if let Some(idx) = state.files.iter().position(|f| f.id == file.id) {
+                state.files[idx] = file;
+            } else {
+                state.files.push(file);
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetFileRemoved(a) => {
+            if let Some(idx) = state.files.iter().position(|f| f.id == a.file_id) {
+                state.files.remove(idx);
+                ReduceOutcome::Applied
+            } else {
+                ReduceOutcome::NoOp
+            }
+        }
+        StateAction::ChangesetOperationsChanged(a) => {
+            state.operations = a.operations.clone();
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetOperationStatusChanged(a) => {
+            let Some(ops) = state.operations.as_mut() else {
+                return ReduceOutcome::NoOp;
+            };
+            let Some(idx) = ops.iter().position(|op| op.id == a.operation_id) else {
+                return ReduceOutcome::NoOp;
+            };
+            // Carry `error` only when the new status is `Error` so we don't
+            // leave a stale error on an operation that recovered or started running.
+            if a.status == ChangesetOperationStatus::Error {
+                ops[idx].status = a.status;
+                ops[idx].error = a.error.clone();
+            } else {
+                ops[idx].status = a.status;
+                ops[idx].error = None;
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetCleared(_) => {
+            if state.files.is_empty() {
+                ReduceOutcome::NoOp
+            } else {
+                state.files.clear();
+                ReduceOutcome::Applied
+            }
+        }
+        _ => ReduceOutcome::OutOfScope,
+    }
+}
+
 // ─── Terminal Reducer ─────────────────────────────────────────────────
 
 /// Apply a [`StateAction`] to a [`TerminalState`] in place.
@@ -1542,11 +1618,14 @@ mod tests {
                     &file_name,
                     description,
                 ),
-                "changeset" => {
-                    // changeset reducer not yet implemented in Rust; skip.
-                    skipped += 1;
-                    continue;
-                }
+                "changeset" => run_fixture::<ChangesetState>(
+                    initial,
+                    expected,
+                    &parsed_actions,
+                    apply_action_to_changeset,
+                    &file_name,
+                    description,
+                ),
                 "resourceWatch" => {
                     // resourceWatch reducer not yet implemented in Rust; skip.
                     skipped += 1;

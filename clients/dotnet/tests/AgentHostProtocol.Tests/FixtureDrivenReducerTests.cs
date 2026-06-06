@@ -66,10 +66,12 @@ public sealed class FixtureDrivenReducerTests
                     RunFixture<TerminalState>(initial, expected, actions, Reducers.ApplyToTerminal);
                     break;
                 case "changeset":
+                    RunFixture<ChangesetState>(initial, expected, actions, Reducers.ApplyToChangeset);
+                    break;
                 case "resourceWatch":
-                    // The changeset / resourceWatch reducers are stubs in this
-                    // client (parity with the Rust and Go clients); their
-                    // fixtures are not exercised. See Reducers.ApplyToChangeset.
+                    // The resourceWatch reducer is not ported in this client yet
+                    // (parity with the Rust and Go clients); its fixtures are not
+                    // exercised.
                     break;
                 default:
                     throw new Xunit.Sdk.XunitException($"unknown reducer kind '{reducer}'");

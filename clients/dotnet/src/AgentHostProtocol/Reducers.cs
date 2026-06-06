@@ -1225,22 +1225,88 @@ public static class Reducers
     // ─── Changeset Reducer ─────────────────────────────────────────────────
 
     /// <summary>
-    /// Entry point for changeset actions. Mirrors the Rust/Go clients' stub:
-    /// every recognized changeset action short-circuits as
-    /// <see cref="ReduceOutcome.NoOp"/> until the full changeset reducer is
-    /// ported. Unrelated actions return <see cref="ReduceOutcome.OutOfScope"/>.
+    /// Applies <paramref name="action"/> to the <see cref="ChangesetState"/> in
+    /// place. Faithful port of the canonical TypeScript <c>changesetReducer</c>:
+    /// a stable file order is preserved by appending unknown ids and replacing
+    /// matching ids in place, and the <c>error</c> payload is carried only while
+    /// the relevant status is <c>Error</c> so a recovered changeset or operation
+    /// never keeps a stale error. Returns <see cref="ReduceOutcome.OutOfScope"/>
+    /// for actions that target a different state tree.
     /// </summary>
     public static ReduceOutcome ApplyToChangeset(ChangesetState state, StateAction action)
     {
-        _ = state;
         switch (action.Value)
         {
-            case ChangesetStatusChangedAction:
-            case ChangesetFileSetAction:
-            case ChangesetFileRemovedAction:
-            case ChangesetOperationsChangedAction:
+            case ChangesetStatusChangedAction a:
+                // Carry `error` only when the new status is Error so we don't
+                // leave a stale error sitting on a recovered changeset.
+                state.Status = a.Status;
+                state.Error = a.Status == ChangesetStatus.Error ? a.Error : null;
+                return ReduceOutcome.Applied;
+
+            case ChangesetFileSetAction a:
+            {
+                int idx = state.Files.FindIndex(f => f.Id == a.File.Id);
+                if (idx < 0)
+                {
+                    state.Files.Add(a.File);
+                }
+                else
+                {
+                    state.Files[idx] = a.File;
+                }
+
+                return ReduceOutcome.Applied;
+            }
+
+            case ChangesetFileRemovedAction a:
+            {
+                int idx = state.Files.FindIndex(f => f.Id == a.FileId);
+                if (idx < 0)
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                state.Files.RemoveAt(idx);
+                return ReduceOutcome.Applied;
+            }
+
+            case ChangesetOperationsChangedAction a:
+                // Full replacement: a list replaces the previous operations; a
+                // null list (wire `operations: null`) clears them entirely.
+                state.Operations = a.Operations;
+                return ReduceOutcome.Applied;
+
+            case ChangesetOperationStatusChangedAction a:
+            {
+                if (state.Operations is null)
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                int idx = state.Operations.FindIndex(o => o.Id == a.OperationId);
+                if (idx < 0)
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                ChangesetOperation op = state.Operations[idx];
+                // Carry `error` only when the new status is Error so we don't
+                // leave a stale error on an operation that recovered or started
+                // running.
+                op.Status = a.Status;
+                op.Error = a.Status == ChangesetOperationStatus.Error ? a.Error : null;
+                return ReduceOutcome.Applied;
+            }
+
             case ChangesetClearedAction:
-                return ReduceOutcome.NoOp;
+                if (state.Files.Count == 0)
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                state.Files.Clear();
+                return ReduceOutcome.Applied;
         }
 
         return ReduceOutcome.OutOfScope;
