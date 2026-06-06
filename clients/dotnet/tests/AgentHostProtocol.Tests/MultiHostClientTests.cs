@@ -1287,4 +1287,856 @@ public sealed class MultiHostClientTests
             handle!.DispatchAsync(action, "copilot:/s1", cts.Token));
         Assert.Equal(new HostId("temp"), ex.HostId);
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Phase 2 (test-only §H gap closure) — additional rows that Swift's
+    //  MultiHostClientTests.swift covers but the .NET suite lacked, plus
+    //  AggregatedSessions tie-break pinning (a mutation sweep found those
+    //  two comparison branches unverified). All drive the REAL MultiHostClient
+    //  over REAL MemTransport pairs with a fake server — NO mocking of the
+    //  client, transport, or serializer; every test asserts a real outcome.
+    // ══════════════════════════════════════════════════════════════════════
+
+    // ── 17. removeHost terminates the supervisor (host gone + stream done) ──
+    //
+    // Swift's testRemoveHostTerminatesSupervisorAndEmitsEvent additionally
+    // asserts a HostEvent.removed(id) on multi.hostEvents(). The .NET HostEvent
+    // surface carries only (HostId, State) — it has no `removed` variant — so
+    // the event-emission half is a documented surface gap (recorded by the
+    // director). The supervisor-termination half IS observable and is what we
+    // pin here: after RemoveHostAsync the host snapshot is gone (null) and the
+    // per-host snapshot stream completes (proving the supervisor + its plumbing
+    // were torn down, not merely orphaned).
+    [Fact]
+    public async Task MultiHost_RemoveHost_TerminatesSupervisor()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("temp"),
+            Label = "Temporary",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("temp"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        // A live per-host snapshot stream; removal must finish it.
+        var snapshots = m.HostSnapshots(new HostId("temp"));
+
+        await m.RemoveHostAsync(new HostId("temp"), cts.Token);
+
+        // The host is no longer registered.
+        Assert.Null(m.Host(new HostId("temp")));
+
+        // The per-host stream completes (supervisor + plumbing torn down): the
+        // await-foreach exits promptly instead of the 15s cts cancelling it.
+        var seen = 0;
+        await foreach (var _u in snapshots.ReadAllAsync(cts.Token)) { if (++seen > 50) break; }
+        Assert.True(snapshots.Completion.IsCompleted,
+            "removing the host must complete its per-host snapshot stream");
+
+        // Removing an unknown host throws the typed error.
+        await Assert.ThrowsAsync<UnknownHostException>(() =>
+            m.RemoveHostAsync(new HostId("temp"), cts.Token));
+    }
+
+    // ── 18. the transport factory is invoked once per (re)connect ──────────
+    //
+    // Mirrors Swift's testTransportFactoryIsCalledForEachReconnect: the factory
+    // is a fresh-transport mint, so each connect attempt must call it exactly
+    // once. After the initial connect the count is 1; a manual reconnect makes
+    // it 2 (and the host returns to Connected on the new transport).
+    [Fact]
+    public async Task MultiHost_TransportFactory_CalledForEachReconnect()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var calls = 0;
+        HostTransportFactory factory = (id, ct) =>
+        {
+            Interlocked.Increment(ref calls);
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("local"),
+            Label = "Local",
+            TransportFactory = factory,
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromMilliseconds(20),
+                MaxBackoff = TimeSpan.FromMilliseconds(20),
+                BackoffMultiplier = 1.0,
+                ResetOnSuccess = true,
+            },
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("local"), s => s.Kind == HostStateKind.Connected, cts.Token);
+        Assert.Equal(1, Volatile.Read(ref calls));
+
+        // Force a reconnect → the factory is invoked a second time and the host
+        // reconnects on the fresh transport.
+        await m.ReconnectAsync(new HostId("local"), cts.Token);
+        await WaitUntilAsync(() =>
+            Volatile.Read(ref calls) >= 2 && m.Host(new HostId("local")) is { State.Kind: HostStateKind.Connected },
+            cts.Token, 8000);
+        Assert.Equal(2, Volatile.Read(ref calls));
+    }
+
+    // ── 19. event/subscription readers receive nothing after shutdown ──────
+    //
+    // Maps Swift's testShutdownTearsDownAllHostsAndStreams stream-finish half
+    // to the .NET reader surface: after ShutdownAsync, both the connection-event
+    // reader (Events()) and the subscription fan-in reader (Subscriptions())
+    // complete, so a drain reads zero further items and the ReadAllAsync loop
+    // exits. (Pinning "recv none after transport/host teardown".)
+    [Fact]
+    public async Task MultiHost_ClientEvents_RecvNoneAfterShutdown()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("h"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        var events = m.Events();
+        var subs = m.Subscriptions();
+
+        await m.ShutdownAsync(cts.Token);
+
+        // Both readers must complete so their drains terminate (no item is
+        // delivered after teardown). Had shutdown NOT completed them, the cts
+        // would cancel the ReadAllAsync and fail the test.
+        var evCount = 0;
+        await foreach (var _u in events.ReadAllAsync(cts.Token)) { if (++evCount > 100) break; }
+        var subCount = 0;
+        await foreach (var _u in subs.ReadAllAsync(cts.Token)) { if (++subCount > 100) break; }
+
+        Assert.True(events.Completion.IsCompleted, "shutdown must complete the connection-event reader");
+        Assert.True(subs.Completion.IsCompleted, "shutdown must complete the subscription fan-in reader");
+
+        // No host snapshots are retrievable after shutdown.
+        Assert.Null(m.Host(new HostId("h")));
+    }
+
+    // ── 20. shutdown is not blocked by a hung transport factory ────────────
+    //
+    // Mirrors the intent behind Swift's parked-attempt teardown: a host whose
+    // reconnect attempt is stuck inside a transport factory that never returns
+    // must NOT wedge ShutdownAsync. We drive the host to a hung attempt #2
+    // (factory awaits Timeout.Infinite on its per-attempt token), then call
+    // ShutdownAsync and assert it completes within a bounded window — the
+    // lifetime cancellation aborts the hung factory.
+    [Fact]
+    public async Task MultiHost_Shutdown_NotBlockedByHungTransportFactory()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        var m = new MultiHostClient();
+
+        var attempts = 0;
+        var attempt2Entered = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        HostTransportFactory factory = async (id, ct) =>
+        {
+            var n = Interlocked.Increment(ref attempts);
+            if (n >= 2)
+            {
+                // Hung factory: never returns a transport until the per-attempt
+                // token (cancelled by lifetime teardown) fires.
+                attempt2Entered.TrySetResult(true);
+                await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+            }
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
+            return c;
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("hung"),
+            Label = "Hung",
+            TransportFactory = factory,
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromMilliseconds(10),
+                MaxBackoff = TimeSpan.FromMilliseconds(10),
+                BackoffMultiplier = 1.0,
+                ResetOnSuccess = true,
+            },
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("hung"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        // Force a reconnect → attempt #2 enters the hung factory and parks.
+        await m.ReconnectAsync(new HostId("hung"), cts.Token);
+        await Task.WhenAny(attempt2Entered.Task, Task.Delay(8000, cts.Token));
+        Assert.True(attempt2Entered.Task.IsCompletedSuccessfully, "the hung factory's attempt should have started");
+
+        // ShutdownAsync must complete despite the in-flight hung factory: the
+        // lifetime cancel aborts the attempt. Bound it well under the cts so a
+        // wedge fails loudly rather than hanging the whole run.
+        var shutdown = m.ShutdownAsync(cts.Token);
+        var winner = await Task.WhenAny(shutdown, Task.Delay(10000, cts.Token));
+        Assert.True(ReferenceEquals(winner, shutdown) && shutdown.IsCompletedSuccessfully,
+            "ShutdownAsync must not be blocked by a hung transport factory");
+    }
+
+    // ── 21. explicit clientId wins over store ──────────────────────────────
+    //
+    // Pins the clientId-resolution branch in AddHostAsync: an explicit
+    // HostConfig.ClientId is used verbatim (not the stored value, not a fresh
+    // mint) AND is persisted to the store. Mirrors the Swift SDK's explicit-id
+    // precedence (Swift exercises this through its client-id store seams).
+    [Fact]
+    public async Task MultiHost_ClientId_ExplicitWins()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var store = new InMemoryClientIdStore();
+        // Pre-seed a DIFFERENT id so we can prove explicit wins over stored.
+        await store.StoreAsync(new HostId("h"), "stored-id", cts.Token);
+
+        var m = new MultiHostClient(store);
+        await using var _mh = m;
+
+        var handle = await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            ClientId = "explicit-id",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+
+        Assert.Equal("explicit-id", handle.ClientId);
+        Assert.Equal("explicit-id", m.Host(new HostId("h"))!.ClientId);
+        // Explicit id is persisted, overwriting the pre-seeded stored value.
+        Assert.Equal("explicit-id", await store.LoadAsync(new HostId("h"), cts.Token));
+    }
+
+    // ── 22. stored clientId is reused when none is supplied ────────────────
+    //
+    // When HostConfig.ClientId is empty, AddHostAsync loads the persisted id
+    // from the store and reuses it (the AHP reconnect-stability contract).
+    [Fact]
+    public async Task MultiHost_ClientId_StoredReused()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var store = new InMemoryClientIdStore();
+        await store.StoreAsync(new HostId("h"), "persisted-id", cts.Token);
+
+        var m = new MultiHostClient(store);
+        await using var _mh = m;
+
+        var handle = await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            // No ClientId supplied → the stored one is reused.
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+
+        Assert.Equal("persisted-id", handle.ClientId);
+        Assert.Equal("persisted-id", m.Host(new HostId("h"))!.ClientId);
+        Assert.Equal("persisted-id", await store.LoadAsync(new HostId("h"), cts.Token));
+    }
+
+    // ── 23. a missing clientId is generated and then persisted ─────────────
+    //
+    // With no explicit id and an empty store, AddHostAsync mints a fresh
+    // non-empty clientId and persists it for future reconnect stability.
+    [Fact]
+    public async Task MultiHost_ClientId_MissingGenerates()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var store = new InMemoryClientIdStore();
+        Assert.Null(await store.LoadAsync(new HostId("h"), cts.Token)); // empty store
+
+        var m = new MultiHostClient(store);
+        await using var _mh = m;
+
+        var handle = await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+
+        Assert.False(string.IsNullOrEmpty(handle.ClientId), "a clientId must be generated");
+        // The generated id is the one surfaced on the snapshot AND persisted.
+        Assert.Equal(handle.ClientId, m.Host(new HostId("h"))!.ClientId);
+        Assert.Equal(handle.ClientId, await store.LoadAsync(new HostId("h"), cts.Token));
+    }
+
+    // ── 24. a cancelled/failed add releases the host-id reservation ────────
+    //
+    // AddHostAsync reserves the id (TryAdd) BEFORE the initial connect, then
+    // removes it on connect failure (see the catch in AddHostAsync). This pins
+    // that the reservation is released: a first add whose factory throws fails,
+    // and a SECOND add of the SAME id then succeeds (no spurious
+    // DuplicateHostException from a leaked reservation).
+    [Fact]
+    public async Task MultiHost_AddHostFailure_ReleasesReservation()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var attempts = 0;
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var n = Interlocked.Increment(ref attempts);
+            if (n == 1)
+                throw new AhpTransportException("io", "intentional first-attempt failure");
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
+            return Task.FromResult<ITransport>(c);
+        };
+
+        // First add fails during the initial connect.
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            m.AddHostAsync(new HostConfig
+            {
+                Id = new HostId("r"),
+                Label = "R",
+                TransportFactory = factory,
+                ReconnectPolicy = ReconnectPolicy.Disabled,
+            }, cts.Token));
+
+        // The reservation was released → the host is NOT registered.
+        Assert.Null(m.Host(new HostId("r")));
+
+        // Re-adding the SAME id succeeds (no leaked DuplicateHostException).
+        var handle = await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("r"),
+            Label = "R",
+            TransportFactory = factory,
+        }, cts.Token);
+        Assert.Equal(new HostId("r"), handle.Id);
+        await WaitForHostStateAsync(m, new HostId("r"), s => s.Kind == HostStateKind.Connected, cts.Token);
+        Assert.Equal(2, Volatile.Read(ref attempts));
+    }
+
+    // ── 25. a client handle invalidates after the host reconnects ──────────
+    //
+    // Mirrors Swift's testHostClientHandleInvalidatesAfterReconnect. A handle
+    // is minted at the current generation; after a reconnect bumps the
+    // generation the stale handle refuses to operate (Swift surfaces
+    // .hostReconnected; .NET folds that into HostNotConnectedException — "not
+    // the connection you held; reacquire"), and a fresh handle works.
+    [Fact]
+    public async Task MultiHost_HostClientHandle_InvalidatesAfterReconnect()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("local"),
+            Label = "Local",
+            TransportFactory = FullFactory(cts.Token),
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromMilliseconds(20),
+                MaxBackoff = TimeSpan.FromMilliseconds(20),
+                BackoffMultiplier = 1.0,
+                ResetOnSuccess = true,
+            },
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("local"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        var handle = m.ClientFor(new HostId("local"));
+        Assert.NotNull(handle);
+        var initialGeneration = handle!.Generation;
+        handle.CheckAliveOrThrow(); // valid before reconnect
+
+        // FullFactory mints a fresh server per call, so a manual reconnect lands
+        // a NEW connection at a higher generation.
+        await m.ReconnectAsync(new HostId("local"), cts.Token);
+        await WaitUntilAsync(() =>
+            m.Host(new HostId("local")) is { } h && h.Generation > initialGeneration && h.State.Kind == HostStateKind.Connected,
+            cts.Token, 10000);
+
+        // The stale handle now refuses to operate (generation moved).
+        Assert.Throws<HostNotConnectedException>(() => handle.CheckAliveOrThrow());
+        var action = new StateAction(new SessionTitleChangedAction
+        {
+            Type = ActionType.SessionTitleChanged,
+            Title = "x",
+        });
+        await Assert.ThrowsAsync<HostNotConnectedException>(() =>
+            handle.DispatchAsync(action, "copilot:/s1", cts.Token));
+
+        // A freshly acquired handle is at the new generation and is valid.
+        var fresh = m.ClientFor(new HostId("local"));
+        Assert.NotNull(fresh);
+        Assert.True(fresh!.Generation > initialGeneration);
+        fresh.CheckAliveOrThrow();
+    }
+
+    // ── 26. a failed handshake shuts down the underlying client ────────────
+    //
+    // Mirrors Swift's testFailedHandshakeShutsDownUnderlyingClient. If
+    // `initialize` errors after the client's reader/writer tasks have started,
+    // the supervisor must shut the AhpClient down (which closes the wrapped
+    // transport) before propagating — otherwise the orphaned client keeps
+    // holding the transport. We observe this via a tracking transport whose
+    // Closed flag flips on CloseAsync.
+    [Fact]
+    public async Task MultiHost_FailedHandshake_ShutsDownUnderlyingClient()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var observer = new ClosedObserver();
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (c, s) = MemTransport.CreatePair();
+            // Server returns a JSON-RPC error to `initialize`.
+            _ = Task.Run(() => RunFailingInitServerAsync(s, ct));
+            return Task.FromResult<ITransport>(new TrackingTransport(c, observer));
+        };
+
+        // Disabled policy so the host parks in .failed after one failed handshake
+        // instead of looping forever.
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            m.AddHostAsync(new HostConfig
+            {
+                Id = new HostId("fail"),
+                Label = "Fail",
+                TransportFactory = factory,
+                ReconnectPolicy = ReconnectPolicy.Disabled,
+            }, cts.Token));
+
+        // The supervisor shut the AhpClient down on the handshake failure, which
+        // closed the wrapped transport.
+        await WaitUntilAsync(() => observer.IsClosed, cts.Token, 8000);
+        Assert.True(observer.IsClosed,
+            "AhpClient shutdown on a failed handshake should have closed the transport");
+    }
+
+    // ── 27. state during backoff after a drop is Reconnecting ──────────────
+    //
+    // Regression mirror of Swift's testStateDuringBackoffAfterDropIsReconnecting:
+    // while the supervisor sleeps in backoff after a connection dropped,
+    // snapshots must report Reconnecting (not Connected). We connect, drop the
+    // transport, and — with a long backoff and a parking second attempt — assert
+    // the host surfaces Reconnecting during the sleep window.
+    [Fact]
+    public async Task MultiHost_StateDuringBackoffAfterDrop_IsReconnecting()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var attempts = 0;
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var n = Interlocked.Increment(ref attempts);
+            var (c, s) = MemTransport.CreatePair();
+            if (n == 1)
+            {
+                // Answer the handshake, reach Connected, then drop to force the
+                // post-drop backoff window.
+                _ = Task.Run(() => RunHandshakeThenDropAsync(s, ct));
+            }
+            else
+            {
+                // Subsequent attempts park (never reply) so the runtime stays in
+                // the Reconnecting/backoff window while we observe.
+                _ = Task.Run(async () => { try { await s.ReceiveAsync(ct).ConfigureAwait(false); } catch { } });
+            }
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("drop"),
+            Label = "Drop",
+            TransportFactory = factory,
+            // Long backoff so there is a generous window to observe Reconnecting
+            // during the sleep (SuperviseAsync sets Reconnecting BEFORE the sleep).
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromSeconds(5),
+                MaxBackoff = TimeSpan.FromSeconds(5),
+                BackoffMultiplier = 1.0,
+                Jitter = 0.0,
+                ResetOnSuccess = true,
+            },
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("drop"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        // After the drop the supervisor transitions to Reconnecting and sleeps
+        // the (long) backoff; the state must read Reconnecting during that sleep.
+        await WaitForHostStateAsync(m, new HostId("drop"), s => s.Kind == HostStateKind.Reconnecting, cts.Token, 8000);
+        Assert.Equal(HostStateKind.Reconnecting, m.Host(new HostId("drop"))!.State.Kind);
+    }
+
+    // ── 28. MultiHostClient shutdown is idempotent ─────────────────────────
+    //
+    // Mirrors the idempotency tail of Swift's testShutdownTearsDownAllHostsAndStreams:
+    // a second ShutdownAsync is a safe no-op, and a post-shutdown AddHostAsync
+    // is rejected with HostShutDownException carrying the would-be id.
+    [Fact]
+    public async Task MultiHost_Shutdown_IsIdempotent()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("alpha"),
+            Label = "Alpha",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("alpha"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        await m.ShutdownAsync(cts.Token);
+        // Second shutdown is a no-op (does not throw, returns promptly).
+        await m.ShutdownAsync(cts.Token);
+
+        Assert.Null(m.Host(new HostId("alpha")));
+
+        // A post-shutdown add is rejected with the typed error carrying the id.
+        var ex = await Assert.ThrowsAsync<HostShutDownException>(() =>
+            m.AddHostAsync(new HostConfig
+            {
+                Id = new HostId("gamma"),
+                Label = "Gamma",
+                TransportFactory = FullFactory(cts.Token),
+            }, cts.Token));
+        Assert.Equal(new HostId("gamma"), ex.HostId);
+    }
+
+    // ── 29. repeated reconnect cycles stay healthy (no abort-listener leak) ─
+    //
+    // The .NET reconnect path registers a per-attempt cancellation (BeginAttempt)
+    // that a later manual reconnect / removal can abort. There is no public
+    // listener-count surface, so we pin the OBSERVABLE consequence of a leak:
+    // many reconnect cycles in a row keep the host healthy — each cycle bumps
+    // the generation monotonically and lands back at Connected, with no error
+    // accumulation, hang, or stuck state. A leaked abort registration would
+    // eventually wedge a cycle (stuck non-Connected) or fault the host.
+    [Fact]
+    public async Task MultiHost_RepeatedReconnectCycles_StayHealthy()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("loop"),
+            Label = "Loop",
+            TransportFactory = factory,
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromMilliseconds(10),
+                MaxBackoff = TimeSpan.FromMilliseconds(10),
+                BackoffMultiplier = 1.0,
+                ResetOnSuccess = true,
+            },
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("loop"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        var lastGen = m.Host(new HostId("loop"))!.Generation;
+
+        // Hammer reconnect repeatedly; each cycle must complete cleanly with a
+        // strictly higher generation and a Connected end state.
+        for (var i = 0; i < 8; i++)
+        {
+            var prevGen = lastGen;
+            await m.ReconnectAsync(new HostId("loop"), cts.Token);
+            await WaitUntilAsync(() =>
+                m.Host(new HostId("loop")) is { } h && h.Generation > prevGen && h.State.Kind == HostStateKind.Connected,
+                cts.Token, 8000);
+            var snap = m.Host(new HostId("loop"))!;
+            Assert.Equal(HostStateKind.Connected, snap.State.Kind);
+            Assert.True(snap.Generation > prevGen,
+                $"reconnect cycle {i} should bump the generation ({prevGen} -> {snap.Generation})");
+            lastGen = snap.Generation;
+        }
+
+        // Still healthy after the storm of reconnects.
+        Assert.Equal(HostStateKind.Connected, m.Host(new HostId("loop"))!.State.Kind);
+    }
+
+    // ── 30. AggregatedSessions tie-break: host registration order ──────────
+    //
+    // Pins the FIRST tie-break branch in AggregatedSessions (MultiHostClient.cs:
+    // host registration-order comparison): when sessions on DIFFERENT hosts share
+    // an identical Summary.ModifiedAt, every row from the earlier-registered host
+    // sorts before every row from the later host.
+    //
+    // Falsifiability: AggregatedSessions sorts with List.Sort (an UNSTABLE
+    // introsort). We give EACH host MANY equal-modifiedAt sessions (well past the
+    // ~16-element insertion-sort threshold) so the host-order comparison is the
+    // ONLY thing that can produce a deterministic A-before-B partition — neuter it
+    // (return 0) and the unstable sort interleaves the two hosts' rows, failing
+    // the "all of host-a precedes all of host-b" assertion. Empirically verified
+    // to fail against a neutered tie-break before landing.
+    [Fact]
+    public async Task MultiHost_AggregatedSessions_HostRegistrationOrderTieBreak()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        // Every session shares the SAME modifiedAt → the timestamp comparison is a
+        // tie for ALL pairs, forcing the secondary (host-order) tie-break across a
+        // large enough set that an unstable sort would scramble it absent the
+        // comparison.
+        const long sharedModifiedAt = 5_000;
+        const int perHost = 12; // > introsort insertion-sort threshold (16 total each side margin)
+        var aSessions = new List<SessionSummary>();
+        var bSessions = new List<SessionSummary>();
+        for (var i = 0; i < perHost; i++)
+        {
+            // Resource ordering is deliberately INTERLEAVED with host so the final
+            // tie-break (resource ordinal) can't accidentally reproduce the
+            // host-partition: host-a uses odd-ish keys, host-b even-ish, mixed.
+            aSessions.Add(MakeSummary($"ahp-session:/a-{(perHost - i):D2}", $"a{i}", sharedModifiedAt));
+            bSessions.Add(MakeSummary($"ahp-session:/b-{i:D2}", $"b{i}", sharedModifiedAt));
+        }
+
+        // Register "host-a" BEFORE "host-b".
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("host-a"),
+            Label = "A",
+            TransportFactory = FullFactory(cts.Token, sessions: aSessions),
+        }, cts.Token);
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("host-b"),
+            Label = "B",
+            TransportFactory = FullFactory(cts.Token, sessions: bSessions),
+        }, cts.Token);
+
+        await WaitForHostStateAsync(m, new HostId("host-a"), s => s.Kind == HostStateKind.Connected, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("host-b"), s => s.Kind == HostStateKind.Connected, cts.Token);
+        await WaitUntilAsync(() => m.AggregatedSessions().Count == perHost * 2, cts.Token);
+
+        var aggregated = m.AggregatedSessions();
+        Assert.Equal(perHost * 2, aggregated.Count);
+
+        // The host-order tie-break must place EVERY host-a row before EVERY host-b
+        // row (the two hosts share orderIndex 0 vs 1). Find the boundary: the first
+        // host-b row, and assert no host-a row appears after it.
+        var hostIds = aggregated.ConvertAll(r => r.HostId);
+        var firstB = hostIds.FindIndex(h => h.Equals(new HostId("host-b")));
+        Assert.Equal(perHost, firstB); // first perHost rows are all host-a
+        for (var i = 0; i < perHost; i++)
+            Assert.Equal(new HostId("host-a"), aggregated[i].HostId);
+        for (var i = perHost; i < perHost * 2; i++)
+            Assert.Equal(new HostId("host-b"), aggregated[i].HostId);
+    }
+
+    // ── 31. AggregatedSessions tie-break: Resource ordinal (within a host) ─
+    //
+    // Pins the FINAL tie-break branch (ordinal on Summary.Resource): sessions that
+    // tie on BOTH modifiedAt AND host (same host, equal timestamp) are ordered by
+    // Resource ordinal. The per-host snapshot layer co-enforces this ordering, so
+    // this is a belt-and-suspenders OUTCOME pin spanning both sort layers — the
+    // user-visible contract is "equal-timestamp sessions on one host come out in a
+    // deterministic Resource-ordinal order".
+    //
+    // Falsifiability: a single host carries MANY equal-modifiedAt sessions listed
+    // in REVERSE Resource order; the asserted output is strict ascending Resource
+    // ordinal. A regression in EITHER sort layer (or a switch to an unstable sort
+    // with no resource tie-break) breaks the strict-ascending assertion on this
+    // large set.
+    [Fact]
+    public async Task MultiHost_AggregatedSessions_ResourceOrdinalTieBreak()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        // One host, all sessions at the SAME modifiedAt, supplied in REVERSE
+        // resource order (s-20, s-19, …, s-01) so a working ordinal tie-break must
+        // re-sort them to ascending (s-01, …, s-20).
+        const long sharedModifiedAt = 9_000;
+        const int n = 20;
+        var reversed = new List<SessionSummary>();
+        for (var i = n; i >= 1; i--)
+            reversed.Add(MakeSummary($"ahp-session:/s-{i:D2}", $"t{i}", sharedModifiedAt));
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("solo"),
+            Label = "Solo",
+            TransportFactory = FullFactory(cts.Token, sessions: reversed),
+        }, cts.Token);
+
+        await WaitForHostStateAsync(m, new HostId("solo"), s => s.Kind == HostStateKind.Connected, cts.Token);
+        await WaitUntilAsync(() => m.AggregatedSessions().Count == n, cts.Token);
+
+        var aggregated = m.AggregatedSessions();
+        Assert.Equal(n, aggregated.Count);
+        // Equal modifiedAt + same host → strictly ascending Resource ordinal.
+        var resources = aggregated.ConvertAll(r => r.Summary.Resource);
+        var expected = new List<string>();
+        for (var i = 1; i <= n; i++) expected.Add($"ahp-session:/s-{i:D2}");
+        Assert.Equal(expected, resources);
+        // Explicitly assert strict ordinal ascent (catches any pair inversion).
+        for (var i = 1; i < resources.Count; i++)
+            Assert.True(string.CompareOrdinal(resources[i - 1], resources[i]) < 0,
+                $"row {i - 1} ({resources[i - 1]}) must sort before row {i} ({resources[i]})");
+    }
+
+    // ── 32. events(host, uri): a non-matching (empty) resource sees nothing ─
+    //
+    // §H sub-case (events nil/empty-resource). EventsForHost on a KNOWN host with
+    // a URI that never matches any delivered channel (here the empty string)
+    // yields a live reader that simply never fires — session notifications are
+    // scoped to the root channel, so an empty-URI listener observes none of them,
+    // while a root-channel listener on the SAME host does. This pins that the
+    // per-(host,uri) fan-out is URI-scoped (not a firehose).
+    [Fact]
+    public async Task MultiHost_HostEvents_EmptyResourceListener_SeesNothing()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var added = MakeSummary("ahp-session:/added", "post", modifiedAt: 200);
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "Host",
+            TransportFactory = FullFactory(cts.Token, injectAfterInit: added),
+        }, cts.Token);
+
+        // Listener on an empty/non-matching resource and a control listener on the
+        // root channel (where root/sessionAdded is scoped).
+        var emptyReader = m.EventsForHost(new HostId("h"), "");
+        var rootReader = m.EventsForHost(new HostId("h"), ProtocolVersion.RootResourceUri);
+
+        // The root listener DOES see the injected sessionAdded.
+        var sawOnRoot = false;
+        for (var i = 0; i < 40 && !sawOnRoot; i++)
+        {
+            var (ok, ev) = await ReadWithTimeoutAsync(rootReader, cts.Token, 400);
+            if (ok && ev is SubscriptionEventSessionAdded sa && sa.Params.Summary.Resource == "ahp-session:/added")
+                sawOnRoot = true;
+        }
+        Assert.True(sawOnRoot, "the root-channel listener should see the injected sessionAdded");
+
+        // The empty-resource listener saw NOTHING in that same window (URI-scoped
+        // fan-out, not a firehose).
+        var (gotEmpty, _empty) = await ReadWithTimeoutAsync(emptyReader, cts.Token, 300);
+        Assert.False(gotEmpty, "an empty/non-matching resource listener must not receive root-channel events");
+    }
+
+    // ── Extra fake-server + transport helpers for the gap tests ────────────
+
+    /// <summary>
+    /// Server loop that responds to <c>initialize</c> with a JSON-RPC ERROR
+    /// (not a result), driving the client's handshake to fault. Mirrors Swift's
+    /// <c>startFailingInitFakeHost</c>. Any other request gets an empty success
+    /// so a fallback path can resolve.
+    /// </summary>
+    private static async Task RunFailingInitServerAsync(MemTransport serverSide, CancellationToken ct)
+    {
+        try
+        {
+            while (true)
+            {
+                TransportMessage frame;
+                try { frame = await serverSide.ReceiveAsync(ct).ConfigureAwait(false); }
+                catch { return; }
+
+                JsonRpcMessage msg;
+                try { msg = Ser.DecodeMessage(frame); }
+                catch { return; }
+
+                if (msg.Request is null) continue;
+                if (msg.Request.Method is "initialize" or "reconnect")
+                {
+                    var resp = new JsonRpcMessage
+                    {
+                        ErrorResponse = new JsonRpcErrorResponse
+                        {
+                            Id = msg.Request.Id,
+                            Error = new JsonRpcErrorObject { Code = -32000, Message = "init refused for test" },
+                        },
+                    };
+                    try { await serverSide.SendAsync(Ser.EncodeMessage(resp), ct).ConfigureAwait(false); }
+                    catch { return; }
+                }
+                else
+                {
+                    await RespondEmptyAsync(serverSide, msg.Request.Id, ct).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary>
+    /// Records whether <see cref="TrackingTransport.CloseAsync"/> ran. Mirrors
+    /// Swift's <c>ClosedObserver</c> actor.
+    /// </summary>
+    private sealed class ClosedObserver
+    {
+        private int _closeCount;
+        public bool IsClosed => Volatile.Read(ref _closeCount) > 0;
+        public void MarkClosed() => Interlocked.Increment(ref _closeCount);
+    }
+
+    /// <summary>
+    /// Thin <see cref="ITransport"/> wrapper that flips an observable closed flag
+    /// on <see cref="CloseAsync"/>. Used to prove the supervisor shuts the
+    /// underlying client down (which closes the transport) on a failed handshake.
+    /// Mirrors Swift's <c>TrackingTransport</c>.
+    /// </summary>
+    private sealed class TrackingTransport : ITransport
+    {
+        private readonly ITransport _inner;
+        private readonly ClosedObserver _observer;
+
+        public TrackingTransport(ITransport inner, ClosedObserver observer)
+        {
+            _inner = inner; _observer = observer;
+        }
+
+        public ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default) =>
+            _inner.SendAsync(message, cancellationToken);
+
+        public ValueTask<TransportMessage> ReceiveAsync(CancellationToken cancellationToken = default) =>
+            _inner.ReceiveAsync(cancellationToken);
+
+        public async ValueTask CloseAsync(CancellationToken cancellationToken = default)
+        {
+            _observer.MarkClosed();
+            await _inner.CloseAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _observer.MarkClosed();
+            await _inner.DisposeAsync().ConfigureAwait(false);
+        }
+    }
 }
