@@ -1,0 +1,12 @@
+{
+  "name": "jsonrpc-error",
+  "description": "A JsonRpcMessage with id+error decodes as the error-response variant.",
+  "type": "JsonRpcMessage",
+  "wireRaw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32601,\"message\":\"x\"}}",
+  "expectVariant": {
+    "Request": "absent",
+    "Notification": "absent",
+    "SuccessResponse": "absent",
+    "ErrorResponse": "present"
+  }
+}

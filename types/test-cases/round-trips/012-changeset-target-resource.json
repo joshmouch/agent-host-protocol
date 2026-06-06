@@ -1,0 +1,13 @@
+{
+  "name": "changeset-target-resource",
+  "description": "ChangesetOperationTarget dispatches on its `kind` discriminator: kind=resource decodes the resource-target variant.",
+  "type": "ChangesetOperationTarget",
+  "wireRaw": "{\"kind\":\"resource\",\"resource\":\"file:///a.txt\"}",
+  "expect": {
+    "kind": "resource",
+    "resource": "file:///a.txt"
+  },
+  "expectVariant": {
+    "": "ChangesetOperationResourceTarget"
+  }
+}

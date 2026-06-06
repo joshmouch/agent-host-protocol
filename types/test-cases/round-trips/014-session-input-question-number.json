@@ -1,0 +1,15 @@
+{
+  "name": "session-input-question-number",
+  "description": "SessionInputQuestion kind=number decodes the number-question variant; the typed Kind preserves `number` and min/max decode.",
+  "type": "SessionInputQuestion",
+  "wireRaw": "{\"kind\":\"number\",\"id\":\"q1\",\"message\":\"How many?\",\"min\":0,\"max\":10}",
+  "expect": {
+    "kind": "number",
+    "id": "q1",
+    "min": 0,
+    "max": 10
+  },
+  "expectVariant": {
+    "": "SessionInputNumberQuestion"
+  }
+}

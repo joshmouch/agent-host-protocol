@@ -1,0 +1,13 @@
+{
+  "name": "channel-scoped-notification-uri",
+  "description": "SessionAddedParams is a channel-scoped notification payload; the `channel` field carries the subscription URI and survives a round-trip unchanged. (Matches the original ChannelScopedNotification_CarriesUri test, which asserted only the channel; the extra `session` wire key is an unknown key and is dropped.)",
+  "type": "SessionAddedParams",
+  "wire": {
+    "channel": "ahp:/root",
+    "session": "ahp-session:/s1"
+  },
+  "expect": {
+    "channel": "ahp:/root"
+  },
+  "roundTripStable": true
+}

@@ -1,0 +1,14 @@
+{
+  "name": "session-input-question-integer",
+  "description": "SessionInputQuestion kind=integer also maps to the number-question variant, but the typed Kind preserves `integer` (distinct from `number`); defaultValue decodes.",
+  "type": "SessionInputQuestion",
+  "wireRaw": "{\"kind\":\"integer\",\"id\":\"q2\",\"message\":\"How many whole?\",\"defaultValue\":3}",
+  "expect": {
+    "kind": "integer",
+    "id": "q2",
+    "defaultValue": 3
+  },
+  "expectVariant": {
+    "": "SessionInputNumberQuestion"
+  }
+}
