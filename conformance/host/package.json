@@ -1,0 +1,14 @@
+{
+  "name": "ahp-conformance-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Spec-faithful AHP conformance host on the canonical sessionReducer, over a real WebSocket. Depends on the in-repo TypeScript client (file: dependency) — no published package, no external pod.",
+  "scripts": {
+    "start": "node host.mjs"
+  },
+  "dependencies": {
+    "@microsoft/agent-host-protocol": "file:../../clients/typescript",
+    "ws": "^8.20.0"
+  }
+}
