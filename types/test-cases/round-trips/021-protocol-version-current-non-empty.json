@@ -1,0 +1,8 @@
+{
+  "name": "protocol-version-current-non-empty",
+  "description": "ProtocolVersion.Current is a non-empty version string.",
+  "type": "ProtocolVersion",
+  "expectConstant": {
+    "current": "non-empty"
+  }
+}

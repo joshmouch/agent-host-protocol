@@ -87,12 +87,19 @@
 //! [`SessionStatus`](state::SessionStatus) packs activity and metadata
 //! flags into a single value — use bitwise checks rather than equality:
 //!
+//! `SessionStatus` is a `u32` bitset newtype: combine flags with `|`, test
+//! membership with [`contains`](state::SessionStatus::contains), and read the
+//! raw value (including unknown/forward-compat bits) with
+//! [`bits`](state::SessionStatus::bits).
+//!
 //! ```
 //! use ahp_types::state::SessionStatus;
 //!
-//! let status = SessionStatus::InProgress as u32 | SessionStatus::IsArchived as u32;
-//! assert_ne!(status & SessionStatus::InProgress as u32, 0);
-//! assert_ne!(status & SessionStatus::IsArchived as u32, 0);
+//! let status = SessionStatus::InProgress | SessionStatus::IsArchived;
+//! assert!(status.contains(SessionStatus::InProgress));
+//! assert!(status.contains(SessionStatus::IsArchived));
+//! assert!(!status.contains(SessionStatus::Idle));
+//! assert_eq!(status.bits(), 8 | 64);
 //! ```
 //!
 //! # Compatibility

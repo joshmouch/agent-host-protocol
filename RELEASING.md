@@ -23,6 +23,7 @@ and a checked-in `clients/<lang>/release-metadata.json`.
 | TypeScript | `typescript/vX.Y.Z` | `clients/typescript/pipeline.yml` (Azure DevOps) | npm (`@microsoft/agent-host-protocol`) via ESRP. |
 | Swift      | `vX.Y.Z` (bare)     | `.github/workflows/publish-swift.yml` | SwiftPM resolves the tag directly. |
 | Go         | `clients/go/vX.Y.Z` | `.github/workflows/publish-go.yml` | Go module proxy resolves the tag directly. |
+| .NET       | `dotnet/vX.Y.Z`     | `.github/workflows/publish-dotnet.yml` | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`, `.WebSockets`). |
 
 > **Why Swift gets the bare semver tag namespace:** SwiftPM only resolves
 > packages by matching plain `X.Y.Z` / `vX.Y.Z` git tags at the manifest's
@@ -146,6 +147,22 @@ trigger started the run.
    `go get github.com/microsoft/agent-host-protocol/clients/go@vX.Y.Z`;
    no registry push happens.
 
+### .NET (`dotnet/vX.Y.Z`)
+
+1. Update `clients/dotnet/VERSION` to the new bare semver string (no
+   leading `v`).
+2. Run `npm run generate:metadata` and commit the regenerated
+   `clients/dotnet/release-metadata.json`.
+3. Rotate `clients/dotnet/CHANGELOG.md`.
+4. Merge to `main`.
+5. Tag: `git tag dotnet/v0.X.Y && git push origin dotnet/v0.X.Y`.
+6. `publish-dotnet.yml` validates the tag against `clients/dotnet/VERSION`
+   and `CHANGELOG.md`, builds + tests the solution, then `dotnet pack`s
+   the publishable libraries (`Microsoft.AgentHostProtocol`,
+   `Microsoft.AgentHostProtocol.Abstractions`,
+   `Microsoft.AgentHostProtocol.WebSockets`) and pushes them to NuGet.org
+   using the `NUGET_API_KEY` secret, then creates a GitHub Release.
+
 ### Spec (`spec/vX.Y.Z`)
 
 1. Bump `PROTOCOL_VERSION` in `types/version/registry.ts` (and, if the
@@ -183,3 +200,4 @@ function. They are set per-repo by a maintainer with admin access.
 | Azure DevOps Service Connection to ESRP + Maven Central provisioning | `clients/kotlin/pipeline.yml` (vscode-engineering `maven-package` template) | ESRP signs and uploads the staged Maven layout to Maven Central via the Sonatype Central Portal. Provisioned inside the Microsoft ADO tenant; no GitHub secret required. |
 | Azure DevOps Service Connection to ESRP + npm publish creds | `clients/typescript/pipeline.yml` (vscode-engineering `npm-package` template) | Authenticates `npm publish` for `@microsoft/agent-host-protocol`. Provisioned inside the Microsoft ADO tenant; no GitHub secret required. |
 | (none required) | `publish-swift.yml`, `publish-spec.yml`, `publish-go.yml` | All three use the default `GITHUB_TOKEN` to create GitHub Releases. No external registry credentials needed — SwiftPM and the Go module proxy index tags directly. |
+| `NUGET_API_KEY` secret | `publish-dotnet.yml` | Authenticates `dotnet nuget push` for `Microsoft.AgentHostProtocol` / `.Abstractions` / `.WebSockets` to NuGet.org. Microsoft maintainers may instead route this through a signed Azure DevOps pipeline (as Kotlin/TypeScript do); the GitHub Actions workflow is the baseline. |

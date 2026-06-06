@@ -411,6 +411,16 @@ interface UnionConfig {
   name: string;
   discriminantField: string;
   variants: UnionVariant[];
+  /**
+   * When true, an unrecognized discriminant value decodes into a raw
+   * `.unknown(AnyCodable)` passthrough case (instead of throwing) and
+   * re-encodes the preserved payload verbatim. Mirrors the .NET
+   * `UnionConverter(..., allowUnknown: true)` flag so open unions
+   * (StateAction, Customization, …) round-trip forward-compatibly.
+   * Defaults to false (closed union: throw on unknown — e.g.
+   * ChangesetOperationTarget, ReconnectResult).
+   */
+  allowUnknown?: boolean;
 }
 
 function generateDiscriminatedUnion(config: UnionConfig): string {
@@ -419,6 +429,11 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
 
   for (const v of config.variants) {
     lines.push(`    case ${v.caseName}(${v.structName})`);
+  }
+  if (config.allowUnknown) {
+    lines.push('    /// Unknown or future discriminant; the raw payload is preserved');
+    lines.push('    /// and re-encoded verbatim for forward-compatibility.');
+    lines.push('    case unknown(AnyCodable)');
   }
 
   lines.push('');
@@ -437,7 +452,11 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     lines.push(`            self = .${v.caseName}(try ${v.structName}(from: decoder))`);
   }
   lines.push('        default:');
-  lines.push(`            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ${config.name} discriminant: \\(discriminant)")`);
+  if (config.allowUnknown) {
+    lines.push('            self = .unknown(try AnyCodable(from: decoder))');
+  } else {
+    lines.push(`            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ${config.name} discriminant: \\(discriminant)")`);
+  }
   lines.push('        }');
   lines.push('    }');
 
@@ -447,6 +466,9 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   lines.push('        switch self {');
   for (const v of config.variants) {
     lines.push(`        case .${v.caseName}(let value): try value.encode(to: encoder)`);
+  }
+  if (config.allowUnknown) {
+    lines.push('        case .unknown(let value): try value.encode(to: encoder)');
   }
   lines.push('        }');
   lines.push('    }');
@@ -632,6 +654,10 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 const CUSTOMIZATION_UNION: UnionConfig = {
   name: 'Customization',
   discriminantField: 'type',
+  // Open union: mirrors .NET CustomizationConverter(allowUnknown: true)
+  // (State.generated.cs). An unrecognized `type` is preserved as a raw
+  // AnyCodable passthrough and re-encoded verbatim, not thrown.
+  allowUnknown: true,
   variants: [
     { caseName: 'plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
@@ -1014,7 +1040,10 @@ function generateActionsFile(project: Project): string {
     lines.push(`    case ${v.caseName}(${v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface})`);
   }
   lines.push('    /// Unknown or future action type; reducers treat this as a no-op.');
-  lines.push('    case unknown(type: String)');
+  lines.push('    /// The raw payload (including its `type` discriminant) is preserved');
+  lines.push('    /// as an `AnyCodable` so a decode→encode round-trip re-emits it');
+  lines.push('    /// verbatim for forward-compatibility (mirrors .NET allowUnknown).');
+  lines.push('    case unknown(AnyCodable)');
   lines.push('');
   lines.push('    private enum TypeKey: String, CodingKey { case type }');
   lines.push('');
@@ -1030,7 +1059,7 @@ function generateActionsFile(project: Project): string {
     lines.push(`            self = .${v.caseName}(try ${structName}(from: decoder))`);
   }
   lines.push('        default:');
-  lines.push('            self = .unknown(type: type)');
+  lines.push('            self = .unknown(try AnyCodable(from: decoder))');
   lines.push('        }');
   lines.push('    }');
   lines.push('');
@@ -1039,7 +1068,7 @@ function generateActionsFile(project: Project): string {
   for (const v of ACTION_VARIANTS) {
     lines.push(`        case .${v.caseName}(let v): try v.encode(to: encoder)`);
   }
-  lines.push('        case .unknown: break');
+  lines.push('        case .unknown(let value): try value.encode(to: encoder)');
   lines.push('        }');
   lines.push('    }');
   lines.push('}');
@@ -1169,7 +1198,20 @@ public struct ChangesetOperationResourceTarget: Codable, Sendable {
         self.side = side
     }
 
+    // kind is the union discriminant: a fixed constant for this variant (so it
+    // is NOT decoded from the wire — the union already dispatched on it), but it
+    // MUST be re-emitted on encode so the wire stays a decodable
+    // discriminated-union value. Hence the custom encode and the decode-only
+    // CodingKeys that omit kind.
     private enum CodingKeys: String, CodingKey { case resource, side }
+    private enum EncodingKeys: String, CodingKey { case kind, resource, side }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(resource, forKey: .resource)
+        try container.encodeIfPresent(side, forKey: .side)
+    }
 }
 
 public struct ChangesetOperationRangeTarget: Codable, Sendable {
@@ -1184,7 +1226,18 @@ public struct ChangesetOperationRangeTarget: Codable, Sendable {
         self.range = range
     }
 
+    // See ChangesetOperationResourceTarget: kind is re-emitted on encode but
+    // not decoded (the union dispatches on it).
     private enum CodingKeys: String, CodingKey { case resource, side, range }
+    private enum EncodingKeys: String, CodingKey { case kind, resource, side, range }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(resource, forKey: .resource)
+        try container.encodeIfPresent(side, forKey: .side)
+        try container.encode(range, forKey: .range)
+    }
 }
 
 public struct ChangesetOperationTargetRange: Codable, Sendable {

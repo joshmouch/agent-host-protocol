@@ -1,0 +1,10 @@
+{
+  "name": "string-or-markdown-object",
+  "description": "StringOrMarkdown object form carries a `markdown` field and re-encodes verbatim.",
+  "type": "StringOrMarkdown",
+  "wireRaw": "{\"markdown\":\"# title\"}",
+  "expect": {
+    "markdown": "# title"
+  },
+  "reencodes": true
+}

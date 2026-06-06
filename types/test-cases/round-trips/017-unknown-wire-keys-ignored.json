@@ -1,0 +1,23 @@
+{
+  "name": "unknown-wire-keys-ignored",
+  "description": "A known type (SessionSummary) carrying extra, unrecognized JSON keys decodes its known fields and silently drops the unknown ones.",
+  "type": "SessionSummary",
+  "wire": {
+    "resource": "ahp-session:/s1",
+    "provider": "demo",
+    "title": "Hello",
+    "status": 0,
+    "createdAt": 1,
+    "modifiedAt": 2,
+    "unknownFutureKey": { "nested": true },
+    "anotherUnknown": 42
+  },
+  "expect": {
+    "resource": "ahp-session:/s1",
+    "provider": "demo",
+    "title": "Hello",
+    "createdAt": 1,
+    "modifiedAt": 2
+  },
+  "expectReencodedAbsent": ["unknownFutureKey", "anotherUnknown"]
+}

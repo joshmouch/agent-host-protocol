@@ -180,7 +180,7 @@ const STATUS_ACTIVITY_MASK: u32 = (1 << 5) - 1;
 
 /// Sets or clears a metadata flag on a status value.
 fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
-    let f = flag as u32;
+    let f = flag.bits();
     if set {
         status | f
     } else {
@@ -190,7 +190,7 @@ fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
 
 fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 {
     let activity: u32 = if let Some(t) = terminal {
-        t as u32
+        t.bits()
     } else if state
         .input_requests
         .as_ref()
@@ -198,11 +198,11 @@ fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 
         .unwrap_or(false)
         || has_pending_tool_call_confirmation(state)
     {
-        SessionStatus::InputNeeded as u32
+        SessionStatus::InputNeeded.bits()
     } else if state.active_turn.is_some() {
-        SessionStatus::InProgress as u32
+        SessionStatus::InProgress.bits()
     } else {
-        SessionStatus::Idle as u32
+        SessionStatus::Idle.bits()
     };
     (state.summary.status & !STATUS_ACTIVITY_MASK) | activity
 }
@@ -1211,7 +1211,7 @@ mod tests {
                 resource: resource.to_string(),
                 provider: "test".to_string(),
                 title: String::new(),
-                status: SessionStatus::Idle as u32,
+                status: SessionStatus::Idle.bits(),
                 activity: None,
                 created_at: 0,
                 modified_at: 0,
@@ -1248,7 +1248,7 @@ mod tests {
             apply_action_to_session(&mut s, &action),
             ReduceOutcome::Applied
         );
-        assert_eq!(s.summary.status, SessionStatus::InProgress as u32);
+        assert_eq!(s.summary.status, SessionStatus::InProgress.bits());
         assert_eq!(s.active_turn.unwrap().id, "t1");
     }
 
@@ -1285,7 +1285,7 @@ mod tests {
             response_parts: Vec::new(),
             usage: None,
         });
-        s.summary.status = SessionStatus::InProgress as u32;
+        s.summary.status = SessionStatus::InProgress.bits();
         let a = StateAction::SessionTurnComplete(ahp_types::actions::SessionTurnCompleteAction {
             turn_id: "t1".into(),
         });
@@ -1293,7 +1293,7 @@ mod tests {
         assert!(s.active_turn.is_none());
         assert_eq!(s.turns.len(), 1);
         assert_eq!(s.turns[0].state, TurnState::Complete);
-        assert_eq!(s.summary.status, SessionStatus::Idle as u32);
+        assert_eq!(s.summary.status, SessionStatus::Idle.bits());
     }
 
     #[test]

@@ -3729,6 +3729,9 @@ public enum MessageAttachment: Codable, Sendable {
 public enum Customization: Codable, Sendable {
     case plugin(PluginCustomization)
     case directory(DirectoryCustomization)
+    /// Unknown or future discriminant; the raw payload is preserved
+    /// and re-encoded verbatim for forward-compatibility.
+    case unknown(AnyCodable)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "type"
@@ -3743,7 +3746,7 @@ public enum Customization: Codable, Sendable {
         case "directory":
             self = .directory(try DirectoryCustomization(from: decoder))
         default:
-            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown Customization discriminant: \(discriminant)")
+            self = .unknown(try AnyCodable(from: decoder))
         }
     }
 
@@ -3751,6 +3754,7 @@ public enum Customization: Codable, Sendable {
         switch self {
         case .plugin(let value): try value.encode(to: encoder)
         case .directory(let value): try value.encode(to: encoder)
+        case .unknown(let value): try value.encode(to: encoder)
         }
     }
 }

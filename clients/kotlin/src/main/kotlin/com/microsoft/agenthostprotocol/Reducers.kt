@@ -197,7 +197,7 @@ private fun now(): Long = currentTimestampProvider()
 // ─── Status Bitset Helpers ──────────────────────────────────────────────────
 
 /** Bitmask covering the mutually-exclusive activity bits (bits 0–4). */
-private const val STATUS_ACTIVITY_MASK: Int = (1 shl 5) - 1
+private const val STATUS_ACTIVITY_MASK: Long = (1L shl 5) - 1L
 
 /** Sets or clears a metadata flag on a status value. */
 private fun withStatusFlag(status: SessionStatus, flag: SessionStatus, set: Boolean): SessionStatus =

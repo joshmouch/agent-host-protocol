@@ -1,0 +1,116 @@
+# .NET parity manifest — the expected test methods, in executable form.
+#
+# This is the machine-checked form of the cross-language test master matrix in
+# OpenAgency plan docs/plans/proposed/2026-06-04-0137-ahp-dotnet-client-test-parity.
+# The parity gate (scripts/check-test-parity.sh) greps each MethodName across
+# clients/dotnet/tests/; any that are absent are reported as "missing", grouped
+# by phase, so a failing gate names exactly which parity tests still need writing.
+#
+# Format:  MethodName | TargetSuite | phase | matrix-row
+#   - lines starting with '#' and blank lines are ignored
+#   - phase 1 = test-only gaps (the feature already exists) — the "+45"
+#   - phase 2 = feature+test gaps (new production code, then its tests)
+#
+# Existing tests (the baseline 23) are NOT listed here — they are already present;
+# this file enumerates only the parity tests still to be ADDED. Deletion of an
+# existing test is caught separately by the count floor (tests/MIN_TEST_COUNT).
+
+# =====================================================================
+# Phase 1 — test-only gaps (feature exists; ~45 → floor reaches 68)
+# =====================================================================
+
+# -- A. Reducer semantics
+ClientDispatchable_TrueForUserChannelAction | NativeReducerTests | 1 | A: clientDispatchable true
+ClientDispatchable_FalseForHostOnlyAction | NativeReducerTests | 1 | A: clientDispatchable false
+
+# -- B. Types / serialization
+Customization_UnknownType_DoesNotThrow | TypesRoundTripTests | 1 | B: customization unknown type
+ChangesetOperationTarget_DispatchesOnKind | TypesRoundTripTests | 1 | B: changeset target by kind
+SessionInputQuestion_NumberAndIntegerKinds | TypesRoundTripTests | 1 | B: input-question number+integer
+Number_LongAboveInt32Max_Preserved | TypesRoundTripTests | 1 | B: long > Int32.Max preserved
+UnknownWireKeys_IgnoredOnDecode | TypesRoundTripTests | 1 | B: unknown wire keys ignored
+NestedOptionalStruct_RoundTripsWhenNull | TypesRoundTripTests | 1 | B: nested optional null round-trip
+ChannelScopedNotification_CarriesUri | TypesRoundTripTests | 1 | B: channel-scoped notif uri
+PartialSummary_AllNullPayload_RoundTrips | TypesRoundTripTests | 1 | B: partial summary all-null
+
+# -- C. ReconnectPolicy
+Jitter_Zero_YieldsBaseDelay | ReconnectPolicyTests | 1 | C: jitter zero -> base delay
+UnboundedPolicy_NeverExhausts | ReconnectPolicyTests | 1 | C: unbounded never exhausts
+ImmediateBackoff_IsZero | ReconnectPolicyTests | 1 | C: immediate backoff zero
+
+# -- D. Single-host client (AhpClient)
+Initialize_SnapshotDeliveredInResult | ClientTests | 1 | D: initialize snapshot in result
+Subscribe_RoundTrip_DeliversSnapshot | ClientTests | 1 | D: subscribe round-trip + snapshot
+AttachSubscription_DeliversWithoutRoundTrip | ClientTests | 1 | D: attachSubscription
+MultipleSubscriptions_SameUri_EachReceiveEvent | ClientTests | 1 | D: multi-sub same uri
+Unsubscribe_FinishesStream | ClientTests | 1 | D: unsubscribe finishes stream
+Dispatch_EmitsActionNotification_WithClientSeq | ClientTests | 1 | D: dispatch clientSeq
+RequestError_MapsToAhpRpcException | ClientTests | 1 | D: json-rpc error -> exception
+Request_Timeout_ThrowsRpcTimeout | ClientTests | 1 | D: request timeout
+InboundBinaryFrame_Decoded | ClientTests | 1 | D: inbound binary frame
+ServerRequest_NoHandler_RepliesMethodNotFound | ClientTests | 1 | D: server req -> MethodNotFound
+ServerRequest_Handler_RepliesResult | ClientTests | 1 | D: server req -> handler result
+PostShutdown_Operations_ThrowClientClosed | ClientTests | 1 | D: post-shutdown throws
+
+# -- E. Transport
+InMemoryTransport_DeliversBothDirections | TransportTests | 1 | E: in-mem both directions
+InMemoryTransport_Close_EndsBothRecv | TransportTests | 1 | E: close ends recv
+InMemoryTransport_SendAfterClose_Throws | TransportTests | 1 | E: send after close throws
+TransportMessage_RoundTrip_Notification | TransportTests | 1 | E: TransportMessage round-trip
+WsTransport_CleanClose_DrainsRecvNull | WebSocketTransportTests | 1 | E: clean close drains null
+WsTransport_AbnormalClose_RaisesTransportError | WebSocketTransportTests | 1 | E: abnormal close error
+NativeTransport_PerformsHandshakeAndRoundTripsText | WebSocketTransportTests | 1 | E: real-socket handshake (HttpListener loopback)
+NativeTransport_RejectsUnsupportedScheme | WebSocketTransportTests | 1 | E: reject unsupported scheme
+
+# -- F. ClientIdStore (in-memory + key encoding)
+InMemoryClientIdStore_RoundTrips | ClientIdStoreTests | 1 | F: in-mem round-trip
+InMemoryClientIdStore_Overwrites | ClientIdStoreTests | 1 | F: in-mem overwrite
+HostedResourceKey_UnreservedPassThrough | ClientIdStoreTests | 1 | F: key unreserved pass-through
+HostedResourceKey_ReservedPercentEscaped | ClientIdStoreTests | 1 | F: key reserved %-escaped
+
+# -- G. MultiHostStateMirror
+StateMirror_RootStatesIsolatedPerHost | MultiHostStateMirrorTests | 1 | G: roots isolated per host
+StateMirror_SessionUriCollision_NoClobber | MultiHostStateMirrorTests | 1 | G: uri collision no clobber
+StateMirror_ApplyRootAction_UpdatesOnlyTarget | MultiHostStateMirrorTests | 1 | G: root action targets one
+StateMirror_AppliesHostSubscriptionEvent | MultiHostStateMirrorTests | 1 | G: forwards subscription event
+StateMirror_ResetHost_DropsOnlyThatHost | MultiHostStateMirrorTests | 1 | G: reset host drops one
+
+# -- H. MultiHostClient (test-only)
+MultiHost_TwoHosts_RegisterAndConnectIndependently | MultiHostClientTests | 1 | H: two hosts independent
+MultiHost_Events_CarryHostIdAndResource | MultiHostClientTests | 1 | H: events tagged hostId
+MultiHost_Reconnect_ReplaysActionsWithAdvancedSeq | MultiHostClientTests | 1 | H: reconnect replay
+
+# =====================================================================
+# Phase 2 — feature+test gaps (new production code, then tests; ~25)
+# =====================================================================
+
+# -- D. connection-state + keep-alive
+ConnectionState_TransitionsThroughStateChanges | ClientTests | 2 | D: connectionState/stateChanges
+KeepAlive_PingsWhenCapable | ClientTests | 2 | D: keep-alive pings
+KeepAlive_DisabledByConfig | ClientTests | 2 | D: keep-alive disabled
+KeepAlive_DisconnectsOnPingFailure | ClientTests | 2 | D: keep-alive ping failure
+
+# -- F. FileClientIdStore (new feature)
+FileClientIdStore_RoundTripsAndSurvivesInstances | FileClientIdStoreTests | 2 | F: file round-trip + persist
+FileClientIdStore_KeysPerHost | FileClientIdStoreTests | 2 | F: file per-host keying
+FileClientIdStore_HandlesUrlUnsafeId | FileClientIdStoreTests | 2 | F: file url-unsafe id
+FileClientIdStore_ConcurrentWrites_NoCorruption | FileClientIdStoreTests | 2 | F: file concurrent writes
+FileClientIdStore_FileIsOwnerOnlyOnUnix | FileClientIdStoreTests | 2 | F: file owner-only perms
+
+# -- H. aggregated views, per-host streams, manual reconnect, typed errors
+MultiHost_DuplicateHostId_ThrowsDuplicateHostException | MultiHostClientTests | 2 | H: duplicate host typed error
+MultiHost_AggregatedSessions_SortedAndHostLabeled | MultiHostClientTests | 2 | H: aggregatedSessions
+MultiHost_AggregatedAgents_TaggedByHost | MultiHostClientTests | 2 | H: aggregatedAgents
+MultiHost_HostSnapshots_Stream | MultiHostClientTests | 2 | H: host snapshots stream
+MultiHost_SessionSummaries_Stream | MultiHostClientTests | 2 | H: session summaries stream
+MultiHost_HostEvents_Live | MultiHostClientTests | 2 | H: events(host,uri) live
+MultiHost_HostEvents_SurvivesReconnect | MultiHostClientTests | 2 | H: events survive reconnect
+MultiHost_HostEvents_FinishesOnUnsubscribe | MultiHostClientTests | 2 | H: events finish on unsubscribe
+MultiHost_ReconnectHost_WakesExhaustedHost | MultiHostClientTests | 2 | H: reconnectHost wakes exhausted
+MultiHost_ReconnectAllUnavailable_SkipsConnected | MultiHostClientTests | 2 | H: reconnectAll skips connected
+MultiHost_ReconnectAllUnavailable_ReportsPerHostErrors | MultiHostClientTests | 2 | H: reconnectAll per-host errors
+MultiHost_ReconnectHost_AbortsSlowFactory | MultiHostClientTests | 2 | H: reconnect aborts slow factory
+MultiHost_UnknownHost_Subscribe_Throws | MultiHostClientTests | 2 | H: unknown-host typed error (subscribe)
+MultiHost_UnknownHost_Dispatch_Throws | MultiHostClientTests | 2 | H: unknown-host typed error (dispatch)
+MultiHost_NotConnected_Dispatch_Throws | MultiHostClientTests | 2 | H: not-connected typed error
+MultiHost_HandleAfterRemove_ThrowsHostShutDown | MultiHostClientTests | 2 | H: HostShutDown after remove

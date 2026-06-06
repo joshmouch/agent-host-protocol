@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook: local test-parity ratchet for the .NET client. Runs the parity
+# gate in --ratchet mode, which blocks a push only if the test-method count drops
+# below the floor (clients/dotnet/tests/MIN_TEST_COUNT). It NEVER blocks
+# in-progress parity work — incremental commits that climb toward the target push
+# fine; only a regression (a deleted test) is refused. The strict, enumerating
+# completeness gate runs in CI (.github/workflows/ci.yml).
+#
+# Activate (local, per-clone — git hooks are never shared automatically):
+#   git config core.hooksPath scripts/git-hooks
+set -euo pipefail
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$HOOK_DIR/../../clients/dotnet/scripts/check-test-parity.sh" --ratchet

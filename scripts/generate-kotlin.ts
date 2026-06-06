@@ -336,9 +336,18 @@ function generateKotlinEnum(enumDecl: EnumDeclaration): string {
   }
 
   if (isBitset) {
+    // Backed by `Long`, not `Int`: these bitsets are unsigned 32-bit on the
+    // wire (the .NET reference models them as `uint`, e.g. `SessionStatus :
+    // uint`). A forward-compat unknown bit above 2^30 — including the sign bit
+    // 2^31 (2147483648) — is a positive value that does NOT fit a signed
+    // 32-bit `Int`; decoding it via `decodeInt()` throws / truncates and the
+    // unknown bit is lost on re-encode. `Long` holds the full uint32 range as a
+    // positive number and re-encodes as the same plain JSON integer. Verified
+    // by the shared round-trip corpus fixture
+    // `005-session-status-unknown-bits-preserved` (numeric 2147483720).
     lines.push(`@Serializable(with = ${name}Serializer::class)`);
     lines.push('@JvmInline');
-    lines.push(`value class ${name}(val rawValue: Int) {`);
+    lines.push(`value class ${name}(val rawValue: Long) {`);
     lines.push(`    operator fun contains(other: ${name}): Boolean =`);
     lines.push('        (rawValue and other.rawValue) == other.rawValue');
     lines.push('');
@@ -353,20 +362,21 @@ function generateKotlinEnum(enumDecl: EnumDeclaration): string {
       if (memberDoc) {
         lines.push(...emitKDoc(memberDoc, '        '));
       }
-      lines.push(`        val ${memberName}: ${name} = ${name}(${value})`);
+      lines.push(`        val ${memberName}: ${name} = ${name}(${value}L)`);
     }
     lines.push('    }');
     lines.push('}');
     lines.push('');
-    // Companion serializer. Bitset wire format is the raw int.
+    // Companion serializer. Bitset wire format is the raw (unsigned 32-bit)
+    // integer, carried as a `Long` so the full uint32 range round-trips.
     lines.push(`internal object ${name}Serializer : KSerializer<${name}> {`);
     lines.push(`    override val descriptor: SerialDescriptor =`);
-    lines.push(`        PrimitiveSerialDescriptor("${name}", PrimitiveKind.INT)`);
+    lines.push(`        PrimitiveSerialDescriptor("${name}", PrimitiveKind.LONG)`);
     lines.push(`    override fun serialize(encoder: Encoder, value: ${name}) {`);
-    lines.push('        encoder.encodeInt(value.rawValue)');
+    lines.push('        encoder.encodeLong(value.rawValue)');
     lines.push('    }');
     lines.push(`    override fun deserialize(decoder: Decoder): ${name} =`);
-    lines.push(`        ${name}(decoder.decodeInt())`);
+    lines.push(`        ${name}(decoder.decodeLong())`);
     lines.push('}');
     return lines.join('\n');
   }

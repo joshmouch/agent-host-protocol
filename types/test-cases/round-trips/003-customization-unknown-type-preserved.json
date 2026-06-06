@@ -1,0 +1,15 @@
+{
+  "name": "customization-unknown-type-preserved",
+  "description": "The Customization union opts into allowUnknown: an unrecognized `type` decodes to a raw JsonElement, does not throw, and re-encodes verbatim.",
+  "type": "Customization",
+  "wireRaw": "{\"type\":\"future/unknownCustomization\",\"path\":\"/x\",\"extra\":7}",
+  "expect": {
+    "type": "future/unknownCustomization",
+    "path": "/x",
+    "extra": 7
+  },
+  "expectVariant": {
+    "": "JsonElement"
+  },
+  "reencodes": true
+}
