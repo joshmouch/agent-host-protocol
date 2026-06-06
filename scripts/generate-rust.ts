@@ -330,6 +330,121 @@ function findEnum(project: Project, name: string): EnumDeclaration | undefined {
   return undefined;
 }
 
+// ─── Rust Bitset Generation ──────────────────────────────────────────────────
+
+/**
+ * Emit a numeric-flag TS enum (a *bitset*, e.g. `SessionStatus`) as a `u32`
+ * newtype rather than a closed `#[repr(u32)]` enum.
+ *
+ * A `#[repr(u32)]` enum can only hold a value equal to one of its declared
+ * discriminants, so it cannot represent a *combination* of flags
+ * (`InProgress | IsArchived == 72`) nor forward-compatibility bits set by a
+ * newer host. The wire form of a bitset is a bare integer, and the round-trip
+ * corpus (`types/test-cases/round-trips/004,005-session-status-*.json`)
+ * requires that arbitrary `u32` values decode, expose their set bits, and
+ * re-encode unchanged — including bits this client does not recognize.
+ *
+ * The emitted newtype:
+ *   - is `#[serde(transparent)]`, so it (de)serializes as a bare JSON number;
+ *   - carries the TS enum members as associated `const`s (so existing
+ *     `SessionStatus::InProgress` references keep resolving — now as a const
+ *     of the newtype rather than an enum variant);
+ *   - provides `bits()` / `from_bits()` / `contains()` plus the bitwise
+ *     operators for ergonomic flag math.
+ */
+function generateRustBitset(enumDecl: EnumDeclaration): string {
+  const name = enumDecl.getName();
+  const lines: string[] = [];
+  const desc = enumDecl.getJsDocs()[0]?.getDescription().trim();
+
+  if (desc) {
+    for (const d of desc.split('\n')) lines.push(`/// ${d.trimEnd()}`);
+    lines.push('///');
+  }
+  lines.push(`/// Wire form: a bare \`u32\` bitset. Unknown/forward-compat bits are`);
+  lines.push(`/// preserved across a decode→encode round-trip.`);
+  lines.push('#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]');
+  lines.push('#[serde(transparent)]');
+  lines.push(`pub struct ${name}(pub u32);`);
+  lines.push('');
+  // Associated flag constants keep the TS member names (PascalCase), which
+  // trips Rust's non_upper_case_globals lint; allow it on the impl block.
+  lines.push('#[allow(non_upper_case_globals)]');
+  lines.push(`impl ${name} {`);
+  for (const mem of enumDecl.getMembers()) {
+    const doc = mem.getJsDocs()[0]?.getDescription().trim();
+    if (doc) {
+      for (const d of doc.split('\n')) lines.push(`    /// ${d.trimEnd()}`);
+    }
+    lines.push(`    pub const ${mem.getName()}: ${name} = ${name}(${mem.getValue()});`);
+  }
+  lines.push('');
+  lines.push('    /// The raw `u32` bitset value (every set bit, known or not).');
+  lines.push('    #[inline]');
+  lines.push('    pub const fn bits(self) -> u32 {');
+  lines.push('        self.0');
+  lines.push('    }');
+  lines.push('');
+  lines.push('    /// Wrap a raw `u32` bitset value, preserving every bit verbatim.');
+  lines.push('    #[inline]');
+  lines.push(`    pub const fn from_bits(bits: u32) -> Self {`);
+  lines.push(`        ${name}(bits)`);
+  lines.push('    }');
+  lines.push('');
+  lines.push('    /// True when every bit set in `other` is also set in `self`.');
+  lines.push('    #[inline]');
+  lines.push(`    pub const fn contains(self, other: ${name}) -> bool {`);
+  lines.push('        (self.0 & other.0) == other.0');
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl From<u32> for ${name} {`);
+  lines.push('    #[inline]');
+  lines.push(`    fn from(value: u32) -> Self {`);
+  lines.push(`        ${name}(value)`);
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl From<${name}> for u32 {`);
+  lines.push('    #[inline]');
+  lines.push(`    fn from(value: ${name}) -> Self {`);
+  lines.push('        value.0');
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl std::ops::BitOr for ${name} {`);
+  lines.push(`    type Output = ${name};`);
+  lines.push('    #[inline]');
+  lines.push(`    fn bitor(self, rhs: ${name}) -> ${name} {`);
+  lines.push(`        ${name}(self.0 | rhs.0)`);
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl std::ops::BitOrAssign for ${name} {`);
+  lines.push('    #[inline]');
+  lines.push(`    fn bitor_assign(&mut self, rhs: ${name}) {`);
+  lines.push('        self.0 |= rhs.0;');
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl std::ops::BitAnd for ${name} {`);
+  lines.push(`    type Output = ${name};`);
+  lines.push('    #[inline]');
+  lines.push(`    fn bitand(self, rhs: ${name}) -> ${name} {`);
+  lines.push(`        ${name}(self.0 & rhs.0)`);
+  lines.push('    }');
+  lines.push('}');
+  lines.push('');
+  lines.push(`impl std::ops::Not for ${name} {`);
+  lines.push(`    type Output = ${name};`);
+  lines.push('    #[inline]');
+  lines.push(`    fn not(self) -> ${name} {`);
+  lines.push(`        ${name}(!self.0)`);
+  lines.push('    }');
+  lines.push('}');
+  return lines.join('\n');
+}
+
 // ─── Rust Enum Generation ────────────────────────────────────────────────────
 
 function generateRustEnum(enumDecl: EnumDeclaration): string {
@@ -527,6 +642,15 @@ const STATE_ENUMS = [
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
+
+/**
+ * Numeric TS enums that are *bitsets* (flag combinations are valid wire
+ * values). These are emitted as `u32` newtypes via {@link generateRustBitset}
+ * instead of closed `#[repr(u32)]` enums, so combined flags and forward-compat
+ * bits round-trip on the wire. Keep this in sync with the bitset enums declared
+ * in `types/` (currently only `SessionStatus`).
+ */
+const BITSET_ENUMS = new Set<string>(['SessionStatus']);
 
 /**
  * State structs to emit. The order matters only for human-readability — Rust
@@ -811,7 +935,10 @@ function generateStateFile(project: Project): string {
   for (const enumName of STATE_ENUMS) {
     const decl = findEnum(project, enumName);
     if (decl) {
-      lines.push(generateRustEnum(decl));
+      // Numeric *flag* enums (bitsets) must be a `u32` newtype, not a closed
+      // `#[repr(u32)]` enum, so flag combinations and forward-compat bits
+      // survive the wire round-trip. See generateRustBitset.
+      lines.push(BITSET_ENUMS.has(enumName) ? generateRustBitset(decl) : generateRustEnum(decl));
       lines.push('');
     }
   }
