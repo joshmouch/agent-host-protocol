@@ -902,7 +902,13 @@ public sealed class MultiHostClientTests
         // completes and the await-foreach exits promptly.
         var count = 0;
         await foreach (var _u in reader.ReadAllAsync(cts.Token)) { if (++count > 10) break; }
-        // Reaching here proves the stream was finished on removal.
+        // The await-foreach exits only when the channel completes; had removal
+        // NOT finished the stream, the 15s cts would have cancelled the read and
+        // failed the test. Assert completion explicitly rather than relying on
+        // "reached here" (and prove it finished, not that it kept emitting).
+        Assert.True(reader.Completion.IsCompleted,
+            "removing the host must complete the per-(host,uri) event stream");
+        Assert.True(count <= 10, "a finished stream must not keep emitting after removal");
     }
 
     // ── 9. reconnect wakes an exhausted (.failed) host ─────────────────────
