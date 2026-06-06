@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/joshmouch/agent-host-protocol/conformance/discovery/schema/inventory-row.schema.json",
+  "title": "AHP Conformance Discovery — Inventory Row",
+  "description": "One conformance behavior emitted by a discovery angle (D1-D11). Sources never edit each other's rows; D11 reconciles by union of sources[] keyed on behavior-id. Every row MUST carry a real file:line citation in the fork.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "behavior-id",
+    "source",
+    "method",
+    "concept",
+    "scenario-class",
+    "normative-level",
+    "citation",
+    "coverage"
+  ],
+  "properties": {
+    "behavior-id": {
+      "type": "string",
+      "description": "Stable human-readable id: <domain>.<concept>.<scenario-class>.<discriminator>, 3-5 dot-separated segments of [A-Za-z0-9-]. Two angles emitting the same behavior-id mean the SAME behavior (D11 unions their sources).",
+      "pattern": "^[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+){2,4}$"
+    },
+    "source": {
+      "description": "Which discovery angle emitted this row.",
+      "enum": [
+        "d1-schema",
+        "d2-spec",
+        "d3-mined-client",
+        "d4-host",
+        "d5-fixture",
+        "d6-lifecycle",
+        "d7-negative",
+        "d8-differential",
+        "d9-mutation",
+        "d10-property",
+        "d11-synthesis"
+      ]
+    },
+    "method": {
+      "type": ["string", "null"],
+      "description": "The RPC method / notification / channel this behavior pertains to (e.g. 'initialize', 'session/subscribe'), or null when not method-scoped."
+    },
+    "concept": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The protocol concept: initialize, session-channel, reconnect-replay, StateAction:SessionTitleChanged, error:MethodNotFound, etc."
+    },
+    "scenario-class": {
+      "description": "The behavior's scenario family.",
+      "enum": ["happy", "error", "edge", "reconnect", "version", "concurrency"]
+    },
+    "normative-level": {
+      "description": "RFC-2119 level when derived from spec prose; NONE for rows derived from schema/fixtures/code with no explicit normative keyword.",
+      "enum": ["MUST", "MUST_NOT", "SHOULD", "SHOULD_NOT", "REQUIRED", "SHALL", "MAY", "NONE"]
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "line", "excerpt"],
+      "description": "MANDATORY real grounding. file:line must really exist in the fork and really contain excerpt.",
+      "properties": {
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path relative to fork root, e.g. schema/commands.schema.json"
+        },
+        "line": {
+          "type": ["integer", "null"],
+          "description": "1-based line number, or null for whole-file / not-line-addressable citations."
+        },
+        "excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Verbatim snippet from file:line that grounds this behavior."
+        }
+      }
+    },
+    "coverage": {
+      "description": "Coverage status. D1-D10 always emit 'unknown'; D11 reconciles to planned/covered/out-of-scope.",
+      "enum": ["unknown", "planned", "covered", "out-of-scope"]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Optional free-text: triage, cross-references, divergence detail, out-of-scope reason."
+    },
+    "assertion": {
+      "type": "string",
+      "description": "Optional: the spec-correct observable outcome this behavior asserts (what a conformance scenario would check)."
+    },
+    "params-shape-ref": {
+      "type": "string",
+      "description": "Optional: pointer to the params/result schema shape, e.g. commands.schema.json#/$defs/InitializeParams."
+    }
+  }
+}
