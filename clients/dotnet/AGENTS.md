@@ -50,14 +50,23 @@ reducers are intentional stubs (parity with the Rust and Go clients).
 
 ## Testing
 
-Run by `dotnet test` (against both target frameworks):
+Run by `dotnet test` (against both target frameworks, `net8.0` and `net9.0`).
+The suite is **282 tests, all green on both TFMs** (0 skipped):
 
-1. **Shared conformance** — `FixtureDrivenReducerTests` replays the 163
-   cross-language reducer fixtures (`types/test-cases/reducers/*.json`).
-2. **Native unit tests** — `ClientTests` (full `AhpClient` over an in-memory
+1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays the 163
+   cross-language reducer fixtures (`types/test-cases/reducers/*.json`). The
+   whole set counts as a single `[Theory]`.
+2. **Shared wire round-trip corpus** — `TypesRoundTripFixtures` data-drives the
+   language-agnostic round-trip corpus under `types/test-cases/round-trips/*.json`
+   through the REAL serializer, asserting decode → re-encode is a byte-exact
+   fixed point. A `[Theory]` iterates every fixture; named `[Fact]` wrappers in
+   `TypesRoundTripTests` carry the cross-language matrix method names.
+3. **Native unit tests** — `ClientTests` (full `AhpClient` over an in-memory
    `MemTransport`, the port of Go's `client_test.go`), `HostsTests`,
-   `TypesRoundTripTests`, `ReconnectPolicyTests`.
-3. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
+   `MultiHostClientTests`, `MultiHostStateMirrorTests`, `NativeReducerTests`,
+   `TypesRoundTripTests`, `ReconnectPolicyTests`, `ClientIdStoreTests`,
+   `FileClientIdStoreTests`, `TransportTests`, `WebSocketTransportTests`.
+4. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
    replays a session trace captured from an INDEPENDENT host (OpenAgency's
    `AhpWsHost` on the canonical TS `sessionReducer`) and asserts byte-identical
    convergence (`serverSeq` + host-authoritative `modifiedAt`).
@@ -72,17 +81,26 @@ since it needs a Node host + the published package.)
 
 ### Test-parity gate
 
-Two layers enforce the cross-language parity target (OpenAgency plan
-`2026-06-04-0137-ahp-dotnet-client-test-parity`). Both run
-[`scripts/check-test-parity.sh`](scripts/check-test-parity.sh) against
+Two layers enforce **manifest parity** — the machine-checked cross-language
+matrix subset (OpenAgency plan `2026-06-04-0137-ahp-dotnet-client-test-parity`).
+Both run [`scripts/check-test-parity.sh`](scripts/check-test-parity.sh) against
 [`tests/parity-manifest.txt`](tests/parity-manifest.txt) — the expected parity
 test methods in executable form — plus the count floor in
 [`tests/MIN_TEST_COUNT`](tests/MIN_TEST_COUNT).
 
+The manifest currently enumerates **70 method names** and all 70 are present
+(70/70). Read that precisely: it is the cross-language matrix *subset* that has
+been transcribed into the manifest, **not** a literal mirror of the entire Swift
+suite. Some Swift behaviors — notably a number of §H `MultiHostClient`
+edge-cases and several sub-cases — are not yet enumerated in the manifest, so
+"70/70 manifest parity" is a green gate, not a claim of complete Swift parity.
+When you add tests that close one of those gaps, add the method name to the
+manifest (and `--bump` the floor) so the matrix subset grows with the suite.
+
 - **CI (blocking):** `.github/workflows/ci.yml` runs the gate in COMPLETE mode —
   it **fails the build while any manifest test is missing**, and the error
   enumerates exactly which test methods to add (grouped by phase) and references
-  the plan. Green only at full parity.
+  the plan. Green only when every *manifest* method is present.
 - **Local pre-push (ratchet):** the hook runs `--ratchet`, which blocks a push
   only if the discrete `[Fact]`/`[Theory]` count drops below the floor (catches
   deletions). It never blocks in-progress work, so the incremental commits that
