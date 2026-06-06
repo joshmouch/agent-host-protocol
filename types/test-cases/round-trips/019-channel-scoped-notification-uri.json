@@ -1,13 +1,27 @@
 {
   "name": "channel-scoped-notification-uri",
-  "description": "SessionAddedParams is a channel-scoped notification payload; the `channel` field carries the subscription URI and survives a round-trip unchanged. (Matches the original ChannelScopedNotification_CarriesUri test, which asserted only the channel; the extra `session` wire key is an unknown key and is dropped.)",
+  "description": "SessionAddedParams is a channel-scoped notification payload carrying the root `channel` URI plus the REQUIRED `summary` of the new session (the schema marks both `channel` and `summary` required). The channel URI and the key summary fields survive a re-encode round-trip unchanged. The payload also carries an unknown wire key, which the decoder silently drops on re-encode.",
   "type": "SessionAddedParams",
   "wire": {
     "channel": "ahp:/root",
-    "session": "ahp-session:/s1"
+    "summary": {
+      "resource": "ahp-session:/s1",
+      "provider": "demo",
+      "title": "New session",
+      "status": 1,
+      "createdAt": 1,
+      "modifiedAt": 2
+    },
+    "unknownFutureKey": { "nested": true }
   },
   "expect": {
-    "channel": "ahp:/root"
+    "channel": "ahp:/root",
+    "summary.resource": "ahp-session:/s1",
+    "summary.provider": "demo",
+    "summary.title": "New session",
+    "summary.createdAt": 1,
+    "summary.modifiedAt": 2
   },
+  "expectReencodedAbsent": ["unknownFutureKey"],
   "roundTripStable": true
 }

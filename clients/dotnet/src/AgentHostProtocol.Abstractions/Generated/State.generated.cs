@@ -654,7 +654,7 @@ public sealed class RootConfigState
     /// JSON Schema describing available configuration properties
     /// </summary>
     [JsonPropertyName("schema")]
-    public ConfigSchema Schema { get; set; } = null!;
+    public required ConfigSchema Schema { get; set; }
 
     /// <summary>
     /// Current configuration values
@@ -955,7 +955,7 @@ public sealed class PendingMessage
     /// The message that will start the next turn
     /// </summary>
     [JsonPropertyName("message")]
-    public Message Message { get; set; } = null!;
+    public required Message Message { get; set; }
 }
 
 /// <summary>
@@ -967,7 +967,7 @@ public sealed class SessionState
     /// Lightweight session metadata
     /// </summary>
     [JsonPropertyName("summary")]
-    public SessionSummary Summary { get; set; } = null!;
+    public required SessionSummary Summary { get; set; }
 
     /// <summary>
     /// Session initialization state
@@ -1350,7 +1350,7 @@ public sealed class SessionConfigState
     /// JSON Schema describing available configuration properties
     /// </summary>
     [JsonPropertyName("schema")]
-    public SessionConfigSchema Schema { get; set; } = null!;
+    public required SessionConfigSchema Schema { get; set; }
 
     /// <summary>
     /// Current configuration values
@@ -1374,7 +1374,7 @@ public sealed class Turn
     /// The message that initiated the turn
     /// </summary>
     [JsonPropertyName("message")]
-    public Message Message { get; set; } = null!;
+    public required Message Message { get; set; }
 
     /// <summary>
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
@@ -1421,7 +1421,7 @@ public sealed class ActiveTurn
     /// The message that initiated the turn
     /// </summary>
     [JsonPropertyName("message")]
-    public Message Message { get; set; } = null!;
+    public required Message Message { get; set; }
 
     /// <summary>
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
@@ -1587,7 +1587,7 @@ public sealed class SessionInputAnswered
     /// Answer value
     /// </summary>
     [JsonPropertyName("value")]
-    public SessionInputAnswerValue Value { get; set; } = null!;
+    public required SessionInputAnswerValue Value { get; set; }
 }
 
 public sealed class SessionInputSkipped
@@ -1948,13 +1948,13 @@ public sealed class TextRange
     /// Start position of the range.
     /// </summary>
     [JsonPropertyName("start")]
-    public TextPosition Start { get; set; } = null!;
+    public required TextPosition Start { get; set; }
 
     /// <summary>
     /// End position of the range.
     /// </summary>
     [JsonPropertyName("end")]
-    public TextPosition End { get; set; } = null!;
+    public required TextPosition End { get; set; }
 }
 
 /// <summary>
@@ -1970,7 +1970,7 @@ public sealed class TextSelection
     /// The range covered by the selection.
     /// </summary>
     [JsonPropertyName("range")]
-    public TextRange Range { get; set; } = null!;
+    public required TextRange Range { get; set; }
 }
 
 /// <summary>
@@ -2303,7 +2303,7 @@ public sealed class ToolCallResponsePart
     /// Full tool call lifecycle state
     /// </summary>
     [JsonPropertyName("toolCall")]
-    public ToolCallState ToolCall { get; set; } = null!;
+    public required ToolCallState ToolCall { get; set; }
 }
 
 /// <summary>
@@ -4050,7 +4050,7 @@ public sealed class TerminalInfo
     /// Who currently holds this terminal
     /// </summary>
     [JsonPropertyName("claim")]
-    public TerminalClaim Claim { get; set; } = null!;
+    public required TerminalClaim Claim { get; set; }
 
     /// <summary>
     /// Process exit code, if the terminal process has exited
@@ -4164,7 +4164,7 @@ public sealed class TerminalState
     /// Who currently holds this terminal
     /// </summary>
     [JsonPropertyName("claim")]
-    public TerminalClaim Claim { get; set; } = null!;
+    public required TerminalClaim Claim { get; set; }
 
     /// <summary>
     /// Whether this terminal emits `terminal/commandExecuted` and
@@ -4331,7 +4331,7 @@ public sealed class Snapshot
     /// The current state of the resource
     /// </summary>
     [JsonPropertyName("state")]
-    public SnapshotState State { get; set; } = null!;
+    public required SnapshotState State { get; set; }
 
     /// <summary>
     /// The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq &gt; fromSeq`.
@@ -4462,7 +4462,7 @@ public sealed class ChangesetFile
     /// additions, deletions, and rename/create/delete semantics from this.
     /// </summary>
     [JsonPropertyName("edit")]
-    public FileEdit Edit { get; set; } = null!;
+    public required FileEdit Edit { get; set; }
 
     /// <summary>
     /// Server-defined opaque metadata, surfaced to operations and tooling

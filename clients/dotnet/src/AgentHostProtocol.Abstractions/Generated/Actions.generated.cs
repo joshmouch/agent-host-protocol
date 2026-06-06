@@ -261,7 +261,7 @@ public sealed class SessionCreationFailedAction
     /// Error details
     /// </summary>
     [JsonPropertyName("error")]
-    public ErrorInfo Error { get; set; } = null!;
+    public required ErrorInfo Error { get; set; }
 }
 
 /// <summary>
@@ -284,7 +284,7 @@ public sealed class SessionTurnStartedAction
     /// The new message
     /// </summary>
     [JsonPropertyName("message")]
-    public Message Message { get; set; } = null!;
+    public required Message Message { get; set; }
 
     /// <summary>
     /// If this turn was auto-started from a queued message, the ID of that message
@@ -342,7 +342,7 @@ public sealed class SessionResponsePartAction
     /// Response part (markdown or content ref)
     /// </summary>
     [JsonPropertyName("part")]
-    public ResponsePart Part { get; set; } = null!;
+    public required ResponsePart Part { get; set; }
 }
 
 /// <summary>
@@ -636,7 +636,7 @@ public sealed class SessionToolCallCompleteAction
     /// Execution result
     /// </summary>
     [JsonPropertyName("result")]
-    public ToolCallResult Result { get; set; } = null!;
+    public required ToolCallResult Result { get; set; }
 
     /// <summary>
     /// If true, the result requires client approval before finalizing
@@ -735,7 +735,7 @@ public sealed class SessionErrorAction
     /// Error details
     /// </summary>
     [JsonPropertyName("error")]
-    public ErrorInfo Error { get; set; } = null!;
+    public required ErrorInfo Error { get; set; }
 }
 
 /// <summary>
@@ -772,7 +772,7 @@ public sealed class SessionUsageAction
     /// Token usage data
     /// </summary>
     [JsonPropertyName("usage")]
-    public UsageInfo Usage { get; set; } = null!;
+    public required UsageInfo Usage { get; set; }
 }
 
 /// <summary>
@@ -817,7 +817,7 @@ public sealed class SessionModelChangedAction
     /// New model selection
     /// </summary>
     [JsonPropertyName("model")]
-    public ModelSelection Model { get; set; } = null!;
+    public required ModelSelection Model { get; set; }
 }
 
 /// <summary>
@@ -1013,7 +1013,7 @@ public sealed class SessionPendingMessageSetAction
     /// The message content
     /// </summary>
     [JsonPropertyName("message")]
-    public Message Message { get; set; } = null!;
+    public required Message Message { get; set; }
 }
 
 /// <summary>
@@ -1078,7 +1078,7 @@ public sealed class SessionInputRequestedAction
     /// Input request to create or replace
     /// </summary>
     [JsonPropertyName("request")]
-    public SessionInputRequest Request { get; set; } = null!;
+    public required SessionInputRequest Request { get; set; }
 }
 
 /// <summary>
@@ -1205,7 +1205,7 @@ public sealed class SessionCustomizationUpdatedAction
     /// The customization to upsert (matched by `customization.id`).
     /// </summary>
     [JsonPropertyName("customization")]
-    public Customization Customization { get; set; } = null!;
+    public required Customization Customization { get; set; }
 }
 
 /// <summary>
@@ -1380,7 +1380,7 @@ public sealed class ChangesetFileSetAction
     /// The new or replacement file entry.
     /// </summary>
     [JsonPropertyName("file")]
-    public ChangesetFile File { get; set; } = null!;
+    public required ChangesetFile File { get; set; }
 }
 
 /// <summary>
@@ -1580,7 +1580,7 @@ public sealed class TerminalClaimedAction
     /// The new claim
     /// </summary>
     [JsonPropertyName("claim")]
-    public TerminalClaim Claim { get; set; } = null!;
+    public required TerminalClaim Claim { get; set; }
 }
 
 /// <summary>

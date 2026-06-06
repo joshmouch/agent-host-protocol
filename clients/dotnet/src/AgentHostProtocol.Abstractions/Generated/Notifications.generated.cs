@@ -50,7 +50,7 @@ public sealed class SessionAddedParams
     /// Summary of the new session
     /// </summary>
     [JsonPropertyName("summary")]
-    public SessionSummary Summary { get; set; } = null!;
+    public required SessionSummary Summary { get; set; }
 }
 
 /// <summary>
@@ -124,7 +124,7 @@ public sealed class SessionSummaryChangedParams
     /// MUST be omitted by senders; receivers SHOULD ignore them if present.
     /// </summary>
     [JsonPropertyName("changes")]
-    public PartialSessionSummary Changes { get; set; } = null!;
+    public required PartialSessionSummary Changes { get; set; }
 }
 
 /// <summary>

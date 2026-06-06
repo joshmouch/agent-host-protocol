@@ -1163,7 +1163,7 @@ public sealed class DispatchActionParams
     /// The action to dispatch
     /// </summary>
     [JsonPropertyName("action")]
-    public StateAction Action { get; set; } = null!;
+    public required StateAction Action { get; set; }
 }
 
 /// <summary>
@@ -1228,7 +1228,7 @@ public sealed class CreateTerminalParams
     /// Initial owner of the terminal
     /// </summary>
     [JsonPropertyName("claim")]
-    public TerminalClaim Claim { get; set; } = null!;
+    public required TerminalClaim Claim { get; set; }
 
     /// <summary>
     /// Human-readable terminal name
@@ -1324,7 +1324,7 @@ public sealed class ResolveSessionConfigResult
     /// JSON Schema describing available configuration properties given the current context
     /// </summary>
     [JsonPropertyName("schema")]
-    public SessionConfigSchema Schema { get; set; } = null!;
+    public required SessionConfigSchema Schema { get; set; }
 
     /// <summary>
     /// Current configuration values (echoed back with server-resolved defaults applied)
@@ -1503,7 +1503,7 @@ public sealed class CompletionItem
     /// The attachment associated with this completion item.
     /// </summary>
     [JsonPropertyName("attachment")]
-    public MessageAttachment Attachment { get; set; } = null!;
+    public required MessageAttachment Attachment { get; set; }
 }
 
 /// <summary>
@@ -1593,7 +1593,7 @@ public sealed class InvokeChangesetOperationResult
 public sealed class ChangesetOperationFollowUp
 {
     [JsonPropertyName("content")]
-    public ContentRef Content { get; set; } = null!;
+    public required ContentRef Content { get; set; }
 
     /// <summary>
     /// When `true`, open in an external handler rather than inline.

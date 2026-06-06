@@ -424,6 +424,38 @@ interface StructOpts {
   includeDiscriminants?: boolean;
 }
 
+/** True when the C# type is a generic collection the generator emits
+ *  (`List<...>` / `Dictionary<...>`). A required-but-unset collection is
+ *  modeled as null-forgiving (see {@link csPropDefault}). */
+function csIsCollectionType(csType: string): boolean {
+  return csType.startsWith('List<') || csType.startsWith('Dictionary<');
+}
+
+/**
+ * True when a REQUIRED property is a nested object — i.e. a reference type that
+ * is neither a string, a StringOrMarkdown wrapper, a value type/enum, nor a
+ * generic collection. The schema marks these `required`, so the C# field must
+ * be non-nullable AND enforced on decode. We model that with the C# `required`
+ * modifier (see {@link csRequiredModifier}) rather than a null-forgiving
+ * default, so a wire payload omitting the field is rejected — matching the
+ * schema's `required` array (e.g. SessionAddedParams.summary). Collections keep
+ * the null-forgiving default because a null collection serializes as `null`,
+ * which the conformance harness strips (matching Go's nil slice/map).
+ */
+function csIsRequiredNestedObject(csType: string, optional: boolean): boolean {
+  if (optional) return false;
+  if (csIsValueType(csType)) return false;
+  if (csType === 'string' || csType === 'StringOrMarkdown') return false;
+  if (csIsCollectionType(csType)) return false;
+  return true;
+}
+
+/** The `required ` modifier (with trailing space) for properties that must be
+ *  set, else the empty string. */
+function csRequiredModifier(csType: string, optional: boolean): string {
+  return csIsRequiredNestedObject(csType, optional) ? 'required ' : '';
+}
+
 function csPropDefault(csType: string, optional: boolean): string {
   if (optional) return '';
   // Required value types get the C# default (matches Go's numeric/bool zero).
@@ -434,10 +466,14 @@ function csPropDefault(csType: string, optional: boolean): string {
   // Required StringOrMarkdown → empty wrapper, which serializes as "" (matches
   // Go's value-type zero).
   if (csType === 'StringOrMarkdown') return ' = new();';
-  // Required collections and nested objects → null-forgiving. A null
-  // collection serializes as `null`, which the conformance harness strips —
-  // matching Go, where a required-but-unset slice/map is `nil` → `null`.
-  // Deserialization and reducers populate these before they are read.
+  // Required nested objects use the `required` modifier (no default) so a wire
+  // payload missing the field is rejected, matching the schema's `required`
+  // array. csRequiredModifier emits the keyword; no initializer is needed.
+  if (csIsRequiredNestedObject(csType, optional)) return '';
+  // Required collections → null-forgiving. A null collection serializes as
+  // `null`, which the conformance harness strips — matching Go, where a
+  // required-but-unset slice/map is `nil` → `null`. Deserialization and
+  // reducers populate these before they are read.
   return ' = null!;';
 }
 
@@ -461,7 +497,8 @@ function generateCsClass(csName: string, props: CsProp[], opts: StructOpts = {})
       csType = `${csType}?`;
     }
     const def = csPropDefault(p.csType, p.optional);
-    lines.push(`    public ${csType} ${p.csName} { get; set; }${def}`);
+    const req = csRequiredModifier(p.csType, p.optional);
+    lines.push(`    public ${req}${csType} ${p.csName} { get; set; }${def}`);
   });
   lines.push('}');
   return lines.join('\n');
