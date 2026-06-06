@@ -729,7 +729,14 @@ data class RootState(
     /**
      * Agent host configuration schema and current values
      */
-    val config: RootConfigState? = null
+    val config: RootConfigState? = null,
+    /**
+     * Additional implementation-defined metadata about the agent host itself.
+     * 
+     * Clients MAY look for well-known keys here to provide enhanced UI.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable

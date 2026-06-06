@@ -429,6 +429,10 @@ type RootState struct {
 	Terminals []TerminalInfo `json:"terminals,omitempty"`
 	// Agent host configuration schema and current values
 	Config *RootConfigState `json:"config,omitempty"`
+	// Additional implementation-defined metadata about the agent host itself.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Live agent-host configuration metadata.

@@ -552,6 +552,11 @@ pub struct RootState {
     /// Agent host configuration schema and current values
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<RootConfigState>,
+    /// Additional implementation-defined metadata about the agent host itself.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Live agent-host configuration metadata.
