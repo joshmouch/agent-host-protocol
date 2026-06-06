@@ -477,7 +477,7 @@ public sealed class ClientTests
             Type = ActionType.SessionTitleChanged,
             Title = "Dispatched",
         });
-        var handle = await client.DispatchAsync("ahp-session:/s1", action, cts.Token);
+        var handle = await client.DispatchAsync("ahp-session:/s1", action, cancellationToken: cts.Token);
 
         // The server reads the emitted frame and decodes the dispatchAction notification.
         var frame = await serverSide.ReceiveAsync(cts.Token);

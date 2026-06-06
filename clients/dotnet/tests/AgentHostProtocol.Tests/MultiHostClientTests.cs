@@ -1177,7 +1177,7 @@ public sealed class MultiHostClientTests
         });
 
         var ex = await Assert.ThrowsAsync<UnknownHostException>(() =>
-            m.DispatchAsync(new HostId("missing"), action, "copilot:/s1", cts.Token));
+            m.DispatchAsync(new HostId("missing"), action, "copilot:/s1", cancellationToken: cts.Token));
         Assert.Equal(new HostId("missing"), ex.HostId);
     }
 
@@ -1249,7 +1249,7 @@ public sealed class MultiHostClientTests
 
         // Host is registered but has no live connection → typed not-connected error.
         var ex = await Assert.ThrowsAsync<HostNotConnectedException>(() =>
-            m.DispatchAsync(new HostId("nc"), action, "copilot:/s1", cts.Token));
+            m.DispatchAsync(new HostId("nc"), action, "copilot:/s1", cancellationToken: cts.Token));
         Assert.Equal(new HostId("nc"), ex.HostId);
     }
 
@@ -1284,7 +1284,7 @@ public sealed class MultiHostClientTests
 
         // The host runtime is gone; the stale handle refuses to operate.
         var ex = await Assert.ThrowsAsync<HostShutDownException>(() =>
-            handle!.DispatchAsync(action, "copilot:/s1", cts.Token));
+            handle!.DispatchAsync(action, "copilot:/s1", cancellationToken: cts.Token));
         Assert.Equal(new HostId("temp"), ex.HostId);
     }
 
@@ -1299,14 +1299,14 @@ public sealed class MultiHostClientTests
 
     // ── 17. removeHost terminates the supervisor (host gone + stream done) ──
     //
-    // Swift's testRemoveHostTerminatesSupervisorAndEmitsEvent additionally
-    // asserts a HostEvent.removed(id) on multi.hostEvents(). The .NET HostEvent
-    // surface carries only (HostId, State) — it has no `removed` variant — so
-    // the event-emission half is a documented surface gap (recorded by the
-    // director). The supervisor-termination half IS observable and is what we
-    // pin here: after RemoveHostAsync the host snapshot is gone (null) and the
-    // per-host snapshot stream completes (proving the supervisor + its plumbing
-    // were torn down, not merely orphaned).
+    // Swift's testRemoveHostTerminatesSupervisorAndEmitsEvent asserts both a
+    // HostEvent.removed(id) on multi.hostEvents() AND supervisor termination.
+    // The event-emission half is now covered separately by
+    // MultiHost_RemoveHost_EmitsRemovedEvent (HostEvent gained an IsRemoved
+    // discriminator). This test pins the supervisor-termination half: after
+    // RemoveHostAsync the host snapshot is gone (null) and the per-host snapshot
+    // stream completes (proving the supervisor + its plumbing were torn down,
+    // not merely orphaned).
     [Fact]
     public async Task MultiHost_RemoveHost_TerminatesSupervisor()
     {
@@ -1675,7 +1675,7 @@ public sealed class MultiHostClientTests
             Title = "x",
         });
         await Assert.ThrowsAsync<HostNotConnectedException>(() =>
-            handle.DispatchAsync(action, "copilot:/s1", cts.Token));
+            handle.DispatchAsync(action, "copilot:/s1", cancellationToken: cts.Token));
 
         // A freshly acquired handle is at the new generation and is valid.
         var fresh = m.ClientFor(new HostId("local"));
@@ -2138,5 +2138,357 @@ public sealed class MultiHostClientTests
             _observer.MarkClosed();
             await _inner.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  Production-parity gap closure (features Swift ships + tests that the
+    //  .NET surface previously lacked). All drive the REAL MultiHostClient /
+    //  AhpClient over REAL MemTransport pairs with a fake server — NO mocking
+    //  of the client, transport, or serializer; every test asserts a real
+    //  outcome.
+    // ══════════════════════════════════════════════════════════════════════
+
+    /// <summary>Thread-safe recorder of the <c>clientSeq</c> values a fake server
+    /// observed on inbound <c>dispatchAction</c> notifications. Mirrors Swift's
+    /// <c>DispatchRecorder</c> actor.</summary>
+    private sealed class DispatchRecorder
+    {
+        private readonly object _gate = new();
+        private readonly List<long> _seqs = new();
+        public void Append(long seq) { lock (_gate) { _seqs.Add(seq); } }
+        public List<long> Seqs() { lock (_gate) { return new List<long>(_seqs); } }
+    }
+
+    /// <summary>
+    /// Full fake server that ALSO captures the <c>clientSeq</c> of every inbound
+    /// <c>dispatchAction</c> notification into <paramref name="recorder"/>. Answers
+    /// <c>initialize</c> + <c>listSessions</c> like <see cref="RunFakeServerFullAsync"/>;
+    /// acknowledges other requests with an empty success. Mirrors Swift's
+    /// <c>startDispatchRecordingHost</c>.
+    /// </summary>
+    private static async Task RunDispatchRecordingServerAsync(
+        MemTransport serverSide, DispatchRecorder recorder, CancellationToken ct)
+    {
+        try
+        {
+            while (true)
+            {
+                TransportMessage frame;
+                try { frame = await serverSide.ReceiveAsync(ct).ConfigureAwait(false); }
+                catch { return; }
+
+                JsonRpcMessage msg;
+                try { msg = Ser.DecodeMessage(frame); }
+                catch { return; }
+
+                // Capture the clientSeq carried by dispatchAction notifications —
+                // the real value the client put on the wire (no mocking).
+                if (msg.Notification?.Method == "dispatchAction" && msg.Notification.Params is { } p)
+                {
+                    var dispatched = Ser.Deserialize<DispatchActionParams>(p.GetRawText());
+                    recorder.Append(dispatched.ClientSeq);
+                    continue;
+                }
+
+                var method = msg.Request?.Method;
+                if (method == "initialize")
+                    await RespondInitializeWithRootAsync(serverSide, msg.Request!.Id, null, 0, ct).ConfigureAwait(false);
+                else if (method == "listSessions")
+                    await RespondListSessionsAsync(serverSide, msg.Request!.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false);
+                else if (msg.Request is not null)
+                    await RespondEmptyAsync(serverSide, msg.Request.Id, ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    // ── Gap 1: HostEvent.removed(id) emitted on RemoveHostAsync ─────────────
+    //
+    // Swift's testRemoveHostTerminatesSupervisorAndEmitsEvent asserts a
+    // HostEvent.removed(id) lands on hostEvents() when a host is removed. The
+    // .NET HostEvent now carries an IsRemoved discriminator (mirroring Swift's
+    // `removed` enum case); RemoveHostAsync emits it. Pin that a live Events()
+    // listener observes a removal event for the right host id.
+    [Fact]
+    public async Task MultiHost_RemoveHost_EmitsRemovedEvent()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("temp"),
+            Label = "Temporary",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("temp"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        // Attach the connection-event listener BEFORE removal so the removed
+        // event isn't missed (Swift subscribes to hostEvents() before remove).
+        var events = m.Events();
+
+        await m.RemoveHostAsync(new HostId("temp"), cts.Token);
+
+        // Drain until we see the removed event for the right host id. The host
+        // is already gone by the time the event fires (removal precedes the
+        // broadcast), so we assert the event, not the registry.
+        var sawRemoved = false;
+        for (var i = 0; i < 40 && !sawRemoved; i++)
+        {
+            var (ok, ev) = await ReadWithTimeoutAsync(events, cts.Token, 400);
+            if (!ok) continue;
+            if (ev.IsRemoved && ev.HostId.Equals(new HostId("temp")))
+                sawRemoved = true;
+        }
+        Assert.True(sawRemoved, "expected a HostEvent with IsRemoved=true for host 'temp'");
+
+        // And the host is no longer registered (the removal really happened).
+        Assert.Null(m.Host(new HostId("temp")));
+    }
+
+    // ── Gap 1b: a state-change event is NOT mistaken for a removal ──────────
+    //
+    // Falsifiability guard for the IsRemoved discriminator: ordinary state
+    // transitions (e.g. the connect that drives a host to Connected) must carry
+    // IsRemoved=false. Without this, "IsRemoved" could be wired to a constant
+    // and the test above would still pass.
+    [Fact]
+    public async Task MultiHost_StateChangeEvent_IsNotRemoved()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        // Listen before adding so we capture the connecting→connected transitions.
+        var events = m.Events();
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("h"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        // Drain the buffered state-change events; every one must be a non-removal
+        // carrying a real state kind, and at least one must report Connected.
+        var sawConnectedNonRemoval = false;
+        for (var i = 0; i < 40; i++)
+        {
+            var (ok, ev) = await ReadWithTimeoutAsync(events, cts.Token, 300);
+            if (!ok) break;
+            Assert.False(ev.IsRemoved, "a state-change event must not be flagged as a removal");
+            if (ev.State.Kind == HostStateKind.Connected) sawConnectedNonRemoval = true;
+        }
+        Assert.True(sawConnectedNonRemoval, "expected a non-removal Connected state-change event");
+    }
+
+    // ── Gap 3: subscribe then unsubscribe drops the URI from the replay set ─
+    //
+    // Mirrors the unsubscribe half of Swift's subscribe/unsubscribe replay-set
+    // tracking. After SubscribeAsync the URI is tracked for replay
+    // (Host(id).Subscriptions); after UnsubscribeAsync it is gone.
+    [Fact]
+    public async Task MultiHost_Unsubscribe_DropsUriFromReplaySet()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            Label = "H",
+            TransportFactory = FullFactory(cts.Token),
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("h"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        const string uri = "copilot:/sub-target";
+
+        // Subscribe → the URI is tracked for replay across reconnects.
+        await m.SubscribeAsync(new HostId("h"), uri, cts.Token);
+        Assert.Contains(uri, m.Host(new HostId("h"))!.Subscriptions);
+
+        // Unsubscribe → the URI is dropped from the replay set.
+        await m.UnsubscribeAsync(new HostId("h"), uri, cts.Token);
+        Assert.DoesNotContain(uri, m.Host(new HostId("h"))!.Subscriptions);
+    }
+
+    // ── Gap 3b: unsubscribe on an unknown host → typed exception ────────────
+    [Fact]
+    public async Task MultiHost_UnknownHost_Unsubscribe_Throws()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var ex = await Assert.ThrowsAsync<UnknownHostException>(() =>
+            m.UnsubscribeAsync(new HostId("missing"), "copilot:/anything", cts.Token));
+        Assert.Equal(new HostId("missing"), ex.HostId);
+    }
+
+    // ── Gap 3c: unsubscribe on a registered-but-disconnected host → typed ───
+    //
+    // The .NET surface (symmetric with SubscribeAsync) surfaces the no-live-
+    // connection case as HostNotConnectedException. Build a host that connects
+    // then drops with a disabled policy so it parks in .failed (registered, not
+    // connected) — the same setup MultiHost_NotConnected_Dispatch_Throws uses.
+    [Fact]
+    public async Task MultiHost_NotConnected_Unsubscribe_Throws()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        var connectOnce = 0;
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var n = Interlocked.Increment(ref connectOnce);
+            var (c, s) = MemTransport.CreatePair();
+            if (n == 1)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var sawInit = false; var sawList = false;
+                        while (!ct.IsCancellationRequested && !(sawInit && sawList))
+                        {
+                            var frame = await s.ReceiveAsync(ct).ConfigureAwait(false);
+                            var msg = Ser.DecodeMessage(frame);
+                            if (msg.Request?.Method == "initialize")
+                            { await RespondInitializeWithRootAsync(s, msg.Request.Id, null, 0, ct).ConfigureAwait(false); sawInit = true; }
+                            else if (msg.Request?.Method == "listSessions")
+                            { await RespondListSessionsAsync(s, msg.Request.Id, Array.Empty<SessionSummary>(), ct).ConfigureAwait(false); sawList = true; }
+                            else if (msg.Request is not null)
+                                await RespondEmptyAsync(s, msg.Request.Id, ct).ConfigureAwait(false);
+                        }
+                        await Task.Delay(100, ct).ConfigureAwait(false);
+                    }
+                    catch { /* ignore */ }
+                    finally { await s.CloseAsync().ConfigureAwait(false); }
+                });
+            }
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("nc"),
+            Label = "NC",
+            TransportFactory = factory,
+            ReconnectPolicy = ReconnectPolicy.Disabled,
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("nc"), s => s.Kind == HostStateKind.Failed, cts.Token, 12000);
+
+        var ex = await Assert.ThrowsAsync<HostNotConnectedException>(() =>
+            m.UnsubscribeAsync(new HostId("nc"), "copilot:/s1", cts.Token));
+        Assert.Equal(new HostId("nc"), ex.HostId);
+    }
+
+    // ── Gap 4: explicit clientSeq override is sent verbatim on the wire ─────
+    //
+    // Mirrors Swift's testDispatchCanUseExplicitClientSeqThroughMultiHostSurfaces
+    // (42 via the facade dispatch, 77 via the client handle). A fake server
+    // records the clientSeq the client actually put on the dispatchAction
+    // notification; both explicit values must arrive exactly, in order.
+    [Fact]
+    public async Task MultiHost_Dispatch_ExplicitClientSeq_SentOnWire()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var recorder = new DispatchRecorder();
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunDispatchRecordingServerAsync(s, recorder, cts.Token));
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("local"),
+            Label = "Local",
+            TransportFactory = factory,
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("local"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        var action = new StateAction(new SessionTitleChangedAction
+        {
+            Type = ActionType.SessionTitleChanged,
+            Title = "From app outbox",
+        });
+
+        // 42 via the facade surface.
+        var first = await m.DispatchAsync(new HostId("local"), action, "copilot:/s1", clientSeq: 42, cancellationToken: cts.Token);
+        Assert.Equal(42, first.ClientSeq);
+
+        // 77 via the generation-checked client handle surface.
+        var handle = m.ClientFor(new HostId("local"));
+        Assert.NotNull(handle);
+        var second = await handle!.DispatchAsync(action, "copilot:/s1", clientSeq: 77, cancellationToken: cts.Token);
+        Assert.Equal(77, second.ClientSeq);
+
+        // The server observed exactly the explicit sequences the client put on
+        // the wire, in dispatch order (no auto-increment substitution).
+        await WaitUntilAsync(() =>
+        {
+            var seqs = recorder.Seqs();
+            return seqs.Count == 2 && seqs[0] == 42 && seqs[1] == 77;
+        }, cts.Token, 8000);
+    }
+
+    // ── Gap 4b: an explicit clientSeq advances the auto-increment counter ───
+    //
+    // After dispatching an explicit clientSeq, a subsequent AUTO-assigned
+    // dispatch must not reuse a number at or below the explicit one (Swift's
+    // `if clientSeq >= nextClientSeq { nextClientSeq = clientSeq + 1 }`). Prove
+    // the next auto seq is explicit+1 = 43.
+    [Fact]
+    public async Task MultiHost_Dispatch_ExplicitClientSeq_AdvancesAutoCounter()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var recorder = new DispatchRecorder();
+        var m = new MultiHostClient();
+        await using var _mh = m;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (c, s) = MemTransport.CreatePair();
+            _ = Task.Run(() => RunDispatchRecordingServerAsync(s, recorder, cts.Token));
+            return Task.FromResult<ITransport>(c);
+        };
+
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("local"),
+            Label = "Local",
+            TransportFactory = factory,
+        }, cts.Token);
+        await WaitForHostStateAsync(m, new HostId("local"), s => s.Kind == HostStateKind.Connected, cts.Token);
+
+        var action = new StateAction(new SessionTitleChangedAction
+        {
+            Type = ActionType.SessionTitleChanged,
+            Title = "x",
+        });
+
+        var handle = m.ClientFor(new HostId("local"));
+        Assert.NotNull(handle);
+
+        // Explicit 42, then an auto-assigned dispatch (clientSeq omitted).
+        var first = await handle!.DispatchAsync(action, "copilot:/s1", clientSeq: 42, cancellationToken: cts.Token);
+        Assert.Equal(42, first.ClientSeq);
+        var auto = await handle.DispatchAsync(action, "copilot:/s1", cancellationToken: cts.Token);
+        Assert.Equal(43, auto.ClientSeq); // counter advanced past the explicit value
+
+        await WaitUntilAsync(() =>
+        {
+            var seqs = recorder.Seqs();
+            return seqs.Count == 2 && seqs[0] == 42 && seqs[1] == 43;
+        }, cts.Token, 8000);
     }
 }

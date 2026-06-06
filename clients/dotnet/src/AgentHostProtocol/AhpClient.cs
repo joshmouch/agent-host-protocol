@@ -941,15 +941,48 @@ public sealed class AhpClient : IAsyncDisposable
     }
 
     /// <summary>
-    /// Fires a write-ahead <c>dispatchAction</c> notification with a
-    /// client-assigned sequence number.
+    /// Fires a write-ahead <c>dispatchAction</c> notification.
     /// </summary>
+    /// <param name="channel">Channel URI the action targets.</param>
+    /// <param name="action">The action to dispatch.</param>
+    /// <param name="clientSeq">
+    /// Optional caller-owned sequence number. When <c>null</c> (the default), the
+    /// next auto-incrementing client sequence is assigned. When supplied, that
+    /// exact value is sent on the wire and recorded on the returned handle — for
+    /// an app-level outbox that needs stable sequence numbers across
+    /// reconnect/replay. To keep later auto-assigned numbers from colliding, the
+    /// internal counter is advanced past an explicit value that is at or beyond it
+    /// (mirroring Swift's <c>dispatch(clientSeq:)</c>).
+    /// </param>
+    /// <param name="cancellationToken">Cancels the send.</param>
     public async Task<DispatchHandle> DispatchAsync(
         string channel,
         StateAction action,
+        long? clientSeq = null,
         CancellationToken cancellationToken = default)
     {
-        var seq = Interlocked.Increment(ref _nextClientSeq) - 1;
+        long seq;
+        if (clientSeq is { } explicitSeq)
+        {
+            seq = explicitSeq;
+            // Advance _nextClientSeq to explicitSeq + 1 if the explicit value is at
+            // or beyond the current counter, so a subsequent auto-assigned dispatch
+            // won't reuse this number. CAS loop keeps this race-free under
+            // concurrent dispatchers (mirrors Swift's `if clientSeq >= nextClientSeq
+            // { nextClientSeq = clientSeq + 1 }`, done atomically).
+            while (true)
+            {
+                var current = Interlocked.Read(ref _nextClientSeq);
+                if (explicitSeq < current) break; // counter already ahead
+                var desired = explicitSeq + 1;
+                if (Interlocked.CompareExchange(ref _nextClientSeq, desired, current) == current) break;
+            }
+        }
+        else
+        {
+            seq = Interlocked.Increment(ref _nextClientSeq) - 1;
+        }
+
         await NotifyAsync("dispatchAction", new DispatchActionParams
         {
             Channel = channel,

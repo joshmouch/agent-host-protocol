@@ -372,13 +372,23 @@ public sealed class HostClientHandle
     /// refusing (throwing) if the host was removed or the connection has been
     /// replaced. Mirrors Swift's <c>HostClientHandle.dispatch</c>.
     /// </summary>
+    /// <param name="action">The action to dispatch.</param>
+    /// <param name="channel">Channel URI the action targets.</param>
+    /// <param name="clientSeq">
+    /// Optional caller-owned sequence number. When supplied, that exact value is
+    /// sent on the wire and recorded on the returned handle; when <c>null</c>, the
+    /// connection's next auto-incrementing sequence is used. Mirrors Swift's
+    /// <c>HostClientHandle.dispatch(action:channel:clientSeq:)</c>.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the send.</param>
     public async Task<DispatchHandle> DispatchAsync(
         StateAction action,
         string channel,
+        long? clientSeq = null,
         CancellationToken cancellationToken = default)
     {
         var client = CheckAlive();
-        return await client.DispatchAsync(channel, action, cancellationToken).ConfigureAwait(false);
+        return await client.DispatchAsync(channel, action, clientSeq, cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -413,17 +423,50 @@ public sealed class InMemoryClientIdStore : IClientIdStore
 
 // ─── Events ──────────────────────────────────────────────────────────────────
 
-/// <summary>A connection-level event for a registered host.</summary>
+/// <summary>
+/// A connection-level event for a registered host. Two shapes exist, mirroring
+/// the relevant cases of Swift's <c>HostEvent</c> enum:
+/// <list type="bullet">
+/// <item>a <b>state change</b> (<see cref="IsRemoved"/> is <c>false</c>) carries
+/// the host's new <see cref="State"/> — Swift's <c>stateChanged</c>; and</item>
+/// <item>a <b>removal</b> (<see cref="IsRemoved"/> is <c>true</c>), emitted when
+/// the host is removed via <see cref="MultiHostClient.RemoveHostAsync"/> —
+/// Swift's <c>removed(HostId)</c>. A removal carries a sentinel
+/// <see cref="State"/> of kind <see cref="HostStateKind.Disconnected"/> (the host
+/// is gone), so consumers should branch on <see cref="IsRemoved"/> first.</item>
+/// </list>
+/// </summary>
 public sealed class HostEvent
 {
-    /// <summary>Which host the state change belongs to.</summary>
+    /// <summary>Which host this event belongs to.</summary>
     public HostId HostId { get; }
 
-    /// <summary>The new state.</summary>
+    /// <summary>The new state. For a removal event this is a sentinel
+    /// (<see cref="HostStateKind.Disconnected"/>); branch on <see cref="IsRemoved"/>.</summary>
     public HostState State { get; }
 
-    /// <summary>Creates a host event.</summary>
-    public HostEvent(HostId hostId, HostState state) { HostId = hostId; State = state; }
+    /// <summary>
+    /// True when this event signals the host was removed from the registry
+    /// (mirrors Swift's <c>HostEvent.removed(id)</c>). False for ordinary state
+    /// transitions (mirrors Swift's <c>HostEvent.stateChanged</c>).
+    /// </summary>
+    public bool IsRemoved { get; }
+
+    /// <summary>Creates a host state-change event (<see cref="IsRemoved"/> = false).</summary>
+    public HostEvent(HostId hostId, HostState state) { HostId = hostId; State = state; IsRemoved = false; }
+
+    private HostEvent(HostId hostId, HostState state, bool isRemoved)
+    {
+        HostId = hostId; State = state; IsRemoved = isRemoved;
+    }
+
+    /// <summary>
+    /// Creates a host <b>removed</b> event for <paramref name="hostId"/>, mirroring
+    /// Swift's <c>HostEvent.removed(id)</c>. Carries a sentinel
+    /// <see cref="HostStateKind.Disconnected"/> state since the host is gone.
+    /// </summary>
+    public static HostEvent Removed(HostId hostId) =>
+        new(hostId, new HostState { Kind = HostStateKind.Disconnected }, isRemoved: true);
 }
 
 /// <summary>An <see cref="AhpClient"/> subscription event tagged with host + URI.</summary>
@@ -939,6 +982,12 @@ public sealed class MultiHostClient : IAsyncDisposable
         try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
         try { await entry.PumpTask.ConfigureAwait(false); } catch (OperationCanceledException) { } catch { }
         entry.LifetimeCts.Dispose();
+
+        // Announce the removal on the connection-event stream, mirroring Swift's
+        // `broadcastHostEvent(.removed(id))` at the end of `remove(_:)`. Fired
+        // after teardown so a consumer that reacts to the removed event observes
+        // a host that is already gone (Host(id) == null).
+        BroadcastHostEvent(HostEvent.Removed(id));
     }
 
     // ── Event channels ────────────────────────────────────────────────────
@@ -1377,14 +1426,23 @@ public sealed class MultiHostClient : IAsyncDisposable
     {
         entry.SetState(state);
 
-        var ev = new HostEvent(entry.Id, state);
-        List<System.Threading.Channels.Channel<HostEvent>> channels;
-        lock (_eventsLock) { channels = new List<System.Threading.Channels.Channel<HostEvent>>(_eventChannels); }
-        foreach (var ch in channels) ch.Writer.TryWrite(ev);
+        BroadcastHostEvent(new HostEvent(entry.Id, state));
 
         // A state transition is an observable change for hostSnapshots
         // consumers (Swift re-yields a fresh snapshot on `.stateChanged`).
         NotifyPerHostSnapshot(entry);
+    }
+
+    /// <summary>
+    /// Fans <paramref name="ev"/> out to every registered <see cref="Events"/>
+    /// reader. Mirrors Swift's <c>broadcastHostEvent</c>. Slow consumers drop
+    /// oldest (the channels are <c>DropOldest</c>-bounded).
+    /// </summary>
+    private void BroadcastHostEvent(HostEvent ev)
+    {
+        List<System.Threading.Channels.Channel<HostEvent>> channels;
+        lock (_eventsLock) { channels = new List<System.Threading.Channels.Channel<HostEvent>>(_eventChannels); }
+        foreach (var ch in channels) ch.Writer.TryWrite(ev);
     }
 
     private static string GenerateClientId()
@@ -1688,10 +1746,22 @@ public sealed class MultiHostClient : IAsyncDisposable
     /// such host is registered, or <see cref="HostNotConnectedException"/> if the
     /// host has no live connection. Mirrors Swift's <c>dispatch(host:…)</c>.
     /// </summary>
+    /// <param name="host">Target host.</param>
+    /// <param name="action">The action to dispatch.</param>
+    /// <param name="channel">Channel URI the action targets.</param>
+    /// <param name="clientSeq">
+    /// Optional caller-owned sequence number. When supplied, that exact value is
+    /// sent on the wire and recorded on the returned handle — for an app-level
+    /// outbox that needs stable sequence numbers across reconnect/replay; when
+    /// <c>null</c>, the connection's next auto-incrementing sequence is used.
+    /// Mirrors Swift's <c>dispatch(host:action:channel:clientSeq:)</c>.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the send.</param>
     public async Task<DispatchHandle> DispatchAsync(
         HostId host,
         StateAction action,
         string channel,
+        long? clientSeq = null,
         CancellationToken cancellationToken = default)
     {
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
@@ -1699,7 +1769,7 @@ public sealed class MultiHostClient : IAsyncDisposable
         var client = entry.CurrentClient;
         if (client is null)
             throw new HostNotConnectedException(host);
-        return await client.DispatchAsync(channel, action, cancellationToken).ConfigureAwait(false);
+        return await client.DispatchAsync(channel, action, clientSeq, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -1734,6 +1804,43 @@ public sealed class MultiHostClient : IAsyncDisposable
             sub.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Unsubscribes from <paramref name="uri"/> on <paramref name="host"/>, sending
+    /// the <c>unsubscribe</c> notification, closing the host client's local
+    /// subscriptions for the URI, and dropping the URI from the replay set so it is
+    /// no longer re-subscribed across reconnects. Throws
+    /// <see cref="UnknownHostException"/> if no such host is registered, or
+    /// <see cref="HostNotConnectedException"/> if the host has no live connection.
+    /// Mirrors Swift's <c>unsubscribe(host:uri:)</c>.
+    ///
+    /// <para><b>Divergence note.</b> Swift's runtime drops the URI from the replay
+    /// set even when the host is disconnected (unsubscribe-while-disconnected is a
+    /// no-op send that still mutates the replay set). The .NET surface instead
+    /// surfaces the no-live-connection case as a typed
+    /// <see cref="HostNotConnectedException"/> — symmetric with
+    /// <see cref="SubscribeAsync"/>, which makes the same choice. The replay-set
+    /// drop therefore happens only on the connected path here. Callers that want to
+    /// forget a URI on a disconnected host can remove + re-add the host, or
+    /// unsubscribe once it reconnects.</para>
+    /// </summary>
+    public async Task UnsubscribeAsync(
+        HostId host,
+        string uri,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_hosts.TryGetValue(host.ToString(), out var entry))
+            throw new UnknownHostException(host);
+        var client = entry.CurrentClient;
+        if (client is null)
+            throw new HostNotConnectedException(host);
+
+        // Send the unsubscribe RPC + close the host client's local per-URI
+        // subscriptions, then forget the URI for replay. Order matches Swift's
+        // handleUnsubscribe (RPC first, then removeSubscription).
+        await client.UnsubscribeAsync(uri, cancellationToken).ConfigureAwait(false);
+        entry.RemoveSubscription(uri);
     }
 
     /// <summary>
