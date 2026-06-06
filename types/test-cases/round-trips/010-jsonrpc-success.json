@@ -3,10 +3,5 @@
   "description": "A JsonRpcMessage with id+result decodes as the success-response variant.",
   "type": "JsonRpcMessage",
   "wireRaw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
-  "expectVariant": {
-    "Request": "absent",
-    "Notification": "absent",
-    "SuccessResponse": "present",
-    "ErrorResponse": "absent"
-  }
+  "expectJsonRpcVariant": "success"
 }

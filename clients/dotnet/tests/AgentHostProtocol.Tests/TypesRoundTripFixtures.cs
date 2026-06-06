@@ -111,6 +111,12 @@ public sealed class TypesRoundTripFixtures
             assertedSomething = true;
         }
 
+        if (root.TryGetProperty("expectJsonRpcVariant", out JsonElement jrpcVariant))
+        {
+            VerifyJsonRpcVariant(path, decoded, jrpcVariant.GetString()!);
+            assertedSomething = true;
+        }
+
         if (root.TryGetProperty("expectBitset", out JsonElement bitset))
         {
             VerifyBitset(path, decoded, reencoded, bitset);
@@ -180,7 +186,37 @@ public sealed class TypesRoundTripFixtures
 
         Assert.True(
             assertedSomething,
-            $"{Path.GetFileName(path)}: fixture made no assertions (no expect/expectVariant/expectBitset/expectNumberAbove/expectReencodedAbsent/reencodes/roundTripStable). A fixture that checks nothing is coverage theater.");
+            $"{Path.GetFileName(path)}: fixture made no assertions (no expect/expectVariant/expectJsonRpcVariant/expectBitset/expectNumberAbove/expectReencodedAbsent/reencodes/roundTripStable). A fixture that checks nothing is coverage theater.");
+    }
+
+    /// <summary>
+    /// Neutral JSON-RPC variant check. The fixture names the logical variant
+    /// ("request"/"notification"/"success"/"error"); each language maps it to its
+    /// own JsonRpcMessage accessor (here, the C# property). Asserts that variant is
+    /// present and the other three absent — verifying the decoder's wire-shape
+    /// dispatch without baking .NET property names into the shared corpus.
+    /// </summary>
+    private static void VerifyJsonRpcVariant(string path, object decoded, string kind)
+    {
+        string fname = Path.GetFileName(path);
+        string? present = kind switch
+        {
+            "request" => "Request",
+            "notification" => "Notification",
+            "success" => "SuccessResponse",
+            "error" => "ErrorResponse",
+            _ => null,
+        };
+        Assert.True(present is not null,
+            $"{fname}: expectJsonRpcVariant \"{kind}\" is not one of request/notification/success/error");
+        foreach (string prop in new[] { "Request", "Notification", "SuccessResponse", "ErrorResponse" })
+        {
+            object? val = decoded.GetType().GetProperty(prop)?.GetValue(decoded);
+            bool shouldBePresent = prop == present;
+            Assert.True(
+                (val is not null) == shouldBePresent,
+                $"{fname}: expectJsonRpcVariant \"{kind}\" — {prop} is {(val is null ? "absent" : "present")}, expected {(shouldBePresent ? "present" : "absent")}");
+        }
     }
 
     // ── Real decode dispatch ──────────────────────────────────────────────

@@ -3,10 +3,5 @@
   "description": "A JsonRpcMessage with method+params but no id decodes as the notification variant.",
   "type": "JsonRpcMessage",
   "wireRaw": "{\"jsonrpc\":\"2.0\",\"method\":\"action\",\"params\":{}}",
-  "expectVariant": {
-    "Request": "absent",
-    "Notification": "present",
-    "SuccessResponse": "absent",
-    "ErrorResponse": "absent"
-  }
+  "expectJsonRpcVariant": "notification"
 }
