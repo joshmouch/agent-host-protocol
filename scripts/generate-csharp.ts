@@ -179,7 +179,9 @@ function mapType(tsType: string): string {
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
   if (recordMatch) {
     const inner = recordMatch[1].trim();
-    if (inner === 'unknown') return 'Dictionary<string, JsonElement>';
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'unknown' || inner === 'never') return 'Dictionary<string, JsonElement>';
     return `Dictionary<string, ${mapType(inner)}>`;
   }
 
@@ -590,7 +592,9 @@ const STATE_ENUMS = [
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
   'ConfirmationOptionKind',
+  'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -609,6 +613,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: strin
   { name: 'SessionState' },
   { name: 'SessionActiveClient' },
   { name: 'SessionSummary' },
+  { name: 'ChangesSummary' },
   { name: 'ProjectInfo' },
   { name: 'SessionConfigPropertySchema' },
   { name: 'SessionConfigSchema' },
@@ -671,6 +676,15 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: strin
   { name: 'RuleCustomization' },
   { name: 'HookCustomization' },
   { name: 'McpServerCustomization' },
+  { name: 'McpServerCustomizationApps' },
+  { name: 'AhpMcpUiHostCapabilities' },
+  { name: 'McpServerStartingState' },
+  { name: 'McpServerReadyState' },
+  { name: 'McpServerAuthRequiredState' },
+  { name: 'McpServerErrorState' },
+  { name: 'McpServerStoppedState' },
+  { name: 'ToolCallClientContributor' },
+  { name: 'ToolCallMcpContributor' },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
   { name: 'TerminalClientClaim' },
@@ -681,7 +695,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: strin
   { name: 'UsageInfo' },
   { name: 'ErrorInfo' },
   { name: 'Snapshot' },
-  { name: 'ChangesetSummary' },
+  { name: 'Changeset' },
   { name: 'ChangesetState' },
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },
@@ -812,10 +826,11 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 const CUSTOMIZATION_UNION: UnionConfig = {
   name: 'Customization',
   discriminantField: 'type',
-  doc: 'Customization is a top-level customization (plugin or directory).',
+  doc: 'Customization is a top-level customization (plugin, directory, or MCP server).',
   variants: [
     { variantName: 'Plugin', innerType: 'PluginCustomization', wireValue: 'plugin' },
     { variantName: 'Directory', innerType: 'DirectoryCustomization', wireValue: 'directory' },
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
   ],
   unknown: true,
 };
@@ -844,6 +859,31 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { variantName: 'Loaded', innerType: 'CustomizationLoadedState', wireValue: 'loaded' },
     { variantName: 'Degraded', innerType: 'CustomizationDegradedState', wireValue: 'degraded' },
     { variantName: 'Error', innerType: 'CustomizationErrorState', wireValue: 'error' },
+  ],
+  unknown: true,
+};
+
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  doc: 'McpServerState is the lifecycle state of an MCP server customization.',
+  variants: [
+    { variantName: 'Starting', innerType: 'McpServerStartingState', wireValue: 'starting' },
+    { variantName: 'Ready', innerType: 'McpServerReadyState', wireValue: 'ready' },
+    { variantName: 'AuthRequired', innerType: 'McpServerAuthRequiredState', wireValue: 'authRequired' },
+    { variantName: 'Error', innerType: 'McpServerErrorState', wireValue: 'error' },
+    { variantName: 'Stopped', innerType: 'McpServerStoppedState', wireValue: 'stopped' },
+  ],
+  unknown: true,
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  doc: 'ToolCallContributor identifies who provides a tool call (client or MCP server).',
+  variants: [
+    { variantName: 'Client', innerType: 'ToolCallClientContributor', wireValue: 'client' },
+    { variantName: 'Mcp', innerType: 'ToolCallMcpContributor', wireValue: 'mcp' },
   ],
   unknown: true,
 };
@@ -942,6 +982,7 @@ function generateStateFile(project: Project): string {
     SESSION_INPUT_ANSWER_VALUE_UNION, SESSION_INPUT_ANSWER_UNION,
     TOOL_RESULT_CONTENT_UNION, MESSAGE_ATTACHMENT_UNION, CUSTOMIZATION_UNION,
     CHILD_CUSTOMIZATION_UNION, CUSTOMIZATION_LOAD_STATE_UNION,
+    MCP_SERVER_STATUS_UNION, TOOL_CALL_CONTRIBUTOR_UNION,
   ]) {
     lines.push(generateDiscriminatedUnion(u));
     lines.push('');
@@ -994,6 +1035,7 @@ const ACTION_VARIANTS: { type: string; variantName: string; tsInterface: string 
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', variantName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', variantName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1151,6 +1193,7 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
+  { name: 'ClientCapabilities' },
   { name: 'ReconnectParams' },
   // Union variants MUST self-carry their `type` discriminator: UnionConverter<T>.Write
   // serializes the inner value by its runtime type and relies on that property to
@@ -1643,7 +1686,8 @@ function checkExhaustiveness(project: Project): void {
     'TerminalContentPart', 'SessionInputQuestion', 'SessionInputAnswerValue',
     'SessionInputAnswer', 'MessageAttachment', 'MessageAttachmentBase',
     'Customization', 'ChildCustomization', 'ChildCustomizationType',
-    'CustomizationLoadState', 'ReconnectResult', 'AuthRequiredErrorData',
+    'CustomizationLoadState', 'McpServerState', 'ToolCallContributor',
+    'ReconnectResult', 'AuthRequiredErrorData',
     'PermissionDeniedErrorData', 'UnsupportedProtocolVersionErrorData',
     'AhpError', 'AhpErrorDetailsMap', 'AhpErrorCode', 'AhpErrorCodeWithData',
     'JsonRpcErrorCode', 'ChangesetOperationTarget',

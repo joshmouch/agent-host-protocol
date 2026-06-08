@@ -220,6 +220,33 @@ public sealed class InitializeResult
 }
 
 /// <summary>
+/// Optional capabilities a client declares during `initialize`.
+///
+/// Each field is a presence flag: an empty object `{}` means "supported",
+/// absence means "not supported". Sub-fields on individual capabilities
+/// are reserved for future per-capability options.
+/// </summary>
+public sealed class ClientCapabilities
+{
+    /// <summary>
+    /// Client can render
+    /// [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+    /// it can host the View sandbox, run the `ui/*` protocol against it,
+    /// and forward `mcp://`-channel traffic on the App's behalf.
+    ///
+    /// Hosts SHOULD only populate
+    /// {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+    /// (and expose the corresponding
+    /// {@link McpServerCustomization.channel | `mcp://` channel}) when this
+    /// capability is declared. Clients that omit it MUST treat
+    /// App-bearing tool calls as ordinary MCP tool calls.
+    /// </summary>
+    [JsonPropertyName("mcpApps")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? McpApps { get; set; }
+}
+
+/// <summary>
 /// Re-establishes a dropped connection. The server replays missed actions or
 /// provides fresh snapshots.
 /// </summary>

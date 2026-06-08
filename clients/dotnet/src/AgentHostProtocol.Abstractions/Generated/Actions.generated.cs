@@ -1232,6 +1232,55 @@ public sealed class SessionCustomizationRemovedAction
 }
 
 /// <summary>
+/// Updates the runtime fields of an existing
+/// {@link McpServerCustomization} — narrow alternative to
+/// {@link SessionCustomizationUpdatedAction} for the high-frequency
+/// `starting` ↔ `ready` ↔ `authRequired` transitions.
+///
+/// Locates the target entry by `id`, searching both the top-level
+/// customization list and the `children` array of every container.
+/// Replaces the entry's {@link McpServerCustomization.state | `state`}
+/// and {@link McpServerCustomization.channel | `channel`}
+/// (full-replacement semantics: omit `channel` to clear an existing
+/// channel URI). Other fields of the customization are preserved.
+///
+/// Is a no-op when no matching `McpServerCustomization` is found. To
+/// update any other field (name, icons, `mcpApp` capabilities, etc.) use
+/// {@link SessionCustomizationUpdatedAction} instead.
+///
+/// When the transition is to {@link McpServerStatus.AuthRequired}
+/// because of a request issued mid-turn, the host SHOULD also raise
+/// {@link SessionStatus.InputNeeded} on the session — see
+/// {@link McpServerAuthRequiredState} for the rationale.
+/// </summary>
+public sealed class SessionMcpServerStateChangedAction
+{
+    [JsonPropertyName("type")]
+    public ActionType Type { get; set; }
+
+    /// <summary>
+    /// The id of the {@link McpServerCustomization} to update.
+    /// </summary>
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    /// <summary>
+    /// The new lifecycle state.
+    /// </summary>
+    [JsonPropertyName("state")]
+    public required McpServerState State { get; set; }
+
+    /// <summary>
+    /// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+    /// an existing channel (typical when leaving
+    /// {@link McpServerStatus.Ready | `Ready`}).
+    /// </summary>
+    [JsonPropertyName("channel")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Channel { get; set; }
+}
+
+/// <summary>
 /// Truncates a session's history. If `turnId` is provided, all turns after that
 /// turn are removed and the specified turn is kept. If `turnId` is omitted, all
 /// turns are removed.
@@ -1807,6 +1856,7 @@ internal sealed class StateActionConverter : UnionConverter<StateAction>
         ["session/customizationToggled"] = typeof(SessionCustomizationToggledAction),
         ["session/customizationUpdated"] = typeof(SessionCustomizationUpdatedAction),
         ["session/customizationRemoved"] = typeof(SessionCustomizationRemovedAction),
+        ["session/mcpServerStateChanged"] = typeof(SessionMcpServerStateChangedAction),
         ["session/truncated"] = typeof(SessionTruncatedAction),
         ["session/configChanged"] = typeof(SessionConfigChangedAction),
         ["session/metaChanged"] = typeof(SessionMetaChangedAction),

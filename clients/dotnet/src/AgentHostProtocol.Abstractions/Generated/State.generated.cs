@@ -281,6 +281,15 @@ public enum ConfirmationOptionKind
     Deny,
 }
 
+[JsonConverter(typeof(WireEnumConverter<ToolCallContributorKind>))]
+public enum ToolCallContributorKind
+{
+    [WireValue("client")]
+    Client,
+    [WireValue("mcp")]
+    MCP,
+}
+
 /// <summary>
 /// Discriminant for tool result content types.
 /// </summary>
@@ -359,6 +368,83 @@ public enum TerminalClaimKind
     Client,
     [WireValue("session")]
     Session,
+}
+
+/// <summary>
+/// Discriminant for the {@link McpServerState} union.
+/// </summary>
+[JsonConverter(typeof(WireEnumConverter<McpServerStatus>))]
+public enum McpServerStatus
+{
+    /// <summary>
+    /// Server has been registered but is not yet running.
+    /// </summary>
+    [WireValue("starting")]
+    Starting,
+    /// <summary>
+    /// Server is running and serving requests.
+    /// </summary>
+    [WireValue("ready")]
+    Ready,
+    /// <summary>
+    /// Server is reachable but requires additional authentication before it
+    /// can start, or before it can serve a particular request. Carries the
+    /// RFC 9728 Protected Resource Metadata the client needs to obtain a
+    /// token; the client then pushes the token via the existing
+    /// `authenticate` command.
+    /// </summary>
+    [WireValue("authRequired")]
+    AuthRequired,
+    /// <summary>
+    /// Server failed to start, crashed, or otherwise transitioned to a fatal error.
+    /// </summary>
+    [WireValue("error")]
+    Error,
+    /// <summary>
+    /// Server has been shut down.
+    /// </summary>
+    [WireValue("stopped")]
+    Stopped,
+}
+
+/// <summary>
+/// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+/// state. Mirrors the three failure modes defined by the
+/// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+/// </summary>
+[JsonConverter(typeof(WireEnumConverter<McpAuthRequiredReason>))]
+public enum McpAuthRequiredReason
+{
+    /// <summary>
+    /// No token has been provided yet (HTTP 401, no prior token).
+    /// </summary>
+    [WireValue("required")]
+    Required,
+    /// <summary>
+    /// A previously valid token expired or was revoked (HTTP 401).
+    /// </summary>
+    [WireValue("expired")]
+    Expired,
+    /// <summary>
+    /// Step-up auth: a token is present but its scopes are insufficient for
+    /// the requested operation (HTTP 403 with
+    /// `WWW-Authenticate: Bearer error="insufficient_scope"`).
+    ///
+    /// Unlike {@link Required} and {@link Expired} — which typically surface
+    /// before any tool work is in flight — `InsufficientScope` is almost
+    /// always triggered by an MCP request issued mid-turn (a `tools/call`,
+    /// `resources/read`, etc.). The host SHOULD pair the
+    /// {@link McpServerAuthRequiredState} transition with
+    /// {@link SessionStatus.InputNeeded} on
+    /// {@link SessionSummary.status | the session} so the activity becomes
+    /// visible at the session-summary level, and clients SHOULD watch for
+    /// this kind on any
+    /// {@link McpServerCustomization | MCP server} backing a running tool
+    /// call so they can present an explicit "grant more access" affordance
+    /// tied to the blocked tool call.
+    /// </summary>
+    [WireValue("insufficientScope")]
+    InsufficientScope,
 }
 
 /// <summary>
@@ -1223,6 +1309,36 @@ public sealed class SessionSummary
     [JsonPropertyName("changes")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ChangesSummary? Changes { get; set; }
+}
+
+/// <summary>
+/// Aggregate counts describing the file changes associated with a session.
+///
+/// All fields are optional so servers can populate only the metrics they
+/// cheaply have available.
+/// </summary>
+public sealed class ChangesSummary
+{
+    /// <summary>
+    /// Total number of inserted lines across all changed files.
+    /// </summary>
+    [JsonPropertyName("additions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? Additions { get; set; }
+
+    /// <summary>
+    /// Total number of deleted lines across all changed files.
+    /// </summary>
+    [JsonPropertyName("deletions")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? Deletions { get; set; }
+
+    /// <summary>
+    /// Number of files that have changes.
+    /// </summary>
+    [JsonPropertyName("files")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? Files { get; set; }
 }
 
 /// <summary>
@@ -4044,6 +4160,225 @@ public sealed class McpServerCustomization
 }
 
 /// <summary>
+/// Information from the agent host needed to render MCP Apps served
+/// by this MCP server.
+/// </summary>
+public sealed class McpServerCustomizationApps
+{
+    /// <summary>
+    /// The subset of MCP App
+    /// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+    /// the AHP host can satisfy for Views backed by this server. The
+    /// client feeds these straight through into the `hostCapabilities` of
+    /// the `ui/initialize` response delivered to the View.
+    /// </summary>
+    [JsonPropertyName("capabilities")]
+    public required AhpMcpUiHostCapabilities Capabilities { get; set; }
+}
+
+/// <summary>
+/// The subset of MCP App
+/// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+/// an AHP host can derive from the upstream MCP server (and from AHP's own
+/// forwarding plumbing). Advertised on
+/// {@link McpServerCustomizationApps.capabilities} so clients can pass it
+/// through into the `hostCapabilities` of the `ui/initialize` response
+/// delivered to an MCP App View.
+///
+/// Field names mirror the MCP Apps spec exactly, so the AHP-side producer
+/// can pass them straight through into the `hostCapabilities` of the
+/// `ui/initialize` response delivered to the View.
+///
+/// Capabilities outside this set (`openLinks`, `downloadFile`, `sandbox`,
+/// `experimental`) are decided locally by whichever AHP client renders the
+/// View and are NOT part of this AHP-level advertisement — only the
+/// server-derived subset is.
+///
+/// An agent host MUST only advertise a capability when it actually accepts the
+/// corresponding methods/notifications on the `mcp://` channel:
+///
+/// - {@link serverTools}: host proxies `tools/list` and `tools/call` to
+///   the MCP server. When `listChanged` is `true`, the host also forwards
+///   `notifications/tools/list_changed`.
+/// - {@link serverResources}: host proxies `resources/read`,
+///   `resources/list`, and `resources/templates/list` to the MCP server.
+///   When `listChanged` is `true`, the host also forwards
+///   `notifications/resources/list_changed`.
+/// - {@link logging}: host accepts `notifications/message` log entries
+///   from the App and forwards them via `mcpNotification` (and forwards
+///   `logging/setLevel` calls to the server).
+/// - {@link sampling}: host serves `sampling/createMessage` via
+///   `mcpMethodCall`. When `sampling.tools` is present, the host also
+///   accepts SEP-1577 `tools` / `toolChoice` / `tool_use` content blocks
+///   inside `CreateMessageRequest`.
+/// </summary>
+public sealed class AhpMcpUiHostCapabilities
+{
+    /// <summary>
+    /// Producer proxies the MCP `tools/*` methods to the upstream server.
+    /// </summary>
+    [JsonPropertyName("serverTools")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? ServerTools { get; set; }
+
+    /// <summary>
+    /// Producer proxies the MCP `resources/*` methods to the upstream server.
+    /// </summary>
+    [JsonPropertyName("serverResources")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? ServerResources { get; set; }
+
+    /// <summary>
+    /// Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+    /// </summary>
+    [JsonPropertyName("logging")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Logging { get; set; }
+
+    /// <summary>
+    /// Producer serves `sampling/createMessage` via `mcpMethodCall`.
+    /// </summary>
+    [JsonPropertyName("sampling")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Sampling { get; set; }
+}
+
+/// <summary>
+/// Server is registered with the host but has not yet started.
+/// </summary>
+public sealed class McpServerStartingState
+{
+    [JsonPropertyName("kind")]
+    public McpServerStatus Kind { get; set; }
+}
+
+/// <summary>
+/// Server is running and serving requests.
+/// </summary>
+public sealed class McpServerReadyState
+{
+    [JsonPropertyName("kind")]
+    public McpServerStatus Kind { get; set; }
+}
+
+/// <summary>
+/// Server is reachable but cannot serve requests until the client
+/// authenticates. Mirrors the discovery flow defined by
+/// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
+/// (Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge
+/// semantics required by the MCP authorization spec.
+///
+/// Clients react to this state by calling the existing `authenticate`
+/// command with the {@link ProtectedResourceMetadata.resource | resource}
+/// carried here. There is **no** `notify/authRequired` notification for
+/// MCP servers — the action stream is the single source of truth.
+///
+/// When the transition is triggered by a request issued during a turn
+/// — most commonly
+/// {@link McpAuthRequiredReason.InsufficientScope | `InsufficientScope`}
+/// surfacing mid-tool-call — the host SHOULD also raise
+/// {@link SessionStatus.InputNeeded} on the session so the block is
+/// visible at the summary level. Clients SHOULD watch this status on
+/// any MCP server backing a running tool call and surface an explicit
+/// affordance (e.g. a "grant additional access" prompt) tied to that
+/// tool call, rather than relying on the user to notice the
+/// customization’s status badge.
+/// </summary>
+public sealed class McpServerAuthRequiredState
+{
+    [JsonPropertyName("kind")]
+    public McpServerStatus Kind { get; set; }
+
+    /// <summary>
+    /// Why authentication is required.
+    /// </summary>
+    [JsonPropertyName("reason")]
+    public McpAuthRequiredReason Reason { get; set; }
+
+    /// <summary>
+    /// RFC 9728 Protected Resource Metadata. The `resource` field is the
+    /// canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+    /// indicator. `authorization_servers` is REQUIRED by the MCP
+    /// authorization spec.
+    /// </summary>
+    [JsonPropertyName("resource")]
+    public required ProtectedResourceMetadata Resource { get; set; }
+
+    /// <summary>
+    /// Scopes required for the current challenge, parsed from the
+    /// `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+    /// fallback). Authoritative for the next authorization request — clients
+    /// MUST NOT assume any subset/superset relationship to
+    /// `resource.scopes_supported`.
+    /// </summary>
+    [JsonPropertyName("requiredScopes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? RequiredScopes { get; set; }
+
+    /// <summary>
+    /// Human-readable hint, typically from the OAuth `error_description`.
+    /// </summary>
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
+}
+
+/// <summary>
+/// Server failed to start, crashed, or otherwise transitioned to a
+/// non-recoverable error. Use {@link McpServerStatus.AuthRequired}
+/// for authentication failures.
+/// </summary>
+public sealed class McpServerErrorState
+{
+    [JsonPropertyName("kind")]
+    public McpServerStatus Kind { get; set; }
+
+    /// <summary>
+    /// Error details.
+    /// </summary>
+    [JsonPropertyName("error")]
+    public required ErrorInfo Error { get; set; }
+}
+
+/// <summary>
+/// Server has been shut down. The host MAY remove the server from the
+/// session entirely shortly after this state.
+/// </summary>
+public sealed class McpServerStoppedState
+{
+    [JsonPropertyName("kind")]
+    public McpServerStatus Kind { get; set; }
+}
+
+public sealed class ToolCallClientContributor
+{
+    [JsonPropertyName("kind")]
+    public ToolCallContributorKind Kind { get; set; }
+
+    /// <summary>
+    /// If this tool is provided by a client, the `clientId` of the owning client.
+    /// Absent for server-side tools.
+    ///
+    /// When set, the identified client is responsible for executing the tool and
+    /// dispatching `session/toolCallComplete` with the result.
+    /// </summary>
+    [JsonPropertyName("clientId")]
+    public string ClientId { get; set; } = "";
+}
+
+public sealed class ToolCallMcpContributor
+{
+    [JsonPropertyName("kind")]
+    public ToolCallContributorKind Kind { get; set; }
+
+    /// <summary>
+    /// Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+    /// </summary>
+    [JsonPropertyName("customizationId")]
+    public string CustomizationId { get; set; } = "";
+}
+
+/// <summary>
 /// Describes a file modification with before/after state and diff metadata.
 ///
 /// Supports creates (only `after`), deletes (only `before`), renames/moves
@@ -4384,7 +4719,72 @@ public sealed class Snapshot
     public long FromSeq { get; set; }
 }
 
-// TODO: could not generate ChangesetSummary: Error: Interface ChangesetSummary not found
+/// <summary>
+/// Catalogue entry describing one changeset the server can produce for a
+/// session.
+///
+/// Catalogue entries are intentionally lightweight — just enough to render a
+/// chip or list row without subscribing. Full per-changeset detail
+/// ({@link ChangesetState}) lives on the subscribable URI obtained by
+/// expanding {@link uriTemplate}.
+/// </summary>
+public sealed class Changeset
+{
+    /// <summary>
+    /// Human-readable label, e.g. `"Uncommitted Changes"`.
+    /// </summary>
+    [JsonPropertyName("label")]
+    public string Label { get; set; } = "";
+
+    /// <summary>
+    /// RFC 6570 URI template. Clients parse the variables directly out of the
+    /// template using the standard `{name}` syntax — they are not redeclared
+    /// here.
+    ///
+    /// Only the following template shapes are defined by this protocol; any
+    /// other variable name MUST be ignored by clients (there is no
+    /// protocol-defined way to obtain values for unknown variables):
+    ///
+    /// | Variables in template                       | Meaning                                                                              |
+    /// | ------------------------------------------- | ------------------------------------------------------------------------------------ |
+    /// | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
+    /// | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
+    /// | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
+    ///
+    /// Future protocol versions MAY add new well-known variables.
+    /// </summary>
+    [JsonPropertyName("uriTemplate")]
+    public string UriTemplate { get; set; } = "";
+
+    /// <summary>
+    /// Optional longer description.
+    /// </summary>
+    [JsonPropertyName("description")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    ///
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    ///   agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    ///   diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    ///   `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    ///   `{originalTurnId}` and `{modifiedTurnId}` variables in
+    ///   {@link uriTemplate}.
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    /// </summary>
+    [JsonPropertyName("changeKind")]
+    public string ChangeKind { get; set; } = "";
+}
 
 /// <summary>
 /// Full state for a single changeset, returned when a client subscribes to
@@ -4941,7 +5341,7 @@ internal sealed class MessageAttachmentConverter : UnionConverter<MessageAttachm
 }
 
 /// <summary>
-/// Customization is a top-level customization (plugin or directory).
+/// Customization is a top-level customization (plugin, directory, or MCP server).
 /// </summary>
 [JsonConverter(typeof(CustomizationConverter))]
 public sealed class Customization : AhpUnion
@@ -4963,6 +5363,7 @@ internal sealed class CustomizationConverter : UnionConverter<Customization>
             {
         ["plugin"] = typeof(PluginCustomization),
         ["directory"] = typeof(DirectoryCustomization),
+        ["mcpServer"] = typeof(McpServerCustomization),
             },
             allowUnknown: true)
     {
@@ -5027,6 +5428,67 @@ internal sealed class CustomizationLoadStateConverter : UnionConverter<Customiza
         ["loaded"] = typeof(CustomizationLoadedState),
         ["degraded"] = typeof(CustomizationDegradedState),
         ["error"] = typeof(CustomizationErrorState),
+            },
+            allowUnknown: true)
+    {
+    }
+}
+
+/// <summary>
+/// McpServerState is the lifecycle state of an MCP server customization.
+/// </summary>
+[JsonConverter(typeof(McpServerStateConverter))]
+public sealed class McpServerState : AhpUnion
+{
+    /// <summary>Creates an empty McpServerState (no active variant).</summary>
+    public McpServerState() { }
+
+    /// <summary>Creates a McpServerState wrapping the given variant value.</summary>
+    public McpServerState(object? value) : base(value) { }
+}
+
+/// <summary>System.Text.Json converter for the McpServerState discriminated union.</summary>
+internal sealed class McpServerStateConverter : UnionConverter<McpServerState>
+{
+    public McpServerStateConverter()
+        : base(
+            discriminator: "kind",
+            variants: new Dictionary<string, Type>
+            {
+        ["starting"] = typeof(McpServerStartingState),
+        ["ready"] = typeof(McpServerReadyState),
+        ["authRequired"] = typeof(McpServerAuthRequiredState),
+        ["error"] = typeof(McpServerErrorState),
+        ["stopped"] = typeof(McpServerStoppedState),
+            },
+            allowUnknown: true)
+    {
+    }
+}
+
+/// <summary>
+/// ToolCallContributor identifies who provides a tool call (client or MCP server).
+/// </summary>
+[JsonConverter(typeof(ToolCallContributorConverter))]
+public sealed class ToolCallContributor : AhpUnion
+{
+    /// <summary>Creates an empty ToolCallContributor (no active variant).</summary>
+    public ToolCallContributor() { }
+
+    /// <summary>Creates a ToolCallContributor wrapping the given variant value.</summary>
+    public ToolCallContributor(object? value) : base(value) { }
+}
+
+/// <summary>System.Text.Json converter for the ToolCallContributor discriminated union.</summary>
+internal sealed class ToolCallContributorConverter : UnionConverter<ToolCallContributor>
+{
+    public ToolCallContributorConverter()
+        : base(
+            discriminator: "kind",
+            variants: new Dictionary<string, Type>
+            {
+        ["client"] = typeof(ToolCallClientContributor),
+        ["mcp"] = typeof(ToolCallMcpContributor),
             },
             allowUnknown: true)
     {

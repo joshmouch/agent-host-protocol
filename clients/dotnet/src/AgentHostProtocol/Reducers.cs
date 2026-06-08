@@ -76,17 +76,17 @@ public static class Reducers
         string Id,
         string Name,
         string DisplayName,
-        string? ToolClientId,
+        ToolCallContributor? Contributor,
         Dictionary<string, JsonElement>? Meta);
 
     private static ToolCallCommon ToolCallMeta(ToolCallState tc) => tc.Value switch
     {
-        ToolCallStreamingState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
-        ToolCallPendingConfirmationState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
-        ToolCallRunningState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
-        ToolCallPendingResultConfirmationState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
-        ToolCallCompletedState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
-        ToolCallCancelledState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta),
+        ToolCallStreamingState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
+        ToolCallPendingConfirmationState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
+        ToolCallRunningState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
+        ToolCallPendingResultConfirmationState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
+        ToolCallCompletedState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
+        ToolCallCancelledState v => new(v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta),
         _ => default,
     };
 
@@ -194,7 +194,7 @@ public static class Reducers
                 ToolCallId = common.Id,
                 ToolName = common.Name,
                 DisplayName = common.DisplayName,
-                ToolClientId = common.ToolClientId,
+                Contributor = common.Contributor,
                 Meta = common.Meta,
                 InvocationMessage = invocation,
                 ToolInput = toolInput,
@@ -478,7 +478,7 @@ public static class Reducers
                         ToolCallId = a.ToolCallId,
                         ToolName = a.ToolName,
                         DisplayName = a.DisplayName,
-                        ToolClientId = a.ToolClientId,
+                        Contributor = a.Contributor,
                         Meta = a.Meta,
                     }),
                 }));
@@ -541,7 +541,7 @@ public static class Reducers
                 state.Summary.Activity = a.Activity;
                 return ReduceOutcome.Applied;
             case SessionChangesetsChangedAction a:
-                state.Summary.Changesets = CopyList(a.Changesets);
+                state.Changesets = CopyList(a.Changesets);
                 return ReduceOutcome.Applied;
             case SessionConfigChangedAction a:
                 if (state.Config is null)
@@ -682,7 +682,7 @@ public static class Reducers
                         ToolCallId = common.Id,
                         ToolName = common.Name,
                         DisplayName = common.DisplayName,
-                        ToolClientId = common.ToolClientId,
+                        Contributor = common.Contributor,
                         Meta = common.Meta,
                         InvocationMessage = a.InvocationMessage,
                         ToolInput = a.ToolInput,
@@ -696,7 +696,7 @@ public static class Reducers
                     ToolCallId = common.Id,
                     ToolName = common.Name,
                     DisplayName = common.DisplayName,
-                    ToolClientId = common.ToolClientId,
+                    Contributor = common.Contributor,
                     Meta = common.Meta,
                     InvocationMessage = a.InvocationMessage,
                     ToolInput = a.ToolInput,
@@ -749,7 +749,7 @@ public static class Reducers
                     ToolCallId = s.ToolCallId,
                     ToolName = s.ToolName,
                     DisplayName = s.DisplayName,
-                    ToolClientId = s.ToolClientId,
+                    Contributor = s.Contributor,
                     Meta = s.Meta,
                     InvocationMessage = s.InvocationMessage,
                     ToolInput = toolInput,
@@ -765,7 +765,7 @@ public static class Reducers
                 ToolCallId = s.ToolCallId,
                 ToolName = s.ToolName,
                 DisplayName = s.DisplayName,
-                ToolClientId = s.ToolClientId,
+                Contributor = s.Contributor,
                 Meta = s.Meta,
                 InvocationMessage = s.InvocationMessage,
                 ToolInput = s.ToolInput,
@@ -812,7 +812,7 @@ public static class Reducers
                     ToolCallId = common.Id,
                     ToolName = common.Name,
                     DisplayName = common.DisplayName,
-                    ToolClientId = common.ToolClientId,
+                    Contributor = common.Contributor,
                     Meta = common.Meta,
                     InvocationMessage = invocation,
                     ToolInput = toolInput,
@@ -832,7 +832,7 @@ public static class Reducers
                 ToolCallId = common.Id,
                 ToolName = common.Name,
                 DisplayName = common.DisplayName,
-                ToolClientId = common.ToolClientId,
+                Contributor = common.Contributor,
                 Meta = common.Meta,
                 InvocationMessage = invocation,
                 ToolInput = toolInput,
@@ -864,7 +864,7 @@ public static class Reducers
                     ToolCallId = s.ToolCallId,
                     ToolName = s.ToolName,
                     DisplayName = s.DisplayName,
-                    ToolClientId = s.ToolClientId,
+                    Contributor = s.Contributor,
                     Meta = s.Meta,
                     InvocationMessage = s.InvocationMessage,
                     ToolInput = s.ToolInput,
@@ -884,7 +884,7 @@ public static class Reducers
                 ToolCallId = s.ToolCallId,
                 ToolName = s.ToolName,
                 DisplayName = s.DisplayName,
-                ToolClientId = s.ToolClientId,
+                Contributor = s.Contributor,
                 Meta = s.Meta,
                 InvocationMessage = s.InvocationMessage,
                 ToolInput = s.ToolInput,

@@ -749,7 +749,7 @@ internal sealed class HostEntry
             if (changes.Project is { } project) existing.Project = project;
             if (changes.Model is { } model) existing.Model = model;
             if (changes.WorkingDirectory is { } wd) existing.WorkingDirectory = wd;
-            if (changes.Changesets is { } changesets) existing.Changesets = changesets;
+            if (changes.Changes is { } summaryChanges) existing.Changes = summaryChanges;
             _sessionSummaries[uri] = existing;
         }
     }
