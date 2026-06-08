@@ -453,7 +453,7 @@ public struct RootState: Codable, Sendable {
     /// Agent host configuration schema and current values
     public var config: RootConfigState?
     /// Additional implementation-defined metadata about the agent host itself.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     public var meta: [String: AnyCodable]?
 

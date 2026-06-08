@@ -737,7 +737,7 @@ data class RootState(
     val config: RootConfigState? = null,
     /**
      * Additional implementation-defined metadata about the agent host itself.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      */
     @SerialName("_meta")
