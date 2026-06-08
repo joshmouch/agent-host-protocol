@@ -75,6 +75,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionSessionInputComplete
 import com.microsoft.agenthostprotocol.generated.StateActionSessionInputRequested
 import com.microsoft.agenthostprotocol.generated.StateActionSessionIsArchivedChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionIsReadChanged
+import com.microsoft.agenthostprotocol.generated.StateActionSessionMcpServerStateChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionMetaChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionModelChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionPendingMessageRemoved
@@ -1030,6 +1031,60 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             val newChildren = children.toMutableList()
                             newChildren.removeAt(childIdx)
                             withCustomizationChildren(container, newChildren)
+                        }
+                    }
+                }
+                if (!changed) state else state.copy(customizations = updated)
+            }
+        }
+    }
+
+    is StateActionSessionMcpServerStateChanged -> {
+        // Full-replacement of an MCP server customization's `state` + `channel`,
+        // located by id. Mirrors the canonical TS reducer (and the Go/Rust/Swift
+        // ports): a top-level McpServer entry is matched first (hosts MAY surface
+        // MCP servers directly at the top level); otherwise the search descends
+        // into container children. A no-op when no customization carries the id,
+        // or when the matched id belongs to a non-MCP customization type.
+        val a = action.value
+        val list = state.customizations
+        if (list == null) {
+            state
+        } else {
+            val topIdx = list.indexOfFirst { customizationId(it) == a.id }
+            if (topIdx >= 0) {
+                val entry = list[topIdx]
+                if (entry !is CustomizationMcpServer) {
+                    state
+                } else {
+                    val updated = list.toMutableList()
+                    updated[topIdx] = CustomizationMcpServer(
+                        entry.value.copy(state = a.state, channel = a.channel),
+                    )
+                    state.copy(customizations = updated)
+                }
+            } else {
+                var changed = false
+                val updated = list.map { container ->
+                    val children = customizationChildren(container)
+                    if (children == null) {
+                        container
+                    } else {
+                        val childIdx = children.indexOfFirst { childCustomizationId(it) == a.id }
+                        if (childIdx < 0) {
+                            container
+                        } else {
+                            val child = children[childIdx]
+                            if (child !is ChildCustomizationMcpServer) {
+                                container
+                            } else {
+                                changed = true
+                                val newChildren = children.toMutableList()
+                                newChildren[childIdx] = ChildCustomizationMcpServer(
+                                    child.value.copy(state = a.state, channel = a.channel),
+                                )
+                                withCustomizationChildren(container, newChildren)
+                            }
                         }
                     }
                 }

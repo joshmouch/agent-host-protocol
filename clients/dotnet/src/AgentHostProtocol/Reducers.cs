@@ -585,6 +585,8 @@ public static class Reducers
                 return ApplyCustomizationUpdated(state, a);
             case SessionCustomizationRemovedAction a:
                 return ApplyCustomizationRemoved(state, a);
+            case SessionMcpServerStateChangedAction a:
+                return ApplyMcpServerStateChanged(state, a);
             case SessionTruncatedAction a:
                 return ApplyTruncated(state, a.TurnId);
             case SessionInputRequestedAction a:
@@ -1125,6 +1127,77 @@ public static class Reducers
                 {
                     children.RemoveAt(j);
                     return ReduceOutcome.Applied;
+                }
+            }
+        }
+
+        return ReduceOutcome.NoOp;
+    }
+
+    /// <summary>
+    /// Applies a <c>session/mcpServerStateChanged</c> action: a
+    /// full-replacement of an MCP server customization's
+    /// <see cref="McpServerCustomization.State"/> and
+    /// <see cref="McpServerCustomization.Channel"/>, located by id.
+    ///
+    /// Mirrors the canonical TypeScript reducer (and the Go/Rust ports):
+    /// a top-level <see cref="McpServerCustomization"/> entry is matched first
+    /// (the host MAY surface MCP servers directly at the top level); otherwise
+    /// the search descends into container children. The action is a no-op when
+    /// no customization carries the id, or when the matched id belongs to a
+    /// non-MCP customization type.
+    /// </summary>
+    private static ReduceOutcome ApplyMcpServerStateChanged(SessionState state, SessionMcpServerStateChangedAction a)
+    {
+        List<Customization>? list = state.Customizations;
+        if (list is null)
+        {
+            return ReduceOutcome.NoOp;
+        }
+
+        // Top-level entries. McpServerCustomization is a valid top-level
+        // Customization variant, but it is intentionally absent from the
+        // container-id helper (TryCustomizationId only knows the Plugin /
+        // Directory containers), so match it directly here.
+        foreach (Customization c in list)
+        {
+            if (c.Value is McpServerCustomization top && top.Id == a.Id)
+            {
+                top.State = a.State;
+                top.Channel = a.Channel;
+                return ReduceOutcome.Applied;
+            }
+
+            // A non-MCP top-level customization that carries the id is a no-op
+            // (the id targets a customization that is not an MCP server).
+            if (TryCustomizationId(c, out string topGot) && topGot == a.Id)
+            {
+                return ReduceOutcome.NoOp;
+            }
+        }
+
+        // Container children.
+        foreach (Customization c in list)
+        {
+            List<ChildCustomization>? children = ContainerChildren(c);
+            if (children is null)
+            {
+                continue;
+            }
+
+            foreach (ChildCustomization child in children)
+            {
+                if (child.Value is McpServerCustomization mcp && mcp.Id == a.Id)
+                {
+                    mcp.State = a.State;
+                    mcp.Channel = a.Channel;
+                    return ReduceOutcome.Applied;
+                }
+
+                if (TryChildCustomizationId(child, out string childGot) && childGot == a.Id)
+                {
+                    // id belongs to a non-MCP child customization → no-op.
+                    return ReduceOutcome.NoOp;
                 }
             }
         }

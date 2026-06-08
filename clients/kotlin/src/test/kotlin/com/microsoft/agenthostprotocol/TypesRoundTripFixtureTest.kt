@@ -106,17 +106,7 @@ class TypesRoundTripFixtureTest {
     // closes a gap (or opens a new one) fails loudly and forces this list to be
     // updated (the drift tripwire, mirroring Swift's knownRepresentationalGaps).
     //
-    // 019 channel-scoped-notification-uri:
-    //     SCHEMA-INVALID fixture. `schema/notifications.schema.json` declares
-    //     BOTH `channel` and `summary` required on SessionAddedParams, but the
-    //     fixture's wire is { channel, session } with NO `summary`. Kotlin's
-    //     SessionAddedParams.summary is a NON-optional SessionSummary
-    //     (Notifications.generated.kt — the spec-faithful modeling), so decode
-    //     throws "missing summary". This is the spec-correct rejection of an
-    //     off-spec payload, NOT a Kotlin fidelity defect. The fixture itself is
-    //     being repaired separately (the .NET track owns it); until then it is
-    //     pinned here as a known gap. See
-    //     types/test-cases/round-trips/KNOWN-FIDELITY-GAPS.md Gap 5.
+    // (No representational gaps remain on 0.3.0.)
     //
     // NOTE: 002/003 (unknown StateAction / Customization passthrough) and
     // 012/013 (ChangesetOperationTarget `kind` re-emit) are Swift gaps but NOT
@@ -124,9 +114,13 @@ class TypesRoundTripFixtureTest {
     // cases that re-encode verbatim, and its `kind` discriminators are real
     // stored fields emitted under `encodeDefaults = true`. They run as real
     // assertions here.
-    private val knownRepresentationalGaps: Set<String> = setOf(
-        "019-channel-scoped-notification-uri",
-    )
+    //
+    // 019 channel-scoped-notification-uri previously sat here as a known gap
+    // (the fixture omitted the then-required `summary` on SessionAddedParams).
+    // On 0.3.0 the fixture round-trips cleanly, so it runs as a real assertion
+    // like every other fixture — matching Rust and Swift, which already dropped
+    // it.
+    private val knownRepresentationalGaps: Set<String> = emptySet()
 
     // ── Corpus presence ─────────────────────────────────────────────────────
 

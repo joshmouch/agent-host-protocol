@@ -1,0 +1,133 @@
+{
+  "id": "action.reducer.happy.162-session-mcpserverstatechanged-noop-non-mcp-id",
+  "behaviorIds": [
+    "action.reducer.happy.162-session-mcpserverstatechanged-noop-non-mcp-id"
+  ],
+  "description": "Reducer fixture: session/mcpServerStateChanged is a no-op when the targeted id belongs to a non-McpServer customization (a top-level container or one of its non-MCP children). Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/162-session-mcpserverstatechanged-noop-non-mcp-id.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "customizations": [
+                {
+                  "type": "plugin",
+                  "id": "plugin-a",
+                  "uri": "https://plugins.example/a",
+                  "name": "Plugin A",
+                  "enabled": true,
+                  "children": [
+                    {
+                      "type": "skill",
+                      "id": "skill-1",
+                      "uri": "https://plugins.example/a#skills/lint",
+                      "name": "lint"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/mcpServerStateChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/mcpServerStateChanged",
+          "id": "plugin-a",
+          "state": {
+            "kind": "ready"
+          },
+          "channel": "mcp://nope"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/mcpServerStateChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/mcpServerStateChanged",
+          "id": "skill-1",
+          "state": {
+            "kind": "ready"
+          },
+          "channel": "mcp://nope"
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 1000
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "customizations": [
+          {
+            "type": "plugin",
+            "id": "plugin-a",
+            "uri": "https://plugins.example/a",
+            "name": "Plugin A",
+            "enabled": true,
+            "children": [
+              {
+                "type": "skill",
+                "id": "skill-1",
+                "uri": "https://plugins.example/a#skills/lint",
+                "name": "lint"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
