@@ -50,6 +50,9 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
   `AhpClientRequests`; and `SnapshotState.Comments`.
   `SessionSummary.comments` surfaces the per-session `CommentsSummary`.
   `SessionSummary.comments` surfaces the per-session `CommentsSummary`.
+- `MessageCommentsAttachment` (`comments` `MessageAttachment` variant)
+  referencing comment threads on a session's comments channel by `resource`
+  URI, optionally narrowed to a `threadIds` array.
 
 
 ### Changed

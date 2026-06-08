@@ -34,6 +34,7 @@ export type {
   SimpleMessageAttachment,
   MessageEmbeddedResourceAttachment,
   MessageResourceAttachment,
+  MessageCommentsAttachment,
   MarkdownResponsePart,
   ContentRef,
   ToolCallResponsePart,

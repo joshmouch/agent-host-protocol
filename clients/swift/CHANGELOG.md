@@ -51,6 +51,9 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   `DeleteCommentThreadParams`, `AddCommentParams/Result`,
   `EditCommentParams`, `DeleteCommentParams`; and `SnapshotState.comments`.
   Reducer logic is deferred (matches the changeset/resource-watch parity).
+- `MessageCommentsAttachment` (`comments` `MessageAttachment` variant)
+  referencing comment threads on a session's comments channel by `resource`
+  URI, optionally narrowed to a `threadIds` array.
 
 
 ### Changed

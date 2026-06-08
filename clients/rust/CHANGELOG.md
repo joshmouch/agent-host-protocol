@@ -49,6 +49,9 @@ matching `## [X.Y.Z]` heading is missing from this file.
   `addComment`, `editComment`, and `deleteComment` command structs;
   `MultiHostStateMirror.comments()` and `SnapshotState::Comments`.
   Reducer logic is deferred (matches the changeset stub).
+- `MessageCommentsAttachment` (`comments` `MessageAttachment` variant)
+  referencing comment threads on a session's comments channel by `resource`
+  URI, optionally narrowed to a `threadIds` array.
 
 
 ### Changed

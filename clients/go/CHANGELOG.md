@@ -49,6 +49,9 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   `EditCommentParams`, `DeleteCommentParams` command structs;
   `ApplyActionToComments` (stub mirroring `ApplyActionToChangeset`); and
   `SnapshotState.Comments`.
+- `MessageCommentsAttachment` (`comments` `MessageAttachment` variant)
+  referencing comment threads on a session's comments channel by `Resource`
+  URI, optionally narrowed to a `ThreadIds` array.
 
 
 ### Changed

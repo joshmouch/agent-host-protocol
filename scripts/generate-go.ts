@@ -680,6 +680,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'SimpleMessageAttachment' },
   { name: 'MessageEmbeddedResourceAttachment' },
   { name: 'MessageResourceAttachment' },
+  { name: 'MessageCommentsAttachment' },
   { name: 'MarkdownResponsePart' },
   { name: 'ContentRef' },
   { name: 'ResourceReponsePart', goName: 'ResourceResponsePart' },
@@ -863,6 +864,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { variantName: 'Simple', innerType: 'SimpleMessageAttachment', wireValue: 'simple' },
     { variantName: 'EmbeddedResource', innerType: 'MessageEmbeddedResourceAttachment', wireValue: 'embeddedResource' },
     { variantName: 'Resource', innerType: 'MessageResourceAttachment', wireValue: 'resource' },
+    { variantName: 'Comments', innerType: 'MessageCommentsAttachment', wireValue: 'comments' },
   ],
   unknown: true,
 };

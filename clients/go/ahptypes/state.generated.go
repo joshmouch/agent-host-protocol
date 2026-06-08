@@ -131,6 +131,8 @@ const (
 	MessageAttachmentKindEmbeddedResource MessageAttachmentKind = "embeddedResource"
 	// An attachment that references a resource by URI.
 	MessageAttachmentKindResource MessageAttachmentKind = "resource"
+	// An attachment that references comment threads on a comments channel.
+	MessageAttachmentKindComments MessageAttachmentKind = "comments"
 )
 
 // Discriminant for response part types.
@@ -1139,6 +1141,47 @@ type MessageResourceAttachment struct {
 	//
 	// Only meaningful for textual resources.
 	Selection *TextSelection `json:"selection,omitempty"`
+}
+
+// An attachment that references comment threads on a session's comments
+// channel (see {@link CommentsState}).
+//
+// When {@link threadIds} is omitted the attachment references every thread
+// on the channel; when present it references only the listed
+// {@link CommentThread.id | thread ids}.
+type MessageCommentsAttachment struct {
+	// A human-readable label for the attachment (e.g. the filename of a file
+	// attachment). Used for display in UI.
+	Label string `json:"label"`
+	// If defined, the range in {@link Message.text} that references this
+	// attachment. This is a text range, not a byte range.
+	Range *TextRange `json:"range,omitempty"`
+	// Advisory display hint for clients rendering this attachment. Recognized
+	// values include:
+	//
+	// - `'image'`: the attachment is an image
+	// - `'document'`: the attachment is a textual document
+	// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+	// - `'directory'`: the attachment is a folder
+	// - `'selection'`: the attachment is a selection within a document
+	//
+	// Implementations MAY provide additional values; clients SHOULD fall back
+	// to a reasonable default when an unknown value is encountered.
+	DisplayKind *string `json:"displayKind,omitempty"`
+	// Additional implementation-defined metadata for the attachment.
+	//
+	// If the attachment was produced by the `completions` command, the client
+	// MUST preserve every property of `_meta` originally returned by the agent
+	// host when sending the user message containing the accepted completion.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+	// Discriminant
+	Type MessageAttachmentKind `json:"type"`
+	// The comments channel URI (typically `ahp-session:/<uuid>/comments`).
+	// Matches {@link CommentsSummary.resource}.
+	Resource URI `json:"resource"`
+	// Specific {@link CommentThread.id | thread ids} to reference. When
+	// omitted, the attachment references all threads on the channel.
+	ThreadIds []string `json:"threadIds,omitempty"`
 }
 
 type MarkdownResponsePart struct {
@@ -3141,6 +3184,7 @@ type isMessageAttachment interface{ isMessageAttachment() }
 func (*SimpleMessageAttachment) isMessageAttachment() {}
 func (*MessageEmbeddedResourceAttachment) isMessageAttachment() {}
 func (*MessageResourceAttachment) isMessageAttachment() {}
+func (*MessageCommentsAttachment) isMessageAttachment() {}
 
 // MessageAttachmentUnknown carries an unrecognized MessageAttachment variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
 type MessageAttachmentUnknown struct {
@@ -3170,6 +3214,12 @@ func (u *MessageAttachment) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "resource":
 		var value MessageResourceAttachment
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "comments":
+		var value MessageCommentsAttachment
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

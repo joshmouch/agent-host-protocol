@@ -779,6 +779,7 @@ const STATE_STRUCTS = [
   'SessionInputRequest',
   'TextPosition', 'TextRange', 'TextSelection',
   'SimpleMessageAttachment', 'MessageEmbeddedResourceAttachment', 'MessageResourceAttachment',
+  'MessageCommentsAttachment',
   'MarkdownResponsePart', 'ContentRef',
   'ResourceReponsePart', 'ToolCallResponsePart', 'ReasoningResponsePart',
   'SystemNotificationResponsePart',
@@ -902,6 +903,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'Simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'EmbeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'Resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
+    { caseName: 'Comments', structName: 'MessageCommentsAttachment', discriminantValue: 'comments' },
   ],
   unknown: true,
 };

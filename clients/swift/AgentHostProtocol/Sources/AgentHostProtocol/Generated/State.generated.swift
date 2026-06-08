@@ -133,6 +133,8 @@ public enum MessageAttachmentKind: String, Codable, Sendable {
     case embeddedResource = "embeddedResource"
     /// An attachment that references a resource by URI.
     case resource = "resource"
+    /// An attachment that references comment threads on a comments channel.
+    case comments = "comments"
 }
 
 /// Discriminant for response part types.
@@ -1629,6 +1631,69 @@ public struct MessageResourceAttachment: Codable, Sendable {
         self.contentType = contentType
         self.type = type
         self.selection = selection
+    }
+}
+
+public struct MessageCommentsAttachment: Codable, Sendable {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    public var label: String
+    /// If defined, the range in {@link Message.text} that references this
+    /// attachment. This is a text range, not a byte range.
+    public var range: TextRange?
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    ///
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var displayKind: String?
+    /// Additional implementation-defined metadata for the attachment.
+    ///
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    public var meta: [String: AnyCodable]?
+    /// Discriminant
+    public var type: MessageAttachmentKind
+    /// The comments channel URI (typically `ahp-session:/<uuid>/comments`).
+    /// Matches {@link CommentsSummary.resource}.
+    public var resource: String
+    /// Specific {@link CommentThread.id | thread ids} to reference. When
+    /// omitted, the attachment references all threads on the channel.
+    public var threadIds: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case range
+        case displayKind
+        case meta = "_meta"
+        case type
+        case resource
+        case threadIds
+    }
+
+    public init(
+        label: String,
+        range: TextRange? = nil,
+        displayKind: String? = nil,
+        meta: [String: AnyCodable]? = nil,
+        type: MessageAttachmentKind,
+        resource: String,
+        threadIds: [String]? = nil
+    ) {
+        self.label = label
+        self.range = range
+        self.displayKind = displayKind
+        self.meta = meta
+        self.type = type
+        self.resource = resource
+        self.threadIds = threadIds
     }
 }
 
@@ -4082,6 +4147,7 @@ public enum MessageAttachment: Codable, Sendable {
     case simple(SimpleMessageAttachment)
     case embeddedResource(MessageEmbeddedResourceAttachment)
     case resource(MessageResourceAttachment)
+    case comments(MessageCommentsAttachment)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "type"
@@ -4097,6 +4163,8 @@ public enum MessageAttachment: Codable, Sendable {
             self = .embeddedResource(try MessageEmbeddedResourceAttachment(from: decoder))
         case "resource":
             self = .resource(try MessageResourceAttachment(from: decoder))
+        case "comments":
+            self = .comments(try MessageCommentsAttachment(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown MessageAttachment discriminant: \(discriminant)")
         }
@@ -4107,6 +4175,7 @@ public enum MessageAttachment: Codable, Sendable {
         case .simple(let value): try value.encode(to: encoder)
         case .embeddedResource(let value): try value.encode(to: encoder)
         case .resource(let value): try value.encode(to: encoder)
+        case .comments(let value): try value.encode(to: encoder)
         }
     }
 }

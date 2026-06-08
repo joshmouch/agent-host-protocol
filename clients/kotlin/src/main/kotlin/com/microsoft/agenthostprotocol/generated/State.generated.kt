@@ -273,7 +273,12 @@ enum class MessageAttachmentKind {
      * An attachment that references a resource by URI.
      */
     @SerialName("resource")
-    RESOURCE
+    RESOURCE,
+    /**
+     * An attachment that references comment threads on a comments channel.
+     */
+    @SerialName("comments")
+    COMMENTS
 }
 
 /**
@@ -1682,6 +1687,57 @@ data class MessageResourceAttachment(
      * Only meaningful for textual resources.
      */
     val selection: TextSelection? = null
+)
+
+@Serializable
+data class MessageCommentsAttachment(
+    /**
+     * A human-readable label for the attachment (e.g. the filename of a file
+     * attachment). Used for display in UI.
+     */
+    val label: String,
+    /**
+     * If defined, the range in {@link Message.text} that references this
+     * attachment. This is a text range, not a byte range.
+     */
+    val range: TextRange? = null,
+    /**
+     * Advisory display hint for clients rendering this attachment. Recognized
+     * values include:
+     *
+     * - `'image'`: the attachment is an image
+     * - `'document'`: the attachment is a textual document
+     * - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+     * - `'directory'`: the attachment is a folder
+     * - `'selection'`: the attachment is a selection within a document
+     *
+     * Implementations MAY provide additional values; clients SHOULD fall back
+     * to a reasonable default when an unknown value is encountered.
+     */
+    val displayKind: String? = null,
+    /**
+     * Additional implementation-defined metadata for the attachment.
+     *
+     * If the attachment was produced by the `completions` command, the client
+     * MUST preserve every property of `_meta` originally returned by the agent
+     * host when sending the user message containing the accepted completion.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    /**
+     * Discriminant
+     */
+    val type: MessageAttachmentKind,
+    /**
+     * The comments channel URI (typically `ahp-session:/<uuid>/comments`).
+     * Matches {@link CommentsSummary.resource}.
+     */
+    val resource: String,
+    /**
+     * Specific {@link CommentThread.id | thread ids} to reference. When
+     * omitted, the attachment references all threads on the channel.
+     */
+    val threadIds: List<String>? = null
 )
 
 @Serializable
@@ -3873,6 +3929,8 @@ value class MessageAttachmentSimple(val value: SimpleMessageAttachment) : Messag
 value class MessageAttachmentEmbeddedResource(val value: MessageEmbeddedResourceAttachment) : MessageAttachment
 @JvmInline
 value class MessageAttachmentResource(val value: MessageResourceAttachment) : MessageAttachment
+@JvmInline
+value class MessageAttachmentComments(val value: MessageCommentsAttachment) : MessageAttachment
 /**
  * Forward-compat catch-all for unknown MessageAttachment discriminators.
  *
@@ -3900,6 +3958,7 @@ internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
             "simple" -> MessageAttachmentSimple(input.json.decodeFromJsonElement(SimpleMessageAttachment.serializer(), element))
             "embeddedResource" -> MessageAttachmentEmbeddedResource(input.json.decodeFromJsonElement(MessageEmbeddedResourceAttachment.serializer(), element))
             "resource" -> MessageAttachmentResource(input.json.decodeFromJsonElement(MessageResourceAttachment.serializer(), element))
+            "comments" -> MessageAttachmentComments(input.json.decodeFromJsonElement(MessageCommentsAttachment.serializer(), element))
             else -> MessageAttachmentUnknown(obj)
         }
     }
@@ -3911,6 +3970,7 @@ internal object MessageAttachmentSerializer : KSerializer<MessageAttachment> {
             is MessageAttachmentSimple -> output.json.encodeToJsonElement(SimpleMessageAttachment.serializer(), value.value)
             is MessageAttachmentEmbeddedResource -> output.json.encodeToJsonElement(MessageEmbeddedResourceAttachment.serializer(), value.value)
             is MessageAttachmentResource -> output.json.encodeToJsonElement(MessageResourceAttachment.serializer(), value.value)
+            is MessageAttachmentComments -> output.json.encodeToJsonElement(MessageCommentsAttachment.serializer(), value.value)
             is MessageAttachmentUnknown -> value.raw
         }
         output.encodeJsonElement(element)

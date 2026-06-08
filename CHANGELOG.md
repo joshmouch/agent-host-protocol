@@ -87,6 +87,10 @@ Spec version: `0.3.0`
   and `comments/cleared` actions. `SessionSummary.comments` advertises the
   per-session `CommentsSummary` (`{ resource, threadCount, commentCount }`)
   for badge UI.
+- Added a `comments` `MessageAttachment` variant
+  (`MessageCommentsAttachment`) that references comment threads on a
+  session's comments channel by its `resource` URI, optionally narrowed to
+  a `threadIds` array (omitted to reference every thread).
 - Removed the `additions`, `deletions`, and `files` fields from
   `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`;
   per-changeset views derive their own totals from `ChangesetState.files`.

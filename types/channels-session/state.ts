@@ -593,6 +593,8 @@ export const enum MessageAttachmentKind {
   EmbeddedResource = 'embeddedResource',
   /** An attachment that references a resource by URI. */
   Resource = 'resource',
+  /** An attachment that references comment threads on a comments channel. */
+  Comments = 'comments',
 }
 
 /**
@@ -783,6 +785,31 @@ export interface MessageResourceAttachment extends MessageAttachmentBase, Conten
 }
 
 /**
+ * An attachment that references comment threads on a session's comments
+ * channel (see {@link CommentsState}).
+ *
+ * When {@link threadIds} is omitted the attachment references every thread
+ * on the channel; when present it references only the listed
+ * {@link CommentThread.id | thread ids}.
+ *
+ * @category Turn Types
+ */
+export interface MessageCommentsAttachment extends MessageAttachmentBase {
+  /** Discriminant */
+  type: MessageAttachmentKind.Comments;
+  /**
+   * The comments channel URI (typically `ahp-session:/<uuid>/comments`).
+   * Matches {@link CommentsSummary.resource}.
+   */
+  resource: URI;
+  /**
+   * Specific {@link CommentThread.id | thread ids} to reference. When
+   * omitted, the attachment references all threads on the channel.
+   */
+  threadIds?: string[];
+}
+
+/**
  * An attachment associated with a {@link Message}.
  *
  * @category Turn Types
@@ -790,7 +817,8 @@ export interface MessageResourceAttachment extends MessageAttachmentBase, Conten
 export type MessageAttachment =
   | SimpleMessageAttachment
   | MessageEmbeddedResourceAttachment
-  | MessageResourceAttachment;
+  | MessageResourceAttachment
+  | MessageCommentsAttachment;
 
 // ─── Response Parts ──────────────────────────────────────────────────────────
 

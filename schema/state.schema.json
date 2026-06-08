@@ -1674,6 +1674,49 @@
         "type"
       ]
     },
+    "MessageCommentsAttachment": {
+      "type": "object",
+      "description": "An attachment that references comment threads on a session's comments\nchannel (see {@link CommentsState}).\n\nWhen {@link threadIds} is omitted the attachment references every thread\non the channel; when present it references only the listed\n{@link CommentThread.id | thread ids}.",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
+        },
+        "displayKind": {
+          "type": "string",
+          "description": "Advisory display hint for clients rendering this attachment. Recognized\nvalues include:\n\n- `'image'`: the attachment is an image\n- `'document'`: the attachment is a textual document\n- `'symbol'`: the attachment is a code symbol (e.g. a function or class)\n- `'directory'`: the attachment is a folder\n- `'selection'`: the attachment is a selection within a document\n\nImplementations MAY provide additional values; clients SHOULD fall back\nto a reasonable default when an unknown value is encountered."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional implementation-defined metadata for the attachment.\n\nIf the attachment was produced by the `completions` command, the client\nMUST preserve every property of `_meta` originally returned by the agent\nhost when sending the user message containing the accepted completion."
+        },
+        "type": {
+          "$ref": "#/$defs/MessageAttachmentKind.Comments",
+          "description": "Discriminant"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The comments channel URI (typically `ahp-session:/<uuid>/comments`).\nMatches {@link CommentsSummary.resource}."
+        },
+        "threadIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Specific {@link CommentThread.id | thread ids} to reference. When\nomitted, the attachment references all threads on the channel."
+        }
+      },
+      "required": [
+        "label",
+        "type",
+        "resource"
+      ]
+    },
     "MarkdownResponsePart": {
       "type": "object",
       "properties": {
@@ -3969,6 +4012,9 @@
         },
         {
           "$ref": "#/$defs/MessageResourceAttachment"
+        },
+        {
+          "$ref": "#/$defs/MessageCommentsAttachment"
         }
       ],
       "description": "An attachment associated with a {@link Message}."

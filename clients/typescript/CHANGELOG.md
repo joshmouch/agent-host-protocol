@@ -52,6 +52,9 @@ hotfix escape hatch.
   and the `createCommentThread`, `updateCommentThread`, `deleteCommentThread`,
   `addComment`, `editComment`, `deleteComment` commands. `SessionSummary.comments`
   surfaces the per-session `CommentsSummary` for badge UI.
+- `MessageCommentsAttachment` (`comments` `MessageAttachment` variant)
+  referencing comment threads on a session's comments channel by `resource`
+  URI, optionally narrowed to a `threadIds` array.
 
 
 ### Changed

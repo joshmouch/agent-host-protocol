@@ -145,6 +145,9 @@ pub enum MessageAttachmentKind {
     /// An attachment that references a resource by URI.
     #[serde(rename = "resource")]
     Resource,
+    /// An attachment that references comment threads on a comments channel.
+    #[serde(rename = "comments")]
+    Comments,
 }
 
 /// Discriminant for response part types.
@@ -1423,6 +1426,51 @@ pub struct MessageResourceAttachment {
     /// Only meaningful for textual resources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selection: Option<TextSelection>,
+}
+
+/// An attachment that references comment threads on a session's comments
+/// channel (see {@link CommentsState}).
+///
+/// When {@link threadIds} is omitted the attachment references every thread
+/// on the channel; when present it references only the listed
+/// {@link CommentThread.id | thread ids}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageCommentsAttachment {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    pub label: String,
+    /// If defined, the range in {@link Message.text} that references this
+    /// attachment. This is a text range, not a byte range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    ///
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_kind: Option<String>,
+    /// Additional implementation-defined metadata for the attachment.
+    ///
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+    /// The comments channel URI (typically `ahp-session:/<uuid>/comments`).
+    /// Matches {@link CommentsSummary.resource}.
+    pub resource: Uri,
+    /// Specific {@link CommentThread.id | thread ids} to reference. When
+    /// omitted, the attachment references all threads on the channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thread_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -3183,6 +3231,8 @@ pub enum MessageAttachment {
     EmbeddedResource(MessageEmbeddedResourceAttachment),
     #[serde(rename = "resource")]
     Resource(MessageResourceAttachment),
+    #[serde(rename = "comments")]
+    Comments(MessageCommentsAttachment),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
