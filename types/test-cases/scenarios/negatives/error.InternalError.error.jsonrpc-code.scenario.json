@@ -1,0 +1,34 @@
+{
+  "id": "error.InternalError.error.jsonrpc-code",
+  "behaviorIds": [
+    "error.InternalError.error.jsonrpc-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32603 in the appropriate scenario. Client surfaces JSON-RPC error code -32603.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.InternalError.error.jsonrpc-code. JSON-RPC 2.0 standard error code -32603. Unspecified server-side error",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32603",
+      "forId": 1,
+      "error": {
+        "code": -32603,
+        "message": "Error: error:InternalError"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32603",
+      "code": -32603
+    }
+  ]
+}

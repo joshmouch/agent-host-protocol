@@ -1,0 +1,76 @@
+{
+  "id": "action.terminal-claimed.happy.terminal-claimed-session",
+  "behaviorIds": [
+    "action.terminal-claimed.happy.terminal-claimed-session"
+  ],
+  "description": "Reducer fixture: terminal/claimed transfers to session claim with tool call. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/076-terminal-claimed-session.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/claimed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/claimed",
+          "claim": {
+            "kind": "session",
+            "session": "copilot:/session-1",
+            "turnId": "turn-1",
+            "toolCallId": "tc-1"
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "content": [],
+        "claim": {
+          "kind": "session",
+          "session": "copilot:/session-1",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1"
+        }
+      }
+    }
+  ]
+}

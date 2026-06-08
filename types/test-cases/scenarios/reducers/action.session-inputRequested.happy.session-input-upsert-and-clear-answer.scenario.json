@@ -1,0 +1,161 @@
+{
+  "id": "action.session-inputRequested.happy.session-input-upsert-and-clear-answer",
+  "behaviorIds": [
+    "action.session-inputRequested.happy.session-input-upsert-and-clear-answer"
+  ],
+  "description": "Reducer fixture: session input upsert preserves or replaces answers and answerChanged clears last draft. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/108-session-input-upsert-and-clear-answer.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 24,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "activeTurn": {
+                "id": "turn-1",
+                "message": {
+                  "text": "Hello",
+                  "origin": {
+                    "kind": "user"
+                  }
+                },
+                "responseParts": [],
+                "usage": null
+              },
+              "inputRequests": [
+                {
+                  "id": "input-1",
+                  "message": "Old message",
+                  "answers": {
+                    "q1": {
+                      "state": "draft",
+                      "value": {
+                        "kind": "text",
+                        "value": "draft"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/inputRequested",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/inputRequested",
+          "request": {
+            "id": "input-1",
+            "message": "New message"
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/inputRequested",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/inputRequested",
+          "request": {
+            "id": "input-1",
+            "message": "New message",
+            "answers": {
+              "q2": {
+                "state": "skipped"
+              }
+            }
+          }
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/inputAnswerChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/inputAnswerChanged",
+          "requestId": "input-1",
+          "questionId": "q2"
+        },
+        "serverSeq": 3,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 24,
+          "createdAt": 1000,
+          "modifiedAt": 9999
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "activeTurn": {
+          "id": "turn-1",
+          "message": {
+            "text": "Hello",
+            "origin": {
+              "kind": "user"
+            }
+          },
+          "responseParts": [],
+          "usage": null
+        },
+        "inputRequests": [
+          {
+            "id": "input-1",
+            "message": "New message",
+            "answers": null
+          }
+        ]
+      }
+    }
+  ]
+}

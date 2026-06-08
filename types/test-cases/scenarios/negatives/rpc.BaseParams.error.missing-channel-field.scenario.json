@@ -1,0 +1,32 @@
+{
+  "id": "rpc.BaseParams.error.missing-channel-field",
+  "behaviorIds": [
+    "rpc.BaseParams.error.missing-channel-field"
+  ],
+  "description": "Negative/error-path: Any request missing params.channel returns error.code===-32602. Client surfaces JSON-RPC error code -32602.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: rpc.BaseParams.error.missing-channel-field. Every AHP command has a required \"channel\" field per BaseParams. Omitting it should return InvalidParams (-32602).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send initialize to trigger the error condition",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32602",
+      "forId": 1,
+      "error": {
+        "code": -32602,
+        "message": "Error: missing-channel-field"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32602",
+      "code": -32602
+    }
+  ]
+}

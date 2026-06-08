@@ -1,0 +1,34 @@
+{
+  "id": "roundtrip.ChangesetOperationTarget.happy.changeset-target-resource",
+  "behaviorIds": [
+    "roundtrip.ChangesetOperationTarget.happy.changeset-target-resource"
+  ],
+  "description": "Round-trip: ChangesetOperationTarget dispatches on its `kind` discriminator: kind=resource decodes the resource-target variant.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/012-changeset-target-resource.json. Type: ChangesetOperationTarget.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for ChangesetOperationTarget: changeset-target-resource",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "kind": "resource",
+          "resource": "file:///a.txt"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "kind": "resource",
+        "resource": "file:///a.txt"
+      }
+    }
+  ]
+}

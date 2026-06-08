@@ -1,0 +1,205 @@
+{
+  "id": "action.terminal-data.edge.terminal-command-full-lifecycle",
+  "behaviorIds": [
+    "action.terminal-data.edge.terminal-command-full-lifecycle"
+  ],
+  "description": "Reducer fixture: full command lifecycle: unclassified → execute → data → finish → unclassified → next command. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/123-terminal-command-full-lifecycle.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "$ "
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/commandExecuted",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/commandExecuted",
+          "commandId": "cmd-1",
+          "commandLine": "echo hello",
+          "timestamp": 1700000000000
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "hello\r\n"
+        },
+        "serverSeq": 3,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/commandFinished",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/commandFinished",
+          "commandId": "cmd-1",
+          "exitCode": 0,
+          "durationMs": 10
+        },
+        "serverSeq": 4,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "$ "
+        },
+        "serverSeq": 5,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/commandExecuted",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/commandExecuted",
+          "commandId": "cmd-2",
+          "commandLine": "exit 1",
+          "timestamp": 1700000001000
+        },
+        "serverSeq": 6,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": ""
+        },
+        "serverSeq": 7,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/commandFinished",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/commandFinished",
+          "commandId": "cmd-2",
+          "exitCode": 1,
+          "durationMs": 5
+        },
+        "serverSeq": 8,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "content": [
+          {
+            "type": "unclassified",
+            "value": "$ "
+          },
+          {
+            "type": "command",
+            "commandId": "cmd-1",
+            "commandLine": "echo hello",
+            "output": "hello\r\n",
+            "timestamp": 1700000000000,
+            "isComplete": true,
+            "exitCode": 0,
+            "durationMs": 10
+          },
+          {
+            "type": "unclassified",
+            "value": "$ "
+          },
+          {
+            "type": "command",
+            "commandId": "cmd-2",
+            "commandLine": "exit 1",
+            "output": "",
+            "timestamp": 1700000001000,
+            "isComplete": true,
+            "exitCode": 1,
+            "durationMs": 5
+          }
+        ],
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        },
+        "supportsCommandDetection": true
+      }
+    }
+  ]
+}

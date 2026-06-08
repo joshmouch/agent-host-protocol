@@ -1,0 +1,103 @@
+{
+  "id": "action.terminal-data.happy.terminal-data-appends-to-command-output",
+  "behaviorIds": [
+    "action.terminal-data.happy.terminal-data-appends-to-command-output"
+  ],
+  "description": "Reducer fixture: terminal/data appends to incomplete command part output. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/120-terminal-data-appends-to-command-output.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [
+                {
+                  "type": "command",
+                  "commandId": "cmd-1",
+                  "commandLine": "npm test",
+                  "output": "",
+                  "timestamp": 1700000000000,
+                  "isComplete": false
+                }
+              ],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              },
+              "supportsCommandDetection": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "PASS src/index.test.ts\r\n"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/data",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/data",
+          "data": "All tests passed\r\n"
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "bash",
+        "content": [
+          {
+            "type": "command",
+            "commandId": "cmd-1",
+            "commandLine": "npm test",
+            "output": "PASS src/index.test.ts\r\nAll tests passed\r\n",
+            "timestamp": 1700000000000,
+            "isComplete": false
+          }
+        ],
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        },
+        "supportsCommandDetection": true
+      }
+    }
+  ]
+}

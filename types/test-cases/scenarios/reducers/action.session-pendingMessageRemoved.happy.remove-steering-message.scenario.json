@@ -1,0 +1,88 @@
+{
+  "id": "action.session-pendingMessageRemoved.happy.remove-steering-message",
+  "behaviorIds": [
+    "action.session-pendingMessageRemoved.happy.remove-steering-message"
+  ],
+  "description": "Reducer fixture: remove steering message. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/042-remove-steering-message.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "creating",
+              "turns": [],
+              "steeringMessage": {
+                "id": "sm-1",
+                "message": {
+                  "text": "Steer",
+                  "origin": {
+                    "kind": "user"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/pendingMessageRemoved",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/pendingMessageRemoved",
+          "kind": "steering",
+          "id": "sm-1"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 1000
+        },
+        "lifecycle": "creating",
+        "turns": [],
+        "steeringMessage": null
+      }
+    }
+  ]
+}

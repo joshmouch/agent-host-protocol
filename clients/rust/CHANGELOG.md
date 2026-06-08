@@ -62,6 +62,23 @@ Implements AHP 0.3.0.
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
 ### Changed
+- `apply_action_to_changeset` reducer (plus its `lib.rs` re-export) — the
+  changeset reducer is now implemented (previously absent), so `changeset/*`
+  actions fold into `ChangesetState`. Brings the Rust client to full
+  cross-language conformance parity on the changeset channel.
+
+### Changed
+
+- **BREAKING:** `SessionStatus` is now a `u32` bitset newtype
+  (`struct SessionStatus(pub u32)` with named flag constants) instead of a
+  `#[repr(u32)]` enum. The wire form is a numeric bitset, so the enum could not
+  represent combined flags (e.g. `InProgress | IsArchived`) or preserve unknown
+  forward-compat bits. Combine flags with `|` and test with `contains(..)`.
+
+### Fixed
+
+- `SessionStatus` encode/decode fidelity: combined and unknown bitset bits now
+  round-trip exactly instead of being dropped or rejected.
 
 - `ToolCallBase.tool_client_id: Option<String>` replaced by
   `ToolCallBase.contributor: Option<ToolCallContributor>` (enum with

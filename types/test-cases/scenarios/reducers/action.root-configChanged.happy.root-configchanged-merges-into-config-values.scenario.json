@@ -1,0 +1,97 @@
+{
+  "id": "action.root-configChanged.happy.root-configchanged-merges-into-config-values",
+  "behaviorIds": [
+    "action.root-configChanged.happy.root-configchanged-merges-into-config-values"
+  ],
+  "description": "Reducer fixture: root/configChanged merges into config values. Verifies that the client's root reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/127-root-configchanged-merges-into-config-values.json. Reducer: root.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-root://",
+            "fromSeq": 0,
+            "state": {
+              "agents": [],
+              "config": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "theme": {
+                      "type": "string",
+                      "title": "Theme",
+                      "enum": [
+                        "light",
+                        "dark"
+                      ]
+                    }
+                  }
+                },
+                "values": {
+                  "theme": "light"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: root/configChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-root://",
+        "action": {
+          "type": "root/configChanged",
+          "config": {
+            "theme": "dark"
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-root://",
+      "equals": {
+        "agents": [],
+        "config": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "theme": {
+                "type": "string",
+                "title": "Theme",
+                "enum": [
+                  "light",
+                  "dark"
+                ]
+              }
+            }
+          },
+          "values": {
+            "theme": "dark"
+          }
+        }
+      }
+    }
+  ]
+}

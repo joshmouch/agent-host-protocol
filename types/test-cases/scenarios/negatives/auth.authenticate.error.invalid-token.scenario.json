@@ -1,0 +1,35 @@
+{
+  "id": "auth.authenticate.error.invalid-token",
+  "behaviorIds": [
+    "auth.authenticate.error.invalid-token"
+  ],
+  "description": "Negative/error-path: authenticate{token:\"invalid_token\"} returns error.code in [-32007, -32602]. Client surfaces JSON-RPC error code -32007.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: auth.authenticate.error.invalid-token. authenticate with an invalid token MUST return a JSON-RPC error (AuthRequired -32007 or InvalidParams -32602).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send authenticate to trigger the error condition",
+      "method": "authenticate",
+      "params": {
+        "token": "invalid_token",
+        "resource": "ahp-resource://x"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32007",
+      "forId": 1,
+      "error": {
+        "code": -32007,
+        "message": "Error: error:AuthRequired"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32007",
+      "code": -32007
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "roundtrip.SessionSummary.edge.unknown-wire-keys-ignored",
+  "behaviorIds": [
+    "roundtrip.SessionSummary.edge.unknown-wire-keys-ignored"
+  ],
+  "description": "Round-trip: A known type (SessionSummary) carrying extra, unrecognized JSON keys decodes its known fields and silently drops the unknown ones.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/017-unknown-wire-keys-ignored.json. Type: SessionSummary.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for SessionSummary: unknown-wire-keys-ignored",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "resource": "ahp-session:/s1",
+          "provider": "demo",
+          "title": "Hello",
+          "status": 0,
+          "createdAt": 1,
+          "modifiedAt": 2,
+          "unknownFutureKey": {
+            "nested": true
+          },
+          "anotherUnknown": 42
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "resource": "ahp-session:/s1",
+        "provider": "demo",
+        "title": "Hello",
+        "createdAt": 1,
+        "modifiedAt": 2
+      }
+    }
+  ]
+}

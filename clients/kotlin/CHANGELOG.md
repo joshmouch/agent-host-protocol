@@ -67,6 +67,19 @@ Implements AHP 0.3.0.
   with `Client(clientId)` and `Mcp(customizationId)` variants).
   `SessionToolCallStartAction` carries the new `contributor` field as
   well.
+### Changed
+
+- **BREAKING:** `SessionStatus.rawValue` is now a `Long` (was `Int`), and the
+  named flag constants are `Long` literals. `SessionStatus` is an unsigned
+  32-bit bitset on the wire; a signed `Int` could not hold a forward-compat bit
+  at or above `2^31`.
+
+### Fixed
+
+- `SessionStatus` decode fidelity: an unknown forward-compat bit at or above
+  `2^31` (e.g. `2147483720`) now round-trips as a plain JSON integer instead of
+  throwing `JsonDecodingException` and dropping the bit.
+
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

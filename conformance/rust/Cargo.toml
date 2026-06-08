@@ -1,0 +1,20 @@
+[package]
+name = "ahp-conformance-rust"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "AHP conformance runner — Rust per-client corpus runner"
+publish = false
+
+[[bin]]
+name = "ahp-conformance-rust"
+path = "src/main.rs"
+
+[dependencies]
+ahp = { path = "../../clients/rust/crates/ahp" }
+ahp-types = { path = "../../clients/rust/crates/ahp-types" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "0.24", features = ["connect"] }
+futures-util = "0.3"

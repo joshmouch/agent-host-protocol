@@ -1,0 +1,21 @@
+{
+  "name": "action-envelope-session-title-changed",
+  "description": "ActionEnvelope carrying a session/titleChanged action decodes its scalar fields and its discriminated action variant; key fields survive a re-encode round-trip.",
+  "type": "ActionEnvelope",
+  "wire": {
+    "channel": "ahp-session:/s1",
+    "action": { "type": "session/titleChanged", "title": "Hello" },
+    "serverSeq": 7,
+    "origin": null
+  },
+  "expect": {
+    "channel": "ahp-session:/s1",
+    "serverSeq": 7,
+    "action.type": "session/titleChanged",
+    "action.title": "Hello"
+  },
+  "expectVariant": {
+    "action": "SessionTitleChangedAction"
+  },
+  "roundTripStable": true
+}

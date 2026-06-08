@@ -1,0 +1,53 @@
+{
+  "id": "roundtrip.SessionStatus.edge.session-status-unknown-bits-preserved",
+  "behaviorIds": [
+    "roundtrip.SessionStatus.edge.session-status-unknown-bits-preserved"
+  ],
+  "description": "Round-trip: Unknown/forward-compat bits in the SessionStatus bitset survive a round-trip. InProgress(8)|IsArchived(64)|bit31(2147483648)=2147483720.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/005-session-status-unknown-bits-preserved.json. Type: SessionStatus.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize to seed a session with the status bitset",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "snapshot with session containing the SessionStatus under test",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/bitset-test",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/bitset-test",
+                "provider": "copilot",
+                "title": "bitset test",
+                "status": 2147483720,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "ready",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "status bitset preserved in reduced state",
+      "channel": "ahp-session:/bitset-test",
+      "path": "summary.status",
+      "equals": 2147483720
+    }
+  ]
+}

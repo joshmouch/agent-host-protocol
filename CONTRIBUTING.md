@@ -25,6 +25,8 @@ against them.
 | `clients/kotlin/` | Kotlin/JVM library (`com.microsoft.agenthostprotocol:agent-host-protocol`). |
 | `clients/swift/` | Swift package (consumed by SwiftPM at the repo root). |
 | `clients/typescript/` | npm package `@microsoft/agent-host-protocol`. |
+| `clients/go/` | Go module (`ahptypes`, `ahp`, `ahpws`). |
+| `clients/dotnet/` | .NET / NuGet packages (`Microsoft.AgentHostProtocol`, `.Abstractions`, `.WebSockets`). |
 | `.github/workflows/` | CI and per-artifact publish pipelines. |
 
 ## Local dev loop
@@ -42,6 +44,8 @@ cd clients/typescript && npm ci && npm test && npm run build
 cd clients/rust && cargo test --workspace
 cd clients/kotlin && ./gradlew build
 swift build && swift test        # Swift uses the root Package.swift
+cd clients/go && go test ./...
+cd clients/dotnet && dotnet test
 ```
 
 ## Releases

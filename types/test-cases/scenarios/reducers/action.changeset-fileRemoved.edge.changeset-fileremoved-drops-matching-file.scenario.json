@@ -1,0 +1,119 @@
+{
+  "id": "action.changeset-fileRemoved.edge.changeset-fileremoved-drops-matching-file",
+  "behaviorIds": [
+    "action.changeset-fileRemoved.edge.changeset-fileremoved-drops-matching-file"
+  ],
+  "description": "Reducer fixture: changeset/fileRemoved drops the matching file and is a no-op for unknown ids. Verifies that the client's changeset reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/140-changeset-fileremoved-drops-matching-file.json. Reducer: changeset.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-changeset:/test-changeset",
+            "fromSeq": 0,
+            "state": {
+              "status": "ready",
+              "files": [
+                {
+                  "id": "file:///src/a.ts",
+                  "edit": {
+                    "after": {
+                      "uri": "file:///src/a.ts",
+                      "content": {
+                        "uri": "content:/a"
+                      }
+                    },
+                    "diff": {
+                      "added": 1
+                    }
+                  }
+                },
+                {
+                  "id": "file:///src/b.ts",
+                  "edit": {
+                    "after": {
+                      "uri": "file:///src/b.ts",
+                      "content": {
+                        "uri": "content:/b"
+                      }
+                    },
+                    "diff": {
+                      "added": 5
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/fileRemoved",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/fileRemoved",
+          "fileId": "file:///src/a.ts"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/fileRemoved",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/fileRemoved",
+          "fileId": "file:///src/missing.ts"
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-changeset:/test-changeset",
+      "equals": {
+        "status": "ready",
+        "files": [
+          {
+            "id": "file:///src/b.ts",
+            "edit": {
+              "after": {
+                "uri": "file:///src/b.ts",
+                "content": {
+                  "uri": "content:/b"
+                }
+              },
+              "diff": {
+                "added": 5
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@ahp/conformance-discovery",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "AHP conformance-suite discovery pipeline (Phases D0-D11). Each angle emits machine-readable inventory rows to out/<phase>.jsonl; D0 defines + gates the row schema; D11 merges by behavior-id into the surface matrix.",
+  "scripts": {
+    "validate": "node scripts/validate-inventory.mjs",
+    "validate:all": "node scripts/validate-inventory.mjs out/*.jsonl",
+    "verify": "node scripts/verify-citations.mjs",
+    "verify:all": "node scripts/verify-citations.mjs out/*.jsonl",
+    "gate:all": "node scripts/validate-inventory.mjs out/*.jsonl && node scripts/verify-citations.mjs out/*.jsonl"
+  }
+}

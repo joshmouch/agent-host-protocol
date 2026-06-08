@@ -1,0 +1,73 @@
+{
+  "id": "action.root-agentsChanged.happy.root-agentschanged",
+  "behaviorIds": [
+    "action.root-agentsChanged.happy.root-agentschanged"
+  ],
+  "description": "Reducer fixture: root/agentsChanged. Verifies that the client's root reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/001-root-agentschanged.json. Reducer: root.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-root://",
+            "fromSeq": 0,
+            "state": {
+              "agents": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: root/agentsChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-root://",
+        "action": {
+          "type": "root/agentsChanged",
+          "agents": [
+            {
+              "provider": "copilot",
+              "displayName": "Copilot",
+              "description": "AI",
+              "models": []
+            }
+          ]
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-root://",
+      "equals": {
+        "agents": [
+          {
+            "provider": "copilot",
+            "displayName": "Copilot",
+            "description": "AI",
+            "models": []
+          }
+        ]
+      }
+    }
+  ]
+}

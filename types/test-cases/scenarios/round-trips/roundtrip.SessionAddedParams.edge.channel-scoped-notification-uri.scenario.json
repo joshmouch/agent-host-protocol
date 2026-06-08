@@ -1,0 +1,50 @@
+{
+  "id": "roundtrip.SessionAddedParams.edge.channel-scoped-notification-uri",
+  "behaviorIds": [
+    "roundtrip.SessionAddedParams.edge.channel-scoped-notification-uri"
+  ],
+  "description": "Round-trip: SessionAddedParams is a channel-scoped notification payload carrying the root `channel` URI plus the REQUIRED `summary` of the new session (the schema marks both `channel` and `summary` required). The channel URI and the key summary fields survive a re-encode round-trip unchanged. The payload also carries an unknown wire key, which the decoder silently drops on re-encode.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/019-channel-scoped-notification-uri.json. Type: SessionAddedParams.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for SessionAddedParams: channel-scoped-notification-uri",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "channel": "ahp:/root",
+          "summary": {
+            "resource": "ahp-session:/s1",
+            "provider": "demo",
+            "title": "New session",
+            "status": 1,
+            "createdAt": 1,
+            "modifiedAt": 2
+          },
+          "unknownFutureKey": {
+            "nested": true
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "channel": "ahp:/root",
+        "summary": {
+          "resource": "ahp-session:/s1",
+          "provider": "demo",
+          "title": "New session",
+          "createdAt": 1,
+          "modifiedAt": 2
+        }
+      }
+    }
+  ]
+}

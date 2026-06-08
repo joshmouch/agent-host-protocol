@@ -1,0 +1,69 @@
+{
+  "id": "action.terminal-titleChanged.happy.terminal-titlechanged",
+  "behaviorIds": [
+    "action.terminal-titleChanged.happy.terminal-titlechanged"
+  ],
+  "description": "Reducer fixture: terminal/titleChanged updates title. Verifies that the client's terminal reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/078-terminal-titlechanged.json. Reducer: terminal.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "title": "bash",
+              "content": [],
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: terminal/titleChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "terminal/titleChanged",
+          "title": "vim ~/project/main.ts"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "title": "vim ~/project/main.ts",
+        "content": [],
+        "claim": {
+          "kind": "client",
+          "clientId": "c1"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "transport.serverSeq.edge.out-of-order-seq",
+  "behaviorIds": [
+    "transport.serverSeq.edge.out-of-order-seq"
+  ],
+  "description": "Negative/error-path: action notifications on any channel have strictly monotonically increasing serverSeq values. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: transport.serverSeq.edge.out-of-order-seq. serverSeq values MUST be monotonically increasing per channel. An out-of-order serverSeq indicates transport layer failure (guaranteed ordering is a transport requirement).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send reconnect to trigger the error condition",
+      "method": "reconnect",
+      "params": {
+        "channel": "ahp-session:/test",
+        "lastSeenServerSeq": 0
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: serverSeq-ordering"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

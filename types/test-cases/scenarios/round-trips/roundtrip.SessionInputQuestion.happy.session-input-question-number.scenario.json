@@ -1,0 +1,39 @@
+{
+  "id": "roundtrip.SessionInputQuestion.happy.session-input-question-number",
+  "behaviorIds": [
+    "roundtrip.SessionInputQuestion.happy.session-input-question-number"
+  ],
+  "description": "Round-trip: SessionInputQuestion kind=number decodes the number-question variant; the typed Kind preserves `number` and min/max decode.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/014-session-input-question-number.json. Type: SessionInputQuestion.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for SessionInputQuestion: session-input-question-number",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "kind": "number",
+          "id": "q1",
+          "message": "How many?",
+          "min": 0,
+          "max": 10
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "kind": "number",
+        "id": "q1",
+        "min": 0,
+        "max": 10
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "error.MethodNotFound.error.jsonrpc-code",
+  "behaviorIds": [
+    "error.MethodNotFound.error.jsonrpc-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32601 in the appropriate scenario. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.MethodNotFound.error.jsonrpc-code. JSON-RPC 2.0 standard error code -32601. Unrecognised method name sent by client",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: error:MethodNotFound"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

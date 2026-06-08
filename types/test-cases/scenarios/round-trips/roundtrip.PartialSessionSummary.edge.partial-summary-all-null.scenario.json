@@ -1,0 +1,28 @@
+{
+  "id": "roundtrip.PartialSessionSummary.edge.partial-summary-all-null",
+  "behaviorIds": [
+    "roundtrip.PartialSessionSummary.edge.partial-summary-all-null"
+  ],
+  "description": "Round-trip: PartialSessionSummary has every field optional. An empty object decodes with every field null/absent and re-encodes back to an empty object — no exception.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/020-partial-summary-all-null.json. Type: PartialSessionSummary.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for PartialSessionSummary: partial-summary-all-null",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {},
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "round-trip payload was observed",
+      "matches": {}
+    }
+  ]
+}

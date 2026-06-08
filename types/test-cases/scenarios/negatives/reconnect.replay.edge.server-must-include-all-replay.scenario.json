@@ -1,0 +1,35 @@
+{
+  "id": "reconnect.replay.edge.server-must-include-all-replay",
+  "behaviorIds": [
+    "reconnect.replay.edge.server-must-include-all-replay"
+  ],
+  "description": "Negative/error-path: reconnect response contains all actions with serverSeq > lastSeenServerSeq in the result body, not as subsequent notifications. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: reconnect.replay.edge.server-must-include-all-replay. Server MUST atomically include all replay actions in the reconnect response, not stream them after.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send reconnect to trigger the error condition",
+      "method": "reconnect",
+      "params": {
+        "channel": "ahp-session:/test",
+        "lastSeenServerSeq": 0
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: reconnect-replay"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

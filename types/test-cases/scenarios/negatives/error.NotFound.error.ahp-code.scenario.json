@@ -1,0 +1,35 @@
+{
+  "id": "error.NotFound.error.ahp-code",
+  "behaviorIds": [
+    "error.NotFound.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32008 when the described condition arises. Client surfaces JSON-RPC error code -32008.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.NotFound.error.ahp-code. AHP application error code -32008. Requested file, folder, or URI does not exist",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceRead to trigger the error condition",
+      "method": "resourceRead",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///nonexistent-path"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32008",
+      "forId": 1,
+      "error": {
+        "code": -32008,
+        "message": "Error: error:NotFound"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32008",
+      "code": -32008
+    }
+  ]
+}

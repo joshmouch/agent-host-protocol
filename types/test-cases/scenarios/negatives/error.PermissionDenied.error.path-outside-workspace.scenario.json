@@ -1,0 +1,35 @@
+{
+  "id": "error.PermissionDenied.error.path-outside-workspace",
+  "behaviorIds": [
+    "error.PermissionDenied.error.path-outside-workspace"
+  ],
+  "description": "Negative/error-path: resourceRead for a path outside allowed workspace returns error.code===-32009. Client surfaces JSON-RPC error code -32009.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.PermissionDenied.error.path-outside-workspace. Accessing a path outside the session working directory or workspace roots SHOULD return PermissionDenied (-32009).",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceRead to trigger the error condition",
+      "method": "resourceRead",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///outside-workspace"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32009",
+      "forId": 1,
+      "error": {
+        "code": -32009,
+        "message": "Error: error:PermissionDenied"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32009",
+      "code": -32009
+    }
+  ]
+}

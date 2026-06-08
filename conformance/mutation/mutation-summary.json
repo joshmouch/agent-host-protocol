@@ -1,0 +1,758 @@
+{
+  "generatedBy": "conformance/mutation — StrykerJS 8.7.1 over canonical TS reducers; kill-signal = in-process replay of all 233 conformance scenarios via src reducers (replay-corpus.mjs)",
+  "date": "2026-06-06",
+  "totals": {
+    "total": 813,
+    "killed": 713,
+    "survived": 100,
+    "timeout": 0,
+    "errors": 0,
+    "killRatePct": 87.7
+  },
+  "perFile": {
+    "channels-changeset/reducer.ts": {
+      "killed": 60,
+      "survived": 16,
+      "timeout": 0,
+      "total": 76,
+      "killRatePct": 78.95
+    },
+    "channels-resource-watch/reducer.ts": {
+      "killed": 0,
+      "survived": 7,
+      "timeout": 0,
+      "total": 7,
+      "killRatePct": 0
+    },
+    "channels-root/reducer.ts": {
+      "killed": 15,
+      "survived": 2,
+      "timeout": 0,
+      "total": 17,
+      "killRatePct": 88.24
+    },
+    "channels-session/reducer.ts": {
+      "killed": 565,
+      "survived": 67,
+      "timeout": 0,
+      "total": 632,
+      "killRatePct": 89.4
+    },
+    "channels-terminal/reducer.ts": {
+      "killed": 73,
+      "survived": 4,
+      "timeout": 0,
+      "total": 77,
+      "killRatePct": 94.81
+    },
+    "common/reducer-helpers.ts": {
+      "killed": 0,
+      "survived": 4,
+      "timeout": 0,
+      "total": 4,
+      "killRatePct": 0
+    }
+  },
+  "survivors": [
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 30,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 39,
+      "col": 11,
+      "mutator": "EqualityOperator",
+      "replacement": "idx <= 0"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 58,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 58,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 58,
+      "col": 11,
+      "mutator": "EqualityOperator",
+      "replacement": "action.operations !== undefined"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 58,
+      "col": 44,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 66,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 66,
+      "col": 43,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 70,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 70,
+      "col": 20,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 77,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 77,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 77,
+      "col": 11,
+      "mutator": "EqualityOperator",
+      "replacement": "action.status !== ChangesetOperationStatus.Error"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 83,
+      "col": 42,
+      "mutator": "ArrayDeclaration",
+      "replacement": "[]"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 89,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-changeset/reducer.ts",
+      "line": 89,
+      "col": 37,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 32,
+      "col": 143,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 33,
+      "col": 7,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 33,
+      "col": 7,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 33,
+      "col": 7,
+      "mutator": "EqualityOperator",
+      "replacement": "action.type !== ActionType.ResourceWatchChanged"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 33,
+      "col": 56,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 37,
+      "col": 4,
+      "mutator": "LogicalOperator",
+      "replacement": "log && console.warn"
+    },
+    {
+      "file": "channels-resource-watch/reducer.ts",
+      "line": 37,
+      "col": 25,
+      "mutator": "StringLiteral",
+      "replacement": "``"
+    },
+    {
+      "file": "channels-root/reducer.ts",
+      "line": 30,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-root/reducer.ts",
+      "line": 30,
+      "col": 26,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 51,
+      "col": 7,
+      "mutator": "LogicalOperator",
+      "replacement": "!id && !options"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 100,
+      "col": 7,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 100,
+      "col": 40,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 129,
+      "col": 51,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 138,
+      "col": 28,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 139,
+      "col": 20,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 169,
+      "col": 39,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 170,
+      "col": 25,
+      "mutator": "ArrayDeclaration",
+      "replacement": "[]"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 172,
+      "col": 21,
+      "mutator": "LogicalOperator",
+      "replacement": "request.answers && inputRequests[idx].answers"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 197,
+      "col": 15,
+      "mutator": "BooleanLiteral",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 199,
+      "col": 52,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 201,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 201,
+      "col": 38,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 210,
+      "col": 7,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 210,
+      "col": 15,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 238,
+      "col": 9,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 239,
+      "col": 18,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 250,
+      "col": 7,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 250,
+      "col": 15,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 305,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 306,
+      "col": 13,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 415,
+      "col": 13,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 415,
+      "col": 63,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 451,
+      "col": 32,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 582,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 582,
+      "col": 26,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 625,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 625,
+      "col": 18,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 629,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 629,
+      "col": 20,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 650,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 650,
+      "col": 18,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 655,
+      "col": 25,
+      "mutator": "MethodExpression",
+      "replacement": "list"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 659,
+      "col": 21,
+      "mutator": "BooleanLiteral",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 662,
+      "col": 13,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 662,
+      "col": 24,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 665,
+      "col": 50,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 666,
+      "col": 13,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 666,
+      "col": 27,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 670,
+      "col": 29,
+      "mutator": "MethodExpression",
+      "replacement": "children"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 674,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 674,
+      "col": 21,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 713,
+      "col": 19,
+      "mutator": "LogicalOperator",
+      "replacement": "existing?.findIndex(request => request.id === action.requestId) && -1"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 713,
+      "col": 19,
+      "mutator": "OptionalChaining",
+      "replacement": "existing.findIndex"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 713,
+      "col": 50,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 713,
+      "col": 86,
+      "mutator": "UnaryOperator",
+      "replacement": "+1"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 714,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 714,
+      "col": 11,
+      "mutator": "LogicalOperator",
+      "replacement": "!existing && idx < 0"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 714,
+      "col": 24,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 714,
+      "col": 33,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 718,
+      "col": 23,
+      "mutator": "ObjectLiteral",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 718,
+      "col": 29,
+      "mutator": "LogicalOperator",
+      "replacement": "request.answers && {}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 724,
+      "col": 23,
+      "mutator": "ArrayDeclaration",
+      "replacement": "[]"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 738,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 738,
+      "col": 12,
+      "mutator": "MethodExpression",
+      "replacement": "existing?.every(request => request.id === action.requestId)"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 738,
+      "col": 12,
+      "mutator": "OptionalChaining",
+      "replacement": "existing.some"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 738,
+      "col": 38,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 738,
+      "col": 72,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 741,
+      "col": 45,
+      "mutator": "ArrowFunction",
+      "replacement": "() => undefined"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 741,
+      "col": 56,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 745,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 745,
+      "col": 37,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 781,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 781,
+      "col": 22,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 785,
+      "col": 14,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 792,
+      "col": 22,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "channels-session/reducer.ts",
+      "line": 792,
+      "col": 11,
+      "mutator": "ConditionalExpression",
+      "replacement": "false"
+    },
+    {
+      "file": "channels-terminal/reducer.ts",
+      "line": 22,
+      "col": 20,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "channels-terminal/reducer.ts",
+      "line": 22,
+      "col": 20,
+      "mutator": "EqualityOperator",
+      "replacement": "content.length >= 0"
+    },
+    {
+      "file": "channels-terminal/reducer.ts",
+      "line": 33,
+      "col": 5,
+      "mutator": "ConditionalExpression",
+      "replacement": "case ActionType.TerminalInput:"
+    },
+    {
+      "file": "channels-terminal/reducer.ts",
+      "line": 77,
+      "col": 13,
+      "mutator": "ConditionalExpression",
+      "replacement": "true"
+    },
+    {
+      "file": "common/reducer-helpers.ts",
+      "line": 31,
+      "col": 82,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    },
+    {
+      "file": "common/reducer-helpers.ts",
+      "line": 32,
+      "col": 15,
+      "mutator": "StringLiteral",
+      "replacement": "``"
+    },
+    {
+      "file": "common/reducer-helpers.ts",
+      "line": 33,
+      "col": 4,
+      "mutator": "LogicalOperator",
+      "replacement": "log && console.warn"
+    },
+    {
+      "file": "common/reducer-helpers.ts",
+      "line": 44,
+      "col": 206,
+      "mutator": "BlockStatement",
+      "replacement": "{}"
+    }
+  ]
+}

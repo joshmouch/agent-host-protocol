@@ -1,0 +1,15 @@
+{
+  "name": "ahp-conformance-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AHP host-conformance runner. A scripted replay CLIENT that loads a *.scenario.json, starts the scenario-driven host, connects over a REAL WebSocket, replays the client.request steps, applies server.notify action envelopes through the CANONICAL in-repo sessionReducer/rootReducer/terminalReducer/changesetReducer/resourceWatchReducer, and checks every client.assert.* step. No mocks: real files, real ws transport, real reducer, real assertions. Depends on the in-repo TypeScript client (file: dependency) for the canonical reducers — no published package.",
+  "scripts": {
+    "one": "node run-conformance.mjs",
+    "suite": "node conformance-suite.mjs"
+  },
+  "dependencies": {
+    "@microsoft/agent-host-protocol": "file:../../clients/typescript",
+    "ws": "^8.20.0"
+  }
+}

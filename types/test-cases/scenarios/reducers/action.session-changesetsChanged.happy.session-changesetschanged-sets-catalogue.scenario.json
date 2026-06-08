@@ -1,0 +1,90 @@
+{
+  "id": "action.session-changesetsChanged.happy.session-changesetschanged-sets-catalogue",
+  "behaviorIds": [
+    "action.session-changesetsChanged.happy.session-changesetschanged-sets-catalogue"
+  ],
+  "description": "Reducer fixture: session/changesetsChanged replaces state.changesets with the new catalogue. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/145-session-changesetschanged-sets-catalogue.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "ready",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/changesetsChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/changesetsChanged",
+          "changesets": [
+            {
+              "label": "Session Changes",
+              "uriTemplate": "copilot:/test-session/changeset/session",
+              "changeKind": "session"
+            }
+          ]
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 1000
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "changesets": [
+          {
+            "label": "Session Changes",
+            "uriTemplate": "copilot:/test-session/changeset/session",
+            "changeKind": "session"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable><ImplicitUsings>disable</ImplicitUsings><RollForward>Major</RollForward>
+  </PropertyGroup>
+  <!--
+    Self-contained against the IN-REPO .NET client: ProjectReference (built from
+    source) instead of <Reference HintPath> to machine-absolute prebuilt DLLs.
+    The referenced libraries multi-target net8.0;net9.0; this exe pins net8.0.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../../clients/dotnet/src/AgentHostProtocol.Abstractions/AgentHostProtocol.Abstractions.csproj" />
+    <ProjectReference Include="../../../clients/dotnet/src/AgentHostProtocol/AgentHostProtocol.csproj" />
+    <ProjectReference Include="../../../clients/dotnet/src/AgentHostProtocol.WebSockets/AgentHostProtocol.WebSockets.csproj" />
+  </ItemGroup>
+</Project>

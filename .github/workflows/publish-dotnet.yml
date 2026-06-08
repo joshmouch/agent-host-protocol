@@ -1,0 +1,128 @@
+name: Publish .NET Packages
+
+on:
+  push:
+    tags:
+      - "dotnet/v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-dotnet-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: clients/dotnet
+
+jobs:
+  # Re-run every gate the per-PR CI runs, plus tag ↔ VERSION cross-check,
+  # before publishing anything.
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      - name: Verify generated .NET is up to date
+        working-directory: .
+        run: |
+          npm run generate:dotnet
+          if [ -n "$(git status --porcelain -- clients/dotnet)" ]; then
+            echo "::error::Generated .NET sources are out of date. Run 'npm run generate:dotnet' and commit the result before tagging."
+            git status --porcelain -- clients/dotnet
+            git --no-pager diff -- clients/dotnet
+            exit 1
+          fi
+
+      - name: Verify release metadata
+        working-directory: .
+        run: npm run verify:release-metadata
+
+      - name: Verify CHANGELOG entry exists
+        working-directory: .
+        run: npm run verify:changelog
+
+      - name: Verify CHANGELOG entry exists for tag version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#dotnet/v}"
+          if ! grep -qE "^## \[$TAG_VERSION\]" CHANGELOG.md; then
+            echo "::error::clients/dotnet/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+            exit 1
+          fi
+
+      - name: Verify tag matches clients/dotnet/VERSION
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#dotnet/v}"
+          FILE_VERSION="$(cat VERSION | tr -d '[:space:]')"
+          if [ "$TAG_VERSION" != "$FILE_VERSION" ]; then
+            echo "::error::Tag version ($TAG_VERSION) does not match clients/dotnet/VERSION ($FILE_VERSION)"
+            exit 1
+          fi
+          echo "Releasing .NET packages version $FILE_VERSION"
+
+      - name: Build and test
+        run: |
+          dotnet build --configuration Release
+          dotnet test --no-build --configuration Release
+
+  # Pack the publishable libraries and push to NuGet.org, then publish a
+  # GitHub Release with the CHANGELOG section for the tag as the body.
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Pack
+        run: dotnet pack --configuration Release -p:Version="${GITHUB_REF_NAME#dotnet/v}" --output "${{ runner.temp }}/nupkgs"
+
+      - name: Push to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "::error::NUGET_API_KEY secret is not set; cannot publish."
+            exit 1
+          fi
+          dotnet nuget push "${{ runner.temp }}/nupkgs/*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Create GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#dotnet/v}"
+          NOTES=$(awk "/^## \\[$TAG_VERSION\\]/{flag=1;print;next} /^## /{flag=0} flag" clients/dotnet/CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            NOTES="Release notes: see clients/dotnet/CHANGELOG.md"
+          fi
+          gh release create "${GITHUB_REF_NAME}" \
+            --title ".NET packages v${TAG_VERSION}" \
+            --notes "$NOTES"

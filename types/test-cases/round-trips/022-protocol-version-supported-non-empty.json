@@ -1,0 +1,8 @@
+{
+  "name": "protocol-version-supported-non-empty",
+  "description": "ProtocolVersion.Supported is a non-empty list of supported version strings.",
+  "type": "ProtocolVersion",
+  "expectConstant": {
+    "supported": "non-empty-list"
+  }
+}

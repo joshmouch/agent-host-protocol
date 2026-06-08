@@ -1,0 +1,34 @@
+{
+  "id": "error.ParseError.error.jsonrpc-code",
+  "behaviorIds": [
+    "error.ParseError.error.jsonrpc-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32700 in the appropriate scenario. Client surfaces JSON-RPC error code -32700.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.ParseError.error.jsonrpc-code. JSON-RPC 2.0 standard error code -32700. Malformed JSON — server cannot parse the request frame",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "_malformed": true
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32700",
+      "forId": 1,
+      "error": {
+        "code": -32700,
+        "message": "Error: error:ParseError"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32700",
+      "code": -32700
+    }
+  ]
+}

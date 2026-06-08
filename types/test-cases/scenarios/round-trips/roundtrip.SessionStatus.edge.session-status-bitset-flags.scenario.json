@@ -1,0 +1,53 @@
+{
+  "id": "roundtrip.SessionStatus.edge.session-status-bitset-flags",
+  "behaviorIds": [
+    "roundtrip.SessionStatus.edge.session-status-bitset-flags"
+  ],
+  "description": "Round-trip: SessionStatus is a numeric bitset on the wire. InProgress(8)|IsArchived(64)=72 decodes, the set bits are observable, and an unset bit (Idle=1) is absent.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/004-session-status-bitset-flags.json. Type: SessionStatus.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize to seed a session with the status bitset",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "snapshot with session containing the SessionStatus under test",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/bitset-test",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/bitset-test",
+                "provider": "copilot",
+                "title": "bitset test",
+                "status": 72,
+                "createdAt": 1000,
+                "modifiedAt": 1000
+              },
+              "lifecycle": "ready",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "status bitset preserved in reduced state",
+      "channel": "ahp-session:/bitset-test",
+      "path": "summary.status",
+      "equals": 72
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "changeset-target-range",
+  "description": "ChangesetOperationTarget with kind=range decodes the range-target variant including its nested start/end range; the discriminator and range survive a re-encode round-trip.",
+  "type": "ChangesetOperationTarget",
+  "wireRaw": "{\"kind\":\"range\",\"resource\":\"file:///a.txt\",\"range\":{\"start\":2,\"end\":5}}",
+  "expect": {
+    "kind": "range",
+    "resource": "file:///a.txt",
+    "range.start": 2,
+    "range.end": 5
+  },
+  "expectVariant": {
+    "": "ChangesetOperationRangeTarget"
+  },
+  "roundTripStable": true
+}

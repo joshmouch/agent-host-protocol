@@ -1,0 +1,25 @@
+{
+  "id": "roundtrip.JsonRpcMessage.happy.jsonrpc-request",
+  "behaviorIds": [
+    "roundtrip.JsonRpcMessage.happy.jsonrpc-request"
+  ],
+  "description": "Round-trip: A JsonRpcMessage with id+method+params decodes as the request variant.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/008-jsonrpc-request.json. Type: JsonRpcMessage.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "JsonRpcMessage (request): jsonrpc-request",
+      "method": "initialize",
+      "params": {}
+    },
+    {
+      "op": "client.assert.event",
+      "label": "message received with correct method",
+      "matches": {
+        "method": "initialize"
+      }
+    }
+  ]
+}

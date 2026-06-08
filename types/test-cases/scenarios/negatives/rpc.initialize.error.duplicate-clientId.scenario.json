@@ -1,0 +1,37 @@
+{
+  "id": "rpc.initialize.error.duplicate-clientId",
+  "behaviorIds": [
+    "rpc.initialize.error.duplicate-clientId"
+  ],
+  "description": "Negative/error-path: Two concurrent connections sending initialize with identical clientId either returns error or the first is evicted. Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: rpc.initialize.error.duplicate-clientId. clientId is documented as \"Unique client identifier\". Behavior when two connections share the same clientId is unspecified; negative test should explore how the host handles it.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send initialize to trigger the error condition",
+      "method": "initialize",
+      "params": {
+        "protocolVersions": [
+          "0.3.0"
+        ],
+        "clientId": "duplicate-client"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: duplicate-clientId"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

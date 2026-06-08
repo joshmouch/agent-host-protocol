@@ -1,0 +1,23 @@
+[versions]
+kotlin = "2.3.21"
+kotlinx-serialization = "1.11.0"
+junit-jupiter = "5.13.0"
+# JUnit Platform releases share a major and a coordinated minor with the
+# Jupiter release line. JUnit Jupiter 5.x → JUnit Platform 1.x, with the
+# minor aligned (e.g. Jupiter 5.13.x ↔ Platform 1.13.x). Bump together.
+junit-platform = "1.13.0"
+maven-publish = "0.36.0"
+
+[libraries]
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+# Gradle 9 requires `junit-platform-launcher` on the test runtime classpath
+# explicitly when using JUnit Platform; relying on the transitive constraint
+# from `junit-jupiter` works today but is fragile across Jupiter upgrades.
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "maven-publish" }

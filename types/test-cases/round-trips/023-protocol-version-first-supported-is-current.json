@@ -1,0 +1,8 @@
+{
+  "name": "protocol-version-first-supported-is-current",
+  "description": "The first entry of ProtocolVersion.Supported equals ProtocolVersion.Current.",
+  "type": "ProtocolVersion",
+  "expectConstant": {
+    "firstSupportedEqualsCurrent": true
+  }
+}

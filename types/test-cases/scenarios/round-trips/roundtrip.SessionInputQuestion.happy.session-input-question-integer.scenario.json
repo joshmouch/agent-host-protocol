@@ -1,0 +1,37 @@
+{
+  "id": "roundtrip.SessionInputQuestion.happy.session-input-question-integer",
+  "behaviorIds": [
+    "roundtrip.SessionInputQuestion.happy.session-input-question-integer"
+  ],
+  "description": "Round-trip: SessionInputQuestion kind=integer also maps to the number-question variant, but the typed Kind preserves `integer` (distinct from `number`); defaultValue decodes.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/015-session-input-question-integer.json. Type: SessionInputQuestion.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for SessionInputQuestion: session-input-question-integer",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "kind": "integer",
+          "id": "q2",
+          "message": "How many whole?",
+          "defaultValue": 3
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "kind": "integer",
+        "id": "q2",
+        "defaultValue": 3
+      }
+    }
+  ]
+}

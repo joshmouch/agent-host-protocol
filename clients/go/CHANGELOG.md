@@ -62,6 +62,10 @@ Implements AHP 0.3.0.
 - Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
 
 ### Changed
+- `ApplyActionToChangeset` reducer — the changeset reducer is now implemented
+  (previously a no-op stub), so `changeset/*` actions fold into
+  `ChangesetState`. Brings the Go client to full cross-language conformance
+  parity on the changeset channel.
 
 - `ToolCallBase.ToolClientId *string` replaced by
   `ToolCallBase.Contributor *ToolCallContributor` (union with

@@ -1,0 +1,137 @@
+{
+  "id": "action.session-toolCallContentChanged.edge.toolcall-contentchanged-noop-non-running",
+  "behaviorIds": [
+    "action.session-toolCallContentChanged.edge.toolcall-contentchanged-noop-non-running"
+  ],
+  "description": "Reducer fixture: toolCallContentChanged is no-op for non-running tool call. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/085-toolcall-contentchanged-noop-non-running.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 8,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "activeTurn": {
+                "id": "turn-1",
+                "message": {
+                  "text": "Hello",
+                  "origin": {
+                    "kind": "user"
+                  }
+                },
+                "responseParts": [
+                  {
+                    "kind": "toolCall",
+                    "toolCall": {
+                      "status": "completed",
+                      "toolCallId": "tc-1",
+                      "toolName": "bash",
+                      "displayName": "Run Command",
+                      "invocationMessage": "Ran command",
+                      "toolInput": "ls -la",
+                      "confirmed": "user-action",
+                      "success": true,
+                      "pastTenseMessage": "Ran command"
+                    }
+                  }
+                ],
+                "usage": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallContentChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallContentChanged",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "content": [
+            {
+              "type": "terminal",
+              "resource": "agenthost:/terminal/1",
+              "title": "bash"
+            }
+          ]
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 8,
+          "createdAt": 1000,
+          "modifiedAt": 2000
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "activeTurn": {
+          "id": "turn-1",
+          "message": {
+            "text": "Hello",
+            "origin": {
+              "kind": "user"
+            }
+          },
+          "responseParts": [
+            {
+              "kind": "toolCall",
+              "toolCall": {
+                "status": "completed",
+                "toolCallId": "tc-1",
+                "toolName": "bash",
+                "displayName": "Run Command",
+                "invocationMessage": "Ran command",
+                "toolInput": "ls -la",
+                "confirmed": "user-action",
+                "success": true,
+                "pastTenseMessage": "Ran command"
+              }
+            }
+          ],
+          "usage": null
+        }
+      }
+    }
+  ]
+}

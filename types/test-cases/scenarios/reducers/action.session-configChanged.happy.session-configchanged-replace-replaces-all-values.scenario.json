@@ -1,0 +1,133 @@
+{
+  "id": "action.session-configChanged.happy.session-configchanged-replace-replaces-all-values",
+  "behaviorIds": [
+    "action.session-configChanged.happy.session-configchanged-replace-replaces-all-values"
+  ],
+  "description": "Reducer fixture: session/configChanged with replace replaces all config values. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/129-session-configchanged-replace-replaces-all-values.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test",
+                "provider": "copilot",
+                "title": "Test",
+                "status": 1,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "config": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "target": {
+                      "type": "string",
+                      "title": "Target",
+                      "enum": [
+                        "workspace",
+                        "worktree"
+                      ]
+                    },
+                    "baseBranch": {
+                      "type": "string",
+                      "title": "Base Branch",
+                      "enum": [
+                        "main",
+                        "develop"
+                      ]
+                    }
+                  }
+                },
+                "values": {
+                  "target": "worktree",
+                  "baseBranch": "main"
+                }
+              },
+              "lifecycle": "ready",
+              "turns": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/configChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/configChanged",
+          "config": {
+            "baseBranch": "develop"
+          },
+          "replace": true
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test",
+          "provider": "copilot",
+          "title": "Test",
+          "status": 1,
+          "createdAt": 1000,
+          "modifiedAt": 9999
+        },
+        "config": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "target": {
+                "type": "string",
+                "title": "Target",
+                "enum": [
+                  "workspace",
+                  "worktree"
+                ]
+              },
+              "baseBranch": {
+                "type": "string",
+                "title": "Base Branch",
+                "enum": [
+                  "main",
+                  "develop"
+                ]
+              }
+            }
+          },
+          "values": {
+            "baseBranch": "develop"
+          }
+        },
+        "lifecycle": "ready",
+        "turns": []
+      }
+    }
+  ]
+}

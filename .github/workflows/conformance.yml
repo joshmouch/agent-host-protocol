@@ -1,0 +1,226 @@
+name: Conformance
+
+# AHP cross-implementation conformance suite.
+#
+#   1. core-gate     — the machine-checked CI gate (conformance/ci/gate.mjs):
+#                      scenario shape + host-conformance 233/233 + discovery
+#                      integrity (656 grounded) + the CORPUS-COVERS-MATRIX
+#                      exhaustiveness ratchet. Fast, dependency-light, blocking.
+#   2. client-<lang> — a matrix job per client (TS already runs inside the gate
+#                      via the host runner; .NET / Go / Rust / Kotlin / Swift each
+#                      replay the full 233-scenario corpus against the real host
+#                      over a real WebSocket through their own native reducers).
+#   3. mutation      — nightly + on-demand Stryker run over the canonical TS
+#                      reducers (conformance/mutation, break:87). NOT on every PR
+#                      (it is the slowest job and its floor is a regression guard,
+#                      not a per-change gate).
+#
+# Every command below is the REAL command the local runners use — see each
+# conformance/<lang>/ run script and conformance/REPORT.md for the provenance.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Nightly at 07:00 UTC — drives the `mutation` job (which is skipped on PRs).
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      run_mutation:
+        description: 'Run the mutation job on this manual trigger'
+        type: boolean
+        default: true
+
+# A newer push to the same branch/PR cancels the older in-flight run.
+concurrency:
+  group: conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. The machine-checked core gate ─────────────────────────────────────────
+  # Skipped on the nightly `schedule` trigger (which exists only to drive the
+  # mutation job); runs on every push / PR / manual dispatch.
+  core-gate:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      # Root deps (the host-conformance runner's run.sh bootstraps the in-repo
+      # TypeScript client + its own deps on first run; npm ci primes the cache).
+      - run: npm ci
+
+      # The single dependency-free gate script. It internally shells:
+      #   • node types/test-cases/scenarios/scripts/validate-scenarios.mjs
+      #   • bash conformance/runner/run.sh --all-reducers --concurrency 1   (233/233)
+      #   • node conformance/discovery/scripts/validate-inventory.mjs  out/d1..d10
+      #   • node conformance/discovery/scripts/verify-citations.mjs    out/d1..d10
+      #   • its own CORPUS-COVERS-MATRIX computation + ratchet-floor check.
+      # Exits non-zero on the first hard failure.
+      - name: Conformance core gate (scenario shape + host 233/233 + discovery 656 + corpus-covers-matrix)
+        run: node conformance/ci/gate.mjs
+
+  # ── 2. Per-client corpus replay (the cross-implementation matrix) ────────────
+  # Each client replays the full 233-scenario corpus against the SAME real
+  # scenario-driven host over a real WebSocket through its own native reducers.
+
+  client-dotnet:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - run: npm ci
+      # conformance/run-corpus.sh bootstraps the TS client + conformance host,
+      # builds the .NET CorpusRunner through its <ProjectReference> chain, and
+      # runs the full corpus. Expected tail: "Results: 233/233 passed, 0 failed".
+      - name: .NET corpus (233/233)
+        run: bash conformance/run-corpus.sh
+
+  client-go:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+          cache-dependency-path: conformance/go/go.sum
+      - run: npm ci
+      # Mirror the repo's gofmt bar so the conformance Go runner is held to the
+      # same formatting as the shipped clients/go module. `gofmt -l` lists files
+      # whose formatting differs; a non-empty list fails the job.
+      - name: Check Go formatting (conformance runner)
+        run: |
+          unformatted="$(gofmt -l conformance/go/)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::Go files are not gofmt-clean. Run 'gofmt -w conformance/go/' and commit:"
+            echo "$unformatted"
+            exit 1
+          fi
+      # conformance/go/run.sh => `go run . <scenarios> --all-reducers`
+      # (the scenario host is spawned per scenario; the Go reducers apply every
+      # action). Runs the full 233-scenario corpus.
+      - name: Go corpus (233/233)
+        run: bash conformance/go/run.sh
+
+  client-rust:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: conformance/rust
+      - run: npm ci
+      # Mirror the repo's rustfmt guard (ci.yml's `cargo fmt --all -- --check`)
+      # so the conformance Rust runner is held to the same formatting bar as the
+      # shipped clients/rust crate. Package-scoped (no --all): this crate has
+      # path-deps on clients/rust, whose formatting is gated by its own ci.yml
+      # job — we only check the conformance runner's own sources here.
+      - name: Check Rust formatting (conformance runner)
+        working-directory: conformance/rust
+        run: cargo fmt --check
+      # The Rust runner spawns `node conformance/host/scenario-host.mjs` per
+      # scenario and applies every action through the ahp crate's reducers.
+      # `--full` selects the full 233-scenario tranche.
+      - name: Rust corpus (233/233)
+        working-directory: conformance/rust
+        run: cargo run --release -- --full
+
+  client-kotlin:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: gradle/actions/wrapper-validation@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+      - run: npm ci
+      # conformance/kotlin/run.sh drives the real Kotlin client (reducer + types
+      # + KSerializer) against the scenario host over a real WebSocket via the
+      # Gradle test task. `--full` selects the full 233-scenario tranche; the JDK
+      # is provided by setup-java, so run.sh's JAVA_HOME fallback is unused here.
+      - name: Kotlin corpus (233/233)
+        run: bash conformance/kotlin/run.sh --full
+
+  client-swift:
+    if: github.event_name != 'schedule'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The Swift runner (conformance/swift) depends on the root AgentHostProtocol
+      # package and replays the corpus against the scenario host over a real
+      # URLSessionWebSocketTask. With no scenario arguments it runs all
+      # round-trips + reducers + negatives (the full 233-scenario corpus).
+      - name: Swift corpus (233/233)
+        run: swift run --package-path conformance/swift ConformanceRunner
+
+  # ── 3. Mutation (nightly + on-demand only; NOT a per-PR gate) ────────────────
+  # Stryker mutates the canonical TS reducers and re-runs the corpus as the
+  # kill-signal. break:87 (stryker.conf.json) fails the run only on a regression
+  # below today's 87.70% kill-rate. KEEP decision: conformance/mutation/DECISION.md.
+  mutation:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_mutation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      # The conformance host + TS client must be built so the replay-corpus
+      # kill-signal can run the real reducers against the real host.
+      - run: npm ci
+      - name: Bootstrap host + TS client (prime the replay-corpus deps)
+        run: bash conformance/runner/run.sh --all-reducers --concurrency 1
+      - name: Install mutation deps
+        working-directory: conformance/mutation
+        run: npm ci
+      # `npm run mutate` => `stryker run stryker.conf.json`. The thresholds.break:87
+      # makes Stryker exit non-zero if the kill-rate regresses below the floor.
+      - name: Stryker mutation run (break:87)
+        working-directory: conformance/mutation
+        run: npm run mutate

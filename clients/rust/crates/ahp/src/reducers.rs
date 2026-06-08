@@ -55,13 +55,15 @@ use ahp_types::actions::{
     SessionToolCallResultConfirmedAction, SessionTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, ChildCustomization, ConfirmationOption, Customization, ErrorInfo, PendingMessage,
-    PendingMessageKind, ResponsePart, RootState, SessionInputRequest, SessionLifecycle,
-    SessionState, SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
+    ActiveTurn, ChangesetOperationStatus, ChangesetState, ChildCustomization,
+    ConfirmationOption, Customization, ErrorInfo, PendingMessage, PendingMessageKind,
+    ResponsePart, RootState, SessionInputRequest, SessionLifecycle, SessionState,
+    SessionStatus, TerminalCommandPart, TerminalContentPart, TerminalState,
     TerminalUnclassifiedPart, ToolCallCancellationReason, ToolCallCancelledState,
     ToolCallCompletedState, ToolCallConfirmationReason, ToolCallContributor,
-    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState, ToolCallResponsePart,
-    ToolCallRunningState, ToolCallState, ToolCallStreamingState, Turn, TurnState,
+    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState,
+    ToolCallResponsePart, ToolCallRunningState, ToolCallState, ToolCallStreamingState, Turn,
+    TurnState,
 };
 
 /// What happened when an action was applied.
@@ -77,15 +79,44 @@ pub enum ReduceOutcome {
     OutOfScope,
 }
 
+/// Global clock override for deterministic testing/conformance.
+///
+/// A value of `i64::MIN` means "not set; use SystemTime::now()".
+/// Set via [`set_clock_override`]; clear via [`clear_clock_override`].
+static GLOBAL_CLOCK_OVERRIDE: std::sync::atomic::AtomicI64 =
+    std::sync::atomic::AtomicI64::new(i64::MIN);
+
+/// Pin all `now_ms()` calls to `epoch_ms`.
+///
+/// Useful in conformance runners and deterministic tests that cannot use
+/// `#[cfg(test)]` thread-locals (e.g. when the reducer is exercised from a
+/// binary rather than a `cargo test` harness).
+pub fn set_clock_override(epoch_ms: i64) {
+    GLOBAL_CLOCK_OVERRIDE.store(epoch_ms, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Remove the global clock override; `now_ms()` reverts to `SystemTime::now()`.
+pub fn clear_clock_override() {
+    GLOBAL_CLOCK_OVERRIDE.store(i64::MIN, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[cfg(test)]
 thread_local! {
     static MOCK_NOW_MS: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
 }
 
 fn now_ms() -> i64 {
+    // Thread-local test override takes highest precedence (existing behaviour).
     #[cfg(test)]
     {
         if let Some(v) = MOCK_NOW_MS.with(|c| c.get()) {
+            return v;
+        }
+    }
+    // Global atomic override (for conformance binary, integration tests, etc.).
+    {
+        let v = GLOBAL_CLOCK_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed);
+        if v != i64::MIN {
             return v;
         }
     }
@@ -181,7 +212,7 @@ const STATUS_ACTIVITY_MASK: u32 = (1 << 5) - 1;
 
 /// Sets or clears a metadata flag on a status value.
 fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
-    let f = flag as u32;
+    let f = flag.bits();
     if set {
         status | f
     } else {
@@ -191,7 +222,7 @@ fn with_status_flag(status: u32, flag: SessionStatus, set: bool) -> u32 {
 
 fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 {
     let activity: u32 = if let Some(t) = terminal {
-        t as u32
+        t.bits()
     } else if state
         .input_requests
         .as_ref()
@@ -199,11 +230,11 @@ fn summary_status(state: &SessionState, terminal: Option<SessionStatus>) -> u32 
         .unwrap_or(false)
         || has_pending_tool_call_confirmation(state)
     {
-        SessionStatus::InputNeeded as u32
+        SessionStatus::InputNeeded.bits()
     } else if state.active_turn.is_some() {
-        SessionStatus::InProgress as u32
+        SessionStatus::InProgress.bits()
     } else {
-        SessionStatus::Idle as u32
+        SessionStatus::Idle.bits()
     };
     (state.summary.status & !STATUS_ACTIVITY_MASK) | activity
 }
@@ -1144,6 +1175,81 @@ fn apply_input_answer_changed(
     ReduceOutcome::Applied
 }
 
+// ─── Changeset Reducer ────────────────────────────────────────────────
+
+/// Apply a [`StateAction`] to a [`ChangesetState`] in place.
+///
+/// Mirrors the Kotlin `changesetReducer` and the TypeScript `changesetReducer`.
+/// Actions that target a different scope are returned as
+/// [`ReduceOutcome::OutOfScope`].
+pub fn apply_action_to_changeset(
+    state: &mut ChangesetState,
+    action: &StateAction,
+) -> ReduceOutcome {
+    match action {
+        StateAction::ChangesetStatusChanged(a) => {
+            // Carry `error` only when the new status is `Error` so we don't
+            // leave a stale error sitting on a recovered changeset.
+            if a.status == ahp_types::state::ChangesetStatus::Error {
+                state.status = a.status;
+                state.error = a.error.clone();
+            } else {
+                state.status = a.status;
+                state.error = None;
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetFileSet(a) => {
+            let file = a.file.clone();
+            if let Some(idx) = state.files.iter().position(|f| f.id == file.id) {
+                state.files[idx] = file;
+            } else {
+                state.files.push(file);
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetFileRemoved(a) => {
+            if let Some(idx) = state.files.iter().position(|f| f.id == a.file_id) {
+                state.files.remove(idx);
+                ReduceOutcome::Applied
+            } else {
+                ReduceOutcome::NoOp
+            }
+        }
+        StateAction::ChangesetOperationsChanged(a) => {
+            state.operations = a.operations.clone();
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetOperationStatusChanged(a) => {
+            let Some(ops) = state.operations.as_mut() else {
+                return ReduceOutcome::NoOp;
+            };
+            let Some(idx) = ops.iter().position(|op| op.id == a.operation_id) else {
+                return ReduceOutcome::NoOp;
+            };
+            // Carry `error` only when the new status is `Error` so we don't
+            // leave a stale error on an operation that recovered or started running.
+            if a.status == ChangesetOperationStatus::Error {
+                ops[idx].status = a.status;
+                ops[idx].error = a.error.clone();
+            } else {
+                ops[idx].status = a.status;
+                ops[idx].error = None;
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::ChangesetCleared(_) => {
+            if state.files.is_empty() {
+                ReduceOutcome::NoOp
+            } else {
+                state.files.clear();
+                ReduceOutcome::Applied
+            }
+        }
+        _ => ReduceOutcome::OutOfScope,
+    }
+}
+
 // ─── Terminal Reducer ─────────────────────────────────────────────────
 
 /// Apply a [`StateAction`] to a [`TerminalState`] in place.
@@ -1250,7 +1356,7 @@ mod tests {
                 resource: resource.to_string(),
                 provider: "test".to_string(),
                 title: String::new(),
-                status: SessionStatus::Idle as u32,
+                status: SessionStatus::Idle.bits(),
                 activity: None,
                 created_at: 0,
                 modified_at: 0,
@@ -1288,7 +1394,7 @@ mod tests {
             apply_action_to_session(&mut s, &action),
             ReduceOutcome::Applied
         );
-        assert_eq!(s.summary.status, SessionStatus::InProgress as u32);
+        assert_eq!(s.summary.status, SessionStatus::InProgress.bits());
         assert_eq!(s.active_turn.unwrap().id, "t1");
     }
 
@@ -1325,7 +1431,7 @@ mod tests {
             response_parts: Vec::new(),
             usage: None,
         });
-        s.summary.status = SessionStatus::InProgress as u32;
+        s.summary.status = SessionStatus::InProgress.bits();
         let a = StateAction::SessionTurnComplete(ahp_types::actions::SessionTurnCompleteAction {
             turn_id: "t1".into(),
         });
@@ -1333,7 +1439,7 @@ mod tests {
         assert!(s.active_turn.is_none());
         assert_eq!(s.turns.len(), 1);
         assert_eq!(s.turns[0].state, TurnState::Complete);
-        assert_eq!(s.summary.status, SessionStatus::Idle as u32);
+        assert_eq!(s.summary.status, SessionStatus::Idle.bits());
     }
 
     #[test]
@@ -1554,11 +1660,14 @@ mod tests {
                     &file_name,
                     description,
                 ),
-                "changeset" => {
-                    // changeset reducer not yet implemented in Rust; skip.
-                    skipped += 1;
-                    continue;
-                }
+                "changeset" => run_fixture::<ChangesetState>(
+                    initial,
+                    expected,
+                    &parsed_actions,
+                    apply_action_to_changeset,
+                    &file_name,
+                    description,
+                ),
                 "resourceWatch" => {
                     // resourceWatch reducer not yet implemented in Rust; skip.
                     skipped += 1;

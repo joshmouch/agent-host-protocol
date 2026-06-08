@@ -1,0 +1,37 @@
+{
+  "id": "versioning.UnsupportedProtocolVersion.version.close-after-refuse",
+  "behaviorIds": [
+    "versioning.UnsupportedProtocolVersion.version.close-after-refuse"
+  ],
+  "description": "Negative/error-path: After -32005 response, the transport connection is terminated by the server. Client surfaces JSON-RPC error code -32005.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: versioning.UnsupportedProtocolVersion.version.close-after-refuse. After returning -32005, the server MUST close the connection per the versioning spec.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send initialize to trigger the error condition",
+      "method": "initialize",
+      "params": {
+        "protocolVersions": [
+          "999.0.0"
+        ],
+        "clientId": "test-client"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32005",
+      "forId": 1,
+      "error": {
+        "code": -32005,
+        "message": "Error: error:UnsupportedProtocolVersion"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32005",
+      "code": -32005
+    }
+  ]
+}

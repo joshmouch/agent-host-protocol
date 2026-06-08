@@ -1,0 +1,32 @@
+{
+  "id": "error.InvalidRequest.error.jsonrpc-code",
+  "behaviorIds": [
+    "error.InvalidRequest.error.jsonrpc-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32600 in the appropriate scenario. Client surfaces JSON-RPC error code -32600.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.InvalidRequest.error.jsonrpc-code. JSON-RPC 2.0 standard error code -32600. Not a valid JSON-RPC 2.0 request object",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send ping to trigger the error condition",
+      "method": "ping",
+      "params": null,
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32600",
+      "forId": 1,
+      "error": {
+        "code": -32600,
+        "message": "Error: error:InvalidRequest"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32600",
+      "code": -32600
+    }
+  ]
+}

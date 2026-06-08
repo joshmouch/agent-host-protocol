@@ -1,0 +1,25 @@
+{
+  "_comment": "RATCHET FLOOR for the CORPUS-COVERS-MATRIX exhaustiveness check in conformance/ci/gate.mjs. Like the mutation break:87 floor (conformance/mutation/stryker.conf.json) and the .NET parity MIN_TEST_COUNT: the gate FAILS only on REGRESSION below these numbers — coverage may freely rise; it may never silently fall. Recompute the live numbers with `node conformance/ci/gate.mjs --print-coverage` and, when they legitimately improve, raise the floor here in the same commit (never lower it to make a red gate green).",
+  "_generatedFrom": [
+    "types/test-cases/scenarios/**/*.scenario.json  (corpus behaviorIds)",
+    "conformance/discovery/out/d11-surface-matrix.jsonl  (the D11 discovery surface)"
+  ],
+  "_recomputedOn": "2026-06-06",
+
+  "scenarioMappableAngleCoverage": {
+    "_meaning": "The exhaustiveness invariant: EVERY discovery behavior on a scenario-producing angle (D5 fixture-derived + D7 negative-paths) MUST be represented by a corpus scenario's behaviorIds. These two angles are the ones whose behavior-ids are authored to map 1:1 onto runnable scenarios; the gate enforces 100% and prints any uncovered behavior on failure.",
+    "angles": ["d5-fixture", "d7-negative"],
+    "distinctBehaviorIds": 233,
+    "coveredByCorpus": 233,
+    "minCovered": 233
+  },
+
+  "d11SurfaceCoverage": {
+    "_meaning": "Headline breadth metric: the fraction of the WHOLE D11 surface (every distinct behavior-id across all 10 discovery angles, including the ones authored under schema/spec/mutation naming that do NOT map 1:1 onto a scenario id) that a corpus behaviorId touches. Reported for transparency and ratcheted as a floor; it is NOT expected to be 100% (the un-touched remainder is the enumerated Part-2 authoring backlog the reconciliation already names).",
+    "distinctD11BehaviorIds": 652,
+    "coveredByCorpus": 235,
+    "minCovered": 235,
+    "pct": 36.0,
+    "minPct": 36.0
+  }
+}

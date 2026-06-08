@@ -1,0 +1,94 @@
+{
+  "id": "action.root-terminalsChanged.happy.root-terminalschanged",
+  "behaviorIds": [
+    "action.root-terminalsChanged.happy.root-terminalschanged"
+  ],
+  "description": "Reducer fixture: root/terminalsChanged. Verifies that the client's root reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/071-root-terminalschanged.json. Reducer: root.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-root://",
+            "fromSeq": 0,
+            "state": {
+              "agents": []
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: root/terminalsChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-root://",
+        "action": {
+          "type": "root/terminalsChanged",
+          "terminals": [
+            {
+              "resource": "agenthost:/terminal/1",
+              "title": "bash",
+              "claim": {
+                "kind": "client",
+                "clientId": "c1"
+              }
+            },
+            {
+              "resource": "agenthost:/terminal/2",
+              "title": "zsh",
+              "claim": {
+                "kind": "session",
+                "session": "copilot:/s1"
+              }
+            }
+          ]
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-root://",
+      "equals": {
+        "agents": [],
+        "terminals": [
+          {
+            "resource": "agenthost:/terminal/1",
+            "title": "bash",
+            "claim": {
+              "kind": "client",
+              "clientId": "c1"
+            }
+          },
+          {
+            "resource": "agenthost:/terminal/2",
+            "title": "zsh",
+            "claim": {
+              "kind": "session",
+              "session": "copilot:/s1"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

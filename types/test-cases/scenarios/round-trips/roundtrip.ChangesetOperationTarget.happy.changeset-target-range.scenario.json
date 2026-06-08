@@ -1,0 +1,42 @@
+{
+  "id": "roundtrip.ChangesetOperationTarget.happy.changeset-target-range",
+  "behaviorIds": [
+    "roundtrip.ChangesetOperationTarget.happy.changeset-target-range"
+  ],
+  "description": "Round-trip: ChangesetOperationTarget with kind=range decodes the range-target variant including its nested start/end range; the discriminator and range survive a re-encode round-trip.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/013-changeset-target-range.json. Type: ChangesetOperationTarget.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for ChangesetOperationTarget: changeset-target-range",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "kind": "range",
+          "resource": "file:///a.txt",
+          "range": {
+            "start": 2,
+            "end": 5
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "kind": "range",
+        "resource": "file:///a.txt",
+        "range": {
+          "start": 2,
+          "end": 5
+        }
+      }
+    }
+  ]
+}

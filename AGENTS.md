@@ -2,15 +2,16 @@
 
 Cross-cutting rules for AI coding agents working in this repository. Per-client
 codegen conventions are in `clients/kotlin/AGENTS.md`,
-`clients/swift/AGENTS.md`, and `clients/go/AGENTS.md`. Editorial rules
+`clients/swift/AGENTS.md`, `clients/go/AGENTS.md`, and
+`clients/dotnet/AGENTS.md`. Editorial rules
 for protocol types are in
 `.github/instructions/general-instructions.instructions.md`. Release mechanics
 are in [`RELEASING.md`](RELEASING.md).
 
 ## Updating CHANGELOGs
 
-This repo ships six independently-versioned artifacts (the spec plus
-the Rust / Kotlin / Swift / TypeScript / Go clients), each with its
+This repo ships seven independently-versioned artifacts (the spec plus
+the Rust / Kotlin / Swift / TypeScript / Go / .NET clients), each with its
 own `CHANGELOG.md` in Keep-a-Changelog format. The publish workflows
 refuse to release a tag whose matching `## [X.Y.Z]` heading is
 missing, so every user-visible change should land its CHANGELOG bullet
@@ -50,6 +51,7 @@ Map source paths to changelogs:
 | `clients/swift/**` (non-generated) | `clients/swift/CHANGELOG.md` only. |
 | `clients/typescript/**` (non-generated) | `clients/typescript/CHANGELOG.md` only. |
 | `clients/go/**` (non-generated) | `clients/go/CHANGELOG.md` only. |
+| `clients/dotnet/**` (non-generated) | `clients/dotnet/CHANGELOG.md` only. |
 | `schema/**` | Root `CHANGELOG.md` (the schema is a spec output). |
 | `scripts/generate*.ts` that changes any client's generated output | Every affected client's `CHANGELOG.md`. |
 

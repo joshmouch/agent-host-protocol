@@ -1,0 +1,156 @@
+{
+  "id": "action.session-toolCallStart.edge.toolcallready-transitions-running-tool-back-to-pending-confirmation",
+  "behaviorIds": [
+    "action.session-toolCallStart.edge.toolcallready-transitions-running-tool-back-to-pending-confirmation"
+  ],
+  "description": "Reducer fixture: toolCallReady transitions running tool back to pending-confirmation. Verifies that the client's session reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/026-toolcallready-transitions-running-tool-back-to-pending-confirmation.json. Reducer: session.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-session:/test-session",
+            "fromSeq": 0,
+            "state": {
+              "summary": {
+                "resource": "copilot:/test-session",
+                "provider": "copilot",
+                "title": "Test Session",
+                "status": 8,
+                "createdAt": 1000,
+                "modifiedAt": 2000
+              },
+              "lifecycle": "ready",
+              "turns": [],
+              "activeTurn": {
+                "id": "turn-1",
+                "message": {
+                  "text": "Hello",
+                  "origin": {
+                    "kind": "user"
+                  }
+                },
+                "responseParts": [],
+                "usage": null
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallStart",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallStart",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "toolName": "bash",
+          "displayName": "Run Command"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallReady",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallReady",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "invocationMessage": "Run",
+          "confirmed": "not-needed"
+        },
+        "serverSeq": 2,
+        "origin": null
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: session/toolCallReady",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/test-session",
+        "action": {
+          "type": "session/toolCallReady",
+          "turnId": "turn-1",
+          "toolCallId": "tc-1",
+          "invocationMessage": "Run: rm -rf /tmp/test",
+          "_meta": {
+            "permissionKind": "shell",
+            "fullCommandText": "rm -rf /tmp/test"
+          }
+        },
+        "serverSeq": 3,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-session:/test-session",
+      "equals": {
+        "summary": {
+          "resource": "copilot:/test-session",
+          "provider": "copilot",
+          "title": "Test Session",
+          "status": 24,
+          "createdAt": 1000,
+          "modifiedAt": 2000
+        },
+        "lifecycle": "ready",
+        "turns": [],
+        "activeTurn": {
+          "id": "turn-1",
+          "message": {
+            "text": "Hello",
+            "origin": {
+              "kind": "user"
+            }
+          },
+          "responseParts": [
+            {
+              "kind": "toolCall",
+              "toolCall": {
+                "status": "pending-confirmation",
+                "toolCallId": "tc-1",
+                "toolName": "bash",
+                "displayName": "Run Command",
+                "contributor": null,
+                "_meta": null,
+                "invocationMessage": "Run: rm -rf /tmp/test",
+                "toolInput": null,
+                "confirmationTitle": null,
+                "edits": null,
+                "editable": null
+              }
+            }
+          ],
+          "usage": null
+        }
+      }
+    }
+  ]
+}

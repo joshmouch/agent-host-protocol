@@ -1,0 +1,72 @@
+{
+  "id": "action.resourceWatch-changed.happy.resourcewatch-changed-passthrough",
+  "behaviorIds": [
+    "action.resourceWatch-changed.happy.resourcewatch-changed-passthrough"
+  ],
+  "description": "Reducer fixture: resourceWatch/changed is a passthrough — reducer keeps state unchanged. Verifies that the client's resourceWatch reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/200-resourcewatch-changed-passthrough.json. Reducer: resourceWatch.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-resource-watch:/test-watch",
+            "fromSeq": 0,
+            "state": {
+              "root": "file:///workspace",
+              "recursive": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: resourceWatch/changed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-resource-watch:/test-watch",
+        "action": {
+          "type": "resourceWatch/changed",
+          "changes": {
+            "items": [
+              {
+                "uri": "file:///workspace/a.txt",
+                "type": "added"
+              },
+              {
+                "uri": "file:///workspace/b.txt",
+                "type": "updated"
+              }
+            ]
+          }
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-resource-watch:/test-watch",
+      "equals": {
+        "root": "file:///workspace",
+        "recursive": true
+      }
+    }
+  ]
+}

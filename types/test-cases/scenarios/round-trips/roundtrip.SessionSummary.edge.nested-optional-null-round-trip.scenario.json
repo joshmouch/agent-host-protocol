@@ -1,0 +1,37 @@
+{
+  "id": "roundtrip.SessionSummary.edge.nested-optional-null-round-trip",
+  "behaviorIds": [
+    "roundtrip.SessionSummary.edge.nested-optional-null-round-trip"
+  ],
+  "description": "Round-trip: SessionSummary.project is an optional nested struct. A wire payload omitting it decodes with project null/absent, and a re-encode omits the `project` key entirely (JsonIgnore WhenWritingNull).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/018-nested-optional-null-round-trip.json. Type: SessionSummary.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "wire payload for SessionSummary: nested-optional-null-round-trip",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/roundtrip-test",
+        "action": {
+          "resource": "ahp-session:/s1",
+          "provider": "demo",
+          "title": "No project",
+          "status": 1,
+          "createdAt": 1,
+          "modifiedAt": 2
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "wire fields preserved through decode",
+      "matches": {
+        "title": "No project"
+      }
+    }
+  ]
+}

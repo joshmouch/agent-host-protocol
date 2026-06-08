@@ -1,0 +1,32 @@
+{
+  "id": "error.InvalidParams.error.jsonrpc-code",
+  "behaviorIds": [
+    "error.InvalidParams.error.jsonrpc-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32602 in the appropriate scenario. Client surfaces JSON-RPC error code -32602.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.InvalidParams.error.jsonrpc-code. JSON-RPC 2.0 standard error code -32602. Method exists but params violate the schema",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send initialize to trigger the error condition",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32602",
+      "forId": 1,
+      "error": {
+        "code": -32602,
+        "message": "Error: error:InvalidParams"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32602",
+      "code": -32602
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "error.SessionAlreadyExists.error.ahp-code",
+  "behaviorIds": [
+    "error.SessionAlreadyExists.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32003 when the described condition arises. Client surfaces JSON-RPC error code -32003.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.SessionAlreadyExists.error.ahp-code. AHP application error code -32003. Session with given URI already exists",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send createSession to trigger the error condition",
+      "method": "createSession",
+      "params": {
+        "channel": "ahp-session:/test",
+        "provider": "nonexistent-provider"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32003",
+      "forId": 1,
+      "error": {
+        "code": -32003,
+        "message": "Error: error:SessionAlreadyExists"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32003",
+      "code": -32003
+    }
+  ]
+}

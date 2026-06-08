@@ -1,0 +1,82 @@
+{
+  "id": "action.changeset-operationStatusChanged.happy.changeset-operationstatuschanged-sets-running",
+  "behaviorIds": [
+    "action.changeset-operationStatusChanged.happy.changeset-operationstatuschanged-sets-running"
+  ],
+  "description": "Reducer fixture: changeset/operationStatusChanged sets the status on the matching operation. Verifies that the client's changeset reducer converges to the expected state after applying the fixture's action(s).",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/reducers/155-changeset-operationstatuschanged-sets-running.json. Reducer: changeset.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "initialize — seed channel with fixture initial state",
+      "method": "initialize",
+      "params": {},
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "initialize result carries the fixture initial state as a snapshot",
+      "forId": 1,
+      "result": {
+        "protocolVersion": "0.3.0",
+        "serverSeq": 0,
+        "snapshots": [
+          {
+            "resource": "ahp-changeset:/test-changeset",
+            "fromSeq": 0,
+            "state": {
+              "status": "ready",
+              "files": [],
+              "operations": [
+                {
+                  "id": "create-pr",
+                  "label": "Create Pull Request",
+                  "scopes": [
+                    "changeset"
+                  ],
+                  "status": "idle"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "op": "server.notify",
+      "label": "action: changeset/operationStatusChanged",
+      "method": "action",
+      "params": {
+        "channel": "ahp-changeset:/test-changeset",
+        "action": {
+          "type": "changeset/operationStatusChanged",
+          "operationId": "create-pr",
+          "status": "running"
+        },
+        "serverSeq": 1,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.state",
+      "label": "client-reduced state converges to fixture expected state",
+      "channel": "ahp-changeset:/test-changeset",
+      "equals": {
+        "status": "ready",
+        "files": [],
+        "operations": [
+          {
+            "id": "create-pr",
+            "label": "Create Pull Request",
+            "scopes": [
+              "changeset"
+            ],
+            "status": "running"
+          }
+        ]
+      }
+    }
+  ]
+}

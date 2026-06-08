@@ -1,0 +1,34 @@
+{
+  "id": "subscription.subscribe.error.unknown-channel-scheme",
+  "behaviorIds": [
+    "subscription.subscribe.error.unknown-channel-scheme"
+  ],
+  "description": "Negative/error-path: subscribe{channel:\"ahp-unknown://foo\"} returns an error (NotFound or InvalidParams). Client surfaces JSON-RPC error code -32601.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: subscription.subscribe.error.unknown-channel-scheme. Clients MUST NOT subscribe to an unknown URI scheme. If a client does, server should return an error.",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send subscribe to trigger the error condition",
+      "method": "subscribe",
+      "params": {
+        "channel": "ahp-unknown://foo"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32601",
+      "forId": 1,
+      "error": {
+        "code": -32601,
+        "message": "Error: unknown-channel-scheme"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32601",
+      "code": -32601
+    }
+  ]
+}

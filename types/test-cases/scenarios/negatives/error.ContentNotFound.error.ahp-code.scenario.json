@@ -1,0 +1,34 @@
+{
+  "id": "error.ContentNotFound.error.ahp-code",
+  "behaviorIds": [
+    "error.ContentNotFound.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32006 when the described condition arises. Client surfaces JSON-RPC error code -32006.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.ContentNotFound.error.ahp-code. AHP application error code -32006. Requested content URI does not exist",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send unknownMethod to trigger the error condition",
+      "method": "unknownMethod",
+      "params": {
+        "channel": "ahp-root://"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32006",
+      "forId": 1,
+      "error": {
+        "code": -32006,
+        "message": "Error: error:ContentNotFound"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32006",
+      "code": -32006
+    }
+  ]
+}

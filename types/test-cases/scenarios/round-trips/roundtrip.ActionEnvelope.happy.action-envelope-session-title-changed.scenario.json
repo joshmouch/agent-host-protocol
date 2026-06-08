@@ -1,0 +1,58 @@
+{
+  "id": "roundtrip.ActionEnvelope.happy.action-envelope-session-title-changed",
+  "behaviorIds": [
+    "roundtrip.ActionEnvelope.happy.action-envelope-session-title-changed"
+  ],
+  "description": "Round-trip: ActionEnvelope carrying a session/titleChanged action decodes its scalar fields and its discriminated action variant; key fields survive a re-encode round-trip.",
+  "protocolVersion": "0.3.0",
+  "pinClock": 9999,
+  "notes": "Auto-generated from types/test-cases/round-trips/001-action-envelope-session-title-changed.json. Type: ActionEnvelope.",
+  "steps": [
+    {
+      "op": "server.notify",
+      "label": "action envelope: action-envelope-session-title-changed",
+      "method": "action",
+      "params": {
+        "channel": "ahp-session:/s1",
+        "action": {
+          "type": "session/titleChanged",
+          "title": "Hello"
+        },
+        "serverSeq": 7,
+        "origin": null
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "field channel === \"ahp-session:/s1\"",
+      "matches": {
+        "channel": "ahp-session:/s1"
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "field serverSeq === 7",
+      "matches": {
+        "serverSeq": 7
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "field action.type === \"session/titleChanged\"",
+      "matches": {
+        "action": {
+          "type": "session/titleChanged"
+        }
+      }
+    },
+    {
+      "op": "client.assert.event",
+      "label": "field action.title === \"Hello\"",
+      "matches": {
+        "action": {
+          "title": "Hello"
+        }
+      }
+    }
+  ]
+}

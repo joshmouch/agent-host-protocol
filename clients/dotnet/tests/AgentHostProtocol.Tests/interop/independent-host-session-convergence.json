@@ -1,0 +1,102 @@
+{
+  "initial": {
+    "summary": {
+      "resource": "copilot:/interop-session",
+      "provider": "copilot",
+      "title": "Initial title",
+      "status": 1,
+      "createdAt": 1000,
+      "modifiedAt": 1000
+    },
+    "lifecycle": "creating",
+    "turns": []
+  },
+  "envelopes": [
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/titleChanged",
+        "title": "Session One"
+      },
+      "serverSeq": 1,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2001
+      }
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isReadChanged",
+        "isRead": true
+      },
+      "serverSeq": 2,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2002
+      }
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/activityChanged",
+        "activity": "thinking"
+      },
+      "serverSeq": 3,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2003
+      }
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/titleChanged",
+        "title": "Session One \u2014 renamed"
+      },
+      "serverSeq": 4,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2004
+      }
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isReadChanged",
+        "isRead": false
+      },
+      "serverSeq": 5,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2005
+      }
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isArchivedChanged",
+        "isArchived": true
+      },
+      "serverSeq": 6,
+      "origin": "host",
+      "meta": {
+        "modifiedAt": 2006
+      }
+    }
+  ],
+  "final": {
+    "summary": {
+      "resource": "copilot:/interop-session",
+      "provider": "copilot",
+      "title": "Session One \u2014 renamed",
+      "status": 65,
+      "createdAt": 1000,
+      "modifiedAt": 2006,
+      "activity": "thinking"
+    },
+    "lifecycle": "creating",
+    "turns": []
+  },
+  "_source": "Captured from an independent AHP WebSocket host running the canonical TypeScript sessionReducer (independent implementation)."
+}

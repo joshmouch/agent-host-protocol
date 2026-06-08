@@ -1,0 +1,34 @@
+{
+  "id": "error.TurnInProgress.error.ahp-code",
+  "behaviorIds": [
+    "error.TurnInProgress.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32004 when the described condition arises. Client surfaces JSON-RPC error code -32004.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.TurnInProgress.error.ahp-code. AHP application error code -32004. Operation requires no active turn but one is running",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send turnStart to trigger the error condition",
+      "method": "turnStart",
+      "params": {
+        "channel": "ahp-session:/test"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32004",
+      "forId": 1,
+      "error": {
+        "code": -32004,
+        "message": "Error: error:TurnInProgress"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32004",
+      "code": -32004
+    }
+  ]
+}

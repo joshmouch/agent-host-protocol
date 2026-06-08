@@ -1149,20 +1149,67 @@ func appendTerminalData(state *ahptypes.TerminalState, data string) {
 
 // ─── Changeset Reducer ─────────────────────────────────────────────────
 
-// ApplyActionToChangeset is the entry point for changeset actions.
-// Mirrors the Rust client's stub: every recognized changeset action
-// short-circuits as [ReduceOutcomeNoOp] until the full changeset
-// reducer is ported. Unrelated actions return [ReduceOutcomeOutOfScope].
+// ApplyActionToChangeset applies a changeset action to [ahptypes.ChangesetState]
+// in place. Returns [ReduceOutcomeOutOfScope] for actions that target a
+// different state tree, and [ReduceOutcomeNoOp] when the action is recognized
+// but has no effect (e.g. unknown operation id).
 func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.StateAction) ReduceOutcome {
-	_ = state
-	switch action.Value.(type) {
-	case *ahptypes.ChangesetStatusChangedAction,
-		*ahptypes.ChangesetFileSetAction,
-		*ahptypes.ChangesetFileRemovedAction,
-		*ahptypes.ChangesetOperationsChangedAction,
-		*ahptypes.ChangesetOperationStatusChangedAction,
-		*ahptypes.ChangesetClearedAction:
+	switch a := action.Value.(type) {
+	case *ahptypes.ChangesetStatusChangedAction:
+		state.Status = a.Status
+		if a.Status == ahptypes.ChangesetStatusError {
+			state.Error = a.Error
+		} else {
+			state.Error = nil
+		}
+		return ReduceOutcomeApplied
+
+	case *ahptypes.ChangesetFileSetAction:
+		file := a.File
+		for i := range state.Files {
+			if state.Files[i].Id == file.Id {
+				state.Files[i] = file
+				return ReduceOutcomeApplied
+			}
+		}
+		state.Files = append(state.Files, file)
+		return ReduceOutcomeApplied
+
+	case *ahptypes.ChangesetFileRemovedAction:
+		for i := range state.Files {
+			if state.Files[i].Id == a.FileId {
+				state.Files = append(state.Files[:i], state.Files[i+1:]...)
+				return ReduceOutcomeApplied
+			}
+		}
 		return ReduceOutcomeNoOp
+
+	case *ahptypes.ChangesetOperationsChangedAction:
+		// Full replacement — nil operations clears the list.
+		state.Operations = a.Operations
+		return ReduceOutcomeApplied
+
+	case *ahptypes.ChangesetOperationStatusChangedAction:
+		for i := range state.Operations {
+			if state.Operations[i].Id == a.OperationId {
+				state.Operations[i].Status = a.Status
+				if a.Status == ahptypes.ChangesetOperationStatusError {
+					state.Operations[i].Error = a.Error
+				} else {
+					state.Operations[i].Error = nil
+				}
+				return ReduceOutcomeApplied
+			}
+		}
+		return ReduceOutcomeNoOp
+
+	case *ahptypes.ChangesetClearedAction:
+		_ = a
+		if len(state.Files) == 0 {
+			return ReduceOutcomeNoOp
+		}
+		state.Files = []ahptypes.ChangesetFile{}
+		return ReduceOutcomeApplied
 	}
 	return ReduceOutcomeOutOfScope
 }

@@ -1,0 +1,35 @@
+{
+  "id": "error.PermissionDenied.error.ahp-code",
+  "behaviorIds": [
+    "error.PermissionDenied.error.ahp-code"
+  ],
+  "description": "Negative/error-path: Server responds with error.code === -32009 when the described condition arises. Client surfaces JSON-RPC error code -32009.",
+  "protocolVersion": "0.3.0",
+  "notes": "Auto-generated from D7 negative paths: error.PermissionDenied.error.ahp-code. AHP application error code -32009. Client not permitted to access the resource",
+  "steps": [
+    {
+      "op": "client.request",
+      "label": "send resourceRead to trigger the error condition",
+      "method": "resourceRead",
+      "params": {
+        "channel": "ahp-session:/test",
+        "uri": "file:///outside-workspace"
+      },
+      "id": 1
+    },
+    {
+      "op": "server.response",
+      "label": "server returns error code -32009",
+      "forId": 1,
+      "error": {
+        "code": -32009,
+        "message": "Error: error:PermissionDenied"
+      }
+    },
+    {
+      "op": "client.assert.error",
+      "label": "client surfaces error code -32009",
+      "code": -32009
+    }
+  ]
+}
