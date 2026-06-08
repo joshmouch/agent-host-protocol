@@ -948,3 +948,90 @@ public func terminalReducer(state: TerminalState, action: StateAction) -> Termin
         return state
     }
 }
+
+// MARK: - Changeset Reducer
+
+/// Pure reducer for changeset state. Handles all changeset-scoped actions.
+///
+/// Per the spec, every changeset action is server-only. New files are
+/// appended via `changeset/fileSet` when the id is unknown and replaced in
+/// place when it matches an existing entry, preserving a stable file order.
+public func changesetReducer(state: ChangesetState, action: StateAction) -> ChangesetState {
+    switch action {
+    case .changesetStatusChanged(let a):
+        // Carry `error` only when the new status is `error` so we don't leave a
+        // stale error sitting on a recovered changeset.
+        var next = state
+        next.status = a.status
+        next.error = a.status == .error ? a.error : nil
+        return next
+
+    case .changesetFileSet(let a):
+        var next = state
+        if let idx = next.files.firstIndex(where: { $0.id == a.file.id }) {
+            next.files[idx] = a.file
+        } else {
+            next.files.append(a.file)
+        }
+        return next
+
+    case .changesetFileRemoved(let a):
+        guard let idx = state.files.firstIndex(where: { $0.id == a.fileId }) else {
+            return state
+        }
+        var next = state
+        next.files.remove(at: idx)
+        return next
+
+    case .changesetOperationsChanged(let a):
+        // `operations` is nil when the action omits the field, which clears the
+        // operation list.
+        var next = state
+        next.operations = a.operations
+        return next
+
+    case .changesetOperationStatusChanged(let a):
+        guard var operations = state.operations,
+              let idx = operations.firstIndex(where: { $0.id == a.operationId }) else {
+            return state
+        }
+        var op = operations[idx]
+        op.status = a.status
+        // Carry `error` only when the new status is `error` so we don't leave a
+        // stale error on an operation that recovered or started running.
+        op.error = a.status == .error ? a.error : nil
+        operations[idx] = op
+        var next = state
+        next.operations = operations
+        return next
+
+    case .changesetCleared:
+        guard !state.files.isEmpty else { return state }
+        var next = state
+        next.files = []
+        return next
+
+    default:
+        return state
+    }
+}
+
+// MARK: - Resource-Watch Reducer
+
+/// Pure reducer for resource-watch state. Handles every resource-watch action.
+///
+/// Watches are intentionally event-pass-through: change events are delivered
+/// via `resourceWatch/changed` actions but the reducer keeps no history of
+/// them. The state therefore tracks only the watch descriptor, which is set at
+/// subscription time and never mutates over the life of the watch. Unknown
+/// action types degrade gracefully so a client speaking an older protocol stays
+/// correct if the server adds new `resourceWatch/*` actions in a future version.
+public func resourceWatchReducer(state: ResourceWatchState, action: StateAction) -> ResourceWatchState {
+    switch action {
+    case .resourceWatchChanged:
+        return state
+
+    default:
+        return state
+    }
+}
