@@ -1,1 +1,5 @@
-130
+120
+# A floor, not a pin: the minimum number of discrete [Fact]/[Theory]
+# methods, kept below the current count so legitimate [Theory] consolidation
+# does not trip the gate. Raise with check-test-parity.sh --bump after adding
+# tests. Guards against silent test deletions, not against refactoring.

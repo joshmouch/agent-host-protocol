@@ -200,9 +200,9 @@ public sealed class ClientTests
         // racing a fixed 50ms delay, which flaked under load.
         using (var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
             await serverSide.ReceiveAsync(recvCts.Token);
-        await client.ShutdownAsync();
+        await client.ShutdownAsync(TestContext.Current.CancellationToken);
 
-        var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3));
+        var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
         Assert.NotNull(err);
         // Either AhpClientClosedException or AhpRpcException (synthetic shutdown error).
         Assert.True(
@@ -258,7 +258,7 @@ public sealed class ClientTests
         // Now cancel the caller's token.
         reqCts.Cancel();
 
-        var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3));
+        var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
         Assert.NotNull(err);
         Assert.True(
             err is OperationCanceledException,

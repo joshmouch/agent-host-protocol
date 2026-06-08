@@ -51,9 +51,9 @@ intentional stub (parity with the Rust and Go clients).
 ## Testing
 
 Run by `dotnet test` (against both target frameworks, `net8.0` and `net9.0`).
-The suite is **308 tests, all green on both TFMs** (0 skipped):
+The suite is **326 tests, all green on both TFMs** (0 skipped):
 
-1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays the 163
+1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays the 169
    cross-language reducer fixtures (`types/test-cases/reducers/*.json`). The
    whole set counts as a single `[Theory]`.
 2. **Shared wire round-trip corpus** — `TypesRoundTripFixtures` data-drives the
@@ -87,12 +87,12 @@ matrix subset. Both run [`scripts/check-test-parity.sh`](scripts/check-test-pari
 test methods in executable form — plus the count floor in
 [`tests/MIN_TEST_COUNT`](tests/MIN_TEST_COUNT).
 
-The manifest currently enumerates **70 method names** and all 70 are present
-(70/70). Read that precisely: it is the cross-language matrix *subset* that has
+The manifest currently enumerates **75 method names** and all 75 are present
+(75/75). Read that precisely: it is the cross-language matrix *subset* that has
 been transcribed into the manifest, **not** a literal mirror of the entire Swift
 suite. Some Swift behaviors — notably a number of §H `MultiHostClient`
 edge-cases and several sub-cases — are not yet enumerated in the manifest, so
-"70/70 manifest parity" is a green gate, not a claim of complete Swift parity.
+"75/75 manifest parity" is a green gate, not a claim of complete Swift parity.
 When you add tests that close one of those gaps, add the method name to the
 manifest (and `--bump` the floor) so the matrix subset grows with the suite.
 
@@ -114,7 +114,7 @@ Commands:
   `clients/dotnet/scripts/check-test-parity.sh --bump`
 
 Neither layer runs `dotnet test`; test *correctness* is enforced by the
-`dotnet test` step in CI. The 163 shared reducer fixtures count as one `[Theory]`,
+`dotnet test` step in CI. The 169 shared reducer fixtures count as one `[Theory]`,
 so they do not inflate the floor.
 
 ## Architecture decisions

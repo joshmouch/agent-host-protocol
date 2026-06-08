@@ -1,22 +1,22 @@
 # .NET parity manifest — the expected test methods, in executable form.
 #
-# This is the machine-checked form of the cross-language test master matrix in
-# OpenAgency plan docs/plans/proposed/2026-06-04-0137-ahp-dotnet-client-test-parity.
-# The parity gate (scripts/check-test-parity.sh) greps each MethodName across
-# clients/dotnet/tests/; any that are absent are reported as "missing", grouped
-# by phase, so a failing gate names exactly which parity tests still need writing.
+# This is the machine-checked form of the cross-language test parity matrix for
+# the .NET client. The parity gate (scripts/check-test-parity.sh) greps each
+# MethodName across clients/dotnet/tests/; any that are absent are reported as
+# "missing", grouped by the `group` column, so a failing gate names exactly
+# which parity tests still need writing.
 #
-# Format:  MethodName | TargetSuite | phase | matrix-row
+# Format:  MethodName | TargetSuite | group | matrix-row
 #   - lines starting with '#' and blank lines are ignored
-#   - phase 1 = test-only gaps (the feature already exists) — the "+45"
-#   - phase 2 = feature+test gaps (new production code, then its tests)
+#   - group 1 = test-only gaps: the feature already exists, only the test is new
+#   - group 2 = feature+test gaps: new production code, then its tests
 #
-# Existing tests (the baseline 23) are NOT listed here — they are already present;
-# this file enumerates only the parity tests still to be ADDED. Deletion of an
-# existing test is caught separately by the count floor (tests/MIN_TEST_COUNT).
+# The pre-existing tests are not listed here — they are already present; this
+# file enumerates only the parity tests to be ADDED. Deletion of an existing
+# test is caught separately by the count floor (tests/MIN_TEST_COUNT).
 
 # =====================================================================
-# Phase 1 — test-only gaps (feature exists; ~45 → floor reaches 68)
+# Group 1 — test-only gaps (the feature already exists)
 # =====================================================================
 
 # -- A. Reducer semantics
@@ -81,7 +81,7 @@ MultiHost_Events_CarryHostIdAndResource | MultiHostClientTests | 1 | H: events t
 MultiHost_Reconnect_ReplaysActionsWithAdvancedSeq | MultiHostClientTests | 1 | H: reconnect replay
 
 # =====================================================================
-# Phase 2 — feature+test gaps (new production code, then tests; ~25)
+# Group 2 — feature+test gaps (new production code, then its tests)
 # =====================================================================
 
 # -- D. connection-state + keep-alive
@@ -116,7 +116,7 @@ MultiHost_NotConnected_Dispatch_Throws | MultiHostClientTests | 2 | H: not-conne
 MultiHost_HandleAfterRemove_ThrowsHostShutDown | MultiHostClientTests | 2 | H: HostShutDown after remove
 
 # =====================================================================
-# Phase 3 — cross-client parity gaps closed (adversarial-audit follow-up)
+# Group 2 (cont.) — cross-client parity gaps
 #   Concepts the other clients (Swift / TS) test but .NET did not. Each is a
 #   REAL no-mock test over the production AhpClient / WebSocketTransport /
 #   Subscription back-pressure path; see clients/swift + clients/typescript
