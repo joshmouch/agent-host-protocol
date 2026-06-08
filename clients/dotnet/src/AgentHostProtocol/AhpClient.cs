@@ -169,6 +169,21 @@ public sealed class AhpClient : IAsyncDisposable
     private ulong _nextId = 1;
     private long _nextClientSeq = 1;
 
+    // ── Test-only accessors (InternalsVisibleTo the test assembly) ─────────
+    // Mirror the Swift client's `_pendingCount()` test hook so the cancellation
+    // parity tests can observe the real pending-request bookkeeping (1 -> 0 on a
+    // cancelled in-flight request) without widening the public API.
+
+    /// <summary>The number of in-flight requests awaiting a response.</summary>
+    internal int PendingRequestCount => _pending.Count;
+
+    /// <summary>
+    /// The next JSON-RPC request id that would be minted. Lets the fast-fail
+    /// parity test prove a pre-cancelled request did NOT mint an id (the counter
+    /// is unchanged).
+    /// </summary>
+    internal ulong NextRequestId => Volatile.Read(ref _nextId);
+
     // Optional handler for server-initiated requests. Published reference, read
     // lock-free; `volatile` supplies the visibility a lock would otherwise give.
     private volatile ServerRequestHandler? _serverRequestHandler;
@@ -703,6 +718,13 @@ public sealed class AhpClient : IAsyncDisposable
     {
         if (Volatile.Read(ref _shutdownStarted) == 1)
             throw new AhpClientClosedException();
+
+        // Fast-fail when the caller's token is already cancelled. Mirrors the
+        // Swift client's `Task.checkCancellation()` at the top of `request`:
+        // avoid minting a request id and pushing wire bytes for a request whose
+        // result would be thrown away immediately. Must run BEFORE the id is
+        // minted and the pending entry is registered.
+        cancellationToken.ThrowIfCancellationRequested();
 
         var id = Interlocked.Increment(ref _nextId) - 1;
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);

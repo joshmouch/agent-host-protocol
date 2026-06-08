@@ -750,7 +750,13 @@ public sealed class MultiHostClientTests
         await m.RemoveHostAsync(new HostId("h"), cts.Token);
         var seen = 0;
         await foreach (var _u in reader.ReadAllAsync(cts.Token)) { if (++seen > 50) break; }
-        // Reaching here (loop terminated) proves the stream finished on removal.
+        // The await-foreach exits only when the channel completes; had removal
+        // NOT finished the stream, the 15s cts would have cancelled the read and
+        // failed the test. Assert completion explicitly rather than relying on
+        // "reached here" (matches tests #8 ~L909 and #17 ~L1337 in this file).
+        Assert.True(reader.Completion.IsCompleted,
+            "removing the host must complete its per-host snapshot stream");
+        Assert.True(seen <= 50, "a finished stream must not keep emitting after removal");
     }
 
     // ── 5. session summaries stream ────────────────────────────────────────
@@ -1013,43 +1019,49 @@ public sealed class MultiHostClientTests
             return Task.FromResult<ITransport>(c);
         };
 
-        // Host B: first attempt fails (→ .failed under disabled policy), manual
-        // reconnect's next attempt succeeds.
-        var bFirstFailed = 0;
+        // Host B: first attempt answers the handshake then DROPS the transport,
+        // so AddHostAsync returns Connected and B genuinely registers; with a
+        // disabled reconnect policy the spontaneous drop parks it in .failed
+        // (NOT removed). The second attempt — driven by ReconnectAllUnavailable —
+        // returns a working transport and B reconnects. This is the same
+        // register-then-park-as-.failed shape as test #9
+        // (MultiHost_ReconnectHost_WakesExhaustedHost), and mirrors Swift
+        // testReconnectAllUnavailableSkipsConnectedAndWakesOthers.
         var bAttempts = 0;
         HostTransportFactory factoryB = (id, ct) =>
         {
-            Interlocked.Increment(ref bAttempts);
-            if (Interlocked.CompareExchange(ref bFirstFailed, 1, 0) == 0)
-                throw new AhpTransportException("io", "intentional first-attempt failure");
+            var n = Interlocked.Increment(ref bAttempts);
             var (c, s) = MemTransport.CreatePair();
-            _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
+            if (n == 1)
+                _ = Task.Run(() => RunHandshakeThenDropAsync(s, ct));
+            else
+                _ = Task.Run(() => RunFakeServerFullAsync(s, ct: cts.Token));
             return Task.FromResult<ITransport>(c);
         };
 
         await m.AddHostAsync(new HostConfig { Id = new HostId("a"), Label = "A", TransportFactory = factoryA }, cts.Token);
-        // Host B's initial connect fails; AddHostAsync removes it. Re-add: the
-        // second AddHostAsync (attempt #2) succeeds, then we drop+park it so the
-        // SkipsConnected scenario has a genuinely unavailable host. Simpler:
-        // park B by using a factory that fails the initial connect via a SECOND
-        // independent host id whose first add we let fail, then re-add. To keep
-        // the test deterministic we instead assert the skip/return-empty shape:
-        await Assert.ThrowsAnyAsync<Exception>(() =>
-            m.AddHostAsync(new HostConfig { Id = new HostId("b"), Label = "B", TransportFactory = factoryB, ReconnectPolicy = ReconnectPolicy.Disabled }, cts.Token));
+        await m.AddHostAsync(new HostConfig { Id = new HostId("b"), Label = "B", TransportFactory = factoryB, ReconnectPolicy = ReconnectPolicy.Disabled }, cts.Token);
 
+        // A stays connected; B's first connection drops and the disabled policy
+        // parks it in .failed (registered, but unavailable).
         await WaitForHostStateAsync(m, new HostId("a"), s => s.Kind == HostStateKind.Connected, cts.Token);
-        var aCountBefore = Volatile.Read(ref aAttempts);
-        Assert.Equal(1, aCountBefore);
+        await WaitForHostStateAsync(m, new HostId("b"), s => s.Kind == HostStateKind.Failed, cts.Token, 15000);
+        Assert.Equal(1, Volatile.Read(ref aAttempts));
+        var bAttemptsBefore = Volatile.Read(ref bAttempts);
+        Assert.Equal(1, bAttemptsBefore);
 
-        // Only host A is registered + connected now. reconnectAllUnavailable must
-        // skip it (no error, no extra connect attempt).
+        // reconnectAllUnavailable must SKIP the connected host A (no error, no
+        // extra connect attempt) AND WAKE the parked host B.
         var errors = await m.ReconnectAllUnavailableAsync(cts.Token);
         Assert.Empty(errors);
 
-        // Give any erroneous reconnect a moment to (not) fire.
-        await Task.Delay(200, cts.Token);
-        Assert.Equal(1, Volatile.Read(ref aAttempts));
+        // Host B is woken and reconnects.
+        await WaitForHostStateAsync(m, new HostId("b"), s => s.Kind == HostStateKind.Connected, cts.Token, 15000);
+        // Host A was skipped: still connected, still exactly one connect attempt.
         Assert.Equal(HostStateKind.Connected, m.Host(new HostId("a"))!.State.Kind);
+        Assert.Equal(1, Volatile.Read(ref aAttempts));
+        // Host B re-attempted exactly once (its second connect).
+        Assert.Equal(2, Volatile.Read(ref bAttempts));
     }
 
     // ── 11. reconnectAllUnavailable reports per-host errors ────────────────

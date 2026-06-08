@@ -1385,6 +1385,28 @@ public static class Reducers
         return ReduceOutcome.OutOfScope;
     }
 
+    // ─── Resource-Watch Reducer ────────────────────────────────────────────
+
+    /// <summary>
+    /// Applies <paramref name="action"/> to the <see cref="ResourceWatchState"/>
+    /// in place. Faithful port of the canonical TypeScript
+    /// <c>resourceWatchReducer</c> (and the Kotlin/Rust/Go ports): watches are
+    /// intentionally event-pass-through, so <c>resourceWatch/changed</c> leaves
+    /// the watch descriptor unchanged (a recognized-but-no-effect
+    /// <see cref="ReduceOutcome.NoOp"/>) and the reducer keeps no history of the
+    /// delivered changes. Every other action targets a different state tree and
+    /// returns <see cref="ReduceOutcome.OutOfScope"/>; both paths leave
+    /// <paramref name="state"/> untouched, matching the canonical reducer's
+    /// "return state unchanged" for known and unknown actions alike.
+    /// </summary>
+    public static ReduceOutcome ApplyToResourceWatch(ResourceWatchState state, StateAction action)
+    {
+        _ = state;
+        return action.Value is ResourceWatchChangedAction
+            ? ReduceOutcome.NoOp
+            : ReduceOutcome.OutOfScope;
+    }
+
     // ─── Client Dispatchable ───────────────────────────────────────────────
 
     /// <summary>

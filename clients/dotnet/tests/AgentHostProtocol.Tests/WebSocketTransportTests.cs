@@ -6,6 +6,7 @@
 #nullable enable
 
 using System;
+using System.Collections.Specialized; // NameValueCollection (captured request headers)
 using System.Net;                 // HttpListener, IPEndPoint
 using System.Net.Sockets;         // TcpListener (free-port picking)
 using System.Net.WebSockets;      // WebSocket, WebSocketMessageType, ...
@@ -31,8 +32,19 @@ public sealed class WebSocketTransportTests
     private sealed class LoopbackWsServer : IAsyncDisposable
     {
         private readonly HttpListener _listener;
+        private readonly TaskCompletionSource<NameValueCollection> _requestHeaders =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Port { get; }
         public Uri WsUri => new($"ws://127.0.0.1:{Port}/");
+
+        /// <summary>
+        /// Completes with the HTTP request headers of the accepted upgrade —
+        /// captured from the real <see cref="HttpListenerContext"/> BEFORE the
+        /// WebSocket handshake completes. Lets a test prove a custom header set
+        /// via <see cref="WebSocketTransportOptions.ConfigureSocket"/> actually
+        /// reached the server on the wire.
+        /// </summary>
+        public Task<NameValueCollection> RequestHeaders => _requestHeaders.Task;
 
         private LoopbackWsServer(HttpListener listener, int port)
         {
@@ -62,6 +74,10 @@ public sealed class WebSocketTransportTests
             return Task.Run(async () =>
             {
                 var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
+                // Capture the request headers from the real upgrade request
+                // before completing the handshake, so a test can assert a custom
+                // header (e.g. Authorization) was forwarded on the wire.
+                _requestHeaders.TrySetResult(ctx.Request.Headers);
                 if (!ctx.Request.IsWebSocketRequest)
                 {
                     ctx.Response.StatusCode = 400;
@@ -135,6 +151,58 @@ public sealed class WebSocketTransportTests
         var got = await transport.ReceiveAsync(cts.Token);
         Assert.Equal(TransportFrame.Text, got.Frame);
         Assert.Equal(payload, got.Text);
+
+        await transport.CloseAsync(cts.Token);
+        await serverTask;
+    }
+
+    // ── E: custom header forwarding (ConfigureSocket → wire) ──────────────
+    // Mirrors Swift NWConnectionWebSocketTransportTests
+    // `testNativeTransportPerformsHandshakeAndRoundTripsText`, which dials with
+    // headers: ["Authorization": "Bearer test-token"] and asserts the server
+    // observed `authorization == "Bearer test-token"`. Here the production
+    // WebSocketTransportOptions.ConfigureSocket hook sets the header on the real
+    // ClientWebSocket before ConnectAsync; the loopback server captures the real
+    // upgrade request headers and we assert the token arrived on the wire.
+    [Fact]
+    public async Task NativeTransport_ForwardsCustomRequestHeader()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var server = LoopbackWsServer.Start();
+
+        // Server: receive one text frame, echo it, then close cleanly.
+        var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
+        {
+            var buf = new byte[4096];
+            var result = await serverWs.ReceiveAsync(new ArraySegment<byte>(buf), ct).ConfigureAwait(false);
+            await serverWs.SendAsync(
+                new ArraySegment<byte>(buf, 0, result.Count),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                ct).ConfigureAwait(false);
+            await serverWs.CloseAsync(WebSocketCloseStatus.NormalClosure, "", ct).ConfigureAwait(false);
+        }, cts.Token);
+
+        const string headerName = "Authorization";
+        const string headerValue = "Bearer test-token";
+
+        var options = new WebSocketTransportOptions
+        {
+            ConfigureSocket = ws => ws.Options.SetRequestHeader(headerName, headerValue),
+        };
+
+        await using var transport = await WebSocketTransport.ConnectAsync(
+            server.WsUri, options, cancellationToken: cts.Token);
+
+        // A frame must flow so the handshake fully completes and the server has
+        // accepted the upgrade (the header is captured at upgrade time).
+        await transport.SendAsync(TransportMessage.FromText("{\"jsonrpc\":\"2.0\"}"), cts.Token);
+        var echoed = await transport.ReceiveAsync(cts.Token);
+        Assert.Equal(TransportFrame.Text, echoed.Frame);
+
+        // The custom header reached the server on the real upgrade request.
+        var headers = await server.RequestHeaders.WaitAsync(cts.Token);
+        Assert.Equal(headerValue, headers[headerName]);
 
         await transport.CloseAsync(cts.Token);
         await serverTask;

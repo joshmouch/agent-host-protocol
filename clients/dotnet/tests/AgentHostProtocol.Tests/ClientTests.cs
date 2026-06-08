@@ -210,6 +210,193 @@ public sealed class ClientTests
             $"Expected AhpClientClosedException or AhpRpcException, got {err?.GetType().Name}: {err?.Message}");
     }
 
+    // ── In-flight request cancellation (parity with Swift) ─────────────────
+    // Ported from clients/swift/.../AHPClientTests.swift:
+    //   testRequestThrowsCancellationWhenTaskIsCancelled
+    //   testRequestFastFailsWhenTaskAlreadyCancelled
+    // Each drives the REAL AhpClient over the REAL MemTransport and reads the
+    // real pending-request bookkeeping (client.PendingRequestCount) — no client
+    // mocking. The "no id minted / no bytes pushed" claim is asserted against
+    // the real next-id counter and a real drain of the server transport.
+
+    // Cancelling the caller's token while a request is in flight surfaces an
+    // OperationCanceledException AND removes the pending entry (1 -> 0), so a
+    // late server response is harmlessly dropped.
+    [Fact]
+    public async Task Request_CancelDuringFlight_ThrowsAndClearsPending()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        await using var client = await AhpClient.ConnectAsync(clientSide);
+
+        // The request gets its own token so we can cancel just this call. The
+        // client default-timeout is large enough not to fire first.
+        using var reqCts = new CancellationTokenSource();
+
+        var requestTask = Task.Run(async () =>
+        {
+            try
+            {
+                await client.InitializeAsync(
+                    "test-client",
+                    new[] { ProtocolVersion.Current },
+                    cancellationToken: reqCts.Token);
+                return (Exception?)null;
+            }
+            catch (Exception ex) { return ex; }
+        });
+
+        // The server reads the request frame (proving the wire bytes were
+        // pushed) but never responds — the request stays genuinely in flight.
+        using (var recvCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
+            await serverSide.ReceiveAsync(recvCts.Token);
+
+        // Wait until the pending entry is registered (deterministic, not a sleep).
+        await WaitUntilAsync(
+            () => client.PendingRequestCount == 1,
+            because: "the in-flight request must register exactly one pending entry");
+
+        // Now cancel the caller's token.
+        reqCts.Cancel();
+
+        var err = await requestTask.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.NotNull(err);
+        Assert.True(
+            err is OperationCanceledException,
+            $"expected OperationCanceledException, got {err?.GetType().Name}: {err?.Message}");
+
+        // The cancellation cleaned up the pending entry.
+        await WaitUntilAsync(
+            () => client.PendingRequestCount == 0,
+            because: "cancellation must remove the pending entry so a late response is dropped");
+        Assert.Equal(0, client.PendingRequestCount);
+    }
+
+    // A token that is ALREADY cancelled before the request is issued fast-fails
+    // with OperationCanceledException WITHOUT minting a request id or pushing
+    // wire bytes — mirroring the Swift `Task.checkCancellation()` fast path.
+    [Fact]
+    public async Task Request_PreCancelledToken_FastFailsWithoutMintingIdOrSending()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        await using var client = await AhpClient.ConnectAsync(clientSide);
+
+        // Capture the next id BEFORE the cancelled request: it must be unchanged
+        // afterwards (no id minted).
+        var nextIdBefore = client.NextRequestId;
+
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await client.InitializeAsync(
+                "test-client",
+                new[] { ProtocolVersion.Current },
+                cancellationToken: cancelled.Token));
+
+        // No request id was minted.
+        Assert.Equal(nextIdBefore, client.NextRequestId);
+        // No pending entry was registered.
+        Assert.Equal(0, client.PendingRequestCount);
+        // No wire bytes were pushed: the server side has nothing to read.
+        using var drainCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await serverSide.ReceiveAsync(drainCts.Token));
+    }
+
+    // Sanity: the happy path still resolves after the fast-fail guard was added.
+    [Fact]
+    public async Task Request_HappyPath_StillResolves()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var serverTask = Task.Run(() => FakeServer.HandleOneInitialize(serverSide, cts.Token), cts.Token);
+
+        await using var client = await AhpClient.ConnectAsync(clientSide);
+        var result = await client.InitializeAsync("test-client", cancellationToken: cts.Token);
+
+        Assert.Equal(ProtocolVersion.Current, result.ProtocolVersion);
+        // The resolved request left no pending entry behind.
+        Assert.Equal(0, client.PendingRequestCount);
+        await serverTask;
+    }
+
+    // ── Back-pressure: drop-oldest + laggard fast-forward + no replay ──────
+    // Parity with clients/typescript/test/async-queue.test.ts
+    //   'bounded buffer drops oldest and fast-forwards laggards'
+    //   'reader created after publish does not replay history'
+    // The .NET back-pressure is the production BoundedChannelFullMode.DropOldest
+    // on each Subscription's event channel (Subscription.cs). This drives the
+    // REAL AhpClient + REAL MemTransport with a capacity-2 subscription buffer:
+    // we overflow a non-reading (laggard) subscription from the server side and
+    // assert it observes the NEWEST items (oldest dropped, no unbounded buffer),
+    // and that a subscription attached AFTER the events get no replay.
+    [Fact]
+    public async Task Subscription_BoundedBuffer_DropsOldest_FastForwards_NoReplay()
+    {
+        const int capacity = 2;
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        await using var client = AhpClient.Connect(
+            clientSide,
+            new ClientConfig { SubscriptionBufferCapacity = capacity });
+
+        // Laggard: attached but never read until the very end.
+        var laggard = client.AttachSubscription("ahp-session:/s1");
+        // Barrier on a DIFFERENT uri: read to confirm the read loop has drained
+        // every earlier frame (frames are processed strictly in order).
+        var barrier = client.AttachSubscription("ahp-session:/barrier");
+
+        // Push 4 events to the laggard's uri, PAST its capacity of 2. With
+        // DropOldest, the oldest two (seq 1, 2) are dropped; the laggard ends up
+        // holding the newest two (seq 3, 4).
+        for (long seq = 1; seq <= 4; seq++)
+            await serverSide.SendAsync(BuildActionNotification("ahp-session:/s1", seq, $"e{seq}"), cts.Token);
+        // Barrier frame last: once we read it, all 4 prior frames are fanned out.
+        await serverSide.SendAsync(BuildActionNotification("ahp-session:/barrier", 99, "barrier"), cts.Token);
+
+        using (var readBarrierCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token))
+        {
+            var bev = Assert.IsType<SubscriptionEventAction>(await barrier.Events.ReadAsync(readBarrierCts.Token));
+            Assert.Equal(99, bev.Envelope.ServerSeq);
+        }
+
+        // The laggard buffered at most `capacity` items (no unbounded growth)...
+        Assert.Equal(capacity, laggard.Events.Count);
+
+        // ...and they are the NEWEST items: seq 3 then 4 (1 and 2 were dropped).
+        using (var readLagCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token))
+        {
+            var first = Assert.IsType<SubscriptionEventAction>(await laggard.Events.ReadAsync(readLagCts.Token));
+            var second = Assert.IsType<SubscriptionEventAction>(await laggard.Events.ReadAsync(readLagCts.Token));
+            Assert.Equal(3, first.Envelope.ServerSeq);
+            Assert.Equal(4, second.Envelope.ServerSeq);
+        }
+
+        // A subscription attached AFTER the events were delivered gets NO replay
+        // of the already-fanned-out history (mirrors the TS 'reader created after
+        // publish does not replay history').
+        var lateReader = client.AttachSubscription("ahp-session:/s1");
+        using (var lateDrainCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200)))
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await lateReader.Events.ReadAsync(lateDrainCts.Token));
+
+        // A fresh event after attach DOES reach the late reader (it is live, just
+        // without history) — proving the empty read above was "no replay", not a
+        // dead subscription.
+        await serverSide.SendAsync(BuildActionNotification("ahp-session:/s1", 5, "e5"), cts.Token);
+        using (var liveCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token))
+        {
+            var live = Assert.IsType<SubscriptionEventAction>(await lateReader.Events.ReadAsync(liveCts.Token));
+            Assert.Equal(5, live.Envelope.ServerSeq);
+        }
+
+        laggard.Close();
+        barrier.Close();
+        lateReader.Close();
+    }
+
     // ── Done signalled on transport failure ───────────────────────────────
 
     [Fact]

@@ -114,3 +114,22 @@ MultiHost_UnknownHost_Subscribe_Throws | MultiHostClientTests | 2 | H: unknown-h
 MultiHost_UnknownHost_Dispatch_Throws | MultiHostClientTests | 2 | H: unknown-host typed error (dispatch)
 MultiHost_NotConnected_Dispatch_Throws | MultiHostClientTests | 2 | H: not-connected typed error
 MultiHost_HandleAfterRemove_ThrowsHostShutDown | MultiHostClientTests | 2 | H: HostShutDown after remove
+
+# =====================================================================
+# Phase 3 — cross-client parity gaps closed (adversarial-audit follow-up)
+#   Concepts the other clients (Swift / TS) test but .NET did not. Each is a
+#   REAL no-mock test over the production AhpClient / WebSocketTransport /
+#   Subscription back-pressure path; see clients/swift + clients/typescript
+#   for the mirrored reference vectors.
+# =====================================================================
+
+# -- E. transport: custom request-header forwarding (mirrors Swift NW transport)
+NativeTransport_ForwardsCustomRequestHeader | WebSocketTransportTests | 2 | E: ConfigureSocket header on wire
+
+# -- D. in-flight request cancellation (mirrors Swift AHPClientTests)
+Request_CancelDuringFlight_ThrowsAndClearsPending | ClientTests | 2 | D: cancel mid-flight clears pending
+Request_PreCancelledToken_FastFailsWithoutMintingIdOrSending | ClientTests | 2 | D: pre-cancelled fast-fail (no id/bytes)
+Request_HappyPath_StillResolves | ClientTests | 2 | D: happy-path still resolves
+
+# -- D. subscription back-pressure: drop-oldest + laggard fast-forward + no replay (mirrors TS async-queue)
+Subscription_BoundedBuffer_DropsOldest_FastForwards_NoReplay | ClientTests | 2 | D: bounded buffer drop-oldest + no replay
