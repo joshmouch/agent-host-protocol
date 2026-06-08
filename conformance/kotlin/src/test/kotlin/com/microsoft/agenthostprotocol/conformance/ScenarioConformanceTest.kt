@@ -1,11 +1,11 @@
-// AHP Kotlin Conformance Runner — build-phase B5.
+// AHP Kotlin Conformance Runner — Kotlin per-client corpus runner.
 //
 // Drives the REAL Kotlin client (reducer + types + KSerializer) against the
-// scenario-driven host (B3, `conformance/host/scenario-host.mjs`) over a REAL
+// scenario-driven host (`conformance/host/scenario-host.mjs`) over a REAL
 // WebSocket, and checks every `client.assert.*` step in each scenario file.
 //
 // NO MOCKS: real host subprocess, real ws transport, real reducers, real JSON
-// codec, real assertions. (CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION + ADR-067/072.)
+// codec, real assertions.
 //
 // ── Architecture ────────────────────────────────────────────────────────────
 //   • @TestFactory generates one JUnit 5 DynamicTest per scenario in the tranche.
@@ -703,9 +703,9 @@ class ScenarioConformanceTest {
         val scenarios = buildTranche()
         check(scenarios.isNotEmpty()) { "No scenarios found under $SCENARIOS_ROOT" }
 
-        println("[AHP-B5] Kotlin conformance tranche: ${scenarios.size} scenarios (TRANCHE=$TRANCHE)")
-        println("[AHP-B5] Host script: $SCENARIO_HOST_SCRIPT")
-        println("[AHP-B5] Node: $NODE_EXECUTABLE")
+        println("[AHP] Kotlin conformance tranche: ${scenarios.size} scenarios (TRANCHE=$TRANCHE)")
+        println("[AHP] Host script: $SCENARIO_HOST_SCRIPT")
+        println("[AHP] Node: $NODE_EXECUTABLE")
 
         return scenarios.map { scenarioFile ->
             DynamicTest.dynamicTest(scenarioFile.name) {
@@ -758,7 +758,7 @@ class ScenarioConformanceTest {
         }
 
         for (w in driveResult.warnings) {
-            println("[AHP-B5 WARN] ${scenarioFile.name}: $w")
+            println("[AHP WARN] ${scenarioFile.name}: $w")
         }
 
         val failures = mutableListOf<String>()

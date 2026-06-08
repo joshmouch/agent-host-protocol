@@ -8,7 +8,7 @@ namespace Microsoft.AgentHostProtocol.Tests;
 
 /// <summary>
 /// Cross-implementation convergence: replays a real session trace produced by an
-/// INDEPENDENT AHP host (OpenAgency's <c>AhpWsHost</c> running the canonical
+/// INDEPENDENT AHP host (a separate WebSocket host running the canonical
 /// TypeScript <c>sessionReducer</c>) through the C# reducer and asserts the
 /// resulting state is byte-for-byte identical to the host's authoritative state.
 ///
@@ -23,7 +23,7 @@ public sealed class CrossImplementationConvergenceTests
     [Fact]
     public void ConvergesWithCapturedCanonicalHostTrace()
     {
-        var path = Path.Combine(System.AppContext.BaseDirectory, "interop", "openagency-session-convergence.json");
+        var path = Path.Combine(System.AppContext.BaseDirectory, "interop", "independent-host-session-convergence.json");
         using var doc = JsonDocument.Parse(File.ReadAllText(path));
         var root = doc.RootElement;
         var opts = AhpJson.Options;

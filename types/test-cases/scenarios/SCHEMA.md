@@ -1,4 +1,4 @@
-# AHP Conformance — Scenario-Fixture schema (Part 2, build-phase B1)
+# AHP Conformance — Scenario-Fixture schema
 
 This is the **shared, language-neutral vocabulary** for the AHP conformance
 *scenario* corpus — the format that all **six client runners** (Go, Rust,

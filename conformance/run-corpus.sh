@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AHP .NET Conformance Corpus Runner — build-phase B5.
+# AHP .NET Conformance Corpus Runner.
 #
 # Runs the full scenario corpus (round-trips + reducers + negatives) through
 # the REAL .NET client reducer against the REAL scenario-driven host.

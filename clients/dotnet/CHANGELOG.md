@@ -11,6 +11,12 @@ this release negotiates.
 
 ## [Unreleased]
 
+### Changed
+
+- `Reducers.ApplyToChangeset` is now fully implemented (previously a no-op
+  stub), so `changeset/*` actions fold into `ChangesetState`. Brings the .NET
+  client to full cross-language conformance parity on the changeset channel.
+
 ## [0.1.0]
 
 Initial release of the .NET client. Implements AHP 0.3.0.

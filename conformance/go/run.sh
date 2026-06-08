@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AHP Go conformance runner — build-phase B5.
+# AHP Go conformance runner.
 #
 # Usage:
 #   ./run.sh                    # full 233-scenario corpus

@@ -1,5 +1,5 @@
 {
-  "generatedBy": "conformance/mutation B6 — StrykerJS 8.7.1 over canonical TS reducers; kill-signal = in-process replay of all 233 conformance scenarios via src reducers (replay-corpus.mjs)",
+  "generatedBy": "conformance/mutation — StrykerJS 8.7.1 over canonical TS reducers; kill-signal = in-process replay of all 233 conformance scenarios via src reducers (replay-corpus.mjs)",
   "date": "2026-06-06",
   "totals": {
     "total": 813,

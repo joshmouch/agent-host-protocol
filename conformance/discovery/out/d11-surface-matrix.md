@@ -128,7 +128,7 @@ are D4 harness-meta rows.)
 > Caveat recorded for honesty: "mapped to a *planned* scenario" here means the
 > behavior is enrolled in the surface inventory with a planned disposition and a
 > grounded citation — **not** that a scenario file exists yet. Authoring the
-> scenarios is Part 2 (B2). Part 1's exit bar is *enumeration completeness*, and
+> scenarios is Part 2 (the scenario corpus). Part 1's exit bar is *enumeration completeness*, and
 > that bar is met.
 
 ### Out-of-scope set (3 rows, each individually reasoned)
@@ -158,13 +158,13 @@ edges, exactly as the plan directs.
 
 | Rank | Tranche | Behaviors | Why first |
 |---:|---|---:|---|
-| **1** | **D5 fixture-derived scenarios** (`d5-fixture`) | **187** | Cheapest broad coverage. The 163 reducer + 23 round-trip fixtures are already curated and cross-validated across all clients; B5's generator turns each into a wire scenario mechanically (generalize PR #4's 5-action proof to all 187). Zero hand-authoring; highest behavior-count of any single source. |
+| **1** | **D5 fixture-derived scenarios** (`d5-fixture`) | **187** | Cheapest broad coverage. The 163 reducer + 23 round-trip fixtures are already curated and cross-validated across all clients; the scenario generator turns each into a wire scenario mechanically. Zero hand-authoring; highest behavior-count of any single source. |
 | **2** | **D7 negative / error paths** (`d7-negative`) | **46** (30 `error`, 5 `reconnect`, 3 `concurrency`, 2 `version`, 6 `edge`) | Second-cheapest: derivable from the error schema + a fixed negative-space matrix (malformed params, unknown method → `MethodNotFound`, version mismatch, dup/out-of-order `serverSeq`, dup `clientId`, subscribe-nonexistent, unauthorized, timeout). Negative paths are where ad-hoc suites are weakest — this is the highest *risk-reduction*-per-row tranche. |
 | **3** | **Reconnect + replay edges** (`reconnect` class, 28 unique) | **28** | The `lastSeenServerSeq` snapshot-vs-replay-vs-gap state machine (D6 + D7 + D3). Highest-complexity protocol surface, thinly covered (4.3% of behaviors), and the place a real host most plausibly diverges. Includes the 2 cross-angle agreements `reconnect.replay.edge.missing-subscriptions` and `…notifications-not-replayed`. |
 | **4** | **Versioning** (`version` class, 12 unique) | **12** | `initialize` protocol-version negotiation + `UnsupportedProtocolVersion` (D2 marks 3 of these MUST). Small, bounded, and a hard interop boundary — a wrong version handshake breaks every downstream scenario. |
 | **5** | **Concurrency edges** (`concurrency` class, 8 unique) | **8** | Smallest class but each is a genuine race (queued-message reordering, dup `clientId`, interleaved seqs). Author after the deterministic bulk so flakiness is isolated. |
 | **6** | **D8 differential divergences** (`d8-differential`, all `edge`) | **16** | Each is a *confirmed* cross-implementation disagreement (mostly unknown-variant round-trip preservation). These MUST become pinned scenarios — they are the exact behaviors where "the spec is silent and the 6 SDKs already disagree." Several also imply spec-clarification PRs (see §5). |
-| **7** | **D9 surviving-mutant gaps** (`d9-mutation`) | **66** (41 `happy`, 23 `edge`, 2 `error`) | The completeness engine's gap list: reducer/host-logic lines no current scenario catches. Many are subsumed once tranches 1–6 land; B6 re-runs mutation against the finished corpus and only the *still*-surviving mutants need bespoke scenarios. Treat as the ratcheting backstop, not front-loaded authoring. |
+| **7** | **D9 surviving-mutant gaps** (`d9-mutation`) | **66** (41 `happy`, 23 `edge`, 2 `error`) | The completeness engine's gap list: reducer/host-logic lines no current scenario catches. Many are subsumed once tranches 1–6 land; the mutation run re-runs against the finished corpus and only the *still*-surviving mutants need bespoke scenarios. Treat as the ratcheting backstop, not front-loaded authoring. |
 | **8** | **D10 property/fuzz findings** (`d10-property`) | **20** (11 `error`, 4 `happy`, 3 `edge`, 1 `reconnect`, 1 `concurrency`) | Determinism + convergence invariants + malformed-frame rejection. Promote the minimized counterexamples to fixed scenarios; run the property generators continuously in CI rather than enumerating by hand. |
 | **9** | **D3 mined-client expectations** (`d3-mined-client`) | **48** | Behaviors the 6 SDKs silently assume from their inline fake hosts. Largely overlaps tranches 1–4 once those land; the residue is client-specific assumptions worth pinning so a host change can't break a client unseen. |
 
@@ -227,7 +227,7 @@ Affected concepts: `StateAction` unknown variant, `SessionStatus` unknown bits,
   and the outlier filed.
 - **Untriaged (3):** `SessionToolCallReady` delta/invocation-message update,
   `SessionConfigChanged` replace-false merge semantics, `SessionInputRequested`
-  upsert-answer preservation — Phase B5 must execute the differential run to
+  upsert-answer preservation — the per-client runners must execute the differential run to
   resolve these to spec-gap vs bug.
 
 ### 4c. Mutation targets (from D9 — 66 surviving mutants)
@@ -241,7 +241,7 @@ tagged): `remove-conditional` 7, `replace-value` 5, `remove-branch` 5,
 assignments* (e.g. `session.lifecycle.happy.creating-to-ready`: flipping
 `SessionLifecycle.Ready` → `CreationFailed` goes uncaught), confirming the
 current single happy-path seed barely constrains the reducer. These are the
-concrete "add a scenario that asserts this exact state field" targets; B6 will
+concrete "add a scenario that asserts this exact state field" targets; the mutation run will
 re-mutate after Part 2 and ratchet the kill-rate floor.
 
 ---

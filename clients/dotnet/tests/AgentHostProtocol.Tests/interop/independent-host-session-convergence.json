@@ -98,5 +98,5 @@
     "lifecycle": "creating",
     "turns": []
   },
-  "_source": "Captured from OpenAgency AhpWsHost running the canonical TypeScript sessionReducer (independent implementation)."
+  "_source": "Captured from an independent AHP WebSocket host running the canonical TypeScript sessionReducer (independent implementation)."
 }

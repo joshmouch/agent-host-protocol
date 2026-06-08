@@ -24,6 +24,21 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
 
+### Fixed
+
+- Encode-fidelity: an unknown `StateAction` variant no longer re-encodes to
+  `{}` (dropping its `type` discriminant and extra fields); the raw payload is
+  preserved on decode and re-emitted verbatim.
+- Forward-compatibility: unknown discriminants on wire-decoded discriminated
+  unions (`ResponsePart`, `ToolCallState`, `TerminalClaim`,
+  `TerminalContentPart`, `Customization`, and other evolvable unions) now decode
+  to a raw passthrough and re-encode verbatim instead of throwing
+  `DecodingError`, so a snapshot carrying an unknown variant still decodes and
+  subsequent actions fold correctly.
+- `ChangesetOperationResourceTarget` / `…RangeTarget` now encode their `kind`
+  discriminant (previously a computed property excluded from `CodingKeys`, so it
+  was dropped on encode).
+
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

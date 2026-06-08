@@ -125,9 +125,47 @@ for (const step of scenario.steps) {
 //      - When the plan is exhausted, close the ws cleanly.
 // ---------------------------------------------------------------------------
 
-const wss = new WebSocketServer({ port: 0 })
+// Per-host connection nonce. The client requires the host to echo this exact
+// value as the negotiated WebSocket subprotocol; a foreign server that happens
+// to be squatting on a recycled ephemeral port will not, so the client can tell
+// it reached the wrong server and re-spawn the host on a fresh port instead of
+// silently reducing against an empty/foreign response. Computed before bind so
+// it can be wired into handleProtocols.
+const CONNECT_NONCE = `ahp-scenario-${process.pid}-${Math.random().toString(36).slice(2)}`
+
+// Bind to an explicit loopback host on an OS-assigned ephemeral port. The
+// nonce subprotocol (above) is the only one this host will negotiate, so a
+// client that lands on a FOREIGN server after an ephemeral port was recycled by
+// another local process sees a missing/mismatched subprotocol and bails.
+const wss = new WebSocketServer({
+  host: '127.0.0.1',
+  port: 0,
+  handleProtocols: (protocols) => (protocols.has(CONNECT_NONCE) ? CONNECT_NONCE : false),
+})
 await new Promise((r) => wss.once('listening', r))
-console.log('SCENARIO HOST READY', `ws://127.0.0.1:${wss.address().port}`, scenario.id)
+const BOUND_PORT = wss.address().port
+console.log('SCENARIO HOST READY', `ws://127.0.0.1:${BOUND_PORT}`, scenario.id, CONNECT_NONCE)
+
+// Close the socket only AFTER the final frame has been flushed to the OS socket
+// buffer. `ws.send(data, cb)` invokes cb once the frame is handed to the
+// transport; closing inside that callback guarantees the last notification is
+// not truncated by a close that races the TCP flush. (A bare
+// `setImmediate(() => ws.close())` after `ws.send(...)` can close before the
+// final frame drains — observed as a ~1/233 flake at concurrency 4.)
+//
+// `lastPayload` is the JSON string of the final frame to send before the plan
+// is exhausted; when present we send it with the close callback. If there is no
+// trailing frame to send (the plan ended on a response we already sent), we
+// fall back to closing after the buffer drains.
+function closeWhenDrained(ws) {
+  if (ws.bufferedAmount === 0) { ws.close(); return }
+  const tick = () => {
+    if (ws.readyState !== ws.OPEN) return
+    if (ws.bufferedAmount === 0) { ws.close(); return }
+    setImmediate(tick)
+  }
+  setImmediate(tick)
+}
 
 wss.on('connection', (ws) => {
   let cursor = 0
@@ -139,20 +177,36 @@ wss.on('connection', (ws) => {
   // 'action' notification) carries no request to trigger a flush, so these
   // notifies must be delivered on connection. pin.clock items are applied here
   // too (they were already, for the same before-first-request reason).
+  //
+  // We track the LAST notify payload so it can be sent with a close-completion
+  // callback (see closeWhenDrained / the final-send pattern below) — closing
+  // only after that frame is flushed avoids truncating the last notification.
+  let lastNotifyPayload = null
   while (cursor < plan.length && plan[cursor].type !== 'response') {
     const item = plan[cursor]
     if (item.type === 'pin') {
       pinClock(item.value)
     } else if (item.type === 'notify') {
-      ws.send(JSON.stringify(item.payload))
+      // Send the previously-held notify (if any); hold the current one so the
+      // final notify is the one paired with the close callback.
+      if (lastNotifyPayload !== null) ws.send(lastNotifyPayload)
+      lastNotifyPayload = JSON.stringify(item.payload)
     }
     cursor++
   }
 
   // If the whole plan was leading push items (no response at all), the exchange
-  // is complete — close once the client has had a tick to receive them.
+  // is complete. Send the final held notify WITH a close-completion callback so
+  // the socket closes only after that last frame is flushed.
   if (cursor >= plan.length) {
-    setImmediate(() => ws.close())
+    if (lastNotifyPayload !== null) {
+      ws.send(lastNotifyPayload, () => ws.close())
+    } else {
+      closeWhenDrained(ws)
+    }
+  } else if (lastNotifyPayload !== null) {
+    // More plan remains (a response is next) — flush the held notify normally.
+    ws.send(lastNotifyPayload)
   }
 
   ws.on('message', (raw) => {
@@ -188,26 +242,34 @@ wss.on('connection', (ws) => {
     }
 
     // Send the response with the client's actual id so JSON-RPC correlation works.
+    // Hold it as the "last payload so far"; subsequent trailing notifies (if any)
+    // will replace it, so the final frame sent is always the one paired with the
+    // close-completion callback.
     const frame = { ...responseItem.payload, id: msg.id }
-    ws.send(JSON.stringify(frame))
+    let lastPayload = JSON.stringify(frame)
     cursor++
 
     // Flush all notify + pin.clock items that immediately follow this response,
-    // stopping before the next response item.
+    // stopping before the next response item. Each new frame flushes the
+    // previously-held one and becomes the new held (last) frame.
     while (cursor < plan.length && plan[cursor].type !== 'response') {
       const item = plan[cursor]
       if (item.type === 'pin') {
         pinClock(item.value)
       } else if (item.type === 'notify') {
-        ws.send(JSON.stringify(item.payload))
+        ws.send(lastPayload)
+        lastPayload = JSON.stringify(item.payload)
       }
       cursor++
     }
 
-    // If the plan is exhausted, close the connection cleanly.
+    // If the plan is exhausted, send the final held frame WITH a close-completion
+    // callback so the socket closes only after that frame is flushed (avoids
+    // truncating the last response/notification). Otherwise flush it normally.
     if (cursor >= plan.length) {
-      // Give the client a tick to receive the last message before closing.
-      setImmediate(() => ws.close())
+      ws.send(lastPayload, () => ws.close())
+    } else {
+      ws.send(lastPayload)
     }
   })
 

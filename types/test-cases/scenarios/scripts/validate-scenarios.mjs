@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// AHP Conformance — scenario-fixture validator (Part 2, build-phase B1).
+// AHP Conformance — scenario-fixture validator.
 //
 // Dependency-free by design (same discipline as
 // conformance/discovery/scripts/validate-inventory.mjs): every client runner +

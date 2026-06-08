@@ -4,11 +4,9 @@ This directory is the **discovery half (Part 1)** of the AHP conformance-suite
 effort. Its job is to attack the conformance surface from many independent,
 overlapping angles so no behavior hides in a single blind spot, and to emit the
 result as a **machine-readable, re-runnable inventory** rather than a prose
-document.
-
-Plan of record:
-`OpenAgency/docs/plans/active/2026-06-06-0642-ahp-conformance-suite/plan.md`
-(Part 1, phases D0–D11).
+document. For the suite as a whole — the scenario corpus, the six green client
+runners, mutation, and how the pieces fit — see the conformance suite report,
+[`../REPORT.md`](../REPORT.md).
 
 ## How it works
 
@@ -76,3 +74,52 @@ npm run gate:all
 - **One disjoint output file per angle**; never edit another angle's rows.
 - **D1–D10 emit `coverage: "unknown"`**; only D11 reconciles coverage.
 - Run the validator on your file before reporting done; paste the PASS line.
+
+## Maintenance contract — which `out/*.jsonl` files are generated vs hand-authored
+
+The angle files split into two kinds. **Know which kind you are editing before
+you touch an `out/*.jsonl` file** — editing a generated file by hand is a
+mistake (the next generator run overwrites it).
+
+| Kind | Files | Source of truth | Regenerate with |
+|---|---|---|---|
+| **Generated** (derived from the protocol/fixtures by a script) | `d1`, `d2`, `d5`, `d7` | the corresponding `scripts/gen-d<n>.mjs` | `node scripts/gen-d<n>.mjs > out/<file>.jsonl` |
+| **Hand-authored** (curated discovery rows) | `d3`, `d4`, `d6`, `d8`, `d9`, `d10` | the `out/*.jsonl` file itself | n/a — edit the file directly |
+| **Reconciled** (synthesis of D1–D10) | `d11` | `scripts/reconcile.mjs` | `node scripts/reconcile.mjs` |
+
+The four generators emit JSONL to **stdout**, redirected into `out/`:
+
+- `gen-d1.mjs` — every method / action / error / capability in `schema/`.
+- `gen-d2.mjs` — RFC-2119 (MUST/SHOULD/MAY) clauses mined from the spec prose.
+- `gen-d5.mjs` — the reducer + round-trip fixtures lifted into wire scenarios.
+- `gen-d7.mjs` — error / negative / protocol-violation paths.
+
+### Adding rows when the protocol gains a new action / error / state field
+
+1. **Identify the angle(s) the change belongs to.** A new wire surface
+   (action / error / method / capability / state field) is **generated** — it
+   appears in `d1` (schema surface) and, if it has a fixture or an error path,
+   in `d5` / `d7`. A new *behavioral expectation* with no schema delta (a
+   lifecycle transition, a cross-client divergence, a property) is
+   **hand-authored** in `d4` / `d6` / `d8` / `d10`.
+
+2. **For a generated angle:** update the upstream source the generator reads
+   (the protocol `types/` + `schema/` for `d1`/`d2`, the
+   `types/test-cases/**` fixtures for `d5`, the negative-path inputs for `d7`),
+   then **re-run the generator** (`node scripts/gen-d<n>.mjs > out/<file>.jsonl`).
+   Do **not** hand-edit the generated `out/*.jsonl`.
+
+3. **For a hand-authored angle:** append the new row(s) directly to that angle's
+   `out/*.jsonl`, with `coverage: "unknown"` and a **real `citation.file:line`**
+   into the fork. Never edit another angle's file.
+
+4. **Re-reconcile** so the surface matrix + coverage pick up the new rows:
+   `node scripts/reconcile.mjs` (rewrites `out/d11-*` and
+   `out/d11-coverage.json`).
+
+5. **Re-run both gates** and paste the PASS lines:
+   `node scripts/validate-inventory.mjs out/*.jsonl` (shape) and
+   `node scripts/verify-citations.mjs out/*.jsonl` (grounding). If the new
+   behavior is also covered by a corpus scenario, add the scenario's
+   `behaviorIds` entry so the CI gate's corpus-covers-matrix ratchet
+   ([`../ci/gate.mjs`](../ci/gate.mjs)) accounts for it.

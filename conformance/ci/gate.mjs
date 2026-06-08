@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// AHP CONFORMANCE — CI GATE (build-phase B7, the capstone machine-check).
+// AHP CONFORMANCE — CI GATE (the capstone machine-check).
 //
 // One dependency-free Node script that runs the CORE conformance checks that are
 // fast + local-runnable and exits NON-ZERO on the first hard failure. This is the
@@ -165,7 +165,7 @@ if (PRINT_ONLY) {
 
 // ── main gate ──────────────────────────────────────────────────────────────────
 
-console.log(col('bold', '\nAHP CONFORMANCE — CI GATE (B7)\n'));
+console.log(col('bold', '\nAHP CONFORMANCE — CI GATE\n'));
 console.log(col('dim', `repo: ${REPO}\n`));
 
 // ── Check A — scenario shape ───────────────────────────────────────────────────
@@ -179,14 +179,18 @@ console.log(col('cyan', 'A. scenario shape  (validate-scenarios.mjs)'));
 }
 
 // ── Check B — host-conformance 233/233 ─────────────────────────────────────────
-// NOTE: run at --concurrency 1 for DETERMINISM. The default concurrency-4 full
-// run has a known subprocess race (~1/233 of full runs intermittently drops one
-// scripted-error scenario — surfaced during B7 build-out, confirmed a flake: the
-// affected scenarios pass 8/8 in isolation and the parallel run is 233/233 on
-// re-run). The reducers/host/scenarios are correct; only the parallel harness
-// flakes under load, so a CI GATE must serialize. The per-client matrix jobs in
-// the workflow exercise the parallel path; this core gate trades ~10s of wall
-// time for a deterministic verdict. (~14s serial vs ~5s parallel.)
+// NOTE: run at --concurrency 1 for belt-and-suspenders DETERMINISM. The default
+// concurrency-4 full run could, on a busy machine, intermittently fail one
+// random scenario because a host's OS-assigned ephemeral port was recycled by
+// another local process between READY and connect (the client then reached a
+// foreign server). That root cause is now FIXED in the runner: the host emits a
+// per-connection nonce as the negotiated WebSocket subprotocol and the client
+// re-spawns on a fresh port if it reaches a server that does not echo it (see
+// conformance/host/scenario-host.mjs + conformance/runner/run-conformance.mjs;
+// verified 233/233 across 50 consecutive concurrency-4 runs). The gate still
+// serializes here purely for a maximally deterministic verdict; the per-client
+// matrix jobs in the workflow exercise the parallel path. (~14s serial vs ~5s
+// parallel.)
 console.log(col('cyan', '\nB. host-conformance  (runner/run.sh --all-reducers --concurrency 1 → 233/233)'));
 if (SKIP_HOST) {
   record('host-conformance suite 233/233', true, col('yellow', 'SKIPPED (--skip-host)'));

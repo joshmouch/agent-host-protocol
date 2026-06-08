@@ -1,6 +1,6 @@
-// AHP Conformance Runner — Rust build-phase B5.
+// AHP Conformance Runner — Rust per-client corpus runner.
 //
-// Ports the B4 JS reference runner (conformance/runner/run-conformance.mjs)
+// Ports the JS reference runner (conformance/runner/run-conformance.mjs)
 // to Rust. For every scenario file it:
 //   1. Spawns the scenario-driven host:
 //        node conformance/host/scenario-host.mjs <scenario.json>
@@ -12,10 +12,12 @@
 //   5. Checks every client.assert.* step and reports PASS/FAIL/SKIP.
 //
 // NO MOCKS — real ws, real host subprocess, real reducers, real assertions.
-// (CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION + ADR-067/072.)
 //
 // Usage:
-//   cargo run -- [--tranche brief|full] [--verbose] [--scenario <path>]
+//   cargo run -- [--full | --tranche full] [--verbose] [--scenario <path>]
+//
+//   Tranche defaults to "brief" (23 round-trips + 30 reducers + 46 negatives);
+//   --full (or --tranche full) selects the full 233-scenario corpus. CI uses --full.
 //
 // Exit 0 = all scenarios passed; 1 = one or more failed.
 
@@ -26,7 +28,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use tokio::time::timeout;
 use tokio_tungstenite::connect_async;
@@ -53,9 +55,7 @@ use ahp_types::state::{ChangesetState, ChangesetStatus, RootState, SessionState,
 /// not as `None`. This is required because `"equals": null` in a scenario
 /// means "assert the value is null", which is distinct from the field being
 /// absent (which means "no assertion on this field").
-fn deserialize_opt_value_preserve_null<'de, D>(
-    deserializer: D,
-) -> Result<Option<Value>, D::Error>
+fn deserialize_opt_value_preserve_null<'de, D>(deserializer: D) -> Result<Option<Value>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -72,7 +72,9 @@ where
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Scenario {
-    id: String,
+    // `id` is present in the JSON but the runner derives the scenario id from
+    // the file name, so it is intentionally not deserialized here (serde ignores
+    // unknown fields).
     #[serde(default)]
     pin_clock: Option<i64>,
     steps: Vec<Step>,
@@ -90,13 +92,9 @@ struct Step {
     id: Option<Value>,
     #[serde(default)]
     params: Option<Value>,
-    // server.response fields
-    #[serde(default, rename = "forId")]
-    for_id: Option<Value>,
-    #[serde(default)]
-    result: Option<Value>,
-    #[serde(default)]
-    error: Option<Value>,
+    // server.response fields (forId / result / error) are consumed by the JS
+    // scenario host, not this client runner, so they are intentionally not
+    // deserialized here (serde ignores unknown fields).
     // server.notify fields — method already above
     // client.assert.state fields
     #[serde(default)]
@@ -267,14 +265,14 @@ fn apply_notify_action(
             let Ok(action) = parsed else {
                 return;
             };
-            let entry = channels
-                .entry(channel.to_string())
-                .or_insert_with(|| ChannelState::Root(RootState {
+            let entry = channels.entry(channel.to_string()).or_insert_with(|| {
+                ChannelState::Root(RootState {
                     agents: vec![],
                     active_sessions: None,
                     terminals: None,
                     config: None,
-                }));
+                })
+            });
             if let ChannelState::Root(ref mut state) = entry {
                 apply_action_to_root(state, &action);
             } else {
@@ -302,26 +300,24 @@ fn apply_notify_action(
             let Ok(action) = parsed else {
                 return;
             };
-            let entry = channels
-                .entry(channel.to_string())
-                .or_insert_with(|| {
-                    ChannelState::Terminal(TerminalState {
-                        title: String::new(),
-                        cwd: None,
-                        cols: None,
-                        rows: None,
-                        content: vec![],
-                        exit_code: None,
-                        claim: ahp_types::state::TerminalClaim::Session(
-                            ahp_types::state::TerminalSessionClaim {
-                                session: channel.to_string(),
-                                turn_id: None,
-                                tool_call_id: None,
-                            },
-                        ),
-                        supports_command_detection: None,
-                    })
-                });
+            let entry = channels.entry(channel.to_string()).or_insert_with(|| {
+                ChannelState::Terminal(TerminalState {
+                    title: String::new(),
+                    cwd: None,
+                    cols: None,
+                    rows: None,
+                    content: vec![],
+                    exit_code: None,
+                    claim: ahp_types::state::TerminalClaim::Session(
+                        ahp_types::state::TerminalSessionClaim {
+                            session: channel.to_string(),
+                            turn_id: None,
+                            tool_call_id: None,
+                        },
+                    ),
+                    supports_command_detection: None,
+                })
+            });
             if let ChannelState::Terminal(ref mut state) = entry {
                 apply_action_to_terminal(state, &action);
             } else {
@@ -334,16 +330,14 @@ fn apply_notify_action(
             let Ok(action) = parsed else {
                 return;
             };
-            let entry = channels
-                .entry(channel.to_string())
-                .or_insert_with(|| {
-                    ChannelState::Changeset(ChangesetState {
-                        status: ChangesetStatus::Computing,
-                        error: None,
-                        files: vec![],
-                        operations: None,
-                    })
-                });
+            let entry = channels.entry(channel.to_string()).or_insert_with(|| {
+                ChannelState::Changeset(ChangesetState {
+                    status: ChangesetStatus::Computing,
+                    error: None,
+                    files: vec![],
+                    operations: None,
+                })
+            });
             if let ChannelState::Changeset(ref mut state) = entry {
                 apply_action_to_changeset(state, &action);
             } else {
@@ -393,7 +387,11 @@ fn default_session_state(resource: &str) -> SessionState {
 
 // ── Seed from a snapshot result (mirrors JS seedFromSnapshots) ───────────────
 
-fn seed_from_result(channels: &mut HashMap<String, ChannelState>, synthetic: &mut Value, result: &Value) {
+fn seed_from_result(
+    channels: &mut HashMap<String, ChannelState>,
+    synthetic: &mut Value,
+    result: &Value,
+) {
     if let Some(v) = result.get("protocolVersion") {
         synthetic["protocolVersion"] = v.clone();
     }
@@ -423,7 +421,7 @@ fn seed_from_result(channels: &mut HashMap<String, ChannelState>, synthetic: &mu
 }
 
 fn seed_channel(channels: &mut HashMap<String, ChannelState>, resource: &str, state_val: &Value) {
-    // Detect type by presence of characteristic fields (same heuristic as B4 JS runner context).
+    // Detect type by presence of characteristic fields (same heuristic as the JS runner context).
     // We try to deserialize into each candidate state type.
     if let Ok(s) = serde_json::from_value::<SessionState>(state_val.clone()) {
         channels.insert(resource.to_string(), ChannelState::Session(s));
@@ -603,12 +601,7 @@ async fn drive_protocol(ws_url: &str, scenario: &Scenario) -> Result<DriveResult
                     if let Some(action_val) = params.get("action") {
                         // Also record the action itself.
                         observed_events.push(action_val.clone());
-                        apply_notify_action(
-                            &mut channels,
-                            &channel,
-                            action_val,
-                            &mut warnings,
-                        );
+                        apply_notify_action(&mut channels, &channel, action_val, &mut warnings);
                     }
                 }
             }
@@ -669,8 +662,7 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
                         bucket_label = format!("channel {ch}");
                     }
                     None => {
-                        let known: Vec<&str> =
-                            result.channels.keys().map(String::as_str).collect();
+                        let known: Vec<&str> = result.channels.keys().map(String::as_str).collect();
                         return AssertResult {
                             ok: false,
                             skipped: false,
@@ -737,8 +729,7 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
                     target_value = channel_state_to_value(state);
                     bucket_label = format!("single channel ({ch_key})");
                 } else {
-                    let known: Vec<&str> =
-                        result.channels.keys().map(String::as_str).collect();
+                    let known: Vec<&str> = result.channels.keys().map(String::as_str).collect();
                     return AssertResult {
                         ok: false,
                         skipped: false,
@@ -758,14 +749,22 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
             match (actual, expected) {
                 (Some(a), Some(e)) => {
                     if deep_equal_canonical(a, e) {
-                        AssertResult { ok: true, skipped: false, detail: String::new() }
+                        AssertResult {
+                            ok: true,
+                            skipped: false,
+                            detail: String::new(),
+                        }
                     } else {
                         AssertResult {
                             ok: false,
                             skipped: false,
                             detail: format!(
                                 "assert.state @ {bucket_label}{}: expected {}, got {}",
-                                if path.is_empty() { " (whole state)".to_string() } else { format!(" path '{path}'") },
+                                if path.is_empty() {
+                                    " (whole state)".to_string()
+                                } else {
+                                    format!(" path '{path}'")
+                                },
                                 serde_json::to_string(e).unwrap_or_default(),
                                 serde_json::to_string(&canonicalize(a)).unwrap_or_default()
                             ),
@@ -774,7 +773,11 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
                 }
                 (None, Some(e)) if e.is_null() => {
                     // Path not found and expected null → treat as ok (same as JS runner).
-                    AssertResult { ok: true, skipped: false, detail: String::new() }
+                    AssertResult {
+                        ok: true,
+                        skipped: false,
+                        detail: String::new(),
+                    }
                 }
                 (None, _) => AssertResult {
                     ok: false,
@@ -800,7 +803,11 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
             // Try deep containment against every observed event.
             for ev in &result.observed_events {
                 if deep_contains(ev, expected) {
-                    return AssertResult { ok: true, skipped: false, detail: String::new() };
+                    return AssertResult {
+                        ok: true,
+                        skipped: false,
+                        detail: String::new(),
+                    };
                 }
             }
             AssertResult {
@@ -822,15 +829,16 @@ fn check_assertion(step: &Step, result: &DriveResult) -> AssertResult {
                     continue;
                 }
                 if let Some(msg_substr) = &step.message {
-                    let err_msg = err
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .unwrap_or("");
+                    let err_msg = err.get("message").and_then(Value::as_str).unwrap_or("");
                     if !err_msg.contains(msg_substr.as_str()) {
                         continue;
                     }
                 }
-                return AssertResult { ok: true, skipped: false, detail: String::new() };
+                return AssertResult {
+                    ok: true,
+                    skipped: false,
+                    detail: String::new(),
+                };
             }
             AssertResult {
                 ok: false,
@@ -865,17 +873,12 @@ struct ScenarioResult {
     id: String,
     status: ScenarioStatus,
     asserts_pass: usize,
-    asserts_fail: usize,
     asserts_skip: usize,
     failures: Vec<String>,
     warnings: Vec<String>,
 }
 
-async fn run_scenario(
-    scenario_path: &Path,
-    host_script: &Path,
-    verbose: bool,
-) -> ScenarioResult {
+async fn run_scenario(scenario_path: &Path, host_script: &Path, verbose: bool) -> ScenarioResult {
     let id = scenario_path
         .file_name()
         .and_then(|n| n.to_str())
@@ -891,7 +894,6 @@ async fn run_scenario(
                 id,
                 status: ScenarioStatus::Error(format!("read error: {e}")),
                 asserts_pass: 0,
-                asserts_fail: 0,
                 asserts_skip: 0,
                 failures: vec![],
                 warnings: vec![],
@@ -905,7 +907,6 @@ async fn run_scenario(
                 id,
                 status: ScenarioStatus::Error(format!("JSON parse error: {e}")),
                 asserts_pass: 0,
-                asserts_fail: 0,
                 asserts_skip: 0,
                 failures: vec![],
                 warnings: vec![],
@@ -935,7 +936,6 @@ async fn run_scenario(
                 id,
                 status: ScenarioStatus::Error(format!("failed to spawn host: {e}")),
                 asserts_pass: 0,
-                asserts_fail: 0,
                 asserts_skip: 0,
                 failures: vec![],
                 warnings: vec![],
@@ -979,7 +979,6 @@ async fn run_scenario(
                 id,
                 status: ScenarioStatus::Error("host did not print READY line".to_string()),
                 asserts_pass: 0,
-                asserts_fail: 0,
                 asserts_skip: 0,
                 failures: vec![],
                 warnings: vec![],
@@ -999,7 +998,6 @@ async fn run_scenario(
                 id,
                 status: ScenarioStatus::Error(format!("drive error: {e}")),
                 asserts_pass: 0,
-                asserts_fail: 0,
                 asserts_skip: 0,
                 failures: vec![],
                 warnings: vec![],
@@ -1019,7 +1017,6 @@ async fn run_scenario(
             id,
             status: ScenarioStatus::Error("scenario has no client.assert.* steps".to_string()),
             asserts_pass: 0,
-            asserts_fail: 0,
             asserts_skip: 0,
             failures: vec![],
             warnings: result.warnings,
@@ -1074,7 +1071,6 @@ async fn run_scenario(
         id,
         status,
         asserts_pass,
-        asserts_fail,
         asserts_skip,
         failures,
         warnings,
@@ -1087,12 +1083,7 @@ fn collect_scenarios(dir: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("cannot read dir {}: {e}", dir.display()))
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .map(|x| x == "json")
-                .unwrap_or(false)
-        })
+        .filter(|e| e.path().extension().map(|x| x == "json").unwrap_or(false))
         .map(|e| e.path())
         .collect();
     paths.sort();
@@ -1104,7 +1095,15 @@ async fn main() {
     let args: Vec<String> = std::env::args().collect();
 
     let verbose = args.contains(&"--verbose".to_string());
-    let full = args.contains(&"--full".to_string());
+    // Tranche selection. Accept both the bare `--full` flag (used by CI and the
+    // sibling Go/Kotlin runners) and the documented `--tranche full` form; either
+    // selects the full 233-scenario corpus. Brief is the default.
+    let tranche = args
+        .iter()
+        .position(|a| a == "--tranche")
+        .and_then(|idx| args.get(idx + 1))
+        .map(String::as_str);
+    let full = args.contains(&"--full".to_string()) || tranche == Some("full");
 
     // Find repo root (we're in conformance/rust/).
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -1127,7 +1126,10 @@ async fn main() {
             let r = run_scenario(&path, &host_script, verbose).await;
             match &r.status {
                 ScenarioStatus::Pass => {
-                    println!("PASS  {}  ({} pass, {} skip)", r.id, r.asserts_pass, r.asserts_skip);
+                    println!(
+                        "PASS  {}  ({} pass, {} skip)",
+                        r.id, r.asserts_pass, r.asserts_skip
+                    );
                     std::process::exit(0);
                 }
                 ScenarioStatus::Skip => {

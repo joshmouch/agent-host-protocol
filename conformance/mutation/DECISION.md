@@ -1,6 +1,6 @@
 # Mutation Testing for the AHP Conformance Suite — KEEP/DROP Decision
 
-**Build-phase B6.** Decision gate: does mutation testing earn its place in this
+Decision gate: does mutation testing earn its place in this
 suite? Grounded in a real StrykerJS run over the canonical TypeScript reducers,
 killed by the conformance corpus.
 
@@ -24,7 +24,7 @@ not a vibe. KEEP it, gate it nightly, and ratchet the floor.
 |---|---|
 | Tool | StrykerJS 8.7.1 (`@stryker-mutator/core`), `command` test runner |
 | Mutated | The 5 canonical channel reducers + `common/reducer-helpers.ts` under `clients/typescript/src/types/` |
-| Kill-signal | `replay-corpus.mjs` — in-process replay of **all 233** conformance scenarios through the **real `src` reducers** (imported via tsx, no build), same reduction routing + assertion semantics as the B4 host-conformance runner |
+| Kill-signal | `replay-corpus.mjs` — in-process replay of **all 233** conformance scenarios through the **real `src` reducers** (imported via tsx, no build), same reduction routing + assertion semantics as the host-conformance runner |
 | Wall time | **48 seconds** (full reducer set, concurrency 4) |
 | Baseline replay | 233/233 PASS in **~0.24s** |
 
@@ -144,7 +144,7 @@ unkillable by construction." That is high-value, low-cost signal. The survivor
 list is *directly actionable* (it names the missing edge scenarios) and the run
 is fast and deterministic. Nothing about the cost argues for DROP.
 
-### How it should run (for B7 to wire)
+### How it should run (for the CI gate to wire)
 
 1. **Cadence — nightly + on-demand, NOT per-PR-blocking initially.** 48s is
    cheap, but mutation scores are most useful as a *trend/ratchet*, not a
@@ -161,16 +161,16 @@ is fast and deterministic. Nothing about the cost argues for DROP.
    real behavior, not unkillable noise. Either add
    `channels-resource-watch/reducer.ts` + `common/reducer-helpers.ts` to a
    Stryker `mutate` exclusion, **or** keep them in but document their floor at 0%.
-   (This config currently mutates them so the gap is *visible*; B7 should decide
-   visible-but-excluded vs removed. Recommended: keep visible, exclude from the
+   (This config currently mutates them so the gap is *visible*; the CI gate should
+   decide visible-but-excluded vs removed. Recommended: keep visible, exclude from the
    `break` calculation, so a future real `resourceWatch/*` mutating action would
    resurface them.)
 4. **The full subprocess runner stays the stricter cross-check.** The in-process
-   replay is the fast per-mutant signal; the B4 `conformance-suite.mjs
+   replay is the fast per-mutant signal; the `conformance-suite.mjs
    --all-reducers` (233 scenarios end-to-end over real WebSocket, ~3.5s) remains
    the canonical green proof and a *second*, transport-inclusive kill-signal if a
    future mutation ever escapes the in-process harness (it cannot for pure
-   reducers, but the runner guards the host protocol layer B7 may also mutate).
+   reducers, but the runner guards the host protocol layer a future change may also mutate).
 
 ### What KEEP does NOT mean
 
@@ -201,7 +201,7 @@ conformance/mutation/node_modules/.bin/stryker run conformance/mutation/stryker.
 #   headline → conformance/mutation/mutation-summary.json
 ```
 
-**CI full-corpus command (for B7), exact:**
+**CI full-corpus command (for the CI gate), exact:**
 
 ```bash
 # kill-signal = full conformance corpus (in-process, fast):

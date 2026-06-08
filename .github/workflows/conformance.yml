@@ -1,6 +1,6 @@
 name: Conformance
 
-# AHP cross-implementation conformance suite (build-phases B1–B7 + Part-1 discovery).
+# AHP cross-implementation conformance suite.
 #
 #   1. core-gate     — the machine-checked CI gate (conformance/ci/gate.mjs):
 #                      scenario shape + host-conformance 233/233 + discovery
@@ -108,6 +108,17 @@ jobs:
           cache: true
           cache-dependency-path: conformance/go/go.sum
       - run: npm ci
+      # Mirror the repo's gofmt bar so the conformance Go runner is held to the
+      # same formatting as the shipped clients/go module. `gofmt -l` lists files
+      # whose formatting differs; a non-empty list fails the job.
+      - name: Check Go formatting (conformance runner)
+        run: |
+          unformatted="$(gofmt -l conformance/go/)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::Go files are not gofmt-clean. Run 'gofmt -w conformance/go/' and commit:"
+            echo "$unformatted"
+            exit 1
+          fi
       # conformance/go/run.sh => `go run . <scenarios> --all-reducers`
       # (the scenario host is spawned per scenario; the Go reducers apply every
       # action). Runs the full 233-scenario corpus.
@@ -124,10 +135,20 @@ jobs:
           node-version: 24
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: conformance/rust
       - run: npm ci
+      # Mirror the repo's rustfmt guard (ci.yml's `cargo fmt --all -- --check`)
+      # so the conformance Rust runner is held to the same formatting bar as the
+      # shipped clients/rust crate. Package-scoped (no --all): this crate has
+      # path-deps on clients/rust, whose formatting is gated by its own ci.yml
+      # job — we only check the conformance runner's own sources here.
+      - name: Check Rust formatting (conformance runner)
+        working-directory: conformance/rust
+        run: cargo fmt --check
       # The Rust runner spawns `node conformance/host/scenario-host.mjs` per
       # scenario and applies every action through the ahp crate's reducers.
       # `--full` selects the full 233-scenario tranche.

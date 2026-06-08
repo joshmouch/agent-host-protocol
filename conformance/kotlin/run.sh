@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# AHP Kotlin conformance runner — build-phase B5.
+# AHP Kotlin conformance runner.
 #
 # Drives the REAL Kotlin client (reducer + types + KSerializer) against the
-# scenario-driven host (B3) over a REAL WebSocket, for every scenario in the
+# scenario-driven host over a REAL WebSocket, for every scenario in the
 # selected tranche. No mocks: real subprocess, real ws, real reducers, real assertions.
 #
 # Prerequisites:
@@ -36,8 +36,8 @@ if [[ -z "${JAVA_HOME:-}" ]]; then
   fi
 fi
 
-echo "[AHP-B5] Kotlin conformance runner — tranche: $TRANCHE"
-echo "[AHP-B5] JAVA_HOME: ${JAVA_HOME:-<not set>}"
+echo "[AHP] Kotlin conformance runner — tranche: $TRANCHE"
+echo "[AHP] JAVA_HOME: ${JAVA_HOME:-<not set>}"
 echo ""
 
 exec "$SCRIPT_DIR/gradlew" \

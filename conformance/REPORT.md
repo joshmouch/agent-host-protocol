@@ -1,6 +1,6 @@
 # AHP Cross-Implementation Conformance Report
 
-> The capstone (B7 + V) of the AHP conformance suite. This report rolls up the
+> The capstone of the AHP conformance suite. This report rolls up the
 > cross-implementation conformance picture: the scenario corpus, the six green
 > client implementations, the mutation kill-rate, the Part-1 discovery coverage,
 > the real findings the suite surfaced, and the honest non-goals.
@@ -19,8 +19,8 @@
 |---|---|---|
 | Scenario corpus | **233 scenarios** (164 reducer + 23 round-trip + 46 negative) | `types/test-cases/scenarios/` |
 | Client implementations green | **6 / 6 = 233/233** (TS · Kotlin · Swift · .NET · Go · Rust) | per-client runners under `conformance/<lang>/` |
-| Mutation kill-rate | **87.70 %** (713/813 killed) — **KEEP** | `conformance/mutation/mutation-summary.json` |
-| Part-1 discovery surface | **656 behaviors** across 10 angles, all shape-valid + citation-grounded | `conformance/discovery/out/d1..d10` |
+| Mutation kill-rate | **87.70 %** (713/813 killed) raw; **88.90 %** (713/802) excluding the 11 equivalent/out-of-scope mutants — **KEEP** | `conformance/mutation/mutation-summary.json` |
+| Part-1 discovery surface | **384 distinct canonical concepts** (reconciled from **656** raw angle rows across 10 angles; the raw count double-counts behaviors named differently by independent angles), all shape-valid + citation-grounded | `conformance/discovery/out/d11-coverage.json` (`distinctCanonicalConcepts` / `totalAngleRows`) |
 | Schema-element corroboration | **90 / 122** schema elements touched by a scenario angle | `conformance/discovery/out/d11-coverage.json` |
 | Strong-normative corroboration | **11 / 30** MUST/MUST_NOT clauses touched by a scenario angle | `conformance/discovery/out/d11-coverage.json` |
 | Corpus-covers-matrix | **233 / 233** D5+D7 mappable behaviors covered; **235 / 652 = 36.0 %** of the full D11 surface | `conformance/ci/gate.mjs --print-coverage` |
@@ -62,11 +62,11 @@ scenario-driven host
 WebSocket**, applying every `server.notify` action through that language's
 **native reducers** and checking every `client.assert.*` step. **No mocks** —
 real files, real transport, real subprocess host, real reducers, real
-assertions (per `CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION` + ADR-067/072).
+assertions — verified by real execution, not mocks.
 
 | Client | Result | Runner | Real run command |
 |---|---|---|---|
-| **TypeScript** | 233/233 | `conformance/runner/` (also the B4 reference replay client) | `conformance/runner/run.sh --all-reducers` |
+| **TypeScript** | 233/233 | `conformance/runner/` (also the reference replay client) | `conformance/runner/run.sh --all-reducers` |
 | **.NET** | 233/233 | `conformance/dotnet/CorpusRunner` | `conformance/run-corpus.sh` |
 | **Go** | 233/233 | `conformance/go/` | `conformance/go/run.sh` |
 | **Rust** | 233/233 | `conformance/rust/` | `cargo run --release -- --full` (in `conformance/rust`) |
@@ -78,22 +78,44 @@ on `clients/typescript`'s `sessionReducer` / `rootReducer` / etc. via a `file:`
 dependency), so the host-conformance run is simultaneously the TS client's
 green proof and the authoritative state every other client must converge to.
 
-### A real, reproducible flake (surfaced during B7 — and why the gate serializes)
+> Beyond the shared 233-scenario corpus, each client also carries its own native
+> test suite. The .NET suite, for example, runs **315 test cases per target
+> framework across `net8.0` + `net9.0`** (630 total executions) from **125
+> distinct `[Fact]`/`[Theory]` methods** (`dotnet test`; the method floor is
+> ratcheted by `clients/dotnet/tests/MIN_TEST_COUNT`). Quote the figure you mean:
+> the **125 methods** are the authored tests; the 315/630 are framework-expanded
+> executions, not 630 independent assertions.
+
+### A real, reproducible flake — diagnosed and fixed at the root
 
 The host-conformance suite runs each scenario in its own host subprocess and, by
-default, with `--concurrency 4`. Under that parallelism there is an
-**intermittent ~1/233 subprocess race**: a full run occasionally drops one
-scripted-error scenario's response (observed on
-`error.TurnInProgress.error.ahp-code`, which then reports `surfaced: []`). This
-is a **harness flake, not a protocol bug** — the affected scenario passes **8/8
-in isolation**, and the parallel run is **233/233 on re-run**. The reducers,
-host, and scenarios are all correct.
+default, with `--concurrency 4`. Under that parallelism a full run occasionally
+failed a single, *random* scenario with empty/foreign state (e.g. `surfaced: []`
+or `known channels: []`). The flake was a **harness/environment issue, not a
+protocol bug** — every affected scenario passes in isolation and the run is
+`233/233` on re-run; the reducers, host, and scenarios are all correct.
 
-Because a CI gate must be deterministic, the gate runs the host-conformance
-check at **`--concurrency 1`** (verified `233/233` across 3 consecutive serial
-runs; ~14 s vs ~5 s parallel). The per-client matrix jobs in the workflow still
-exercise the parallel path. See `conformance/ci/gate.mjs` check B for the inline
-rationale.
+**Root cause (diagnosed):** each host binds an OS-assigned ephemeral port
+(`port: 0`). On a busy machine (editors, model servers, other test runs), that
+port can be **recycled by another local process** between the host printing its
+`READY` line and the client connecting — so the client completes a WebSocket
+upgrade against a *foreign* server that closes it (observed: HTTP `404`, or
+`1008 Unauthorized` from an unrelated authenticated WS server) and the scenario
+asserts against empty state. The original client blindly *retried the same —
+now-stolen — port*, which is futile.
+
+**Fix (at the root):** the host now emits a per-connection **nonce** as the
+negotiated WebSocket subprotocol; the reference client requires the host to echo
+it and, on any pre-open failure or nonce mismatch (i.e. it reached a foreign
+server), **re-spawns the host on a fresh port** instead of retrying the stolen
+one. Verified `233/233` across **50 consecutive `--concurrency 4` runs** with
+zero flakes (the pre-fix rate was ~1 flake per ~8 full runs on the same
+machine). The CI gate still runs the host-conformance check at `--concurrency 1`
+for belt-and-suspenders determinism; the per-client matrix jobs exercise the
+parallel path. (The nonce handshake is backward-compatible: clients that do not
+offer it — the non-JS language runners — still connect, so their own blind-retry
+path is unchanged.) See `conformance/host/scenario-host.mjs` /
+`conformance/runner/run-conformance.mjs` for the implementation.
 
 ---
 
@@ -109,7 +131,8 @@ reducer mutants**.
 | Mutants generated | **813** | `mutation-summary.json` -> `totals.total` |
 | Killed | **713** | `totals.killed` |
 | Survived | **100** | `totals.survived` |
-| **Kill-rate** | **87.70 %** | `totals.killRatePct` |
+| **Kill-rate (raw)** | **87.70 %** (713/813) | `totals.killRatePct` |
+| **Kill-rate (meaningful)** | **88.90 %** (713/802) | raw, minus the 11 equivalent/out-of-scope mutants (see below) |
 | Break floor (CI) | **87** | `stryker.conf.json` -> `thresholds.break` |
 
 Per-file kill-rate (the 6 mutated reducer files):
@@ -125,8 +148,15 @@ Per-file kill-rate (the 6 mutated reducer files):
 
 The two 0 % files are **expected and documented**: `resource-watch` is an
 event-pass-through reducer that keeps no derived state (its own doc-comment says
-so), and `reducer-helpers` is trivia. They are kept visible in the report but
-their survivors are accounted-for, not silent gaps.
+so), and `reducer-helpers` is trivia. Their **11 mutants are equivalent /
+out-of-scope** (7 in `resource-watch` + 4 in `reducer-helpers`): a deliberate
+no-op-state reducer and warning-log-only helpers produce mutants no
+behavioral corpus can kill. They are kept visible in the report but excluded
+from the *meaningful-kill* denominator — so the honest "how well does the corpus
+kill mutants that are killable at all" figure is **88.90 % (713/802)**, not the
+diluted **87.70 % (713/813)**. The CI `break:87` floor is set against the raw
+813-denominator figure (conservative); the meaningful figure is the one that
+reflects corpus strength. They are accounted-for, not silent gaps.
 
 **Decision: KEEP** — CI-gated, nightly, with a ratchet floor. The kill-signal
 reuses the corpus + the runner's own assertion code verbatim (nothing bespoke to
@@ -136,11 +166,16 @@ Full rationale: [`conformance/mutation/DECISION.md`](mutation/DECISION.md).
 
 ---
 
-## 5. Part-1 discovery coverage (656 grounded behaviors)
+## 5. Part-1 discovery coverage (384 distinct concepts; 656 raw angle rows)
 
 Before the corpus, a 10-angle discovery fan-out
 ([`conformance/discovery/`](discovery/)) enumerated the protocol's observable
-behavior from independent vantage points. Every emitted row is **shape-valid**
+behavior from independent vantage points. The angles emit **656 raw rows**
+total; because independent angles name the same behavior differently, the
+canonical-key reconciliation collapses these to **384 distinct canonical
+concepts** ([`d11-coverage.json`](discovery/out/d11-coverage.json) →
+`distinctCanonicalConcepts`). The **656** figure is rows-before-dedup; **384**
+is the honest distinct-concept count. Every emitted row is **shape-valid**
 (`validate-inventory.mjs`) **and citation-grounded** in a real fork file
 (`verify-citations.mjs` — an anti-fabrication gate: each row's
 `citation.file` must exist and `citation.excerpt` must really appear near
@@ -158,7 +193,7 @@ behavior from independent vantage points. Every emitted row is **shape-valid**
 | D8 differential | 16 | Cross-client divergence candidates. |
 | D9 surviving-mutants | 66 | Mutation survivors -> behaviors the corpus under-pins. |
 | D10 property-findings | 20 | Invariants worth property-testing. |
-| **Total** | **656** | All shape-valid + citation-grounded (both gates re-run clean). |
+| **Total (raw angle rows)** | **656** | All shape-valid + citation-grounded (both gates re-run clean). Reconciles to **384 distinct canonical concepts** (independent angles name the same behavior differently). |
 
 **D11 reconciliation (the honest exit-criterion).** The raw D11 matrix merges by
 literal `behavior-id` and so under-collapses (independent angles name the same
@@ -168,7 +203,8 @@ measures the real coverage question
 ([`d11-coverage.json`](discovery/out/d11-coverage.json) +
 [`d11-reconciliation.md`](discovery/out/d11-reconciliation.md)):
 
-- **Enumeration is complete and verified** — 656 behaviors, all grounded.
+- **Enumeration is complete and verified** — 656 raw angle rows (384 distinct
+  canonical concepts after reconciliation), all grounded.
 - **Reconciliation is partial** — **90 / 122** schema elements and **11 / 30**
   strong-normative (MUST-class) clauses are corroborated by a scenario-producing
   angle. The remaining **32** schema elements + **19** MUST-class clauses are
@@ -184,7 +220,7 @@ measures the real coverage question
 
 ## 6. Corpus-covers-matrix (the exhaustiveness ratchet)
 
-The CI gate's check D (new in B7) cross-references the corpus's `behaviorIds`
+The CI gate's check D cross-references the corpus's `behaviorIds`
 against the D11 discovery surface, computed live by
 [`conformance/ci/gate.mjs`](ci/gate.mjs) and ratcheted against
 [`conformance/ci/coverage-floor.json`](ci/coverage-floor.json).

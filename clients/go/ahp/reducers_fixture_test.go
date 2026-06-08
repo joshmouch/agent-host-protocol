@@ -152,8 +152,7 @@ func TestFixtureDrivenReducerParity(t *testing.T) {
 			case "terminal":
 				runFixture[ahptypes.TerminalState](tt, fixture.Initial, fixture.Expected, actions, ApplyActionToTerminal)
 			case "changeset":
-				// Changeset reducer logic is deferred — skip.
-				tt.Skip("changeset reducer is a stub in this client (parity with Rust)")
+				runFixture[ahptypes.ChangesetState](tt, fixture.Initial, fixture.Expected, actions, ApplyActionToChangeset)
 			case "resourceWatch":
 				// Resource-watch reducer logic is deferred — skip.
 				tt.Skip("resourceWatch reducer is a stub in this client (parity with Rust)")

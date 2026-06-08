@@ -26,6 +26,10 @@ The Agent Host Protocol (AHP) defines how a portable, standalone sessions server
 
 For consumers that need to talk to two or more hosts at once, the Rust SDK ships a `MultiHostClient` abstraction in [`ahp::hosts`](https://docs.rs/ahp/latest/ahp/hosts/), the Swift SDK ships `MultiHostClient` in `AgentHostProtocolClient`, and the .NET SDK ships `MultiHostClient` in `Microsoft.AgentHostProtocol.Hosts`. Single-host consumers use the same API via `MultiHostClient::single` in Rust, `MultiHostClient.single(...)` in Swift, or `MultiHostClient.SingleAsync(...)` in .NET. See [Connecting to Multiple Hosts](https://microsoft.github.io/agent-host-protocol/guide/clients-multi-host) for the design and surface.
 
+## Conformance
+
+A language-neutral, cross-implementation conformance suite lives under [`conformance/`](conformance/): a 233-scenario corpus that all six clients replay against a real scenario-driven host over a real WebSocket, plus a discovery inventory, mutation testing, and a CI gate. Start with [`conformance/REPORT.md`](conformance/REPORT.md) for the rolled-up picture.
+
 ## Versioning and releases
 
 Each language client and the spec itself release independently on their own SemVer tracks. See [`docs/specification/versioning.md`](docs/specification/versioning.md) for the protocol-level rules and [`RELEASING.md`](RELEASING.md) for the release mechanics (tag conventions, CHANGELOG / metadata enforcement, required CI environments).

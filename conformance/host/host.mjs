@@ -1,7 +1,7 @@
 // A minimal, spec-faithful AHP host on the CANONICAL sessionReducer, speaking
 // the real AHP wire protocol (initialize / subscribe / action). Depends only on
 // the IN-REPO @microsoft/agent-host-protocol TypeScript client (clients/typescript,
-// wired as a `file:` dependency) + ws — no OpenAgency, no published package.
+// wired as a `file:` dependency) + ws — no external host, no published package.
 // Clock pinned so the impure modifiedAt (#186) is deterministic.
 globalThis.Date.now = () => 9999
 

@@ -19,10 +19,11 @@
 #   check-test-parity.sh --list      report present/missing, never fail.
 #   check-test-parity.sh --bump      raise the floor to the current method count.
 #
-# Plan: OpenAgency docs/plans/proposed/2026-06-04-0137-ahp-dotnet-client-test-parity
+# The parity contract: the .NET client mirrors the cross-language test matrix.
+# The expected parity test methods are enumerated in the manifest below; the
+# count floor guards against silent deletions. See clients/dotnet/AGENTS.md
+# ("Test-parity gate") for the prose contract.
 set -euo pipefail
-
-PLAN="docs/plans/proposed/2026-06-04-0137-ahp-dotnet-client-test-parity (AHP .NET client full-parity)"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TEST_DIR="$ROOT/clients/dotnet/tests/AgentHostProtocol.Tests"
@@ -108,7 +109,7 @@ case "${1:-}" in
         echo "check-test-parity: FAIL - .NET test methods regressed: $COUNT < floor $FLOOR"
         echo "  A [Fact]/[Theory] was removed. Restore it, or - if intentional - lower"
         echo "  clients/dotnet/tests/MIN_TEST_COUNT in the same commit and explain why."
-        echo "  Plan: $PLAN"
+        echo "  Parity contract: clients/dotnet/AGENTS.md (\"Test-parity gate\")."
         echo "  Parity tests still missing ($missing_count of $total_manifest):"
         enumerate_missing ""
       } >&2
@@ -121,7 +122,7 @@ case "${1:-}" in
     if [ "$missing_count" -gt 0 ]; then
       {
         echo "check-test-parity: FAIL - .NET client is not at test parity: $missing_count of $total_manifest expected tests are missing ($present_manifest present)."
-        echo "  Plan: $PLAN"
+        echo "  Parity contract: clients/dotnet/AGENTS.md (\"Test-parity gate\")."
         echo "  Add the following test methods (named per the parity manifest,"
         echo "  clients/dotnet/tests/parity-manifest.txt):"
         enumerate_missing ""

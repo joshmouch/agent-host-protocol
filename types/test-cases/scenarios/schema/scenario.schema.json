@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/joshmouch/agent-host-protocol/types/test-cases/scenarios/schema/scenario.schema.json",
+  "$id": "https://github.com/microsoft/agent-host-protocol/types/test-cases/scenarios/schema/scenario.schema.json",
   "title": "AHP Conformance — Scenario Fixture",
   "description": "One language-neutral, DECLARATIVE conformance scenario: ordered metadata + an ordered list of steps that all six client runners and the host runner load and execute identically. A scenario is data, not script: each step is a single discriminated op (mirroring the round-trip corpus's neutral `type` discriminator) so every SDK can decode it with no language-specific hints. The convergence-assertion model is snapshot-and-stream: server.* steps drive the client's reducer; client.assert.* steps check the resulting client-reduced state / events / errors. See SCHEMA.md for the prose contract and the per-op field tables.",
   "type": "object",

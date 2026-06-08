@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// AHP Conformance — scenario CORPUS generator (Part 2, build-phase B2).
+// AHP Conformance — scenario CORPUS generator.
 //
 // Reads REAL fixture files and D7 negative-paths from disk and emits scenario
-// JSON files that all validate against B1's scenario.schema.json.
+// JSON files that all validate against scenario.schema.json.
 //
 // Three tranches:
 //   reducers/   — one scenario per types/test-cases/reducers/*.json (163 files)
@@ -477,7 +477,7 @@ function generateRoundTripScenarios(d5Lookup) {
       // match object from the fixture's dotted `expect` paths (so e.g.
       // "range.start"+"range.end" become { range: { start, end } } rather than
       // collapsing to a scalar top-level key that can never match the real
-      // decoded event — the class of gen bug the B4 host-conformance runner
+      // decoded event — the class of gen bug the host-conformance runner
       // surfaced).
       const { matches, wholeValue } = buildExpectMatches(fixture.expect);
 
@@ -849,7 +849,7 @@ function generateNegativeScenarios() {
 // Main
 // --------------------------------------------------------------------------
 
-console.log('AHP scenario generator — B2');
+console.log('AHP scenario generator');
 console.log(`DRY_RUN: ${DRY_RUN}`);
 console.log(`Output root: ${SCENARIOS_ROOT}`);
 console.log('');

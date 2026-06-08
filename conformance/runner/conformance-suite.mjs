@@ -1,10 +1,10 @@
-// AHP HOST-CONFORMANCE SUITE DRIVER — build-phase B4, the tranche green proof.
+// AHP HOST-CONFORMANCE SUITE DRIVER — the tranche green proof.
 //
-// Runs the B4 host-conformance runner (run-conformance.mjs) over a TRANCHE of
-// the B2 scenario corpus, each scenario replayed by a real client against the
-// real B3 scenario-driven host over a real WebSocket, and rolls up GREEN/TOTAL.
+// Runs the host-conformance runner (run-conformance.mjs) over a TRANCHE of
+// the scenario corpus, each scenario replayed by a real client against the
+// real scenario-driven host over a real WebSocket, and rolls up GREEN/TOTAL.
 //
-// Tranche (per the B4 brief):
+// Tranche:
 //   • ALL round-trip scenarios          (types/test-cases/scenarios/round-trips)
 //   • a representative sample of reducer scenarios — at least 30, sampled
 //     deterministically across the alphabetised set so every reducer family
@@ -98,7 +98,7 @@ async function runAll(items, concurrency) {
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
-console.log('AHP HOST-CONFORMANCE SUITE — B4')
+console.log('AHP HOST-CONFORMANCE SUITE')
 console.log('Real client ↔ real scenario-driven host ↔ real WebSocket ↔ canonical reducers. No mocks.')
 console.log('')
 console.log(`Tranche:`)

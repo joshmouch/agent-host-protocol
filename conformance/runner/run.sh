@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# AHP HOST-CONFORMANCE SUITE runner — build-phase B4, the end-to-end green proof.
+# AHP HOST-CONFORMANCE SUITE runner — the end-to-end green proof.
 #
-# A scripted replay CLIENT (run-conformance.mjs) replays a TRANCHE of the B2
-# scenario corpus against the real B3 scenario-driven host (../host/scenario-host.mjs)
+# A scripted replay CLIENT (run-conformance.mjs) replays a TRANCHE of the
+# scenario corpus against the real scenario-driven host (../host/scenario-host.mjs)
 # over a real WebSocket, applies every server.notify action through the CANONICAL
 # in-repo reducers (clients/typescript, wired as a `file:` dependency), and checks
 # every client.assert.* step. NO MOCKS — real files, real transport, real
-# reducers, real assertions. (CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION + ADR-067/072.)
+# reducers, real assertions.
 #
 # Self-contained: every dependency resolves inside this repo (the TS client via a
 # `file:` dependency, ws from npm). Mirrors ../run.sh's bootstrap discipline.
 #
 #   conformance/
-#     host/    → scenario-host.mjs (B3, the scenario-driven host)
+#     host/    → scenario-host.mjs (the scenario-driven host)
 #     runner/  → run-conformance.mjs + conformance-suite.mjs + this script
 #
 # Expected tail:
@@ -44,7 +44,7 @@ fi
 echo "installing conformance runner deps…"
 (cd "$DIR" && npm install --no-audit --no-fund >/dev/null)
 
-# --- 3. Run the suite. It starts the B3 scenario-driven host per scenario,
+# --- 3. Run the suite. It starts the scenario-driven host per scenario,
 #        connects over a real WebSocket, and rolls up GREEN/TOTAL.
 echo "running host-conformance suite…"
 echo ""

@@ -45,8 +45,8 @@ commit; CI fails on any diff between the committed sources and a fresh run.
 The reducers are a faithful port of the Go client's `reducers.go` and mirror
 the canonical TypeScript reducers. They mutate state in place. The shared
 fixtures under `types/test-cases/reducers/*.json` are the cross-language parity
-gate — run them with `dotnet test`. The `changeset` and `resourceWatch`
-reducers are intentional stubs (parity with the Rust and Go clients).
+gate — run them with `dotnet test`. The `resourceWatch` reducer is an
+intentional stub (parity with the Rust and Go clients).
 
 ## Testing
 
@@ -67,8 +67,8 @@ The suite is **308 tests, all green on both TFMs** (0 skipped):
    `TypesRoundTripTests`, `ReconnectPolicyTests`, `ClientIdStoreTests`,
    `FileClientIdStoreTests`, `TransportTests`, `WebSocketTransportTests`.
 4. **Cross-implementation convergence** — `CrossImplementationConvergenceTests`
-   replays a session trace captured from an INDEPENDENT host (OpenAgency's
-   `AhpWsHost` on the canonical TS `sessionReducer`) and asserts byte-identical
+   replays a session trace captured from an INDEPENDENT host (a separate
+   WebSocket host on the canonical TS `sessionReducer`) and asserts byte-identical
    convergence (`serverSeq` + host-authoritative `modifiedAt`).
 
 Beyond CI, the **full `AhpClient` has been validated LIVE over a real WebSocket**
@@ -82,8 +82,7 @@ since it needs a Node host + the published package.)
 ### Test-parity gate
 
 Two layers enforce **manifest parity** — the machine-checked cross-language
-matrix subset (OpenAgency plan `2026-06-04-0137-ahp-dotnet-client-test-parity`).
-Both run [`scripts/check-test-parity.sh`](scripts/check-test-parity.sh) against
+matrix subset. Both run [`scripts/check-test-parity.sh`](scripts/check-test-parity.sh) against
 [`tests/parity-manifest.txt`](tests/parity-manifest.txt) — the expected parity
 test methods in executable form — plus the count floor in
 [`tests/MIN_TEST_COUNT`](tests/MIN_TEST_COUNT).
@@ -100,7 +99,7 @@ manifest (and `--bump` the floor) so the matrix subset grows with the suite.
 - **CI (blocking):** `.github/workflows/ci.yml` runs the gate in COMPLETE mode —
   it **fails the build while any manifest test is missing**, and the error
   enumerates exactly which test methods to add (grouped by phase) and references
-  the plan. Green only when every *manifest* method is present.
+  the parity manifest. Green only when every *manifest* method is present.
 - **Local pre-push (ratchet):** the hook runs `--ratchet`, which blocks a push
   only if the discrete `[Fact]`/`[Theory]` count drops below the floor (catches
   deletions). It never blocks in-progress work, so the incremental commits that

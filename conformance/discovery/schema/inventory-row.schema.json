@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/joshmouch/agent-host-protocol/conformance/discovery/schema/inventory-row.schema.json",
+  "$id": "https://github.com/microsoft/agent-host-protocol/conformance/discovery/schema/inventory-row.schema.json",
   "title": "AHP Conformance Discovery — Inventory Row",
   "description": "One conformance behavior emitted by a discovery angle (D1-D11). Sources never edit each other's rows; D11 reconciles by union of sources[] keyed on behavior-id. Every row MUST carry a real file:line citation in the fork.",
   "type": "object",

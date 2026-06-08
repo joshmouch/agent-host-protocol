@@ -20,6 +20,10 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
+- `ApplyActionToChangeset` reducer — the changeset reducer is now implemented
+  (previously a no-op stub), so `changeset/*` actions fold into
+  `ChangesetState`. Brings the Go client to full cross-language conformance
+  parity on the changeset channel.
 
 ## [0.1.0] — 2026-05-28
 

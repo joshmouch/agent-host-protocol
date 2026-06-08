@@ -1155,6 +1155,9 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 
 	case *ahptypes.ChangesetClearedAction:
 		_ = a
+		if len(state.Files) == 0 {
+			return ReduceOutcomeNoOp
+		}
 		state.Files = []ahptypes.ChangesetFile{}
 		return ReduceOutcomeApplied
 	}

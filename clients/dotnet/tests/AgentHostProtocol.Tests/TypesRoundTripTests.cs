@@ -7,8 +7,7 @@
 // REAL serializer + REAL generated types and asserts the fixture's expectations.
 //
 // Why keep the named wrappers instead of a single [Theory]?
-//   * The cross-language test master matrix (OpenAgency plan
-//     2026-06-04-0137-ahp-dotnet-client-test-parity) and the executable parity
+//   * The cross-language test master matrix and the executable parity
 //     manifest (clients/dotnet/tests/parity-manifest.txt) reference these method
 //     names (e.g. ActionEnvelope_RoundTrip_*, Customization_UnknownType_*). The
 //     parity gate greps for each name; collapsing them into one [Theory] would

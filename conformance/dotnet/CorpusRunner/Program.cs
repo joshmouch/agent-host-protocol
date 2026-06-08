@@ -1,4 +1,4 @@
-// AHP HOST-CONFORMANCE RUNNER — build-phase B5, .NET per-client corpus runner.
+// AHP HOST-CONFORMANCE RUNNER — .NET per-client corpus runner.
 //
 // Loads every scenario in the corpus, spawns the scenario-driven host for each,
 // connects a REAL .NET WebSocket, replays client.request steps, reduces
@@ -6,9 +6,8 @@
 // every client.assert.* step — byte-for-byte convergence proof that the .NET
 // client reducer converges with the canonical corpus.
 //
-// This is the .NET port of conformance/runner/run-conformance.mjs (B4).
+// This is the .NET port of conformance/runner/run-conformance.mjs.
 // NO MOCKS — real host subprocess, real WebSocket, real reducers, real assertions.
-// (CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION + ADR-067/072.)
 //
 // Usage:
 //   dotnet run --project conformance/dotnet/CorpusRunner -c Release -f net8.0 \
@@ -351,7 +350,7 @@ static async Task<DriveResult> RunProtocolExchangeAsync(
     // The JS runner stores snap.state as-is and lets the reducer mutate it.
     // We mirror that by storing raw JsonElement snapshots and deserializing
     // lazily on first action, keyed by action-type PREFIX (not channel scheme).
-    // This is what the B4 JS runner's comment at line 26 describes:
+    // This is what the JS runner's comment at line 26 describes:
     //   "Dispatching by channel scheme would pick the wrong reducer;
     //    dispatching by the action `type` prefix is correct."
     // At seed time, we store the raw JsonElement. On first action for a channel,
@@ -503,7 +502,7 @@ static async Task SendRequestAsync(ClientWebSocket ws, ScenarioStep step)
 
 // Store snapshot states as raw JsonElement seeds. The typed state is
 // materialized lazily on first action, keyed by the action-type PREFIX —
-// exactly the B4 JS runner's dispatch-by-prefix discipline.
+// exactly the JS runner's dispatch-by-prefix discipline.
 static void SeedFromSnapshots(
     JsonElement result,
     Dictionary<string, JsonElement> channelRawSeeds,
@@ -550,7 +549,7 @@ static void SeedFromSnapshots(
 
 // ─── Reducer dispatch — by action-type prefix (matches JS runner exactly) ─────
 //
-// Key invariant (mirrors B4 JS run-conformance.mjs line 26 comment):
+// Key invariant (mirrors JS run-conformance.mjs line 26 comment):
 //   The corpus routes terminal-reducer fixtures onto an `ahp-session:/…` channel
 //   (gen-scenarios has no terminal channel entry), but their state is a
 //   TerminalState and their actions are `terminal/*`. Dispatching by channel
@@ -581,7 +580,7 @@ static void ApplyActionNotification(
     // The event is still observed above; nothing to reduce.
     if (actionEl.ValueKind != JsonValueKind.Object) return;
 
-    // Dispatch by action-type prefix (the reliable discriminator — same as B4 JS).
+    // Dispatch by action-type prefix (the reliable discriminator — same as the JS runner).
     var actionType = actionEl.TryGetProperty("type", out var typeEl) ? typeEl.GetString() : null;
     var prefix = actionType?.Split('/')[0];
 
@@ -755,7 +754,7 @@ static AssertResult CheckStateAssertion(ScenarioStep step, DriveResult drive)
     var (found, actual) = Navigate(targetEl, step.Path);
 
     // Convergence equality: canonicalize (drop nulls, sort keys) — same rule as
-    // the .NET FixtureDrivenReducerTests.Canon and the B4 JS runner canonicalize().
+    // the .NET FixtureDrivenReducerTests.Canon and the JS runner canonicalize().
     var expectedEl = step.Equals ?? default;
 
     // Synthetic top-level: undefined path resolves to null expected sentinel.
@@ -829,7 +828,7 @@ static AssertResult CheckErrorAssertion(ScenarioStep step, DriveResult drive)
         $". surfaced: {JsonSerializer.Serialize(drive.SurfacedErrors)}");
 }
 
-// ─── Canonicalization + equality (mirrors the B4 JS canonicalize + Canon) ─────
+// ─── Canonicalization + equality (mirrors the JS canonicalize + Canon) ────────
 
 // Canon: drop null-valued keys, sort keys alphabetically (recursive).
 // Produces the same canonical string as the JS runner's `canonicalize` + JSON.stringify.

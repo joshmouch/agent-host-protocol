@@ -1,6 +1,6 @@
-// AHP GO CONFORMANCE RUNNER — build-phase B5.
+// AHP GO CONFORMANCE RUNNER — Go per-client corpus runner.
 //
-// Ports the canonical B4 JS runner (conformance/runner/run-conformance.mjs)
+// Ports the canonical JS reference runner (conformance/runner/run-conformance.mjs)
 // to Go, using the REAL Go client reducers from clients/go/ahp.
 //
 // This is the end-to-end green proof that the whole conformance tranche works
@@ -47,20 +47,20 @@ import (
 // ─── Scenario schema (JSON) ────────────────────────────────────────────────
 
 type Scenario struct {
-	ID       string  `json:"id"`
-	PinClock *int64  `json:"pinClock"`
-	Steps    []Step  `json:"steps"`
+	ID       string `json:"id"`
+	PinClock *int64 `json:"pinClock"`
+	Steps    []Step `json:"steps"`
 }
 
 type Step struct {
-	Op      string          `json:"op"`
-	Label   string          `json:"label"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params"`
-	ID      *int64          `json:"id"`
-	ForID   *int64          `json:"forId"`
-	Result  json.RawMessage `json:"result"`
-	Error   json.RawMessage `json:"error"`
+	Op     string          `json:"op"`
+	Label  string          `json:"label"`
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+	ID     *int64          `json:"id"`
+	ForID  *int64          `json:"forId"`
+	Result json.RawMessage `json:"result"`
+	Error  json.RawMessage `json:"error"`
 	// client.assert.state
 	Channel *string         `json:"channel"`
 	Path    *string         `json:"path"`
@@ -68,8 +68,8 @@ type Step struct {
 	// client.assert.event
 	Matches json.RawMessage `json:"matches"`
 	// client.assert.error
-	Code    *int64          `json:"code"`
-	Message *string         `json:"message"`
+	Code    *int64  `json:"code"`
+	Message *string `json:"message"`
 }
 
 // ─── Snapshot / initialize response ───────────────────────────────────────
@@ -111,7 +111,9 @@ type channelState struct {
 func reducerPrefix(action ahptypes.StateAction) string {
 	// All concrete StateAction variants have a Type field; reach it via JSON.
 	b, _ := json.Marshal(action)
-	var probe struct{ Type string `json:"type"` }
+	var probe struct {
+		Type string `json:"type"`
+	}
 	_ = json.Unmarshal(b, &probe)
 	parts := strings.SplitN(probe.Type, "/", 2)
 	if len(parts) == 0 {
@@ -161,7 +163,7 @@ func ensureTyped(cs *channelState, prefix string) {
 
 // applyToChannel applies action to the per-channel state bucket. The state type
 // is decoded lazily from cs.seed using the action-type prefix as the
-// discriminator — this is the same rule as the B4 JS runner: dispatch by
+// discriminator — this is the same rule as the JS reference runner: dispatch by
 // action-type prefix, NOT by channel URI scheme, because the corpus routes
 // terminal-reducer fixtures onto ahp-session:/ channels.
 func applyToChannel(cs *channelState, envelope rawEnvelope, pinClock int64) bool {
@@ -303,9 +305,9 @@ func startHost(hostScript, scenarioPath string) (wsURL string, kill func(), err 
 // ─── Protocol driver ───────────────────────────────────────────────────────
 
 type driveResult struct {
-	channels      map[string]*channelState
-	synthetic     map[string]any // protocolVersion, lastResponseOk, pingSeen
-	events        []observedEvent
+	channels       map[string]*channelState
+	synthetic      map[string]any // protocolVersion, lastResponseOk, pingSeen
+	events         []observedEvent
 	surfacedErrors []json.RawMessage
 }
 
@@ -473,9 +475,9 @@ func tryDrive(ctx context.Context, wsURL string, scenario *Scenario, requests []
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 
 	return &driveResult{
-		channels:      channels,
-		synthetic:     synthetic,
-		events:        events,
+		channels:       channels,
+		synthetic:      synthetic,
+		events:         events,
 		surfacedErrors: surfacedErrors,
 	}, false, nil
 }
@@ -752,10 +754,10 @@ func checkAssertion(step Step, res *driveResult) assertResult {
 // ─── Single-scenario runner ────────────────────────────────────────────────
 
 type scenarioResult struct {
-	id     string
-	path   string
-	status string // PASS | FAIL | ERROR
-	reason string
+	id      string
+	path    string
+	status  string // PASS | FAIL | ERROR
+	reason  string
 	asserts []assertOutcome
 }
 
@@ -973,7 +975,7 @@ func main() {
 	}
 
 	type tagged struct {
-		path   string
+		path    string
 		tranche string
 	}
 	var tranche []tagged

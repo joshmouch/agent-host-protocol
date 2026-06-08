@@ -1,6 +1,6 @@
 # conformance/mutation — mutation testing for the AHP canonical reducers
 
-**Build-phase B6.** Proves the conformance corpus has *teeth*: it injects bugs
+Proves the conformance corpus has *teeth*: it injects bugs
 into the canonical TypeScript reducers and measures how many the corpus catches.
 
 - **Decision + full rationale:** [`DECISION.md`](./DECISION.md) — KEEP/DROP gate,
@@ -26,7 +26,7 @@ into the canonical TypeScript reducers and measures how many the corpus catches.
 `replay-corpus.mjs` replays **all 233** conformance scenarios
 (`types/test-cases/scenarios/{reducers,round-trips,negatives}`) **in-process**
 through the **real `src` reducers** (imported via `tsx`, no build), using the
-exact reduction routing + assertion semantics of the B4 host-conformance runner
+exact reduction routing + assertion semantics of the host-conformance runner
 (`conformance/runner/run-conformance.mjs`). A mutant that survives here survives
 the runner too (same reducers, same assertions); the harness exits non-zero the
 moment any scenario's assertion fails, which is how Stryker scores a kill. The
@@ -58,7 +58,7 @@ Stryker + tsx are `devDependencies` of **this** package only
 grep -c stryker clients/typescript/package.json   # → 0
 ```
 
-## Notes for B7 (CI wiring)
+## Notes for CI wiring
 
 - `stryker.conf.json` sets `thresholds.break: 87` — a **ratchet floor** just
   under today's 87.70%. Raise it toward 90/92/95 as the bucket-1 edge scenarios

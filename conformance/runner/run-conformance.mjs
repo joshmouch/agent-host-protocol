@@ -1,11 +1,11 @@
-// AHP HOST-CONFORMANCE RUNNER — build-phase B4, the scripted replay CLIENT.
+// AHP HOST-CONFORMANCE RUNNER — the scripted replay CLIENT.
 //
 // This is the end-to-end green proof that the whole conformance tranche works:
 // a real client replays a scenario against the REAL scenario-driven host
 // (conformance/host/scenario-host.mjs) over a REAL WebSocket, applies every
 // server.notify action through the CANONICAL in-repo reducers, and checks every
 // client.assert.* step. NO MOCKS — real files, real transport, real reducers,
-// real assertions. (CROSS-SPEC-INTENT-VERIFIED-BY-REAL-EXECUTION + ADR-067/072.)
+// real assertions.
 //
 // ── Convergence model (snapshot-and-stream) ────────────────────────────────
 //   • A `server.response` whose result carries `snapshots[]` SEEDS per-channel
@@ -167,7 +167,7 @@ function pinClock(epochMs) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────
-// Start the B3 scenario-driven host for one scenario; resolve its ws:// URL.
+// Start the scenario-driven host for one scenario; resolve its ws:// URL.
 // ───────────────────────────────────────────────────────────────────────────
 function startHost(hostScript, scenarioPath, { timeoutMs = 10000 } = {}) {
   const child = spawn(process.execPath, [hostScript, scenarioPath], {
@@ -176,21 +176,25 @@ function startHost(hostScript, scenarioPath, { timeoutMs = 10000 } = {}) {
   let stderr = ''
   child.stderr.on('data', (c) => { stderr += c.toString() })
 
-  const url = new Promise((resolveUrl, rejectUrl) => {
+  // READY line: "SCENARIO HOST READY <wsUrl> <scenarioId> <connectNonce>".
+  // The nonce is the WebSocket subprotocol the host will negotiate; the client
+  // connects with it so it can detect landing on a foreign server (recycled
+  // ephemeral port) and re-spawn on a fresh port.
+  const ready = new Promise((resolveReady, rejectReady) => {
     let buf = ''
     const onData = (chunk) => {
       buf += chunk.toString()
-      const m = buf.match(/SCENARIO HOST READY (ws:\/\/127\.0\.0\.1:\d+)/)
-      if (m) { child.stdout.off('data', onData); resolveUrl(m[1]) }
+      const m = buf.match(/SCENARIO HOST READY (ws:\/\/127\.0\.0\.1:\d+) \S+ (\S+)/)
+      if (m) { child.stdout.off('data', onData); resolveReady({ url: m[1], nonce: m[2] }) }
     }
     child.stdout.on('data', onData)
     child.on('exit', (code) => {
-      if (code !== 0) rejectUrl(new Error(`host exited with code ${code} before READY. stderr:\n${stderr}`))
+      if (code !== 0) rejectReady(new Error(`host exited with code ${code} before READY. stderr:\n${stderr}`))
     })
-    setTimeout(() => rejectUrl(new Error(`host did not print READY within ${timeoutMs}ms. stderr:\n${stderr}`)), timeoutMs)
+    setTimeout(() => rejectReady(new Error(`host did not print READY within ${timeoutMs}ms. stderr:\n${stderr}`)), timeoutMs)
   })
 
-  return { child, url, getStderr: () => stderr }
+  return { child, ready, getStderr: () => stderr }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -213,16 +217,27 @@ function isTransientConnectError(message) {
   )
 }
 
-function driveProtocol(wsUrl, scenario, { timeoutMs = 10000, connectRetries = 5 } = {}) {
+// Sentinel: a pre-open connection failure (or a connection that reached a
+// FOREIGN server because the host's ephemeral port was recycled). The caller
+// re-spawns the host on a fresh port rather than retrying the same — possibly
+// stolen — port. Carries the underlying reason for diagnostics.
+class RespawnNeeded extends Error {
+  constructor(reason) { super(reason); this.name = 'RespawnNeeded'; this.respawn = true }
+}
+
+function driveProtocol(wsUrl, nonce, scenario, { timeoutMs = 10000 } = {}) {
   return new Promise((resolveDrive, rejectDrive) => {
     // The ordered client.request steps to replay (host correlates by id/position).
     const requests = scenario.steps.filter((s) => s.op === 'client.request')
 
-    // One connection attempt. On a PRE-OPEN transient error it self-retries with
-    // small backoff; once opened, errors are real. State accumulators are reset
-    // per attempt (a transient error fires before any frame is processed).
-    function attempt(retriesLeft) {
-      const ws = new WebSocket(wsUrl)
+    // One connection attempt. A PRE-OPEN failure (or a subprotocol mismatch,
+    // meaning we reached a foreign server on a recycled port) rejects with
+    // RespawnNeeded so the caller re-spawns on a fresh port. Once opened against
+    // the CORRECT host (nonce subprotocol echoed), errors are real.
+    {
+      // Connect requesting the host's nonce as the WebSocket subprotocol. The
+      // real scenario host negotiates it back; a foreign server will not.
+      const ws = new WebSocket(wsUrl, [nonce])
       let opened = false
 
       // Per-channel reduced state, keyed by channel/resource URI.
@@ -308,6 +323,18 @@ function driveProtocol(wsUrl, scenario, { timeoutMs = 10000, connectRetries = 5 
       }
 
       ws.on('open', () => {
+        // Guard against a recycled-port collision that nonetheless completed a
+        // WebSocket upgrade: only the real scenario host echoes our nonce as the
+        // negotiated subprotocol. Anything else means we reached a foreign
+        // server squatting on the recycled port — re-spawn on a fresh port.
+        if (ws.protocol !== nonce) {
+          if (settled) return
+          settled = true
+          clearTimeout(softTimer)
+          try { ws.close() } catch { /* noop */ }
+          rejectDrive(new RespawnNeeded(`connected to a server that did not echo the host nonce (got subprotocol '${ws.protocol}') — recycled ephemeral port`))
+          return
+        }
         opened = true
         // Kick off the first request. Subsequent requests are sent as each prior
         // response arrives (the host replies one response per request, in order).
@@ -348,16 +375,30 @@ function driveProtocol(wsUrl, scenario, { timeoutMs = 10000, connectRetries = 5 
         // Other frame shapes are ignored.
       })
 
-      ws.on('close', finish)
+      ws.on('close', (code, reason) => {
+        // A close that arrives BEFORE we ever opened-and-validated is not a clean
+        // end-of-plan — it means the upgrade was refused/torn down (e.g. a
+        // foreign server on a recycled port closing with 1008/1006). Re-spawn on
+        // a fresh port rather than asserting against empty state.
+        if (!opened && !settled) {
+          settled = true
+          clearTimeout(softTimer)
+          rejectDrive(new RespawnNeeded(`socket closed before open (code ${code}${reason && reason.length ? `, reason '${String(reason)}'` : ''}) — likely a recycled ephemeral port`))
+          return
+        }
+        finish()
+      })
       ws.on('error', (e) => {
         if (settled) return
-        // A PRE-OPEN transient error (the upgrade hit a half-ready / recycled
-        // listener) is retried to the same URL; the host is per-scenario and
-        // long-lived, so a fresh socket reaches it. A POST-OPEN error is real.
-        if (!opened && retriesLeft > 0 && isTransientConnectError(e.message)) {
+        // A PRE-OPEN error (the upgrade hit a half-ready / recycled listener, or
+        // a foreign server squatting on a recycled ephemeral port) re-spawns the
+        // host on a fresh port — retrying the SAME, possibly-stolen, port is
+        // futile. A POST-OPEN error is a real failure.
+        if (!opened && isTransientConnectError(e.message)) {
           try { ws.close() } catch { /* noop */ }
           clearTimeout(softTimer)
-          setTimeout(() => attempt(retriesLeft - 1), 80)
+          settled = true
+          rejectDrive(new RespawnNeeded(`pre-open websocket error: ${e.message}`))
           return
         }
         settled = true
@@ -372,8 +413,6 @@ function driveProtocol(wsUrl, scenario, { timeoutMs = 10000, connectRetries = 5 
         finish()
       }, timeoutMs)
     }
-
-    attempt(connectRetries)
   })
 }
 
@@ -493,16 +532,35 @@ export async function runScenario(scenarioPath, opts = {}) {
   // Pin the client clock BEFORE any reduction so impure fields converge.
   pinClock(scenario.pinClock)
 
-  const { child, url, getStderr } = startHost(hostScript, scenarioPath)
+  // Spawn the host, connect, and drive the protocol. A pre-open failure or a
+  // connection that reached a foreign server (because the host's OS-assigned
+  // ephemeral port was recycled by another local process — common on a busy dev
+  // machine running editors / model servers) raises RespawnNeeded; we then kill
+  // this host and spawn a brand-new one, which binds a FRESH port. Retrying the
+  // same — possibly stolen — port would be futile.
+  const SPAWN_ATTEMPTS = 6
   let state
-  try {
-    const wsUrl = await url
-    state = await driveProtocol(wsUrl, scenario)
-  } catch (e) {
-    try { child.kill() } catch { /* noop */ }
-    return { id, scenarioPath, status: 'ERROR', reason: e.message, hostStderr: getStderr(), asserts: [] }
-  } finally {
-    try { child.kill() } catch { /* noop */ }
+  let lastErr
+  for (let spawnTry = 0; spawnTry < SPAWN_ATTEMPTS; spawnTry++) {
+    const { child, ready, getStderr } = startHost(hostScript, scenarioPath)
+    try {
+      const { url: wsUrl, nonce } = await ready
+      state = await driveProtocol(wsUrl, nonce, scenario)
+      break // success
+    } catch (e) {
+      lastErr = e
+      if (e && e.respawn && spawnTry < SPAWN_ATTEMPTS - 1) {
+        // Brief backoff before re-spawning on a fresh port.
+        await new Promise((r) => setTimeout(r, 60))
+        continue
+      }
+      return { id, scenarioPath, status: 'ERROR', reason: e.message, hostStderr: getStderr(), asserts: [] }
+    } finally {
+      try { child.kill() } catch { /* noop */ }
+    }
+  }
+  if (state === undefined) {
+    return { id, scenarioPath, status: 'ERROR', reason: lastErr ? lastErr.message : 'host did not converge after respawns', asserts: [] }
   }
 
   // Run every assertion step against the collected state.

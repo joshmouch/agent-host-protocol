@@ -3,7 +3,7 @@ name = "ahp-conformance-rust"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-description = "AHP conformance runner — Rust build-phase B5"
+description = "AHP conformance runner — Rust per-client corpus runner"
 publish = false
 
 [[bin]]

@@ -1,4 +1,4 @@
-// AHP MUTATION KILL-SIGNAL — build-phase B6, the in-process corpus replay.
+// AHP MUTATION KILL-SIGNAL — the in-process corpus replay.
 //
 // This is the FAST kill-signal Stryker runs once per mutant. It replays the
 // FULL conformance scenario corpus (types/test-cases/scenarios/{reducers,
@@ -7,8 +7,8 @@
 // mutate the reducer SOURCE and have the change take effect with zero build
 // step (tsx transpiles the freshly-mutated src on the fly).
 //
-// ── Why in-process, and why this is the same kill-signal as the B4 runner ───
-//   The B4 host-conformance runner (conformance/runner/run-conformance.mjs)
+// ── Why in-process, and why this is the same kill-signal as the runner ──────
+//   The host-conformance runner (conformance/runner/run-conformance.mjs)
 //   proves the WHOLE tranche end-to-end: real client ↔ real scenario host ↔
 //   real WebSocket ↔ canonical reducers. For MUTATION testing the question is
 //   narrower: "does the corpus KILL a bug injected into the reducer?" The
@@ -27,7 +27,7 @@
 //
 // ── Clock pin ───────────────────────────────────────────────────────────────
 //   Date.now is pinned per-scenario to scenario.pinClock BEFORE any reduction,
-//   exactly as the host + the B4 runner do, so impure reducer fields converge.
+//   exactly as the host + the runner do, so impure reducer fields converge.
 //
 // Usage:
 //   node replay-corpus.mjs                 # replay full corpus, exit 0/1
