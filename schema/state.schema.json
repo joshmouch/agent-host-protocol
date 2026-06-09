@@ -410,6 +410,9 @@
             },
             {
               "$ref": "#/$defs/ChangesetState"
+            },
+            {
+              "$ref": "#/$defs/AnnotationsState"
             }
           ],
           "description": "The current state of the resource"
@@ -450,6 +453,11 @@
         "config": {
           "$ref": "#/$defs/RootConfigState",
           "description": "Agent host configuration schema and current values"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional implementation-defined metadata about the agent host itself.\n\nClients MAY look for well-known keys here to provide enhanced UI."
         }
       },
       "required": [
@@ -490,7 +498,7 @@
           "items": {
             "$ref": "#/$defs/Customization"
           },
-          "description": "Customizations associated with this agent.\n\nAlways container customizations —\n{@link PluginCustomization | `PluginCustomization`} entries the agent\nbundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}\nentries it watches in any workspace it's used with. When a session is\ncreated with this agent, these entries are augmented (e.g. directory\nURIs are resolved against the workspace, children are parsed) and\npropagated into the session's `customizations` list."
+          "description": "Customizations associated with this agent.\n\nEither container customizations —\n{@link PluginCustomization | `PluginCustomization`} entries the agent\nbundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}\nentries it watches in any workspace it's used with — or top-level\n{@link McpServerCustomization | `McpServerCustomization`} entries\nthe agent host declares directly. When a session is created with\nthis agent, these entries are augmented (e.g. directory URIs are\nresolved against the workspace, children are parsed) and propagated\ninto the session's `customizations` list."
         }
       },
       "required": [
@@ -665,7 +673,14 @@
           "items": {
             "$ref": "#/$defs/Customization"
           },
-          "description": "Top-level customizations active in this session.\n\nAlways container customizations — {@link PluginCustomization} or\n{@link DirectoryCustomization}. Children (agents, skills, prompts,\nrules, hooks, MCP servers) live in each container's\n{@link ContainerCustomizationBase.children | `children`} array.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated)."
+          "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
+        },
+        "changesets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Changeset"
+          },
+          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link Changeset} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
         },
         "_meta": {
           "type": "object",
@@ -776,12 +791,13 @@
           "$ref": "#/$defs/URI",
           "description": "The working directory URI for this session"
         },
-        "changesets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ChangesetSummary"
-          },
-          "description": "Catalogue of changesets the server can produce for this session. Each\nentry advertises a subscribable view of file changes (uncommitted,\nsession-wide, per-turn, etc.) and the URI template the client expands\nbefore subscribing. See {@link ChangesetSummary} for the full shape and\n{@link /guide/changesets | Changesets} for an overview of the model."
+        "changes": {
+          "$ref": "#/$defs/ChangesSummary",
+          "description": "Aggregate summary of file changes associated with this session. Servers\nmay populate this to give clients a quick at-a-glance view of the\nsession's footprint (e.g., for list rendering) without requiring the\nclient to subscribe to a changeset."
+        },
+        "annotations": {
+          "$ref": "#/$defs/AnnotationsSummary",
+          "description": "Lightweight summary of this session's inline annotations channel\n(`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render\nannotation / entry counts without subscribing. Absent when the session\ndoes not expose an annotations channel."
         }
       },
       "required": [
@@ -792,6 +808,24 @@
         "createdAt",
         "modifiedAt"
       ]
+    },
+    "ChangesSummary": {
+      "type": "object",
+      "description": "Aggregate counts describing the file changes associated with a session.\n\nAll fields are optional so servers can populate only the metrics they\ncheaply have available.",
+      "properties": {
+        "additions": {
+          "type": "number",
+          "description": "Total number of inserted lines across all changed files."
+        },
+        "deletions": {
+          "type": "number",
+          "description": "Total number of deleted lines across all changed files."
+        },
+        "files": {
+          "type": "number",
+          "description": "Number of files that have changes."
+        }
+      }
     },
     "AgentSelection": {
       "type": "object",
@@ -1645,6 +1679,49 @@
         "type"
       ]
     },
+    "MessageAnnotationsAttachment": {
+      "type": "object",
+      "description": "An attachment that references annotations on a session's annotations\nchannel (see {@link AnnotationsState}).\n\nWhen {@link annotationIds} is omitted the attachment references every\nannotation on the channel; when present it references only the listed\n{@link Annotation.id | annotation ids}.",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "A human-readable label for the attachment (e.g. the filename of a file\nattachment). Used for display in UI."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "If defined, the range in {@link Message.text} that references this\nattachment. This is a text range, not a byte range."
+        },
+        "displayKind": {
+          "type": "string",
+          "description": "Advisory display hint for clients rendering this attachment. Recognized\nvalues include:\n\n- `'image'`: the attachment is an image\n- `'document'`: the attachment is a textual document\n- `'symbol'`: the attachment is a code symbol (e.g. a function or class)\n- `'directory'`: the attachment is a folder\n- `'selection'`: the attachment is a selection within a document\n\nImplementations MAY provide additional values; clients SHOULD fall back\nto a reasonable default when an unknown value is encountered."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional implementation-defined metadata for the attachment.\n\nIf the attachment was produced by the `completions` command, the client\nMUST preserve every property of `_meta` originally returned by the agent\nhost when sending the user message containing the accepted completion."
+        },
+        "type": {
+          "$ref": "#/$defs/MessageAttachmentKind.Annotations",
+          "description": "Discriminant"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The annotations channel URI (typically `ahp-session:/<uuid>/annotations`).\nMatches {@link AnnotationsSummary.resource}."
+        },
+        "annotationIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Specific {@link Annotation.id | annotation ids} to reference. When\nomitted, the attachment references all annotations on the channel."
+        }
+      },
+      "required": [
+        "label",
+        "type",
+        "resource"
+      ]
+    },
     "MarkdownResponsePart": {
       "type": "object",
       "properties": {
@@ -1779,6 +1856,38 @@
         "kind"
       ]
     },
+    "ToolCallClientContributor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ToolCallContributorKind.Client"
+        },
+        "clientId": {
+          "type": "string",
+          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        }
+      },
+      "required": [
+        "kind",
+        "clientId"
+      ]
+    },
+    "ToolCallMcpContributor": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ToolCallContributorKind.MCP"
+        },
+        "customizationId": {
+          "type": "string",
+          "description": "Customization ID of the corresponding MCP server in {@link SessionState.customizations}."
+        }
+      },
+      "required": [
+        "kind",
+        "customizationId"
+      ]
+    },
     "ToolCallBase": {
       "type": "object",
       "description": "Metadata common to all tool call states.",
@@ -1795,14 +1904,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         }
       },
       "required": [
@@ -1889,14 +1998,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "status": {
           "$ref": "#/$defs/ToolCallStatus.Streaming"
@@ -1933,14 +2042,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -2005,14 +2114,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -2066,14 +2175,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -2157,14 +2266,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -2248,14 +2357,14 @@
           "type": "string",
           "description": "Human-readable tool name"
         },
-        "toolClientId": {
-          "type": "string",
-          "description": "If this tool is provided by a client, the `clientId` of the owning client.\nAbsent for server-side tools.\n\nWhen set, the identified client is responsible for executing the tool and\ndispatching `session/toolCallComplete` with the result."
+        "contributor": {
+          "$ref": "#/$defs/ToolCallContributor",
+          "description": "Reference to the contributor of the tool being called."
         },
         "_meta": {
           "type": "object",
           "additionalProperties": {},
-          "description": "Additional provider-specific metadata for this tool call.\n\nClients MAY look for well-known keys here to provide enhanced UI.\nFor example, a `ptyTerminal` key with `{ input: string; output: string }`\nindicates the tool operated on a terminal (both `input` and `output` may\ncontain escape sequences)."
+          "description": "Additional provider-specific metadata for this tool call.\n\nThis MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)\n`McpUiToolMeta` found in MCP tool calls, which may be used in combination\nwith the {@link contributor} to serve MCP Apps."
         },
         "invocationMessage": {
           "$ref": "#/$defs/StringOrMarkdown",
@@ -3120,7 +3229,7 @@
     },
     "McpServerCustomization": {
       "type": "object",
-      "description": "An MCP manifest contributed by a plugin or directory.\n\nWhen the server is declared inline in the containing plugin manifest,\n`uri` points at the manifest file and\n{@link CustomizationBase.range | `range`} narrows it to the\ndeclaration's span.",
+      "description": "An MCP server contributed by a plugin or directory.\n\nWhen the server is declared inline in the containing plugin manifest,\n`uri` points at the manifest file and\n{@link CustomizationBase.range | `range`} narrows it to the\ndeclaration's span.\n\nThe MCP server customization also reflects its current status.",
       "properties": {
         "id": {
           "type": "string",
@@ -3147,13 +3256,168 @@
         },
         "type": {
           "$ref": "#/$defs/CustomizationType.McpServer"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether this MCP server is currently enabled."
+        },
+        "state": {
+          "$ref": "#/$defs/McpServerState",
+          "description": "Current lifecycle state of the MCP server."
+        },
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "An `mcp://`-protocol channel the client uses to side-channel traffic\ninto the upstream MCP server itself. The channel is NOT a fresh raw MCP\nconnection: it piggybacks on the AHP transport\nand skips the MCP `initialize` sequence.\n\nThe agent host MAY only serve a subset of MCP on this\nchannel; the served subset is described by domain-specific\ncapabilities such as those in\n{@link McpServerCustomizationApps.capabilities}.\n\nThe channel URI SHOULD be stable across the server's lifetime, but\nthe agent host MAY change it (for example across a restart) and\nMAY only expose it while the server is in\n{@link McpServerStatus.Ready | `Ready`}. Absence means no\nside-channel is currently available."
+        },
+        "mcpApp": {
+          "$ref": "#/$defs/McpServerCustomizationApps",
+          "description": "MCP App support. This property SHOULD be advertised for MCP servers\nwhich support apps."
         }
       },
       "required": [
         "id",
         "uri",
         "name",
-        "type"
+        "type",
+        "enabled",
+        "state"
+      ]
+    },
+    "McpServerCustomizationApps": {
+      "type": "object",
+      "description": "Information from the agent host needed to render MCP Apps served\nby this MCP server.",
+      "properties": {
+        "capabilities": {
+          "$ref": "#/$defs/AhpMcpUiHostCapabilities",
+          "description": "The subset of MCP App\n[`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)\nthe AHP host can satisfy for Views backed by this server. The\nclient feeds these straight through into the `hostCapabilities` of\nthe `ui/initialize` response delivered to the View."
+        }
+      },
+      "required": [
+        "capabilities"
+      ]
+    },
+    "AhpMcpUiHostCapabilities": {
+      "type": "object",
+      "description": "The subset of MCP App\n[`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)\nan AHP host can derive from the upstream MCP server (and from AHP's own\nforwarding plumbing). Advertised on\n{@link McpServerCustomizationApps.capabilities} so clients can pass it\nthrough into the `hostCapabilities` of the `ui/initialize` response\ndelivered to an MCP App View.\n\nField names mirror the MCP Apps spec exactly, so the AHP-side producer\ncan pass them straight through into the `hostCapabilities` of the\n`ui/initialize` response delivered to the View.\n\nCapabilities outside this set (`openLinks`, `downloadFile`, `sandbox`,\n`experimental`) are decided locally by whichever AHP client renders the\nView and are NOT part of this AHP-level advertisement — only the\nserver-derived subset is.\n\nAn agent host MUST only advertise a capability when it actually accepts the\ncorresponding methods/notifications on the `mcp://` channel:\n\n- {@link serverTools}: host proxies `tools/list` and `tools/call` to\n  the MCP server. When `listChanged` is `true`, the host also forwards\n  `notifications/tools/list_changed`.\n- {@link serverResources}: host proxies `resources/read`,\n  `resources/list`, and `resources/templates/list` to the MCP server.\n  When `listChanged` is `true`, the host also forwards\n  `notifications/resources/list_changed`.\n- {@link logging}: host accepts `notifications/message` log entries\n  from the App and forwards them via `mcpNotification` (and forwards\n  `logging/setLevel` calls to the server).\n- {@link sampling}: host serves `sampling/createMessage` via\n  `mcpMethodCall`. When `sampling.tools` is present, the host also\n  accepts SEP-1577 `tools` / `toolChoice` / `tool_use` content blocks\n  inside `CreateMessageRequest`.",
+      "properties": {
+        "serverTools": {
+          "type": "object",
+          "properties": {
+            "listChanged": {
+              "type": "boolean"
+            }
+          },
+          "description": "Producer proxies the MCP `tools/*` methods to the upstream server."
+        },
+        "serverResources": {
+          "type": "object",
+          "properties": {
+            "listChanged": {
+              "type": "boolean"
+            }
+          },
+          "description": "Producer proxies the MCP `resources/*` methods to the upstream server."
+        },
+        "logging": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Producer accepts `notifications/message` log entries from the App via `mcpNotification`."
+        },
+        "sampling": {
+          "type": "object",
+          "properties": {
+            "tools": {
+              "type": "string"
+            }
+          },
+          "description": "Producer serves `sampling/createMessage` via `mcpMethodCall`."
+        }
+      }
+    },
+    "McpServerStartingState": {
+      "type": "object",
+      "description": "Server is registered with the host but has not yet started.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/McpServerStatus.Starting"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "McpServerReadyState": {
+      "type": "object",
+      "description": "Server is running and serving requests.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/McpServerStatus.Ready"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "McpServerAuthRequiredState": {
+      "type": "object",
+      "description": "Server is reachable but cannot serve requests until the client\nauthenticates. Mirrors the discovery flow defined by\n[RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)\n(Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge\nsemantics required by the MCP authorization spec.\n\nClients react to this state by calling the existing `authenticate`\ncommand with the {@link ProtectedResourceMetadata.resource | resource}\ncarried here. There is **no** `notify/authRequired` notification for\nMCP servers — the action stream is the single source of truth.\n\nWhen the transition is triggered by a request issued during a turn\n— most commonly\n{@link McpAuthRequiredReason.InsufficientScope | `InsufficientScope`}\nsurfacing mid-tool-call — the host SHOULD also raise\n{@link SessionStatus.InputNeeded} on the session so the block is\nvisible at the summary level. Clients SHOULD watch this status on\nany MCP server backing a running tool call and surface an explicit\naffordance (e.g. a \"grant additional access\" prompt) tied to that\ntool call, rather than relying on the user to notice the\ncustomization’s status badge.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/McpServerStatus.AuthRequired"
+        },
+        "reason": {
+          "$ref": "#/$defs/McpAuthRequiredReason",
+          "description": "Why authentication is required."
+        },
+        "resource": {
+          "$ref": "#/$defs/ProtectedResourceMetadata",
+          "description": "RFC 9728 Protected Resource Metadata. The `resource` field is the\ncanonical MCP server URI per RFC 8707, used as the OAuth `resource`\nindicator. `authorization_servers` is REQUIRED by the MCP\nauthorization spec."
+        },
+        "requiredScopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Scopes required for the current challenge, parsed from the\n`WWW-Authenticate: Bearer scope=\"…\"` header (or `scopes_supported`\nfallback). Authoritative for the next authorization request — clients\nMUST NOT assume any subset/superset relationship to\n`resource.scopes_supported`."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable hint, typically from the OAuth `error_description`."
+        }
+      },
+      "required": [
+        "kind",
+        "reason",
+        "resource"
+      ]
+    },
+    "McpServerErrorState": {
+      "type": "object",
+      "description": "Server failed to start, crashed, or otherwise transitioned to a\nnon-recoverable error. Use {@link McpServerStatus.AuthRequired}\nfor authentication failures.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/McpServerStatus.Error"
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Error details."
+        }
+      },
+      "required": [
+        "kind",
+        "error"
+      ]
+    },
+    "McpServerStoppedState": {
+      "type": "object",
+      "description": "Server has been shut down. The host MAY remove the server from the\nsession entirely shortly after this state.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/McpServerStatus.Stopped"
+        }
+      },
+      "required": [
+        "kind"
       ]
     },
     "TerminalInfo": {
@@ -3341,7 +3605,7 @@
         "isComplete"
       ]
     },
-    "ChangesetSummary": {
+    "Changeset": {
       "type": "object",
       "description": "Catalogue entry describing one changeset the server can produce for a\nsession.\n\nCatalogue entries are intentionally lightweight — just enough to render a\nchip or list row without subscribing. Full per-changeset detail\n({@link ChangesetState}) lives on the subscribable URI obtained by\nexpanding {@link uriTemplate}.",
       "properties": {
@@ -3357,22 +3621,15 @@
           "type": "string",
           "description": "Optional longer description."
         },
-        "additions": {
-          "type": "number",
-          "description": "Aggregate line additions across the changeset, when known."
-        },
-        "deletions": {
-          "type": "number",
-          "description": "Aggregate line deletions across the changeset, when known."
-        },
-        "files": {
-          "type": "number",
-          "description": "Number of files in the changeset, when known."
+        "changeKind": {
+          "type": "string",
+          "description": "Advisory hint describing what kind of changeset this is, so clients can\ngroup, sort, or render an appropriate icon without parsing\n{@link uriTemplate}. Recognized values include:\n\n- `'session'`: a static, session-wide changeset covering all changes the\n  agent has produced in this session.\n- `'branch'`: changes relative to a base branch (e.g. a feature branch\n  diffed against `main`).\n- `'uncommitted'`: the workspace's current uncommitted changes.\n- `'turn'`: changes produced by a single turn. Typically paired with a\n  `{turnId}` variable in {@link uriTemplate}.\n- `'compare-turns'`: a diff between two turns. Typically paired with\n  `{originalTurnId}` and `{modifiedTurnId}` variables in\n  {@link uriTemplate}.\n\nImplementations MAY provide additional values; clients SHOULD fall back\nto a reasonable default when an unknown value is encountered."
         }
       },
       "required": [
         "label",
-        "uriTemplate"
+        "uriTemplate",
+        "changeKind"
       ]
     },
     "ChangesetState": {
@@ -3475,6 +3732,113 @@
         "label",
         "scopes",
         "status"
+      ]
+    },
+    "AnnotationsSummary": {
+      "type": "object",
+      "description": "Lightweight per-session summary of the annotations channel, surfaced on\n{@link SessionSummary.annotations} so badge UI can render annotation /\nentry counts without subscribing to the channel itself.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The subscribable annotations channel URI for the owning session\n(typically `ahp-session:/<uuid>/annotations`). Surfaced explicitly even\nthough it is derivable from the session URI so badge UI does not need\nto know the derivation rule."
+        },
+        "annotationCount": {
+          "type": "number",
+          "description": "Total number of {@link Annotation} entries in the channel."
+        },
+        "entryCount": {
+          "type": "number",
+          "description": "Total number of {@link AnnotationEntry} entries across every annotation."
+        }
+      },
+      "required": [
+        "resource",
+        "annotationCount",
+        "entryCount"
+      ]
+    },
+    "AnnotationsState": {
+      "type": "object",
+      "description": "Full state for a session's annotations channel, returned when a client\nsubscribes to an `ahp-session:/<uuid>/annotations` URI.",
+      "properties": {
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Annotation"
+          },
+          "description": "Annotations in this channel, keyed by {@link Annotation.id}."
+        }
+      },
+      "required": [
+        "annotations"
+      ]
+    },
+    "Annotation": {
+      "type": "object",
+      "description": "A conversation anchored to a specific file produced by a specific turn,\noptionally narrowed to a range within that file.\n\n{@link turnId} anchors the annotation to the file versions that turn\nproduced, so a later turn that rewrites the same file does not silently\ninvalidate the annotation's anchor — clients can resolve {@link resource}\nand {@link range} against the turn's changeset. When {@link range} is\nomitted the annotation is anchored to the entire file.\n\nEvery annotation MUST contain at least one {@link AnnotationEntry}. An\n{@link AnnotationsSetAction} that creates an annotation therefore carries\nits mandatory first entry, and removing the last remaining entry collapses\nthe annotation via {@link AnnotationsRemovedAction} rather than leaving an\nempty annotation behind.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the annotations channel. Assigned by the client\nthat dispatches the creating {@link AnnotationsSetAction}."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "Turn that produced the file versions this annotation is anchored to.\nMatches a {@link Turn.id} on the owning session."
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "The file the annotation is anchored to."
+        },
+        "range": {
+          "$ref": "#/$defs/TextRange",
+          "description": "Range within {@link resource} the annotation is anchored to. When\nomitted the annotation is anchored to the entire file."
+        },
+        "resolved": {
+          "type": "boolean",
+          "description": "Whether the annotation has been resolved. Newly created annotations are\nalways unresolved (`false`); a client marks an annotation resolved (or\nre-opens it) by dispatching an {@link AnnotationsSetAction} carrying the\nupdated flag."
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AnnotationEntry"
+          },
+          "description": "Entries in this annotation, in dispatch order (oldest first). MUST\ncontain at least one entry."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Producer-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "turnId",
+        "resource",
+        "resolved",
+        "entries"
+      ]
+    },
+    "AnnotationEntry": {
+      "type": "object",
+      "description": "A single entry within an {@link Annotation}.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable identifier within the enclosing annotation. Assigned by the client\nthat dispatches the {@link AnnotationsEntrySetAction} (or the enclosing\n{@link AnnotationsSetAction}) introducing the entry."
+        },
+        "text": {
+          "$ref": "#/$defs/StringOrMarkdown",
+          "description": "Entry body. A bare `string` is rendered as plain text; pass\n`{ markdown: \"…\" }` to opt into Markdown rendering. See\n{@link StringOrMarkdown}."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Producer-defined opaque metadata, surfaced to tooling but not\ninterpreted by the protocol."
+        }
+      },
+      "required": [
+        "id",
+        "text"
       ]
     },
     "TelemetryCapabilities": {
@@ -3635,6 +3999,9 @@
         },
         {
           "$ref": "#/$defs/MessageResourceAttachment"
+        },
+        {
+          "$ref": "#/$defs/MessageAnnotationsAttachment"
         }
       ],
       "description": "An attachment associated with a {@link Message}."
@@ -3656,6 +4023,16 @@
         },
         {
           "$ref": "#/$defs/SystemNotificationResponsePart"
+        }
+      ]
+    },
+    "ToolCallContributor": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolCallClientContributor"
+        },
+        {
+          "$ref": "#/$defs/ToolCallMcpContributor"
         }
       ]
     },
@@ -3775,14 +4152,39 @@
     },
     "Customization": {
       "oneOf": [
+        {},
         {
           "$ref": "#/$defs/PluginCustomization"
         },
         {
           "$ref": "#/$defs/DirectoryCustomization"
+        },
+        {
+          "$ref": "#/$defs/McpServerCustomization"
         }
       ],
-      "description": "A top-level customization active in a session. Always a container\n({@link PluginCustomization} or {@link DirectoryCustomization}); the\nremaining customization types appear inside the container's\n{@link ContainerCustomizationBase.children | `children`} array."
+      "description": "A top-level customization active in a session. Either a container\n({@link PluginCustomization} or {@link DirectoryCustomization}) whose\nleaf customizations live in its\n{@link ContainerCustomizationBase.children | `children`} array, or a\nbare {@link McpServerCustomization} surfaced directly by the host."
+    },
+    "McpServerState": {
+      "oneOf": [
+        {},
+        {
+          "$ref": "#/$defs/McpServerStartingState"
+        },
+        {
+          "$ref": "#/$defs/McpServerReadyState"
+        },
+        {
+          "$ref": "#/$defs/McpServerAuthRequiredState"
+        },
+        {
+          "$ref": "#/$defs/McpServerErrorState"
+        },
+        {
+          "$ref": "#/$defs/McpServerStoppedState"
+        }
+      ],
+      "description": "Discriminated union of all MCP server lifecycle states.\nDiscriminated by `kind` (a {@link McpServerStatus} value)."
     },
     "TerminalClaim": {
       "oneOf": [

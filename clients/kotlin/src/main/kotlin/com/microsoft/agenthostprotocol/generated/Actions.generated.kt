@@ -96,6 +96,8 @@ enum class ActionType {
     SESSION_CUSTOMIZATION_UPDATED,
     @SerialName("session/customizationRemoved")
     SESSION_CUSTOMIZATION_REMOVED,
+    @SerialName("session/mcpServerStateChanged")
+    SESSION_MCP_SERVER_STATE_CHANGED,
     @SerialName("session/truncated")
     SESSION_TRUNCATED,
     @SerialName("session/isReadChanged")
@@ -122,6 +124,14 @@ enum class ActionType {
     CHANGESET_OPERATION_STATUS_CHANGED,
     @SerialName("changeset/cleared")
     CHANGESET_CLEARED,
+    @SerialName("annotations/set")
+    ANNOTATIONS_SET,
+    @SerialName("annotations/removed")
+    ANNOTATIONS_REMOVED,
+    @SerialName("annotations/entrySet")
+    ANNOTATIONS_ENTRY_SET,
+    @SerialName("annotations/entryRemoved")
+    ANNOTATIONS_ENTRY_REMOVED,
     @SerialName("root/terminalsChanged")
     ROOT_TERMINALS_CHANGED,
     @SerialName("root/configChanged")
@@ -265,7 +275,7 @@ data class SessionToolCallStartAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -283,10 +293,10 @@ data class SessionToolCallStartAction(
      */
     val displayName: String,
     /**
-     * If this tool is provided by a client, the `clientId` of the owning client.
-     * Absent for server-side tools.
+     * Reference to the contributor of the tool being called. Absent for
+     * server-side tools that are not contributed by a client or MCP server.
      */
-    val toolClientId: String? = null
+    val contributor: ToolCallContributor? = null
 )
 
 @Serializable
@@ -301,7 +311,7 @@ data class SessionToolCallDeltaAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -332,7 +342,7 @@ data class SessionToolCallReadyAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -415,7 +425,7 @@ data class SessionToolCallCompleteAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -446,7 +456,7 @@ data class SessionToolCallResultConfirmedAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -583,7 +593,7 @@ data class SessionChangesetsChangedAction(
     /**
      * New catalogue, or `undefined` to clear it
      */
-    val changesets: List<ChangesetSummary>? = null
+    val changesets: List<Changeset>? = null
 )
 
 @Serializable
@@ -736,6 +746,25 @@ data class SessionCustomizationRemovedAction(
 )
 
 @Serializable
+data class SessionMcpServerStateChangedAction(
+    val type: ActionType,
+    /**
+     * The id of the {@link McpServerCustomization} to update.
+     */
+    val id: String,
+    /**
+     * The new lifecycle state.
+     */
+    val state: McpServerState,
+    /**
+     * Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+     * an existing channel (typical when leaving
+     * {@link McpServerStatus.Ready | `Ready`}).
+     */
+    val channel: String? = null
+)
+
+@Serializable
 data class SessionTruncatedAction(
     val type: ActionType,
     /**
@@ -779,7 +808,7 @@ data class SessionToolCallContentChangedAction(
     val toolCallId: String,
     /**
      * Additional provider-specific metadata for this tool call.
-     * 
+     *
      * Clients MAY look for well-known keys here to provide enhanced UI.
      * For example, a `ptyTerminal` key with `{ input: string; output: string }`
      * indicates the tool operated on a terminal (both `input` and `output` may
@@ -854,6 +883,50 @@ data class ChangesetOperationStatusChangedAction(
 @Serializable
 data class ChangesetClearedAction(
     val type: ActionType
+)
+
+@Serializable
+data class AnnotationsSetAction(
+    val type: ActionType,
+    /**
+     * The new or replacement annotation. MUST contain at least one entry.
+     */
+    val annotation: Annotation
+)
+
+@Serializable
+data class AnnotationsRemovedAction(
+    val type: ActionType,
+    /**
+     * The {@link Annotation.id} of the annotation to remove.
+     */
+    val annotationId: String
+)
+
+@Serializable
+data class AnnotationsEntrySetAction(
+    val type: ActionType,
+    /**
+     * The {@link Annotation.id} the entry belongs to.
+     */
+    val annotationId: String,
+    /**
+     * The new or replacement entry.
+     */
+    val entry: AnnotationEntry
+)
+
+@Serializable
+data class AnnotationsEntryRemovedAction(
+    val type: ActionType,
+    /**
+     * The {@link Annotation.id} the entry belongs to.
+     */
+    val annotationId: String,
+    /**
+     * The {@link AnnotationEntry.id} to remove.
+     */
+    val entryId: String
 )
 
 @Serializable
@@ -1053,6 +1126,7 @@ sealed interface StateAction
 @JvmInline value class StateActionSessionCustomizationToggled(val value: SessionCustomizationToggledAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationUpdated(val value: SessionCustomizationUpdatedAction) : StateAction
 @JvmInline value class StateActionSessionCustomizationRemoved(val value: SessionCustomizationRemovedAction) : StateAction
+@JvmInline value class StateActionSessionMcpServerStateChanged(val value: SessionMcpServerStateChangedAction) : StateAction
 @JvmInline value class StateActionSessionTruncated(val value: SessionTruncatedAction) : StateAction
 @JvmInline value class StateActionSessionConfigChanged(val value: SessionConfigChangedAction) : StateAction
 @JvmInline value class StateActionSessionMetaChanged(val value: SessionMetaChangedAction) : StateAction
@@ -1063,6 +1137,10 @@ sealed interface StateAction
 @JvmInline value class StateActionChangesetOperationsChanged(val value: ChangesetOperationsChangedAction) : StateAction
 @JvmInline value class StateActionChangesetOperationStatusChanged(val value: ChangesetOperationStatusChangedAction) : StateAction
 @JvmInline value class StateActionChangesetCleared(val value: ChangesetClearedAction) : StateAction
+@JvmInline value class StateActionAnnotationsSet(val value: AnnotationsSetAction) : StateAction
+@JvmInline value class StateActionAnnotationsRemoved(val value: AnnotationsRemovedAction) : StateAction
+@JvmInline value class StateActionAnnotationsEntrySet(val value: AnnotationsEntrySetAction) : StateAction
+@JvmInline value class StateActionAnnotationsEntryRemoved(val value: AnnotationsEntryRemovedAction) : StateAction
 @JvmInline value class StateActionRootTerminalsChanged(val value: RootTerminalsChangedAction) : StateAction
 @JvmInline value class StateActionRootConfigChanged(val value: RootConfigChangedAction) : StateAction
 @JvmInline value class StateActionTerminalData(val value: TerminalDataAction) : StateAction
@@ -1130,6 +1208,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "session/customizationToggled" -> StateActionSessionCustomizationToggled(input.json.decodeFromJsonElement(SessionCustomizationToggledAction.serializer(), element))
             "session/customizationUpdated" -> StateActionSessionCustomizationUpdated(input.json.decodeFromJsonElement(SessionCustomizationUpdatedAction.serializer(), element))
             "session/customizationRemoved" -> StateActionSessionCustomizationRemoved(input.json.decodeFromJsonElement(SessionCustomizationRemovedAction.serializer(), element))
+            "session/mcpServerStateChanged" -> StateActionSessionMcpServerStateChanged(input.json.decodeFromJsonElement(SessionMcpServerStateChangedAction.serializer(), element))
             "session/truncated" -> StateActionSessionTruncated(input.json.decodeFromJsonElement(SessionTruncatedAction.serializer(), element))
             "session/configChanged" -> StateActionSessionConfigChanged(input.json.decodeFromJsonElement(SessionConfigChangedAction.serializer(), element))
             "session/metaChanged" -> StateActionSessionMetaChanged(input.json.decodeFromJsonElement(SessionMetaChangedAction.serializer(), element))
@@ -1140,6 +1219,10 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "changeset/operationsChanged" -> StateActionChangesetOperationsChanged(input.json.decodeFromJsonElement(ChangesetOperationsChangedAction.serializer(), element))
             "changeset/operationStatusChanged" -> StateActionChangesetOperationStatusChanged(input.json.decodeFromJsonElement(ChangesetOperationStatusChangedAction.serializer(), element))
             "changeset/cleared" -> StateActionChangesetCleared(input.json.decodeFromJsonElement(ChangesetClearedAction.serializer(), element))
+            "annotations/set" -> StateActionAnnotationsSet(input.json.decodeFromJsonElement(AnnotationsSetAction.serializer(), element))
+            "annotations/removed" -> StateActionAnnotationsRemoved(input.json.decodeFromJsonElement(AnnotationsRemovedAction.serializer(), element))
+            "annotations/entrySet" -> StateActionAnnotationsEntrySet(input.json.decodeFromJsonElement(AnnotationsEntrySetAction.serializer(), element))
+            "annotations/entryRemoved" -> StateActionAnnotationsEntryRemoved(input.json.decodeFromJsonElement(AnnotationsEntryRemovedAction.serializer(), element))
             "root/terminalsChanged" -> StateActionRootTerminalsChanged(input.json.decodeFromJsonElement(RootTerminalsChangedAction.serializer(), element))
             "root/configChanged" -> StateActionRootConfigChanged(input.json.decodeFromJsonElement(RootConfigChangedAction.serializer(), element))
             "terminal/data" -> StateActionTerminalData(input.json.decodeFromJsonElement(TerminalDataAction.serializer(), element))
@@ -1200,6 +1283,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionSessionCustomizationToggled -> output.json.encodeToJsonElement(SessionCustomizationToggledAction.serializer(), value.value)
             is StateActionSessionCustomizationUpdated -> output.json.encodeToJsonElement(SessionCustomizationUpdatedAction.serializer(), value.value)
             is StateActionSessionCustomizationRemoved -> output.json.encodeToJsonElement(SessionCustomizationRemovedAction.serializer(), value.value)
+            is StateActionSessionMcpServerStateChanged -> output.json.encodeToJsonElement(SessionMcpServerStateChangedAction.serializer(), value.value)
             is StateActionSessionTruncated -> output.json.encodeToJsonElement(SessionTruncatedAction.serializer(), value.value)
             is StateActionSessionConfigChanged -> output.json.encodeToJsonElement(SessionConfigChangedAction.serializer(), value.value)
             is StateActionSessionMetaChanged -> output.json.encodeToJsonElement(SessionMetaChangedAction.serializer(), value.value)
@@ -1210,6 +1294,10 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionChangesetOperationsChanged -> output.json.encodeToJsonElement(ChangesetOperationsChangedAction.serializer(), value.value)
             is StateActionChangesetOperationStatusChanged -> output.json.encodeToJsonElement(ChangesetOperationStatusChangedAction.serializer(), value.value)
             is StateActionChangesetCleared -> output.json.encodeToJsonElement(ChangesetClearedAction.serializer(), value.value)
+            is StateActionAnnotationsSet -> output.json.encodeToJsonElement(AnnotationsSetAction.serializer(), value.value)
+            is StateActionAnnotationsRemoved -> output.json.encodeToJsonElement(AnnotationsRemovedAction.serializer(), value.value)
+            is StateActionAnnotationsEntrySet -> output.json.encodeToJsonElement(AnnotationsEntrySetAction.serializer(), value.value)
+            is StateActionAnnotationsEntryRemoved -> output.json.encodeToJsonElement(AnnotationsEntryRemovedAction.serializer(), value.value)
             is StateActionRootTerminalsChanged -> output.json.encodeToJsonElement(RootTerminalsChangedAction.serializer(), value.value)
             is StateActionRootConfigChanged -> output.json.encodeToJsonElement(RootConfigChangedAction.serializer(), value.value)
             is StateActionTerminalData -> output.json.encodeToJsonElement(TerminalDataAction.serializer(), value.value)

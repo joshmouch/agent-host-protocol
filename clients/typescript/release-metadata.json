@@ -1,7 +1,8 @@
 {
   "client": "typescript",
-  "packageVersion": "0.2.0",
+  "packageVersion": "0.3.0",
   "supportedProtocolVersions": [
+    "0.4.0",
     "0.3.0"
   ]
 }

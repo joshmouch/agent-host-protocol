@@ -1,11 +1,13 @@
 # Customizations
 
-Customizations extend agent sessions with additional capabilities — agents, skills, prompts, rules, hooks, and MCP servers. AHP organises them as a discriminated union with a fixed set of types and a strict two-level tree:
+Customizations extend agent sessions with additional capabilities — agents, skills, prompts, rules, hooks, and MCP servers. AHP organises them as a discriminated union with a fixed set of types and a shallow tree:
 
-- **Top-level entries are always containers**: a `PluginCustomization` (an [Open Plugins](https://open-plugins.com/) package) or a `DirectoryCustomization` (a directory the host watches on disk).
-- **Everything else is a child** of a container: `AgentCustomization`, `SkillCustomization`, `PromptCustomization`, `RuleCustomization`, `HookCustomization`, `McpServerCustomization`.
+- **Top-level entries are typically containers**: a `PluginCustomization` (an [Open Plugins](https://open-plugins.com/) package) or a `DirectoryCustomization` (a directory the host watches on disk). The host MAY also surface a bare `McpServerCustomization` at the top level (for example, a globally-configured MCP server that isn't bundled in a plugin).
+- **Other children live inside a container**: `AgentCustomization`, `SkillCustomization`, `PromptCustomization`, `RuleCustomization`, `HookCustomization`, `McpServerCustomization`. MCP servers can therefore appear in either position.
 
-The agent host is authoritative on the effective tree. Clients publish plugins, the host expands them into children, and the host owns disk-backed directories.
+The agent host is authoritative on the effective tree. Clients publish plugins, the host expands them into children, and the host owns disk-backed directories and bare top-level MCP servers.
+
+For MCP-specific behaviour (server lifecycle, authentication, App support), see [MCP Servers](/guide/mcp).
 
 ## Sources
 
@@ -112,10 +114,10 @@ SkillCustomization        { type: 'skill';       description?, disableModelInvoc
 PromptCustomization       { type: 'prompt';      description? }
 RuleCustomization         { type: 'rule';        description?, alwaysApply?, globs? }    // covers "instruction" formats too
 HookCustomization         { type: 'hook';        event?, matcher? }
-McpServerCustomization    { type: 'mcpServer';   description? }
+McpServerCustomization    { type: 'mcpServer';   enabled, state, channel?, mcpApp? }   // see /guide/mcp
 ```
 
-The protocol intentionally omits host-internal execution details (a hook's command/script, an MCP server's `command`/`args`/`env`, etc.). Those stay on the agent host; clients see only what's needed for display, search, and selection. MCP tools and their descriptions surface through the standard tool channels once the server is running.
+The protocol intentionally omits host-internal execution details (a hook's command/script, an MCP server's `command`/`args`/`env`, etc.). Those stay on the agent host; clients see only what's needed for display, search, and selection. MCP tools and their descriptions surface through the standard tool channels once the server is running. The MCP-specific runtime fields (`state`, `channel`, `mcpApp`) are covered in [MCP Servers](/guide/mcp).
 
 Consumers filter by `type` to find the children they care about — for example, the agent picker reads every `AgentCustomization` under any container:
 

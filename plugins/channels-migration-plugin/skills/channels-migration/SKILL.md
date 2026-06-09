@@ -62,7 +62,7 @@ Concretely:
 - **Terminal URI scheme** (docs/examples): `ahp-terminal:/<id>`. Server-
   defined; clients treat as opaque.
 - **Changeset URI scheme** (docs/examples): `ahp-changeset:/<id>`. Server-
-  defined; obtained by expanding a `ChangesetSummary.uriTemplate`.
+  defined; obtained by expanding a `Changeset.uriTemplate`.
   Changesets are a new channel type introduced in the same step.
 - **`channel` everywhere**: `subscribe`/`unsubscribe`/action-envelope/
   `dispatchAction`/every protocol notification AND every command has
@@ -433,7 +433,7 @@ After the migration, your code should:
 - [ ] Resolve a session's provider via `SessionSummary.provider`, not via
       the URI scheme.
 - [ ] No `SessionDiffsChangedAction` / `summary.diffs` references; consume
-      `summary.changesets` plus the `changeset/*` action family instead.
+      `SessionState.changesets` plus the `changeset/*` action family instead.
 - [ ] Every command's params carries `channel: URI`. Channel-scoped
       commands (`createSession`, `disposeSession`, `createTerminal`,
       `disposeTerminal`, `fetchTurns`, `completions`,

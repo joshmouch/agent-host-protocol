@@ -21,9 +21,13 @@ import com.microsoft.agenthostprotocol.generated.ChildCustomizationPrompt
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationRule
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationSkill
 import com.microsoft.agenthostprotocol.generated.ChildCustomizationUnknown
+import com.microsoft.agenthostprotocol.generated.AnnotationEntry
+import com.microsoft.agenthostprotocol.generated.Annotation
+import com.microsoft.agenthostprotocol.generated.AnnotationsState
 import com.microsoft.agenthostprotocol.generated.ConfirmationOption
 import com.microsoft.agenthostprotocol.generated.Customization
 import com.microsoft.agenthostprotocol.generated.CustomizationDirectory
+import com.microsoft.agenthostprotocol.generated.CustomizationMcpServer
 import com.microsoft.agenthostprotocol.generated.CustomizationPlugin
 import com.microsoft.agenthostprotocol.generated.CustomizationUnknown
 import com.microsoft.agenthostprotocol.generated.ErrorInfo
@@ -51,6 +55,10 @@ import com.microsoft.agenthostprotocol.generated.StateActionChangesetFileSet
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetOperationsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetOperationStatusChanged
 import com.microsoft.agenthostprotocol.generated.StateActionChangesetStatusChanged
+import com.microsoft.agenthostprotocol.generated.StateActionAnnotationsEntryRemoved
+import com.microsoft.agenthostprotocol.generated.StateActionAnnotationsEntrySet
+import com.microsoft.agenthostprotocol.generated.StateActionAnnotationsRemoved
+import com.microsoft.agenthostprotocol.generated.StateActionAnnotationsSet
 import com.microsoft.agenthostprotocol.generated.StateActionRootActiveSessionsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootAgentsChanged
 import com.microsoft.agenthostprotocol.generated.StateActionRootConfigChanged
@@ -74,6 +82,7 @@ import com.microsoft.agenthostprotocol.generated.StateActionSessionInputComplete
 import com.microsoft.agenthostprotocol.generated.StateActionSessionInputRequested
 import com.microsoft.agenthostprotocol.generated.StateActionSessionIsArchivedChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionIsReadChanged
+import com.microsoft.agenthostprotocol.generated.StateActionSessionMcpServerStateChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionMetaChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionModelChanged
 import com.microsoft.agenthostprotocol.generated.StateActionSessionPendingMessageRemoved
@@ -117,6 +126,7 @@ import com.microsoft.agenthostprotocol.generated.ToolCallCancellationReason
 import com.microsoft.agenthostprotocol.generated.ToolCallCancelledState
 import com.microsoft.agenthostprotocol.generated.ToolCallCompletedState
 import com.microsoft.agenthostprotocol.generated.ToolCallConfirmationReason
+import com.microsoft.agenthostprotocol.generated.ToolCallContributor
 import com.microsoft.agenthostprotocol.generated.ToolCallPendingConfirmationState
 import com.microsoft.agenthostprotocol.generated.ToolCallPendingResultConfirmationState
 import com.microsoft.agenthostprotocol.generated.ToolCallResponsePart
@@ -143,9 +153,9 @@ import kotlinx.serialization.json.JsonElement
  * no mutation of [state] and no side effects.
  *
  * The companion top-level functions ([rootReducer], [sessionReducer],
- * [terminalReducer], [changesetReducer], [resourceWatchReducer]) are the canonical implementations.
+ * [terminalReducer], [changesetReducer], [annotationsReducer], [resourceWatchReducer]) are the canonical implementations.
  * The object instances on this interface ([RootReducer], [SessionReducer],
- * [TerminalReducer], [ChangesetReducer]) wrap them for use as values where
+ * [TerminalReducer], [ChangesetReducer], [AnnotationsReducer]) wrap them for use as values where
  * an instance is needed.
  */
 public fun interface Reducer<S, A> {
@@ -174,6 +184,12 @@ public object TerminalReducer : Reducer<TerminalState, StateAction> {
 public object ChangesetReducer : Reducer<ChangesetState, StateAction> {
     override fun reduce(state: ChangesetState, action: StateAction): ChangesetState =
         changesetReducer(state, action)
+}
+
+/** Pure annotations reducer as a [Reducer] instance. Delegates to [annotationsReducer]. */
+public object AnnotationsReducer : Reducer<AnnotationsState, StateAction> {
+    override fun reduce(state: AnnotationsState, action: StateAction): AnnotationsState =
+        annotationsReducer(state, action)
 }
 
 /** Pure resource-watch reducer as a [Reducer] instance. Delegates to [resourceWatchReducer]. */
@@ -250,28 +266,28 @@ private data class ToolCallBase(
     val toolCallId: String,
     val toolName: String,
     val displayName: String,
-    val toolClientId: String?,
+    val contributor: ToolCallContributor?,
     val meta: Map<String, JsonElement>?,
 )
 
 private fun toolCallBase(tc: ToolCallState): ToolCallBase = when (tc) {
     is ToolCallStateStreaming -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStatePendingConfirmation -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateRunning -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStatePendingResultConfirmation -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateCompleted -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     is ToolCallStateCancelled -> tc.value.let {
-        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.toolClientId, it.meta)
+        ToolCallBase(it.toolCallId, it.toolName, it.displayName, it.contributor, it.meta)
     }
     // Forward-compat: unknown lifecycle variants have no extractable base; mirror
     // Rust's `ToolCallState::Unknown(_) => (String::new(), ...)`. Combined with
@@ -291,6 +307,7 @@ private fun toolCallIdOf(tc: ToolCallState): String = toolCallBase(tc).toolCallI
 private fun customizationId(c: Customization): String? = when (c) {
     is CustomizationPlugin -> c.value.id
     is CustomizationDirectory -> c.value.id
+    is CustomizationMcpServer -> c.value.id
     // Unknown variants carry an opaque `raw` JSON object — no id to expose.
     // Returning `null` mirrors Rust's `Customization::Unknown(_) => None`, so
     // an unknown container can never collide with a real id during lookups.
@@ -300,6 +317,7 @@ private fun customizationId(c: Customization): String? = when (c) {
 private fun customizationChildren(c: Customization): List<ChildCustomization>? = when (c) {
     is CustomizationPlugin -> c.value.children
     is CustomizationDirectory -> c.value.children
+    is CustomizationMcpServer -> null
     is CustomizationUnknown -> null
 }
 
@@ -307,12 +325,14 @@ private fun withCustomizationChildren(c: Customization, children: List<ChildCust
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(children = children))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(children = children))
     // Pass-through: we can't structurally edit a payload we don't understand.
+    is CustomizationMcpServer -> c
     is CustomizationUnknown -> c
 }
 
 private fun withCustomizationEnabled(c: Customization, enabled: Boolean): Customization = when (c) {
     is CustomizationPlugin -> CustomizationPlugin(c.value.copy(enabled = enabled))
     is CustomizationDirectory -> CustomizationDirectory(c.value.copy(enabled = enabled))
+    is CustomizationMcpServer -> CustomizationMcpServer(c.value.copy(enabled = enabled))
     is CustomizationUnknown -> c
 }
 
@@ -444,7 +464,7 @@ private fun endTurn(
                         toolCallId = base.toolCallId,
                         toolName = base.toolName,
                         displayName = base.displayName,
-                        toolClientId = base.toolClientId,
+                        contributor = base.contributor,
                         meta = base.meta,
                         invocationMessage = invocationMessage,
                         toolInput = toolInput,
@@ -634,7 +654,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = a.toolCallId,
                             toolName = a.toolName,
                             displayName = a.displayName,
-                            toolClientId = a.toolClientId,
+                            contributor = a.contributor,
                             meta = a.meta,
                             status = ToolCallStatus.STREAMING,
                         ),
@@ -673,7 +693,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = a.invocationMessage,
                                 toolInput = a.toolInput,
@@ -687,7 +707,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = a.invocationMessage,
                                 toolInput = a.toolInput,
@@ -717,7 +737,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = a.editedToolInput ?: tc.value.toolInput,
@@ -733,7 +753,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,
@@ -777,7 +797,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = base.toolCallId,
                             toolName = base.toolName,
                             displayName = base.displayName,
-                            toolClientId = base.toolClientId,
+                            contributor = base.contributor,
                             meta = base.meta,
                             invocationMessage = invocationMessage,
                             toolInput = toolInput,
@@ -797,7 +817,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             toolCallId = base.toolCallId,
                             toolName = base.toolName,
                             displayName = base.displayName,
-                            toolClientId = base.toolClientId,
+                            contributor = base.contributor,
                             meta = base.meta,
                             invocationMessage = invocationMessage,
                             toolInput = toolInput,
@@ -828,7 +848,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,
@@ -848,7 +868,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                                 toolCallId = base.toolCallId,
                                 toolName = base.toolName,
                                 displayName = base.displayName,
-                                toolClientId = base.toolClientId,
+                                contributor = base.contributor,
                                 meta = base.meta,
                                 invocationMessage = tc.value.invocationMessage,
                                 toolInput = tc.value.toolInput,
@@ -924,9 +944,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
     )
 
     is StateActionSessionChangesetsChanged -> state.copy(
-        // Clear the field entirely when no changesets are provided, matching
-        // TS `{ ...summaryWithoutChangesets }` semantics (omits the key).
-        summary = state.summary.copy(changesets = action.value.changesets),
+        changesets = action.value.changesets,
     )
 
     is StateActionSessionConfigChanged -> {
@@ -1026,6 +1044,60 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                             val newChildren = children.toMutableList()
                             newChildren.removeAt(childIdx)
                             withCustomizationChildren(container, newChildren)
+                        }
+                    }
+                }
+                if (!changed) state else state.copy(customizations = updated)
+            }
+        }
+    }
+
+    is StateActionSessionMcpServerStateChanged -> {
+        // Full-replacement of an MCP server customization's `state` + `channel`,
+        // located by id. Mirrors the canonical TS reducer (and the Go/Rust/Swift
+        // ports): a top-level McpServer entry is matched first (hosts MAY surface
+        // MCP servers directly at the top level); otherwise the search descends
+        // into container children. A no-op when no customization carries the id,
+        // or when the matched id belongs to a non-MCP customization type.
+        val a = action.value
+        val list = state.customizations
+        if (list == null) {
+            state
+        } else {
+            val topIdx = list.indexOfFirst { customizationId(it) == a.id }
+            if (topIdx >= 0) {
+                val entry = list[topIdx]
+                if (entry !is CustomizationMcpServer) {
+                    state
+                } else {
+                    val updated = list.toMutableList()
+                    updated[topIdx] = CustomizationMcpServer(
+                        entry.value.copy(state = a.state, channel = a.channel),
+                    )
+                    state.copy(customizations = updated)
+                }
+            } else {
+                var changed = false
+                val updated = list.map { container ->
+                    val children = customizationChildren(container)
+                    if (children == null) {
+                        container
+                    } else {
+                        val childIdx = children.indexOfFirst { childCustomizationId(it) == a.id }
+                        if (childIdx < 0) {
+                            container
+                        } else {
+                            val child = children[childIdx]
+                            if (child !is ChildCustomizationMcpServer) {
+                                container
+                            } else {
+                                changed = true
+                                val newChildren = children.toMutableList()
+                                newChildren[childIdx] = ChildCustomizationMcpServer(
+                                    child.value.copy(state = a.state, channel = a.channel),
+                                )
+                                withCustomizationChildren(container, newChildren)
+                            }
                         }
                     }
                 }
@@ -1329,6 +1401,81 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
 
     is StateActionChangesetCleared ->
         if (state.files.isEmpty()) state else state.copy(files = emptyList())
+
+    else -> state
+}
+
+// ─── Annotations Reducer ──────────────────────────────────────────
+
+/**
+ * Pure reducer for [AnnotationsState]. Handles all annotations-channel action
+ * variants; actions belonging to other channels (or unknown variants) are
+ * no-ops that return [state] unchanged.
+ *
+ * The single-entry-minimum invariant is enforced by the server, not the
+ * reducer — a malformed server that removes an annotation's last entry via
+ * `annotations/entryRemoved` would leave an empty annotation, which is
+ * observable but not catastrophic.
+ */
+public fun annotationsReducer(state: AnnotationsState, action: StateAction): AnnotationsState = when (action) {
+    is StateActionAnnotationsSet -> {
+        val annotation = action.value.annotation
+        val idx = state.annotations.indexOfFirst { it.id == annotation.id }
+        if (idx < 0) {
+            state.copy(annotations = state.annotations + annotation)
+        } else {
+            val next = state.annotations.toMutableList().also { it[idx] = annotation }
+            state.copy(annotations = next)
+        }
+    }
+
+    is StateActionAnnotationsRemoved -> {
+        val idx = state.annotations.indexOfFirst { it.id == action.value.annotationId }
+        if (idx < 0) {
+            state
+        } else {
+            val next: List<Annotation> = state.annotations.toMutableList().also { it.removeAt(idx) }
+            state.copy(annotations = next)
+        }
+    }
+
+    is StateActionAnnotationsEntrySet -> {
+        val tIdx = state.annotations.indexOfFirst { it.id == action.value.annotationId }
+        if (tIdx < 0) {
+            state
+        } else {
+            val annotation = state.annotations[tIdx]
+            val entry = action.value.entry
+            val cIdx = annotation.entries.indexOfFirst { it.id == entry.id }
+            val nextEntries = if (cIdx < 0) {
+                annotation.entries + entry
+            } else {
+                annotation.entries.toMutableList().also { it[cIdx] = entry }
+            }
+            val nextAnnotations = state.annotations.toMutableList()
+                .also { it[tIdx] = annotation.copy(entries = nextEntries) }
+            state.copy(annotations = nextAnnotations)
+        }
+    }
+
+    is StateActionAnnotationsEntryRemoved -> {
+        val tIdx = state.annotations.indexOfFirst { it.id == action.value.annotationId }
+        if (tIdx < 0) {
+            state
+        } else {
+            val annotation = state.annotations[tIdx]
+            val cIdx = annotation.entries.indexOfFirst { it.id == action.value.entryId }
+            if (cIdx < 0) {
+                state
+            } else {
+                val nextEntries: List<AnnotationEntry> = annotation.entries.toMutableList()
+                    .also { it.removeAt(cIdx) }
+                val nextAnnotations = state.annotations.toMutableList()
+                    .also { it[tIdx] = annotation.copy(entries = nextEntries) }
+                state.copy(annotations = nextAnnotations)
+            }
+        }
+    }
 
     else -> state
 }

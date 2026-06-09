@@ -50,7 +50,7 @@ public struct SessionSummaryChangedParams: Codable, Sendable {
     /// URI of the session whose summary changed
     public var session: String
     /// Mutable summary fields that changed; omitted fields are unchanged.
-    /// 
+    ///
     /// Identity fields (`resource`, `provider`, `createdAt`) never change and
     /// MUST be omitted by senders; receivers SHOULD ignore them if present.
     public var changes: PartialSessionSummary
@@ -158,18 +158,22 @@ public struct PartialSessionSummary: Codable, Sendable {
     /// Currently selected model
     public var model: ModelSelection?
     /// Currently selected custom agent.
-    /// 
+    ///
     /// Absent (`undefined`) means no custom agent is selected for this session
     /// — the session uses the provider's default behavior.
     public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [ChangesetSummary]?
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    public var changes: ChangesSummary?
+    /// Lightweight summary of this session's inline annotations channel
+    /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+    /// annotation / entry counts without subscribing. Absent when the session
+    /// does not expose an annotations channel.
+    public var annotations: AnnotationsSummary?
 
     public init(
         resource: String? = nil,
@@ -183,7 +187,8 @@ public struct PartialSessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [ChangesetSummary]? = nil
+        changes: ChangesSummary? = nil,
+        annotations: AnnotationsSummary? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -196,6 +201,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.model = model
         self.agent = agent
         self.workingDirectory = workingDirectory
-        self.changesets = changesets
+        self.changes = changes
+        self.annotations = annotations
     }
 }

@@ -144,7 +144,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolCallId: a.toolCallId,
                 toolName: a.toolName,
                 displayName: a.displayName,
-                toolClientId: a.toolClientId,
+                contributor: a.contributor,
                 meta: a.meta,
                 status: .streaming
             ))
@@ -177,7 +177,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                     toolCallId: base.toolCallId,
                     toolName: base.toolName,
                     displayName: base.displayName,
-                    toolClientId: base.toolClientId,
+                    contributor: base.contributor,
                     meta: base.meta,
                     invocationMessage: a.invocationMessage,
                     toolInput: a.toolInput,
@@ -189,7 +189,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolCallId: base.toolCallId,
                 toolName: base.toolName,
                 displayName: base.displayName,
-                toolClientId: base.toolClientId,
+                contributor: base.contributor,
                 meta: base.meta,
                 invocationMessage: a.invocationMessage,
                 toolInput: a.toolInput,
@@ -211,7 +211,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                     toolCallId: base.toolCallId,
                     toolName: base.toolName,
                     displayName: base.displayName,
-                    toolClientId: base.toolClientId,
+                    contributor: base.contributor,
                     meta: base.meta,
                     invocationMessage: pending.invocationMessage,
                     toolInput: a.editedToolInput ?? pending.toolInput,
@@ -224,7 +224,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolCallId: base.toolCallId,
                 toolName: base.toolName,
                 displayName: base.displayName,
-                toolClientId: base.toolClientId,
+                contributor: base.contributor,
                 meta: base.meta,
                 invocationMessage: pending.invocationMessage,
                 toolInput: pending.toolInput,
@@ -263,7 +263,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                     toolCallId: base.toolCallId,
                     toolName: base.toolName,
                     displayName: base.displayName,
-                    toolClientId: base.toolClientId,
+                    contributor: base.contributor,
                     meta: base.meta,
                     invocationMessage: invocationMessage,
                     toolInput: toolInput,
@@ -281,7 +281,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolCallId: base.toolCallId,
                 toolName: base.toolName,
                 displayName: base.displayName,
-                toolClientId: base.toolClientId,
+                contributor: base.contributor,
                 meta: base.meta,
                 invocationMessage: invocationMessage,
                 toolInput: toolInput,
@@ -305,7 +305,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                     toolCallId: base.toolCallId,
                     toolName: base.toolName,
                     displayName: base.displayName,
-                    toolClientId: base.toolClientId,
+                    contributor: base.contributor,
                     meta: base.meta,
                     invocationMessage: prc.invocationMessage,
                     toolInput: prc.toolInput,
@@ -323,7 +323,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
                 toolCallId: base.toolCallId,
                 toolName: base.toolName,
                 displayName: base.displayName,
-                toolClientId: base.toolClientId,
+                contributor: base.contributor,
                 meta: base.meta,
                 invocationMessage: prc.invocationMessage,
                 toolInput: prc.toolInput,
@@ -376,7 +376,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
 
     case .sessionChangesetsChanged(let a):
         var next = state
-        next.summary.changesets = a.changesets
+        next.changesets = a.changesets
         return next
 
     case .sessionConfigChanged(let a):
@@ -455,6 +455,36 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
             }
         }
         return state
+
+    case .sessionMcpServerStatusChanged(let a):
+        guard var list = state.customizations else { return state }
+        if let topIdx = list.firstIndex(where: { customizationId($0) == a.id }) {
+            guard case .mcpServer(var entry) = list[topIdx] else { return state }
+            entry.state = a.state
+            entry.channel = a.channel
+            list[topIdx] = .mcpServer(entry)
+            var next = state
+            next.customizations = list
+            return next
+        }
+        var changed = false
+        for containerIdx in list.indices {
+            var container = list[containerIdx]
+            guard var children = customizationChildren(container) else { continue }
+            guard let childIdx = children.firstIndex(where: { childId($0) == a.id }) else { continue }
+            guard case .mcpServer(var child) = children[childIdx] else { continue }
+            child.state = a.state
+            child.channel = a.channel
+            children[childIdx] = .mcpServer(child)
+            setCustomizationChildren(&container, children)
+            list[containerIdx] = container
+            changed = true
+            break
+        }
+        guard changed else { return state }
+        var next = state
+        next.customizations = list
+        return next
 
     // ── Truncation ────────────────────────────────────────────────────────
 
@@ -738,7 +768,7 @@ private func endTurn(
                     toolCallId: base.toolCallId,
                     toolName: base.toolName,
                     displayName: base.displayName,
-                    toolClientId: base.toolClientId,
+                    contributor: base.contributor,
                     meta: base.meta,
                     invocationMessage: invocationMessage,
                     toolInput: toolInput,

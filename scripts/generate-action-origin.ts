@@ -17,7 +17,7 @@ const GENERATED_HEADER = `// Generated from types/actions.ts — do not edit
 // Run \`npm run generate\` to regenerate.
 `;
 
-type ActionScope = 'root' | 'session' | 'terminal' | 'changeset' | 'resourceWatch';
+type ActionScope = 'root' | 'session' | 'terminal' | 'changeset' | 'annotations' | 'resourceWatch';
 
 interface ActionInfo {
   /** The interface name (e.g. 'RootAgentsChangedAction') */
@@ -152,6 +152,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
     const scope: ActionScope = category === 'Root Actions' ? 'root'
       : category === 'Terminal Actions' ? 'terminal'
       : category === 'Changeset Actions' ? 'changeset'
+      : category === 'Annotations Actions' ? 'annotations'
       : category === 'Resource Watch Actions' ? 'resourceWatch'
       : 'session';
     const isClientDispatchable = hasJsDocTag(node as any, 'clientDispatchable');
@@ -202,6 +203,7 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const sessionActions = actions.filter(a => a.scope === 'session');
   const terminalActions = actions.filter(a => a.scope === 'terminal');
   const changesetActions = actions.filter(a => a.scope === 'changeset');
+  const annotationsActions = actions.filter(a => a.scope === 'annotations');
   const resourceWatchActions = actions.filter(a => a.scope === 'resourceWatch');
   const clientRootActions = rootActions.filter(a => a.isClientDispatchable);
   const serverRootActions = rootActions.filter(a => !a.isClientDispatchable);
@@ -211,6 +213,8 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   const serverTerminalActions = terminalActions.filter(a => !a.isClientDispatchable);
   const clientChangesetActions = changesetActions.filter(a => a.isClientDispatchable);
   const serverChangesetActions = changesetActions.filter(a => !a.isClientDispatchable);
+  const clientAnnotationsActions = annotationsActions.filter(a => a.isClientDispatchable);
+  const serverAnnotationsActions = annotationsActions.filter(a => !a.isClientDispatchable);
   const clientResourceWatchActions = resourceWatchActions.filter(a => a.isClientDispatchable);
   const serverResourceWatchActions = resourceWatchActions.filter(a => !a.isClientDispatchable);
 
@@ -340,6 +344,45 @@ export function generateActionOrigin(project: Project, outDir: string): void {
   } else {
     for (let i = 0; i < serverChangesetActions.length; i++) {
       lines.push(`  | ${serverChangesetActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // AnnotationsAction
+  lines.push(`/** Union of all annotations-scoped actions. */`);
+  lines.push(`export type AnnotationsAction =`);
+  if (annotationsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < annotationsActions.length; i++) {
+      lines.push(`  | ${annotationsActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ClientAnnotationsAction
+  lines.push(`/** Union of annotations actions that clients may dispatch. */`);
+  lines.push(`export type ClientAnnotationsAction =`);
+  if (clientAnnotationsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < clientAnnotationsActions.length; i++) {
+      lines.push(`  | ${clientAnnotationsActions[i].name}`);
+    }
+  }
+  lines.push(`;`);
+  lines.push(``);
+
+  // ServerAnnotationsAction
+  lines.push(`/** Union of annotations actions that only the server may produce. */`);
+  lines.push(`export type ServerAnnotationsAction =`);
+  if (serverAnnotationsActions.length === 0) {
+    lines.push(`  never`);
+  } else {
+    for (let i = 0; i < serverAnnotationsActions.length; i++) {
+      lines.push(`  | ${serverAnnotationsActions[i].name}`);
     }
   }
   lines.push(`;`);

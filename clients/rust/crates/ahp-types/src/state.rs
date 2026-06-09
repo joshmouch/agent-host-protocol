@@ -145,6 +145,9 @@ pub enum MessageAttachmentKind {
     /// An attachment that references a resource by URI.
     #[serde(rename = "resource")]
     Resource,
+    /// An attachment that references annotations on an annotations channel.
+    #[serde(rename = "annotations")]
+    Annotations,
 }
 
 /// Discriminant for response part types.
@@ -214,6 +217,14 @@ pub enum ConfirmationOptionKind {
     Deny,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ToolCallContributorKind {
+    #[serde(rename = "client")]
+    Client,
+    #[serde(rename = "mcp")]
+    MCP,
+}
+
 /// Discriminant for tool result content types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ToolResultContentType {
@@ -234,10 +245,12 @@ pub enum ToolResultContentType {
 /// Discriminant for the kind of customization.
 ///
 /// Top-level entries in {@link SessionState.customizations} and
-/// {@link AgentInfo.customizations} are always
-/// {@link CustomizationType.Plugin | `Plugin`} or
-/// {@link CustomizationType.Directory | `Directory`}; the remaining
-/// types appear only as children of those containers.
+/// {@link AgentInfo.customizations} are either container customizations
+/// ({@link CustomizationType.Plugin | `Plugin`} or
+/// {@link CustomizationType.Directory | `Directory`}) or
+/// {@link CustomizationType.McpServer | `McpServer`} entries surfaced
+/// directly by the host. The remaining types appear only as children of
+/// a container.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CustomizationType {
     #[serde(rename = "plugin")]
@@ -278,6 +291,61 @@ pub enum TerminalClaimKind {
     Client,
     #[serde(rename = "session")]
     Session,
+}
+
+/// Discriminant for the {@link McpServerState} union.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum McpServerStatus {
+    /// Server has been registered but is not yet running.
+    #[serde(rename = "starting")]
+    Starting,
+    /// Server is running and serving requests.
+    #[serde(rename = "ready")]
+    Ready,
+    /// Server is reachable but requires additional authentication before it
+    /// can start, or before it can serve a particular request. Carries the
+    /// RFC 9728 Protected Resource Metadata the client needs to obtain a
+    /// token; the client then pushes the token via the existing
+    /// `authenticate` command.
+    #[serde(rename = "authRequired")]
+    AuthRequired,
+    /// Server failed to start, crashed, or otherwise transitioned to a fatal error.
+    #[serde(rename = "error")]
+    Error,
+    /// Server has been shut down.
+    #[serde(rename = "stopped")]
+    Stopped,
+}
+
+/// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+/// state. Mirrors the three failure modes defined by the
+/// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum McpAuthRequiredReason {
+    /// No token has been provided yet (HTTP 401, no prior token).
+    #[serde(rename = "required")]
+    Required,
+    /// A previously valid token expired or was revoked (HTTP 401).
+    #[serde(rename = "expired")]
+    Expired,
+    /// Step-up auth: a token is present but its scopes are insufficient for
+    /// the requested operation (HTTP 403 with
+    /// `WWW-Authenticate: Bearer error="insufficient_scope"`).
+    ///
+    /// Unlike {@link Required} and {@link Expired} — which typically surface
+    /// before any tool work is in flight — `InsufficientScope` is almost
+    /// always triggered by an MCP request issued mid-turn (a `tools/call`,
+    /// `resources/read`, etc.). The host SHOULD pair the
+    /// {@link McpServerAuthRequiredState} transition with
+    /// {@link SessionStatus.InputNeeded} on
+    /// {@link SessionSummary.status | the session} so the activity becomes
+    /// visible at the session-summary level, and clients SHOULD watch for
+    /// this kind on any
+    /// {@link McpServerCustomization | MCP server} backing a running tool
+    /// call so they can present an explicit "grant more access" affordance
+    /// tied to the blocked tool call.
+    #[serde(rename = "insufficientScope")]
+    InsufficientScope,
 }
 
 /// Computation lifecycle of a {@link ChangesetState}.
@@ -487,6 +555,11 @@ pub struct RootState {
     /// Agent host configuration schema and current values
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<RootConfigState>,
+    /// Additional implementation-defined metadata about the agent host itself.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Live agent-host configuration metadata.
@@ -524,13 +597,15 @@ pub struct AgentInfo {
     pub protected_resources: Option<Vec<ProtectedResourceMetadata>>,
     /// Customizations associated with this agent.
     ///
-    /// Always container customizations —
+    /// Either container customizations —
     /// {@link PluginCustomization | `PluginCustomization`} entries the agent
     /// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-    /// entries it watches in any workspace it's used with. When a session is
-    /// created with this agent, these entries are augmented (e.g. directory
-    /// URIs are resolved against the workspace, children are parsed) and
-    /// propagated into the session's `customizations` list.
+    /// entries it watches in any workspace it's used with — or top-level
+    /// {@link McpServerCustomization | `McpServerCustomization`} entries
+    /// the agent host declares directly. When a session is created with
+    /// this agent, these entries are augmented (e.g. directory URIs are
+    /// resolved against the workspace, children are parsed) and propagated
+    /// into the session's `customizations` list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<Customization>>,
 }
@@ -705,17 +780,32 @@ pub struct SessionState {
     pub config: Option<SessionConfigState>,
     /// Top-level customizations active in this session.
     ///
-    /// Always container customizations — {@link PluginCustomization} or
-    /// {@link DirectoryCustomization}. Children (agents, skills, prompts,
-    /// rules, hooks, MCP servers) live in each container's
-    /// {@link ContainerCustomizationBase.children | `children`} array.
+    /// Always one of the {@link Customization} variants:
+    ///
+    /// - Container customizations ({@link PluginCustomization},
+    ///   {@link DirectoryCustomization}) whose children — agents, skills,
+    ///   prompts, rules, hooks, MCP servers — live in each container's
+    ///   {@link ContainerCustomizationBase.children | `children`} array.
+    /// - Top-level {@link McpServerCustomization} entries the host
+    ///   surfaces directly (for example a globally-configured MCP server
+    ///   that isn't bundled in a plugin or directory). MCP servers may
+    ///   also appear as children of a container.
     ///
     /// Client-published plugins arrive via
     /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
     /// and the host propagates them into this list (typically with the
-    /// container's `clientId` set and `children` populated).
+    /// container's `clientId` set and `children` populated). Clients
+    /// publish in container shape only; bare MCP servers at the top level
+    /// are server-originated.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub customizations: Option<Vec<Customization>>,
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link Changeset} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changesets: Option<Vec<Changeset>>,
     /// Additional provider-specific metadata for this session.
     ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
@@ -782,13 +872,36 @@ pub struct SessionSummary {
     /// The working directory URI for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<ChangesetSummary>>,
+    pub changes: Option<ChangesSummary>,
+    /// Lightweight summary of this session's inline annotations channel
+    /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+    /// annotation / entry counts without subscribing. Absent when the session
+    /// does not expose an annotations channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<AnnotationsSummary>,
+}
+
+/// Aggregate counts describing the file changes associated with a session.
+///
+/// All fields are optional so servers can populate only the metrics they
+/// cheaply have available.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesSummary {
+    /// Total number of inserted lines across all changed files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub additions: Option<i64>,
+    /// Total number of deleted lines across all changed files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deletions: Option<i64>,
+    /// Number of files that have changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub files: Option<i64>,
 }
 
 /// Server-owned project metadata for a session.
@@ -1320,6 +1433,51 @@ pub struct MessageResourceAttachment {
     pub selection: Option<TextSelection>,
 }
 
+/// An attachment that references annotations on a session's annotations
+/// channel (see {@link AnnotationsState}).
+///
+/// When {@link annotationIds} is omitted the attachment references every
+/// annotation on the channel; when present it references only the listed
+/// {@link Annotation.id | annotation ids}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageAnnotationsAttachment {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    pub label: String,
+    /// If defined, the range in {@link Message.text} that references this
+    /// attachment. This is a text range, not a byte range.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    ///
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_kind: Option<String>,
+    /// Additional implementation-defined metadata for the attachment.
+    ///
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+    /// The annotations channel URI (typically `ahp-session:/<uuid>/annotations`).
+    /// Matches {@link AnnotationsSummary.resource}.
+    pub resource: Uri,
+    /// Specific {@link Annotation.id | annotation ids} to reference. When
+    /// omitted, the attachment references all annotations on the channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotation_ids: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownResponsePart {
@@ -1446,19 +1604,14 @@ pub struct ToolCallStreamingState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Partial parameters accumulated so far
@@ -1480,19 +1633,14 @@ pub struct ToolCallPendingConfirmationState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Message describing what the tool will do
@@ -1527,19 +1675,14 @@ pub struct ToolCallRunningState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Message describing what the tool will do
@@ -1570,19 +1713,14 @@ pub struct ToolCallPendingResultConfirmationState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Message describing what the tool will do
@@ -1624,19 +1762,14 @@ pub struct ToolCallCompletedState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Message describing what the tool will do
@@ -1678,19 +1811,14 @@ pub struct ToolCallCancelledState {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    ///
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
+    /// Reference to the contributor of the tool being called.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
     /// Additional provider-specific metadata for this tool call.
     ///
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
     /// Message describing what the tool will do
@@ -2235,12 +2363,14 @@ pub struct HookCustomization {
     pub range: Option<TextRange>,
 }
 
-/// An MCP manifest contributed by a plugin or directory.
+/// An MCP server contributed by a plugin or directory.
 ///
 /// When the server is declared inline in the containing plugin manifest,
 /// `uri` points at the manifest file and
 /// {@link CustomizationBase.range | `range`} narrows it to the
 /// declaration's span.
+///
+/// The MCP server customization also reflects its current status.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpServerCustomization {
@@ -2267,6 +2397,182 @@ pub struct McpServerCustomization {
     /// Absent when the customization covers the whole resource.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<TextRange>,
+    /// Whether this MCP server is currently enabled.
+    pub enabled: bool,
+    /// Current lifecycle state of the MCP server.
+    pub state: McpServerState,
+    /// An `mcp://`-protocol channel the client uses to side-channel traffic
+    /// into the upstream MCP server itself. The channel is NOT a fresh raw MCP
+    /// connection: it piggybacks on the AHP transport
+    /// and skips the MCP `initialize` sequence.
+    ///
+    /// The agent host MAY only serve a subset of MCP on this
+    /// channel; the served subset is described by domain-specific
+    /// capabilities such as those in
+    /// {@link McpServerCustomizationApps.capabilities}.
+    ///
+    /// The channel URI SHOULD be stable across the server's lifetime, but
+    /// the agent host MAY change it (for example across a restart) and
+    /// MAY only expose it while the server is in
+    /// {@link McpServerStatus.Ready | `Ready`}. Absence means no
+    /// side-channel is currently available.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<Uri>,
+    /// MCP App support. This property SHOULD be advertised for MCP servers
+    /// which support apps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_app: Option<McpServerCustomizationApps>,
+}
+
+/// Information from the agent host needed to render MCP Apps served
+/// by this MCP server.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerCustomizationApps {
+    /// The subset of MCP App
+    /// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+    /// the AHP host can satisfy for Views backed by this server. The
+    /// client feeds these straight through into the `hostCapabilities` of
+    /// the `ui/initialize` response delivered to the View.
+    pub capabilities: AhpMcpUiHostCapabilities,
+}
+
+/// The subset of MCP App
+/// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+/// an AHP host can derive from the upstream MCP server (and from AHP's own
+/// forwarding plumbing). Advertised on
+/// {@link McpServerCustomizationApps.capabilities} so clients can pass it
+/// through into the `hostCapabilities` of the `ui/initialize` response
+/// delivered to an MCP App View.
+///
+/// Field names mirror the MCP Apps spec exactly, so the AHP-side producer
+/// can pass them straight through into the `hostCapabilities` of the
+/// `ui/initialize` response delivered to the View.
+///
+/// Capabilities outside this set (`openLinks`, `downloadFile`, `sandbox`,
+/// `experimental`) are decided locally by whichever AHP client renders the
+/// View and are NOT part of this AHP-level advertisement — only the
+/// server-derived subset is.
+///
+/// An agent host MUST only advertise a capability when it actually accepts the
+/// corresponding methods/notifications on the `mcp://` channel:
+///
+/// - {@link serverTools}: host proxies `tools/list` and `tools/call` to
+///   the MCP server. When `listChanged` is `true`, the host also forwards
+///   `notifications/tools/list_changed`.
+/// - {@link serverResources}: host proxies `resources/read`,
+///   `resources/list`, and `resources/templates/list` to the MCP server.
+///   When `listChanged` is `true`, the host also forwards
+///   `notifications/resources/list_changed`.
+/// - {@link logging}: host accepts `notifications/message` log entries
+///   from the App and forwards them via `mcpNotification` (and forwards
+///   `logging/setLevel` calls to the server).
+/// - {@link sampling}: host serves `sampling/createMessage` via
+///   `mcpMethodCall`. When `sampling.tools` is present, the host also
+///   accepts SEP-1577 `tools` / `toolChoice` / `tool_use` content blocks
+///   inside `CreateMessageRequest`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AhpMcpUiHostCapabilities {
+    /// Producer proxies the MCP `tools/*` methods to the upstream server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_tools: Option<AnyValue>,
+    /// Producer proxies the MCP `resources/*` methods to the upstream server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_resources: Option<AnyValue>,
+    /// Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub logging: Option<JsonObject>,
+    /// Producer serves `sampling/createMessage` via `mcpMethodCall`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampling: Option<AnyValue>,
+}
+
+/// Server is registered with the host but has not yet started.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerStartingState {}
+
+/// Server is running and serving requests.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerReadyState {}
+
+/// Server is reachable but cannot serve requests until the client
+/// authenticates. Mirrors the discovery flow defined by
+/// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728)
+/// (Protected Resource Metadata) and the OAuth 2.1 / RFC 6750 challenge
+/// semantics required by the MCP authorization spec.
+///
+/// Clients react to this state by calling the existing `authenticate`
+/// command with the {@link ProtectedResourceMetadata.resource | resource}
+/// carried here. There is **no** `notify/authRequired` notification for
+/// MCP servers — the action stream is the single source of truth.
+///
+/// When the transition is triggered by a request issued during a turn
+/// — most commonly
+/// {@link McpAuthRequiredReason.InsufficientScope | `InsufficientScope`}
+/// surfacing mid-tool-call — the host SHOULD also raise
+/// {@link SessionStatus.InputNeeded} on the session so the block is
+/// visible at the summary level. Clients SHOULD watch this status on
+/// any MCP server backing a running tool call and surface an explicit
+/// affordance (e.g. a "grant additional access" prompt) tied to that
+/// tool call, rather than relying on the user to notice the
+/// customization’s status badge.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerAuthRequiredState {
+    /// Why authentication is required.
+    pub reason: McpAuthRequiredReason,
+    /// RFC 9728 Protected Resource Metadata. The `resource` field is the
+    /// canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+    /// indicator. `authorization_servers` is REQUIRED by the MCP
+    /// authorization spec.
+    pub resource: ProtectedResourceMetadata,
+    /// Scopes required for the current challenge, parsed from the
+    /// `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+    /// fallback). Authoritative for the next authorization request — clients
+    /// MUST NOT assume any subset/superset relationship to
+    /// `resource.scopes_supported`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required_scopes: Option<Vec<String>>,
+    /// Human-readable hint, typically from the OAuth `error_description`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Server failed to start, crashed, or otherwise transitioned to a
+/// non-recoverable error. Use {@link McpServerStatus.AuthRequired}
+/// for authentication failures.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerErrorState {
+    /// Error details.
+    pub error: ErrorInfo,
+}
+
+/// Server has been shut down. The host MAY remove the server from the
+/// session entirely shortly after this state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpServerStoppedState {}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallClientContributor {
+    /// If this tool is provided by a client, the `clientId` of the owning client.
+    /// Absent for server-side tools.
+    ///
+    /// When set, the identified client is responsible for executing the tool and
+    /// dispatching `session/toolCallComplete` with the result.
+    pub client_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolCallMcpContributor {
+    /// Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+    pub customization_id: String,
 }
 
 /// Describes a file modification with before/after state and diff metadata.
@@ -2453,7 +2759,7 @@ pub struct Snapshot {
 /// expanding {@link uriTemplate}.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChangesetSummary {
+pub struct Changeset {
     /// Human-readable label, e.g. `"Uncommitted Changes"`.
     pub label: String,
     /// RFC 6570 URI template. Clients parse the variables directly out of the
@@ -2475,15 +2781,24 @@ pub struct ChangesetSummary {
     /// Optional longer description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-    /// Aggregate line additions across the changeset, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub additions: Option<i64>,
-    /// Aggregate line deletions across the changeset, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deletions: Option<i64>,
-    /// Number of files in the changeset, when known.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub files: Option<i64>,
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    ///
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    ///   agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    ///   diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    ///   `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    ///   `{originalTurnId}` and `{modifiedTurnId}` variables in
+    ///   {@link uriTemplate}.
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    pub change_kind: String,
 }
 
 /// Full state for a single changeset, returned when a client subscribes to
@@ -2568,6 +2883,93 @@ pub struct ChangesetOperation {
     /// `status === ChangesetOperationStatus.Error`; otherwise omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<ErrorInfo>,
+}
+
+/// Lightweight per-session summary of the annotations channel, surfaced on
+/// {@link SessionSummary.annotations} so badge UI can render annotation /
+/// entry counts without subscribing to the channel itself.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsSummary {
+    /// The subscribable annotations channel URI for the owning session
+    /// (typically `ahp-session:/<uuid>/annotations`). Surfaced explicitly even
+    /// though it is derivable from the session URI so badge UI does not need
+    /// to know the derivation rule.
+    pub resource: Uri,
+    /// Total number of {@link Annotation} entries in the channel.
+    pub annotation_count: i64,
+    /// Total number of {@link AnnotationEntry} entries across every annotation.
+    pub entry_count: i64,
+}
+
+/// Full state for a session's annotations channel, returned when a client
+/// subscribes to an `ahp-session:/<uuid>/annotations` URI.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsState {
+    /// Annotations in this channel, keyed by {@link Annotation.id}.
+    pub annotations: Vec<Annotation>,
+}
+
+/// A conversation anchored to a specific file produced by a specific turn,
+/// optionally narrowed to a range within that file.
+///
+/// {@link turnId} anchors the annotation to the file versions that turn
+/// produced, so a later turn that rewrites the same file does not silently
+/// invalidate the annotation's anchor — clients can resolve {@link resource}
+/// and {@link range} against the turn's changeset. When {@link range} is
+/// omitted the annotation is anchored to the entire file.
+///
+/// Every annotation MUST contain at least one {@link AnnotationEntry}. An
+/// {@link AnnotationsSetAction} that creates an annotation therefore carries
+/// its mandatory first entry, and removing the last remaining entry collapses
+/// the annotation via {@link AnnotationsRemovedAction} rather than leaving an
+/// empty annotation behind.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Annotation {
+    /// Stable identifier within the annotations channel. Assigned by the client
+    /// that dispatches the creating {@link AnnotationsSetAction}.
+    pub id: String,
+    /// Turn that produced the file versions this annotation is anchored to.
+    /// Matches a {@link Turn.id} on the owning session.
+    pub turn_id: String,
+    /// The file the annotation is anchored to.
+    pub resource: Uri,
+    /// Range within {@link resource} the annotation is anchored to. When
+    /// omitted the annotation is anchored to the entire file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<TextRange>,
+    /// Whether the annotation has been resolved. Newly created annotations are
+    /// always unresolved (`false`); a client marks an annotation resolved (or
+    /// re-opens it) by dispatching an {@link AnnotationsSetAction} carrying the
+    /// updated flag.
+    pub resolved: bool,
+    /// Entries in this annotation, in dispatch order (oldest first). MUST
+    /// contain at least one entry.
+    pub entries: Vec<AnnotationEntry>,
+    /// Producer-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// A single entry within an {@link Annotation}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationEntry {
+    /// Stable identifier within the enclosing annotation. Assigned by the client
+    /// that dispatches the {@link AnnotationsEntrySetAction} (or the enclosing
+    /// {@link AnnotationsSetAction}) introducing the entry.
+    pub id: String,
+    /// Entry body. A bare `string` is rendered as plain text; pass
+    /// `{ markdown: "…" }` to opt into Markdown rendering. See
+    /// {@link StringOrMarkdown}.
+    pub text: StringOrMarkdown,
+    /// Producer-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// OTLP telemetry channels the agent host emits.
@@ -2823,13 +3225,15 @@ pub enum MessageAttachment {
     EmbeddedResource(MessageEmbeddedResourceAttachment),
     #[serde(rename = "resource")]
     Resource(MessageResourceAttachment),
+    #[serde(rename = "annotations")]
+    Annotations(MessageAnnotationsAttachment),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
     Unknown(serde_json::Value),
 }
 
-/// A top-level customization (plugin or directory).
+/// A top-level customization (plugin, directory, or bare MCP server).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Customization {
@@ -2837,6 +3241,8 @@ pub enum Customization {
     Plugin(PluginCustomization),
     #[serde(rename = "directory")]
     Directory(DirectoryCustomization),
+    #[serde(rename = "mcpServer")]
+    McpServer(Box<McpServerCustomization>),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
@@ -2858,7 +3264,7 @@ pub enum ChildCustomization {
     #[serde(rename = "hook")]
     Hook(HookCustomization),
     #[serde(rename = "mcpServer")]
-    McpServer(McpServerCustomization),
+    McpServer(Box<McpServerCustomization>),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
@@ -2883,17 +3289,53 @@ pub enum CustomizationLoadState {
     Unknown(serde_json::Value),
 }
 
-/// The state payload of a snapshot — root, session, terminal, or
-/// changeset state.
+/// Discriminated lifecycle status of an MCP server customization.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum McpServerState {
+    #[serde(rename = "starting")]
+    Starting(McpServerStartingState),
+    #[serde(rename = "ready")]
+    Ready(McpServerReadyState),
+    #[serde(rename = "authRequired")]
+    AuthRequired(Box<McpServerAuthRequiredState>),
+    #[serde(rename = "error")]
+    Error(McpServerErrorState),
+    #[serde(rename = "stopped")]
+    Stopped(McpServerStoppedState),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// Reference to the contributor of the tool being called.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum ToolCallContributor {
+    #[serde(rename = "client")]
+    Client(ToolCallClientContributor),
+    #[serde(rename = "mcp")]
+    Mcp(ToolCallMcpContributor),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+}
+
+/// The state payload of a snapshot — root, session, terminal,
+/// changeset, or annotations state.
 ///
 /// Deserialized by trying session first (has required `summary`), then
 /// terminal (has required `content`), then changeset (has required
-/// `status` and `files`), then root.
+/// `status` and `files`), then annotations (has required `annotations`),
+/// then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
     Session(Box<SessionState>),
     Terminal(Box<TerminalState>),
     Changeset(Box<ChangesetState>),
+    Annotations(Box<AnnotationsState>),
     Root(Box<RootState>),
 }

@@ -11,23 +11,28 @@ each with its own URI, lifecycle, and update stream.
 
 ### Changeset Catalogue
 
-Each session's `SessionSummary` advertises the set of changesets the
-server can produce. The summary entry is intentionally lightweight —
+Each session's `SessionState` advertises the set of changesets the
+server can produce. The catalogue entry is intentionally lightweight —
 just enough to render a chip or list row without subscribing — and
 references a full subscribable `ChangesetState` by URI.
 
 ```typescript
-SessionSummary {
+SessionState {
   // ...existing fields...
-  changesets?: ChangesetSummary[]
+  changesets?: Changeset[]
 }
 
-ChangesetSummary {
+Changeset {
   /** Human-readable label, e.g. `"Uncommitted Changes"`. */
   label: string
   /** RFC 6570 URI template; expand to obtain a subscribable URI. */
   uriTemplate: string
   description?: string
+  /**
+   * Advisory hint: one of `'session'`, `'branch'`, `'uncommitted'`,
+   * `'turn'`, or `'compare-turns'`. Other values allowed.
+   */
+  changeKind: string
   additions?: number
   deletions?: number
   files?: number
@@ -148,9 +153,9 @@ a JSON-RPC error.
 
 ## Lifecycle
 
-1. The server publishes the catalogue on `SessionSummary.changesets`.
-   Updates ride on `root/sessionSummaryChanged`.
-2. The client picks summary entries whose template variables it can
+1. The server publishes the catalogue on `SessionState.changesets`.
+   Updates ride on the `session/changesetsChanged` action.
+2. The client picks catalogue entries whose template variables it can
    satisfy and subscribes to the resulting URIs.
 3. The server returns a `ChangesetState` snapshot (`status: 'computing'`
    is allowed if scanning is async) and pushes `changeset/*` actions as
@@ -168,6 +173,6 @@ The `summary.diffs` field and the `session/diffsChanged` action were
 removed in v0.2.0. Servers that previously populated `summary.diffs`
 should expose an equivalent server-side changeset with a static
 `uriTemplate` ending in `/changeset/session` and surface its
-`additions`/`deletions`/`files` counts on the new `summary.changesets`
-catalogue entry. Clients that want a single "session-wide" diff view
-subscribe to that one changeset URI.
+aggregate counts on the new `summary.changes` field. Clients that
+want a single "session-wide" diff view subscribe to that one
+changeset URI.

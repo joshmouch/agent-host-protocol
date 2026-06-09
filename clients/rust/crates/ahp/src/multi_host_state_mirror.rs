@@ -36,7 +36,9 @@ use std::collections::HashMap;
 
 use ahp_types::actions::ActionEnvelope;
 use ahp_types::common::ROOT_RESOURCE_URI;
-use ahp_types::state::{ChangesetState, RootState, SessionState, SnapshotState, TerminalState};
+use ahp_types::state::{
+    AnnotationsState, ChangesetState, RootState, SessionState, SnapshotState, TerminalState,
+};
 
 use crate::hosts::{HostId, HostSubscriptionEvent};
 use crate::reducers::{apply_action_to_root, apply_action_to_session, apply_action_to_terminal};
@@ -84,6 +86,7 @@ pub struct MultiHostStateMirror {
     sessions: HashMap<HostedResourceKey, SessionState>,
     terminals: HashMap<HostedResourceKey, TerminalState>,
     changesets: HashMap<HostedResourceKey, ChangesetState>,
+    annotations: HashMap<HostedResourceKey, AnnotationsState>,
 }
 
 impl MultiHostStateMirror {
@@ -112,6 +115,11 @@ impl MultiHostStateMirror {
         &self.changesets
     }
 
+    /// Borrow the annotations states map keyed by `(host_id, uri)`.
+    pub fn annotations(&self) -> &HashMap<HostedResourceKey, AnnotationsState> {
+        &self.annotations
+    }
+
     /// Convenience: apply a [`HostSubscriptionEvent`] produced by
     /// [`crate::hosts::MultiHostClient::events`]. Action envelopes are
     /// routed through the reducer; non-action events (session-summary
@@ -137,6 +145,7 @@ impl MultiHostStateMirror {
                     active_sessions: None,
                     terminals: None,
                     config: None,
+                    meta: None,
                 });
             apply_action_to_root(root, &envelope.action);
             return;
@@ -173,16 +182,20 @@ impl MultiHostStateMirror {
             SnapshotState::Changeset(state) => {
                 self.changesets.insert(key, state.as_ref().clone());
             }
+            SnapshotState::Annotations(state) => {
+                self.annotations.insert(key, state.as_ref().clone());
+            }
         }
     }
 
     /// Drop every slot keyed under `host` — root state, sessions,
-    /// terminals, and changesets.
+    /// terminals, changesets, and annotations.
     pub fn reset_host(&mut self, host: &HostId) {
         self.root_states.remove(host);
         self.sessions.retain(|key, _| &key.host_id != host);
         self.terminals.retain(|key, _| &key.host_id != host);
         self.changesets.retain(|key, _| &key.host_id != host);
+        self.annotations.retain(|key, _| &key.host_id != host);
     }
 
     /// Drop every host's state.
@@ -191,5 +204,6 @@ impl MultiHostStateMirror {
         self.sessions.clear();
         self.terminals.clear();
         self.changesets.clear();
+        self.annotations.clear();
     }
 }

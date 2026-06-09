@@ -22,26 +22,22 @@ import {
   sessionReducer,
   terminalReducer,
   changesetReducer,
+  annotationsReducer,
   resourceWatchReducer,
   isClientDispatchable,
   setCurrentTimestampProvider,
 } from './reducers.js';
 import { IS_CLIENT_DISPATCHABLE } from './action-origin.generated.js';
 import { ActionType } from './actions.js';
-import type { RootState, SessionState, ChangesetState, ResourceWatchState } from './state.js';
+import type { RootState, SessionState, TerminalState, ChangesetState, AnnotationsState, ResourceWatchState } from './state.js';
 import {
   SessionLifecycle,
   SessionStatus,
   TurnState,
-  MessageKind
+  MessageKind,
 } from './state.js';
-import type { TerminalState } from './state.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)));
-
-function readSource(file: string): string {
-  return readFileSync(resolve(root, file), 'utf-8');
-}
 
 /**
  * Reads and concatenates every canonical per-channel source file matching
@@ -56,6 +52,7 @@ function readChannelSources(baseName: string): string {
     'channels-session',
     'channels-terminal',
     'channels-changeset',
+    'channels-annotations',
     'channels-resource-watch',
   ];
   return dirs
@@ -72,12 +69,14 @@ function readChannelSources(baseName: string): string {
 
 // ─── Fixture Loading ─────────────────────────────────────────────────────────
 
+type FixtureState = RootState | SessionState | TerminalState | ChangesetState | AnnotationsState | ResourceWatchState;
+
 interface Fixture {
   description: string;
-  reducer: 'root' | 'session' | 'terminal' | 'changeset' | 'resourceWatch';
-  initial: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState;
+  reducer: 'root' | 'session' | 'terminal' | 'changeset' | 'annotations' | 'resourceWatch';
+  initial: FixtureState;
   actions: unknown[];
-  expected: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState;
+  expected: FixtureState;
 }
 
 /**
@@ -134,6 +133,8 @@ describe('reducer fixtures', () => {
           state = terminalReducer(state as TerminalState, action as any);
         } else if (fixture.reducer === 'changeset') {
           state = changesetReducer(state as ChangesetState, action as any);
+        } else if (fixture.reducer === 'annotations') {
+          state = annotationsReducer(state as AnnotationsState, action as any);
         } else if (fixture.reducer === 'resourceWatch') {
           state = resourceWatchReducer(state as ResourceWatchState, action as any);
         } else {

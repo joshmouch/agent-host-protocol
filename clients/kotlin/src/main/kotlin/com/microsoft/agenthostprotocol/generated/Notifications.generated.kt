@@ -76,7 +76,7 @@ data class SessionSummaryChangedParams(
     val session: String,
     /**
      * Mutable summary fields that changed; omitted fields are unchanged.
-     * 
+     *
      * Identity fields (`resource`, `provider`, `createdAt`) never change and
      * MUST be omitted by senders; receivers SHOULD ignore them if present.
      */
@@ -183,7 +183,7 @@ data class PartialSessionSummary(
     val model: ModelSelection? = null,
     /**
      * Currently selected custom agent.
-     * 
+     *
      * Absent (`undefined`) means no custom agent is selected for this session
      * — the session uses the provider's default behavior.
      */
@@ -193,11 +193,17 @@ data class PartialSessionSummary(
      */
     val workingDirectory: String? = null,
     /**
-     * Catalogue of changesets the server can produce for this session. Each
-     * entry advertises a subscribable view of file changes (uncommitted,
-     * session-wide, per-turn, etc.) and the URI template the client expands
-     * before subscribing. See {@link ChangesetSummary} for the full shape and
-     * {@link /guide/changesets | Changesets} for an overview of the model.
+     * Aggregate summary of file changes associated with this session. Servers
+     * may populate this to give clients a quick at-a-glance view of the
+     * session's footprint (e.g., for list rendering) without requiring the
+     * client to subscribe to a changeset.
      */
-    val changesets: List<ChangesetSummary>? = null
+    val changes: ChangesSummary? = null,
+    /**
+     * Lightweight summary of this session's inline annotations channel
+     * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+     * annotation / entry counts without subscribing. Absent when the session
+     * does not expose an annotations channel.
+     */
+    val annotations: AnnotationsSummary? = null
 )

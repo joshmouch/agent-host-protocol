@@ -12,11 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use crate::state::{
-    AgentInfo, AgentSelection, ChangesetFile, ChangesetOperation, ChangesetOperationStatus,
-    ChangesetStatus, ChangesetSummary, ConfirmationOption, Customization, ErrorInfo, Message,
-    ModelSelection, PendingMessageKind, ResponsePart, SessionActiveClient, SessionInputAnswer,
-    SessionInputRequest, SessionInputResponseKind, TerminalClaim, TerminalInfo,
-    ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallResult, ToolDefinition,
+    AgentInfo, AgentSelection, Annotation, AnnotationEntry, Changeset, ChangesetFile,
+    ChangesetOperation, ChangesetOperationStatus, ChangesetStatus, ConfirmationOption,
+    Customization, ErrorInfo, McpServerState, Message, ModelSelection, PendingMessageKind,
+    ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
+    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
+    ToolCallConfirmationReason, ToolCallContributor, ToolCallResult, ToolDefinition,
     ToolResultContent, UsageInfo,
 };
 
@@ -95,6 +96,8 @@ pub enum ActionType {
     SessionCustomizationUpdated,
     #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved,
+    #[serde(rename = "session/mcpServerStateChanged")]
+    SessionMcpServerStateChanged,
     #[serde(rename = "session/truncated")]
     SessionTruncated,
     #[serde(rename = "session/isReadChanged")]
@@ -121,6 +124,14 @@ pub enum ActionType {
     ChangesetOperationStatusChanged,
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared,
+    #[serde(rename = "annotations/set")]
+    AnnotationsSet,
+    #[serde(rename = "annotations/removed")]
+    AnnotationsRemoved,
+    #[serde(rename = "annotations/entrySet")]
+    AnnotationsEntrySet,
+    #[serde(rename = "annotations/entryRemoved")]
+    AnnotationsEntryRemoved,
     #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged,
     #[serde(rename = "root/configChanged")]
@@ -267,9 +278,11 @@ pub struct SessionResponsePartAction {
 
 /// A tool call begins — parameters are streaming from the LM.
 ///
-/// For client-provided tools, the server sets `toolClientId` to identify the
-/// owning client. That client is responsible for executing the tool once it
-/// reaches the `running` state and dispatching `session/toolCallComplete`.
+/// The server sets {@link ToolCallContributor | `contributor`} to identify
+/// the origin of the tool. For client-provided tools, the named client is
+/// responsible for executing the tool once it reaches the `running` state
+/// and dispatching `session/toolCallComplete`. For MCP-served tools, the
+/// server executes the call against the named `McpServerCustomization`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionToolCallStartAction {
@@ -289,10 +302,10 @@ pub struct SessionToolCallStartAction {
     pub tool_name: String,
     /// Human-readable tool name
     pub display_name: String,
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
+    /// Reference to the contributor of the tool being called. Absent for
+    /// server-side tools that are not contributed by a client or MCP server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_client_id: Option<String>,
+    pub contributor: Option<ToolCallContributor>,
 }
 
 /// Streaming partial parameters for a tool call.
@@ -575,14 +588,14 @@ pub struct SessionActivityChangedAction {
     pub activity: Option<String>,
 }
 
-/// The {@link ChangesetSummary | catalogue of changesets} the agent host
+/// The {@link Changeset | catalogue of changesets} the agent host
 /// advertises for this session changed. Replaces
-/// `state.summary.changesets` entirely (full-replacement semantics) — set
-/// to `undefined` to clear the catalogue.
+/// {@link SessionState.changesets | `state.changesets`} entirely
+/// (full-replacement semantics) — set to `undefined` to clear the
+/// catalogue.
 ///
-/// Producers dispatch this whenever entries are added, removed, or have
-/// their aggregate counts (`additions` / `deletions` / `files`) refreshed.
-/// The fan-out happens through this action so observers see catalogue
+/// Producers dispatch this whenever entries are added or removed. The
+/// fan-out happens through this action so observers see catalogue
 /// mutations in the same {@link ChangesetAction | per-changeset} action
 /// stream they already follow for file-level updates.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -590,7 +603,7 @@ pub struct SessionActivityChangedAction {
 pub struct SessionChangesetsChangedAction {
     /// New catalogue, or `undefined` to clear it
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changesets: Option<Vec<ChangesetSummary>>,
+    pub changesets: Option<Vec<Changeset>>,
 }
 
 /// Server tools for this session have changed.
@@ -773,6 +786,40 @@ pub struct SessionCustomizationRemovedAction {
     pub id: String,
 }
 
+/// Updates the runtime fields of an existing
+/// {@link McpServerCustomization} — narrow alternative to
+/// {@link SessionCustomizationUpdatedAction} for the high-frequency
+/// `starting` ↔ `ready` ↔ `authRequired` transitions.
+///
+/// Locates the target entry by `id`, searching both the top-level
+/// customization list and the `children` array of every container.
+/// Replaces the entry's {@link McpServerCustomization.state | `state`}
+/// and {@link McpServerCustomization.channel | `channel`}
+/// (full-replacement semantics: omit `channel` to clear an existing
+/// channel URI). Other fields of the customization are preserved.
+///
+/// Is a no-op when no matching `McpServerCustomization` is found. To
+/// update any other field (name, icons, `mcpApp` capabilities, etc.) use
+/// {@link SessionCustomizationUpdatedAction} instead.
+///
+/// When the transition is to {@link McpServerStatus.AuthRequired}
+/// because of a request issued mid-turn, the host SHOULD also raise
+/// {@link SessionStatus.InputNeeded} on the session — see
+/// {@link McpServerAuthRequiredState} for the rationale.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionMcpServerStateChangedAction {
+    /// The id of the {@link McpServerCustomization} to update.
+    pub id: String,
+    /// The new lifecycle state.
+    pub state: McpServerState,
+    /// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+    /// an existing channel (typical when leaving
+    /// {@link McpServerStatus.Ready | `Ready`}).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<Uri>,
+}
+
 /// Truncates a session's history. If `turnId` is provided, all turns after that
 /// turn are removed and the specified turn is kept. If `turnId` is omitted, all
 /// turns are removed.
@@ -928,6 +975,67 @@ pub struct ChangesetOperationStatusChangedAction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangesetClearedAction {}
+
+/// Upsert an {@link Annotation} in the annotations channel — adds a new
+/// annotation, or replaces an existing one identified by
+/// {@link Annotation.id}.
+///
+/// Dispatched by a client to create an annotation (together with its
+/// mandatory first entry) or to re-anchor / resolve an existing one; the
+/// dispatching client assigns the {@link Annotation.id} and the id of any
+/// new entry. When replacing, the full annotation payload (including its
+/// {@link Annotation.entries | entries} list) is substituted; producers
+/// SHOULD prefer {@link AnnotationsEntrySetAction} for per-entry edits to
+/// keep wire updates small.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsSetAction {
+    /// The new or replacement annotation. MUST contain at least one entry.
+    pub annotation: Annotation,
+}
+
+/// Remove an {@link Annotation} from the channel by its id.
+///
+/// Dispatched to delete an entire annotation and every entry it contains.
+/// Because the protocol forbids empty annotations, a client that wants to
+/// remove the last remaining entry dispatches this action — collapsing the
+/// annotation — rather than {@link AnnotationsEntryRemovedAction}.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsRemovedAction {
+    /// The {@link Annotation.id} of the annotation to remove.
+    pub annotation_id: String,
+}
+
+/// Upsert an {@link AnnotationEntry} within an existing annotation — adds a
+/// new entry, or replaces one identified by {@link AnnotationEntry.id}. The
+/// dispatching client assigns the {@link AnnotationEntry.id} of a new entry.
+/// If {@link annotationId} does not match any current annotation the action
+/// is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsEntrySetAction {
+    /// The {@link Annotation.id} the entry belongs to.
+    pub annotation_id: String,
+    /// The new or replacement entry.
+    pub entry: AnnotationEntry,
+}
+
+/// Remove a single {@link AnnotationEntry} from an annotation without
+/// collapsing the annotation itself. Used when more than one entry remains —
+/// to remove the last entry a client dispatches {@link AnnotationsRemovedAction}
+/// instead, since the protocol forbids empty annotations.
+///
+/// If either {@link annotationId} or {@link entryId} does not match the
+/// current state the action is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationsEntryRemovedAction {
+    /// The {@link Annotation.id} the entry belongs to.
+    pub annotation_id: String,
+    /// The {@link AnnotationEntry.id} to remove.
+    pub entry_id: String,
+}
 
 /// Fired when the list of known terminals changes.
 ///
@@ -1168,9 +1276,11 @@ pub enum StateAction {
     #[serde(rename = "session/customizationToggled")]
     SessionCustomizationToggled(SessionCustomizationToggledAction),
     #[serde(rename = "session/customizationUpdated")]
-    SessionCustomizationUpdated(SessionCustomizationUpdatedAction),
+    SessionCustomizationUpdated(Box<SessionCustomizationUpdatedAction>),
     #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved(SessionCustomizationRemovedAction),
+    #[serde(rename = "session/mcpServerStateChanged")]
+    SessionMcpServerStateChanged(Box<SessionMcpServerStateChangedAction>),
     #[serde(rename = "session/truncated")]
     SessionTruncated(SessionTruncatedAction),
     #[serde(rename = "session/configChanged")]
@@ -1191,6 +1301,14 @@ pub enum StateAction {
     ChangesetOperationStatusChanged(ChangesetOperationStatusChangedAction),
     #[serde(rename = "changeset/cleared")]
     ChangesetCleared(ChangesetClearedAction),
+    #[serde(rename = "annotations/set")]
+    AnnotationsSet(AnnotationsSetAction),
+    #[serde(rename = "annotations/removed")]
+    AnnotationsRemoved(AnnotationsRemovedAction),
+    #[serde(rename = "annotations/entrySet")]
+    AnnotationsEntrySet(AnnotationsEntrySetAction),
+    #[serde(rename = "annotations/entryRemoved")]
+    AnnotationsEntryRemoved(AnnotationsEntryRemovedAction),
     #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged(RootTerminalsChangedAction),
     #[serde(rename = "terminal/data")]

@@ -54,6 +54,7 @@ const (
 	ActionTypeSessionCustomizationToggled       ActionType = "session/customizationToggled"
 	ActionTypeSessionCustomizationUpdated       ActionType = "session/customizationUpdated"
 	ActionTypeSessionCustomizationRemoved       ActionType = "session/customizationRemoved"
+	ActionTypeSessionMcpServerStateChanged      ActionType = "session/mcpServerStateChanged"
 	ActionTypeSessionTruncated                  ActionType = "session/truncated"
 	ActionTypeSessionIsReadChanged              ActionType = "session/isReadChanged"
 	ActionTypeSessionIsArchivedChanged          ActionType = "session/isArchivedChanged"
@@ -67,6 +68,10 @@ const (
 	ActionTypeChangesetOperationsChanged        ActionType = "changeset/operationsChanged"
 	ActionTypeChangesetOperationStatusChanged   ActionType = "changeset/operationStatusChanged"
 	ActionTypeChangesetCleared                  ActionType = "changeset/cleared"
+	ActionTypeAnnotationsSet                    ActionType = "annotations/set"
+	ActionTypeAnnotationsRemoved                ActionType = "annotations/removed"
+	ActionTypeAnnotationsEntrySet               ActionType = "annotations/entrySet"
+	ActionTypeAnnotationsEntryRemoved           ActionType = "annotations/entryRemoved"
 	ActionTypeRootTerminalsChanged              ActionType = "root/terminalsChanged"
 	ActionTypeRootConfigChanged                 ActionType = "root/configChanged"
 	ActionTypeTerminalData                      ActionType = "terminal/data"
@@ -180,9 +185,11 @@ type SessionResponsePartAction struct {
 
 // A tool call begins — parameters are streaming from the LM.
 //
-// For client-provided tools, the server sets `toolClientId` to identify the
-// owning client. That client is responsible for executing the tool once it
-// reaches the `running` state and dispatching `session/toolCallComplete`.
+// The server sets {@link ToolCallContributor | `contributor`} to identify
+// the origin of the tool. For client-provided tools, the named client is
+// responsible for executing the tool once it reaches the `running` state
+// and dispatching `session/toolCallComplete`. For MCP-served tools, the
+// server executes the call against the named `McpServerCustomization`.
 type SessionToolCallStartAction struct {
 	// Turn identifier
 	TurnId string `json:"turnId"`
@@ -200,9 +207,9 @@ type SessionToolCallStartAction struct {
 	ToolName string `json:"toolName"`
 	// Human-readable tool name
 	DisplayName string `json:"displayName"`
-	// If this tool is provided by a client, the `clientId` of the owning client.
-	// Absent for server-side tools.
-	ToolClientId *string `json:"toolClientId,omitempty"`
+	// Reference to the contributor of the tool being called. Absent for
+	// server-side tools that are not contributed by a client or MCP server.
+	Contributor *ToolCallContributor `json:"contributor,omitempty"`
 }
 
 // Streaming partial parameters for a tool call.
@@ -441,20 +448,20 @@ type SessionActivityChangedAction struct {
 	Activity *string `json:"activity,omitempty"`
 }
 
-// The {@link ChangesetSummary | catalogue of changesets} the agent host
+// The {@link Changeset | catalogue of changesets} the agent host
 // advertises for this session changed. Replaces
-// `state.summary.changesets` entirely (full-replacement semantics) — set
-// to `undefined` to clear the catalogue.
+// {@link SessionState.changesets | `state.changesets`} entirely
+// (full-replacement semantics) — set to `undefined` to clear the
+// catalogue.
 //
-// Producers dispatch this whenever entries are added, removed, or have
-// their aggregate counts (`additions` / `deletions` / `files`) refreshed.
-// The fan-out happens through this action so observers see catalogue
+// Producers dispatch this whenever entries are added or removed. The
+// fan-out happens through this action so observers see catalogue
 // mutations in the same {@link ChangesetAction | per-changeset} action
 // stream they already follow for file-level updates.
 type SessionChangesetsChangedAction struct {
 	Type ActionType `json:"type"`
 	// New catalogue, or `undefined` to clear it
-	Changesets []ChangesetSummary `json:"changesets,omitempty"`
+	Changesets []Changeset `json:"changesets,omitempty"`
 }
 
 // Server tools for this session have changed.
@@ -621,6 +628,38 @@ type SessionCustomizationRemovedAction struct {
 	Id string `json:"id"`
 }
 
+// Updates the runtime fields of an existing
+// {@link McpServerCustomization} — narrow alternative to
+// {@link SessionCustomizationUpdatedAction} for the high-frequency
+// `starting` ↔ `ready` ↔ `authRequired` transitions.
+//
+// Locates the target entry by `id`, searching both the top-level
+// customization list and the `children` array of every container.
+// Replaces the entry's {@link McpServerCustomization.state | `state`}
+// and {@link McpServerCustomization.channel | `channel`}
+// (full-replacement semantics: omit `channel` to clear an existing
+// channel URI). Other fields of the customization are preserved.
+//
+// Is a no-op when no matching `McpServerCustomization` is found. To
+// update any other field (name, icons, `mcpApp` capabilities, etc.) use
+// {@link SessionCustomizationUpdatedAction} instead.
+//
+// When the transition is to {@link McpServerStatus.AuthRequired}
+// because of a request issued mid-turn, the host SHOULD also raise
+// {@link SessionStatus.InputNeeded} on the session — see
+// {@link McpServerAuthRequiredState} for the rationale.
+type SessionMcpServerStateChangedAction struct {
+	Type ActionType `json:"type"`
+	// The id of the {@link McpServerCustomization} to update.
+	Id string `json:"id"`
+	// The new lifecycle state.
+	State McpServerState `json:"state"`
+	// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+	// an existing channel (typical when leaving
+	// {@link McpServerStatus.Ready | `Ready`}).
+	Channel *URI `json:"channel,omitempty"`
+}
+
 // Truncates a session's history. If `turnId` is provided, all turns after that
 // turn are removed and the specified turn is kept. If `turnId` is omitted, all
 // turns are removed.
@@ -759,6 +798,63 @@ type ChangesetOperationStatusChangedAction struct {
 // `root/sessionRemoved`) for the "going away" case.
 type ChangesetClearedAction struct {
 	Type ActionType `json:"type"`
+}
+
+// Upsert an {@link Annotation} in the annotations channel — adds a new
+// annotation, or replaces an existing one identified by
+// {@link Annotation.id}.
+//
+// Dispatched by a client to create an annotation (together with its
+// mandatory first entry) or to re-anchor / resolve an existing one; the
+// dispatching client assigns the {@link Annotation.id} and the id of any
+// new entry. When replacing, the full annotation payload (including its
+// {@link Annotation.entries | entries} list) is substituted; producers
+// SHOULD prefer {@link AnnotationsEntrySetAction} for per-entry edits to
+// keep wire updates small.
+type AnnotationsSetAction struct {
+	Type ActionType `json:"type"`
+	// The new or replacement annotation. MUST contain at least one entry.
+	Annotation Annotation `json:"annotation"`
+}
+
+// Remove an {@link Annotation} from the channel by its id.
+//
+// Dispatched to delete an entire annotation and every entry it contains.
+// Because the protocol forbids empty annotations, a client that wants to
+// remove the last remaining entry dispatches this action — collapsing the
+// annotation — rather than {@link AnnotationsEntryRemovedAction}.
+type AnnotationsRemovedAction struct {
+	Type ActionType `json:"type"`
+	// The {@link Annotation.id} of the annotation to remove.
+	AnnotationId string `json:"annotationId"`
+}
+
+// Upsert an {@link AnnotationEntry} within an existing annotation — adds a
+// new entry, or replaces one identified by {@link AnnotationEntry.id}. The
+// dispatching client assigns the {@link AnnotationEntry.id} of a new entry.
+// If {@link annotationId} does not match any current annotation the action
+// is a no-op.
+type AnnotationsEntrySetAction struct {
+	Type ActionType `json:"type"`
+	// The {@link Annotation.id} the entry belongs to.
+	AnnotationId string `json:"annotationId"`
+	// The new or replacement entry.
+	Entry AnnotationEntry `json:"entry"`
+}
+
+// Remove a single {@link AnnotationEntry} from an annotation without
+// collapsing the annotation itself. Used when more than one entry remains —
+// to remove the last entry a client dispatches {@link AnnotationsRemovedAction}
+// instead, since the protocol forbids empty annotations.
+//
+// If either {@link annotationId} or {@link entryId} does not match the
+// current state the action is a no-op.
+type AnnotationsEntryRemovedAction struct {
+	Type ActionType `json:"type"`
+	// The {@link Annotation.id} the entry belongs to.
+	AnnotationId string `json:"annotationId"`
+	// The {@link AnnotationEntry.id} to remove.
+	EntryId string `json:"entryId"`
 }
 
 // Fired when the list of known terminals changes.
@@ -955,6 +1051,7 @@ func (*SessionCustomizationsChangedAction) isStateAction()      {}
 func (*SessionCustomizationToggledAction) isStateAction()       {}
 func (*SessionCustomizationUpdatedAction) isStateAction()       {}
 func (*SessionCustomizationRemovedAction) isStateAction()       {}
+func (*SessionMcpServerStateChangedAction) isStateAction()      {}
 func (*SessionTruncatedAction) isStateAction()                  {}
 func (*SessionConfigChangedAction) isStateAction()              {}
 func (*SessionMetaChangedAction) isStateAction()                {}
@@ -965,6 +1062,10 @@ func (*ChangesetFileRemovedAction) isStateAction()              {}
 func (*ChangesetOperationsChangedAction) isStateAction()        {}
 func (*ChangesetOperationStatusChangedAction) isStateAction()   {}
 func (*ChangesetClearedAction) isStateAction()                  {}
+func (*AnnotationsSetAction) isStateAction()                    {}
+func (*AnnotationsRemovedAction) isStateAction()                {}
+func (*AnnotationsEntrySetAction) isStateAction()               {}
+func (*AnnotationsEntryRemovedAction) isStateAction()           {}
 func (*RootTerminalsChangedAction) isStateAction()              {}
 func (*TerminalDataAction) isStateAction()                      {}
 func (*TerminalInputAction) isStateAction()                     {}
@@ -1227,6 +1328,12 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		u.Value = &value
+	case "session/mcpServerStateChanged":
+		var value SessionMcpServerStateChangedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
 	case "session/truncated":
 		var value SessionTruncatedAction
 		if err := json.Unmarshal(data, &value); err != nil {
@@ -1283,6 +1390,30 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "changeset/cleared":
 		var value ChangesetClearedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "annotations/set":
+		var value AnnotationsSetAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "annotations/removed":
+		var value AnnotationsRemovedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "annotations/entrySet":
+		var value AnnotationsEntrySetAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "annotations/entryRemoved":
+		var value AnnotationsEntryRemovedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

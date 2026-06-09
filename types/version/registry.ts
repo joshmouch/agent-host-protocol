@@ -15,7 +15,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.3.0';
+export const PROTOCOL_VERSION = '0.4.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -34,6 +34,7 @@ export const PROTOCOL_VERSION = '0.3.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
+  '0.4.0',
   '0.3.0',
 ]);
 
@@ -110,6 +111,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.SessionCustomizationToggled]: '0.1.0',
   [ActionType.SessionCustomizationUpdated]: '0.1.0',
   [ActionType.SessionCustomizationRemoved]: '0.2.0',
+  [ActionType.SessionMcpServerStateChanged]: '0.3.0',
   [ActionType.SessionTruncated]: '0.1.0',
   [ActionType.SessionIsReadChanged]: '0.1.0',
   [ActionType.SessionIsArchivedChanged]: '0.1.0',
@@ -123,6 +125,10 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.ChangesetOperationsChanged]: '0.2.0',
   [ActionType.ChangesetOperationStatusChanged]: '0.3.0',
   [ActionType.ChangesetCleared]: '0.2.0',
+  [ActionType.AnnotationsSet]: '0.3.0',
+  [ActionType.AnnotationsRemoved]: '0.3.0',
+  [ActionType.AnnotationsEntrySet]: '0.3.0',
+  [ActionType.AnnotationsEntryRemoved]: '0.3.0',
   [ActionType.RootTerminalsChanged]: '0.1.0',
   [ActionType.RootConfigChanged]: '0.1.0',
   [ActionType.TerminalData]: '0.1.0',

@@ -1,6 +1,7 @@
 package com.microsoft.agenthostprotocol
 
 import com.microsoft.agenthostprotocol.generated.ChangesetState
+import com.microsoft.agenthostprotocol.generated.AnnotationsState
 import com.microsoft.agenthostprotocol.generated.ResourceWatchState
 import com.microsoft.agenthostprotocol.generated.RootState
 import com.microsoft.agenthostprotocol.generated.SessionState
@@ -175,6 +176,18 @@ class FixtureDrivenReducerTest {
                 run = { state ->
                     var s = state
                     for (action in actions) s = changesetReducer(s, action)
+                    s
+                },
+            )
+
+            "annotations" -> compareFixture(
+                file = file,
+                initial = initial,
+                expected = expected,
+                serializer = AnnotationsState.serializer(),
+                run = { state ->
+                    var s = state
+                    for (action in actions) s = annotationsReducer(s, action)
                     s
                 },
             )

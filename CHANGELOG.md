@@ -23,15 +23,92 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 `NOTIFICATION_INTRODUCED_IN` maps in
 [`types/version/registry.ts`](types/version/registry.ts).
 
-## [0.3.0] — Unreleased
+## [0.4.0] — Unreleased
+
+Spec version: `0.4.0`
+
+### Added
+
+- `RootState` now carries an optional `_meta` property bag for
+  implementation-defined metadata about the agent host itself, mirroring the
+  MCP `_meta` convention. A well-known `hostBuild` key may carry build
+  information (version, commit, date) about the program hosting the agent host.
+
+## [0.3.0] — 2026-06-05
 
 Spec version: `0.3.0`
 
+### Added
+
+- `McpServerCustomization` now models MCP servers as first-class session
+  customizations: `enabled`, `state` (a discriminated
+  `McpServerState` union covering `starting`, `ready`, `authRequired`,
+  `error`, `stopped`), an optional `channel` URI for an `mcp://`
+  side-channel into the upstream server, and an optional `mcpApp` block
+  carrying `AhpMcpUiHostCapabilities` so clients can render
+  [MCP Apps](https://github.com/modelcontextprotocol/ext-apps).
+- `McpServerAuthRequiredState` carries `ProtectedResourceMetadata` plus
+  `reason` / `requiredScopes` / `description`, letting clients drive the
+  existing `authenticate` command for per-MCP-server auth challenges.
+- `Customization` now includes `McpServerCustomization` at the top level
+  (hosts MAY surface globally-configured MCP servers directly rather
+  than only inside a plugin or directory). MCP servers remain valid as
+  children of a container.
+- New `session/mcpServerStateChanged` action — narrow upsert of
+  `state` + `channel` on an existing `McpServerCustomization`
+  by id, intended for the high-frequency
+  `starting`/`ready`/`authRequired` transitions. Other customization
+  fields stay in `session/customizationUpdated` territory.
+- `InitializeParams.capabilities` — optional client-capability bag
+  declared during the handshake. First entry is `mcpApps?: {}`; hosts
+  SHOULD only populate `McpServerCustomization.mcpApp` / `channel` for
+  clients that declared it.
+- New guide page `docs/guide/mcp.md` (with an MCP Apps subsection) and
+  new spec page `docs/specification/mcp-channel.md`.
+- Added `changeKind` to `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`) so clients can
+  group, sort, or pick an icon without parsing `uriTemplate`.
 - Added `status` and `error` to `ChangesetOperation` and a new
   `changeset/operationStatusChanged` action so servers can reflect an
   operation's execution lifecycle (`idle → running → error`) back into
   changeset state.
+
+### Changed
+
+- Replaced `ToolCallBase.toolClientId?: string` with a discriminated
+  `ToolCallBase.contributor?: ToolCallContributor` union
+  (`ToolCallClientContributor` / `ToolCallMcpContributor`) so MCP-served
+  tool calls can be attributed back to their originating
+  `McpServerCustomization`. `session/toolCallStart` carries the new
+  `contributor?` field in place of `toolClientId?`.
+
 - Added optional `_meta` provider metadata to `AgentCustomization`.
+- Added optional `changes` field of type `ChangesSummary` to `SessionSummary`,
+  carrying optional `additions`, `deletions`, and `files` counts so servers
+  can advertise an at-a-glance view of a session's file-change footprint.
+- Added a new annotations channel exposed on `ahp-session:/<uuid>/annotations`.
+  Annotations anchor to a `(turnId, resource)` pair with an optional `range`
+  (omitted to anchor to the entire file), carry a `resolved` flag (newly
+  created annotations start unresolved), and always carry at least one entry.
+  Clients drive every mutation by dispatching the client-dispatchable
+  `annotations/set`, `annotations/removed`, `annotations/entrySet`, and
+  `annotations/entryRemoved` state actions directly — assigning the
+  `Annotation.id` / `AnnotationEntry.id` themselves — rather than through RPC
+  commands, so annotations inherit write-ahead replay and conflict resolution.
+  `SessionSummary.annotations` advertises the per-session `AnnotationsSummary`
+  (`{ resource, annotationCount, entryCount }`) for badge UI.
+- Added an `annotations` `MessageAttachment` variant
+  (`MessageAnnotationsAttachment`) that references annotations on a
+  session's annotations channel by its `resource` URI, optionally narrowed to
+  an `annotationIds` array (omitted to reference every annotation).
+- Removed the `additions`, `deletions`, and `files` fields from
+  `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`;
+  per-changeset views derive their own totals from `ChangesetState.files`.
+- Moved the `changesets` catalogue from `SessionSummary` to
+  `SessionState`. The `session/changesetsChanged` action now updates
+  `state.changesets` directly instead of `state.summary.changesets`.
+- Renamed the `ChangesetSummary` interface to `Changeset`. The
+  on-the-wire shape is unchanged.
 - Renamed the `UserMessage` type to `Message` and surfaced it consistently
   across turn state (`Turn.message`, `ActiveTurn.message`, `PendingMessage.message`)
   and the actions that carry it (`session/turnStarted`,

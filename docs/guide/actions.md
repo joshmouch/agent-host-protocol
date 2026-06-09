@@ -149,6 +149,19 @@ Terminal actions travel on the relevant [Terminal Channel](/specification/termin
 
 See the [Terminals guide](/guide/terminals) for usage flows.
 
+## Annotations Actions
+
+Annotations actions travel on a session's annotations channel (`ahp-session:/<uuid>/annotations`). Every annotations action is client-dispatchable — clients create, re-anchor, resolve, and delete annotations and their entries by dispatching these directly (assigning the `Annotation.id` / `AnnotationEntry.id` themselves and applying them optimistically), and the agent host MAY also originate them.
+
+| Type | Client-dispatchable? | When |
+|---|---|---|
+| `annotations/set` | **Yes** | Upsert an annotation — create one with its mandatory first entry, or re-anchor / resolve an existing one |
+| `annotations/removed` | **Yes** | Remove an entire annotation (and every entry it contains) |
+| `annotations/entrySet` | **Yes** | Upsert a single entry within an annotation (add or edit) |
+| `annotations/entryRemoved` | **Yes** | Remove a single entry; dispatch `annotations/removed` instead to drop the last remaining entry |
+
+See the [Annotations Channel reference](/reference/annotations) for the full state shape.
+
 ## Client-Dispatched Actions
 
 Clients interact with the server by dispatching actions as fire-and-forget notifications:

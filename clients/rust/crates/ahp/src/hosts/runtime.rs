@@ -98,6 +98,7 @@ pub(super) fn spawn(
             active_sessions: None,
             terminals: None,
             config: None,
+            meta: None,
         },
         subscriptions: config.initial_subscriptions.clone(),
         completion_trigger_characters: vec![],
@@ -719,9 +720,6 @@ fn apply_summary_changes(
     }
     if let Some(v) = &changes.working_directory {
         existing.working_directory = Some(v.clone());
-    }
-    if let Some(v) = &changes.changesets {
-        existing.changesets = Some(v.clone());
     }
 }
 

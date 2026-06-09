@@ -20,6 +20,7 @@ export const PROTOCOL_SOURCE_DIRS: readonly string[] = [
   'channels-session',
   'channels-terminal',
   'channels-changeset',
+  'channels-annotations',
   'channels-otlp',
   'channels-resource-watch',
 ];

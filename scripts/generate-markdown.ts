@@ -53,6 +53,7 @@ const DIR_TO_PAGE: Record<string, string> = {
   'channels-session': 'session',
   'channels-terminal': 'terminal',
   'channels-changeset': 'changeset',
+  'channels-annotations': 'annotations',
   'channels-otlp': 'otlp',
 };
 
@@ -1003,6 +1004,35 @@ function generateChangesetChannelPage(project: Project): string {
   return lines.join('\n');
 }
 
+function generateAnnotationsChannelPage(project: Project): string {
+  currentPage = 'annotations';
+  const stateSf = findChannelSourceFile(project, 'channels-annotations', 'state.ts');
+  const actionsSf = findChannelSourceFile(project, 'channels-annotations', 'actions.ts');
+  const commandsSf = findChannelSourceFile(project, 'channels-annotations', 'commands.ts');
+
+  const lines: string[] = [GENERATED_HEADER];
+  lines.push('# Annotations Channel\n');
+  lines.push('Reference for the `ahp-session:/<uuid>/annotations` channel — per-session annotations anchored to file ranges within a session turn. Clients (and the agent host) mutate annotations by dispatching the client-dispatchable `annotations/*` state actions, which the write-ahead reducer applies identically on both peers.\n');
+  lines.push(schemaLink('state.schema.json'));
+
+  if (stateSf) {
+    lines.push('## State Types\n');
+    lines.push(emitStateTypesSection([stateSf]));
+  }
+  if (actionsSf) {
+    lines.push('## Actions\n');
+    lines.push('Mutate `AnnotationsState`. Scoped to an annotations channel URI via the enclosing `ActionEnvelope.channel`.\n');
+    lines.push(schemaLink('actions.schema.json'));
+    lines.push(emitActionsSection([actionsSf]));
+  }
+  if (commandsSf) {
+    lines.push('## Commands\n');
+    lines.push(schemaLink('commands.schema.json'));
+    lines.push(emitCommandsSection(project, [commandsSf]));
+  }
+  return lines.join('\n');
+}
+
 function generateOtlpChannelPage(project: Project): string {
   currentPage = 'otlp';
   const stateSf = findChannelSourceFile(project, 'channels-otlp', 'state.ts');
@@ -1243,6 +1273,7 @@ export function generateMarkdownDocs(project: Project, outDir: string): void {
     { filename: 'session.md', generator: generateSessionChannelPage },
     { filename: 'terminal.md', generator: generateTerminalChannelPage },
     { filename: 'changeset.md', generator: generateChangesetChannelPage },
+    { filename: 'annotations.md', generator: generateAnnotationsChannelPage },
     { filename: 'otlp.md', generator: generateOtlpChannelPage },
     { filename: 'messages.md', generator: generateMessagesPage },
     { filename: 'error-codes.md', generator: generateErrorCodesPage },

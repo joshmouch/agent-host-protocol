@@ -37,6 +37,7 @@ fn root_snapshot(agents: Vec<AgentInfo>) -> Snapshot {
             active_sessions: None,
             terminals: None,
             config: None,
+            meta: None,
         })),
         from_seq: 0,
     }
@@ -56,7 +57,8 @@ fn session_state(title: &str, resource: &str) -> SessionState {
             model: None,
             agent: None,
             working_directory: None,
-            changesets: None,
+            changes: None,
+            annotations: None,
         },
         lifecycle: SessionLifecycle::Ready,
         creation_error: None,
@@ -69,6 +71,7 @@ fn session_state(title: &str, resource: &str) -> SessionState {
         input_requests: None,
         config: None,
         customizations: None,
+        changesets: None,
         meta: None,
     }
 }
@@ -363,7 +366,8 @@ fn non_action_event_is_ignored() {
                 model: None,
                 agent: None,
                 working_directory: None,
-                changesets: None,
+                changes: None,
+                annotations: None,
             },
         }),
     };

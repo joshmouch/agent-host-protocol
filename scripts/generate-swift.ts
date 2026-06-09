@@ -106,7 +106,8 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
   // Known unions
   if (tsType === 'RootState | SessionState'
     || tsType === 'RootState | SessionState | TerminalState'
-    || tsType === 'RootState | SessionState | TerminalState | ChangesetState') return 'SnapshotState';
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | AnnotationsState') return 'SnapshotState';
 
   // T | null → T?
   const nullMatch = tsType.match(/^(.+?)\s*\|\s*null$/);
@@ -126,7 +127,13 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
 
   // Record<string, T>
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
-  if (recordMatch) return `[String: ${mapType(recordMatch[1])}]`;
+  if (recordMatch) {
+    const inner = recordMatch[1].trim();
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'never') return `[String: AnyCodable]`;
+    return `[String: ${mapType(inner)}]`;
+  }
 
   // Partial<T> — Swift has no structural Partial; emit/ reuse a sibling
   // struct with every property optional. Tracked for later emission.
@@ -267,6 +274,13 @@ function extractProps(iface: InterfaceDeclaration, project: Project): SwiftProp[
     });
 }
 
+// ─── Swift Doc Emission ──────────────────────────────────────────────────────
+
+function emitSwiftDocLine(docLine: string, indent = ''): string {
+  const trimmed = docLine.trim();
+  return trimmed ? `${indent}/// ${trimmed}` : `${indent}///`;
+}
+
 // ─── Swift Enum Generation ───────────────────────────────────────────────────
 
 function generateSwiftEnum(enumDecl: EnumDeclaration): string {
@@ -284,7 +298,7 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
 
   if (desc) {
     for (const docLine of desc.split('\n')) {
-      lines.push(`/// ${docLine.trim()}`);
+      lines.push(emitSwiftDocLine(docLine));
     }
   }
 
@@ -299,7 +313,7 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
       const memberDoc = member.getJsDocs()[0]?.getDescription().trim();
       if (memberDoc) {
         for (const docLine of memberDoc.split('\n')) {
-          lines.push(`    /// ${docLine.trim()}`);
+          lines.push(emitSwiftDocLine(docLine, '    '));
         }
       }
       lines.push(`    public static let ${memberName} = ${name}(rawValue: ${value})`);
@@ -316,7 +330,7 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
     const memberDoc = member.getJsDocs()[0]?.getDescription().trim();
     if (memberDoc) {
       for (const docLine of memberDoc.split('\n')) {
-        lines.push(`    /// ${docLine.trim()}`);
+        lines.push(emitSwiftDocLine(docLine, '    '));
       }
     }
     lines.push(`    case ${memberName} = ${JSON.stringify(value)}`);
@@ -352,7 +366,7 @@ function generateSwiftStruct(
   for (const p of props) {
     if (p.doc) {
       for (const docLine of p.doc.split('\n')) {
-        lines.push(`    /// ${docLine.trim()}`);
+        lines.push(emitSwiftDocLine(docLine, '    '));
       }
     }
     lines.push(`    public var ${p.name}: ${p.type}`);
@@ -496,7 +510,9 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
+  'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -504,7 +520,7 @@ const STATE_STRUCTS = [
   'Icon', 'ProtectedResourceMetadata', 'RootState', 'RootConfigState', 'AgentInfo',
   'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
-  'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
+  'SessionSummary', 'ChangesSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
   'SessionInputOption',
   'SessionInputTextAnswerValue', 'SessionInputNumberAnswerValue',
   'SessionInputBooleanAnswerValue', 'SessionInputSelectedAnswerValue',
@@ -516,6 +532,7 @@ const STATE_STRUCTS = [
   'SessionInputRequest',
   'TextPosition', 'TextRange', 'TextSelection',
   'SimpleMessageAttachment', 'MessageEmbeddedResourceAttachment', 'MessageResourceAttachment',
+  'MessageAnnotationsAttachment',
   'MarkdownResponsePart', 'ContentRef',
   'ResourceReponsePart', 'ToolCallResponsePart', 'ReasoningResponsePart',
   'SystemNotificationResponsePart',
@@ -531,12 +548,16 @@ const STATE_STRUCTS = [
   'PluginCustomization', 'ClientPluginCustomization', 'DirectoryCustomization',
   'AgentCustomization', 'SkillCustomization', 'PromptCustomization',
   'RuleCustomization', 'HookCustomization',
-  'McpServerCustomization',
+  'McpServerCustomization', 'McpServerCustomizationApps', 'AhpMcpUiHostCapabilities',
+  'McpServerStartingState', 'McpServerReadyState', 'McpServerAuthRequiredState',
+  'McpServerErrorState', 'McpServerStoppedState',
+  'ToolCallClientContributor', 'ToolCallMcpContributor',
   'FileEdit', 'TerminalInfo',
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
-  'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'AnnotationsSummary', 'AnnotationsState', 'Annotation', 'AnnotationEntry',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];
@@ -626,6 +647,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'embeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
+    { caseName: 'annotations', structName: 'MessageAnnotationsAttachment', discriminantValue: 'annotations' },
   ],
 };
 
@@ -635,6 +657,7 @@ const CUSTOMIZATION_UNION: UnionConfig = {
   variants: [
     { caseName: 'plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
+    { caseName: 'mcpServer', structName: 'McpServerCustomization', discriminantValue: 'mcpServer' },
   ],
 };
 
@@ -659,6 +682,27 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { caseName: 'loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
     { caseName: 'degraded', structName: 'CustomizationDegradedState', discriminantValue: 'degraded' },
     { caseName: 'error', structName: 'CustomizationErrorState', discriminantValue: 'error' },
+  ],
+};
+
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'starting', structName: 'McpServerStartingState', discriminantValue: 'starting' },
+    { caseName: 'ready', structName: 'McpServerReadyState', discriminantValue: 'ready' },
+    { caseName: 'authRequired', structName: 'McpServerAuthRequiredState', discriminantValue: 'authRequired' },
+    { caseName: 'error', structName: 'McpServerErrorState', discriminantValue: 'error' },
+    { caseName: 'stopped', structName: 'McpServerStoppedState', discriminantValue: 'stopped' },
+  ],
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'client', structName: 'ToolCallClientContributor', discriminantValue: 'client' },
+    { caseName: 'mcp', structName: 'ToolCallMcpContributor', discriminantValue: 'mcp' },
   ],
 };
 
@@ -751,12 +795,13 @@ public enum StringOrMarkdown: Codable, Sendable, Equatable {
 }
 
 function generateSnapshotState(): string {
-  return `/// The state payload of a snapshot — root, session, terminal, or changeset state.
+  return `/// The state payload of a snapshot — root, session, terminal, changeset, or annotations state.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
     case terminal(TerminalState)
     case changeset(ChangesetState)
+    case annotations(AnnotationsState)
 
     public init(from decoder: Decoder) throws {
         // SessionState has required \`summary\` field, try it first
@@ -766,6 +811,8 @@ public enum SnapshotState: Codable, Sendable {
             self = .terminal(terminal)
         } else if let changeset = try? ChangesetState(from: decoder) {
             self = .changeset(changeset)
+        } else if let annotations = try? AnnotationsState(from: decoder) {
+            self = .annotations(annotations)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -777,6 +824,7 @@ public enum SnapshotState: Codable, Sendable {
         case .session(let state): try state.encode(to: encoder)
         case .terminal(let state): try state.encode(to: encoder)
         case .changeset(let state): try state.encode(to: encoder)
+        case .annotations(let state): try state.encode(to: encoder)
         }
     }
 }`;
@@ -835,6 +883,10 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -885,6 +937,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/customizationToggled', caseName: 'sessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', caseName: 'sessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', caseName: 'sessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', caseName: 'sessionMcpServerStatusChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', caseName: 'sessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', caseName: 'sessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', caseName: 'sessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -895,6 +948,10 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'changeset/operationsChanged', caseName: 'changesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', caseName: 'changesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', caseName: 'changesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'annotations/set', caseName: 'annotationsSet', tsInterface: 'AnnotationsSetAction' },
+  { type: 'annotations/removed', caseName: 'annotationsRemoved', tsInterface: 'AnnotationsRemovedAction' },
+  { type: 'annotations/entrySet', caseName: 'annotationsEntrySet', tsInterface: 'AnnotationsEntrySetAction' },
+  { type: 'annotations/entryRemoved', caseName: 'annotationsEntryRemoved', tsInterface: 'AnnotationsEntryRemovedAction' },
   { type: 'root/terminalsChanged', caseName: 'rootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'rootConfigChanged', tsInterface: 'RootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'terminalData', tsInterface: 'TerminalDataAction' },
@@ -1053,7 +1110,7 @@ function generateActionsFile(project: Project): string {
 const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItemKind', 'ResourceType', 'ResourceWriteMode'];
 
 const COMMAND_STRUCTS = [
-  'InitializeParams', 'InitializeResult',
+  'InitializeParams', 'InitializeResult', 'ClientCapabilities',
   'ReconnectParams', 'ReconnectReplayResult', 'ReconnectSnapshotResult',
   'SubscribeParams', 'SubscribeResult',
   'SessionForkSource', 'CreateSessionParams', 'DisposeSessionParams',
@@ -1605,6 +1662,8 @@ function checkExhaustiveness(project: Project): void {
     'ChildCustomization',           // CHILD_CUSTOMIZATION_UNION discriminated union
     'ChildCustomizationType',       // TS subset alias of CustomizationType; consumers reuse the CustomizationType Swift enum
     'CustomizationLoadState',       // CUSTOMIZATION_LOAD_STATE_UNION discriminated union
+    'McpServerState',              // MCP_SERVER_STATUS_UNION discriminated union
+    'ToolCallContributor',          // TOOL_CALL_CONTRIBUTOR_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()
     'PermissionDeniedErrorData',    // emitted by generateErrorsFile()
     'UnsupportedProtocolVersionErrorData', // emitted by generateErrorsFile()

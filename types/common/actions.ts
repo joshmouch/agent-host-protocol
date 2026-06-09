@@ -49,6 +49,7 @@ import type {
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
   SessionCustomizationRemovedAction,
+  SessionMcpServerStateChangedAction,
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
@@ -66,6 +67,13 @@ import type {
   ChangesetOperationStatusChangedAction,
   ChangesetClearedAction,
 } from '../channels-changeset/actions.js';
+
+import type {
+  AnnotationsSetAction,
+  AnnotationsRemovedAction,
+  AnnotationsEntrySetAction,
+  AnnotationsEntryRemovedAction,
+} from '../channels-annotations/actions.js';
 
 import type {
   TerminalDataAction,
@@ -128,6 +136,7 @@ export const enum ActionType {
   SessionCustomizationToggled = 'session/customizationToggled',
   SessionCustomizationUpdated = 'session/customizationUpdated',
   SessionCustomizationRemoved = 'session/customizationRemoved',
+  SessionMcpServerStateChanged = 'session/mcpServerStateChanged',
   SessionTruncated = 'session/truncated',
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsArchivedChanged = 'session/isArchivedChanged',
@@ -141,6 +150,10 @@ export const enum ActionType {
   ChangesetOperationsChanged = 'changeset/operationsChanged',
   ChangesetOperationStatusChanged = 'changeset/operationStatusChanged',
   ChangesetCleared = 'changeset/cleared',
+  AnnotationsSet = 'annotations/set',
+  AnnotationsRemoved = 'annotations/removed',
+  AnnotationsEntrySet = 'annotations/entrySet',
+  AnnotationsEntryRemoved = 'annotations/entryRemoved',
   RootTerminalsChanged = 'root/terminalsChanged',
   RootConfigChanged = 'root/configChanged',
   TerminalData = 'terminal/data',
@@ -228,6 +241,7 @@ export type StateAction =
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction
   | SessionCustomizationRemovedAction
+  | SessionMcpServerStateChangedAction
   | SessionTruncatedAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction
@@ -241,6 +255,10 @@ export type StateAction =
   | ChangesetOperationsChangedAction
   | ChangesetOperationStatusChangedAction
   | ChangesetClearedAction
+  | AnnotationsSetAction
+  | AnnotationsRemovedAction
+  | AnnotationsEntrySetAction
+  | AnnotationsEntryRemovedAction
   | TerminalDataAction
   | TerminalInputAction
   | TerminalResizedAction

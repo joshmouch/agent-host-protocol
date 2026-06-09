@@ -40,6 +40,7 @@ import type {
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
   SessionCustomizationRemovedAction,
+  SessionMcpServerStateChangedAction,
   SessionTruncatedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
@@ -53,6 +54,10 @@ import type {
   ChangesetOperationsChangedAction,
   ChangesetOperationStatusChangedAction,
   ChangesetClearedAction,
+  AnnotationsSetAction,
+  AnnotationsRemovedAction,
+  AnnotationsEntrySetAction,
+  AnnotationsEntryRemovedAction,
   TerminalDataAction,
   TerminalInputAction,
   TerminalResizedAction,
@@ -126,6 +131,7 @@ export type SessionAction =
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction
   | SessionCustomizationRemovedAction
+  | SessionMcpServerStateChangedAction
   | SessionTruncatedAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction
@@ -178,6 +184,7 @@ export type ServerSessionAction =
   | SessionCustomizationsChangedAction
   | SessionCustomizationUpdatedAction
   | SessionCustomizationRemovedAction
+  | SessionMcpServerStateChangedAction
   | SessionActivityChangedAction
   | SessionChangesetsChangedAction
   | SessionMetaChangedAction
@@ -242,6 +249,27 @@ export type ServerChangesetAction =
   | ChangesetClearedAction
 ;
 
+/** Union of all annotations-scoped actions. */
+export type AnnotationsAction =
+  | AnnotationsSetAction
+  | AnnotationsRemovedAction
+  | AnnotationsEntrySetAction
+  | AnnotationsEntryRemovedAction
+;
+
+/** Union of annotations actions that clients may dispatch. */
+export type ClientAnnotationsAction =
+  | AnnotationsSetAction
+  | AnnotationsRemovedAction
+  | AnnotationsEntrySetAction
+  | AnnotationsEntryRemovedAction
+;
+
+/** Union of annotations actions that only the server may produce. */
+export type ServerAnnotationsAction =
+  never
+;
+
 /** Union of all resource-watch-scoped actions. */
 export type ResourceWatchAction =
   | ResourceWatchChangedAction
@@ -301,6 +329,7 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.SessionCustomizationToggled]: true,
   [ActionType.SessionCustomizationUpdated]: false,
   [ActionType.SessionCustomizationRemoved]: false,
+  [ActionType.SessionMcpServerStateChanged]: false,
   [ActionType.SessionTruncated]: true,
   [ActionType.SessionIsReadChanged]: true,
   [ActionType.SessionIsArchivedChanged]: true,
@@ -314,6 +343,10 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.ChangesetOperationsChanged]: false,
   [ActionType.ChangesetOperationStatusChanged]: false,
   [ActionType.ChangesetCleared]: false,
+  [ActionType.AnnotationsSet]: true,
+  [ActionType.AnnotationsRemoved]: true,
+  [ActionType.AnnotationsEntrySet]: true,
+  [ActionType.AnnotationsEntryRemoved]: true,
   [ActionType.TerminalData]: false,
   [ActionType.TerminalInput]: true,
   [ActionType.TerminalResized]: true,

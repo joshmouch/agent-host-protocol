@@ -17,7 +17,7 @@ use crate::actions::{ActionEnvelope, StateAction};
 use crate::state::{
     AgentSelection, ContentRef, MessageAttachment, ModelSelection, SessionActiveClient,
     SessionConfigSchema, SessionSummary, Snapshot, SnapshotState, TelemetryCapabilities,
-    TerminalClaim, Turn,
+    TerminalClaim, TextRange, Turn,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────
@@ -117,6 +117,13 @@ pub struct InitializeParams {
     /// user-facing strings such as confirmation option labels.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub locale: Option<String>,
+    /// Optional client capability declarations.
+    ///
+    /// Servers SHOULD only advertise features whose corresponding client
+    /// capability is set here. Absent means "not declared" — the server
+    /// MUST assume the client does not support the feature.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ClientCapabilities>,
 }
 
 /// Result of the `initialize` command.
@@ -153,6 +160,29 @@ pub struct InitializeResult {
     /// filtering). Clients MAY ignore signals they cannot process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TelemetryCapabilities>,
+}
+
+/// Optional capabilities a client declares during `initialize`.
+///
+/// Each field is a presence flag: an empty object `{}` means "supported",
+/// absence means "not supported". Sub-fields on individual capabilities
+/// are reserved for future per-capability options.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientCapabilities {
+    /// Client can render
+    /// [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+    /// it can host the View sandbox, run the `ui/*` protocol against it,
+    /// and forward `mcp://`-channel traffic on the App's behalf.
+    ///
+    /// Hosts SHOULD only populate
+    /// {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+    /// (and expose the corresponding
+    /// {@link McpServerCustomization.channel | `mcp://` channel}) when this
+    /// capability is declared. Clients that omit it MUST treat
+    /// App-bearing tool calls as ordinary MCP tool calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp_apps: Option<JsonObject>,
 }
 
 /// Re-establishes a dropped connection. The server replays missed actions or

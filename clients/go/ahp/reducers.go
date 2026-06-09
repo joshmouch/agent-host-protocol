@@ -70,27 +70,27 @@ func withStatusFlag(status, flag ahptypes.SessionStatus, set bool) ahptypes.Sess
 // toolCallCommon carries the fields shared by every concrete
 // [ahptypes.ToolCallState] variant.
 type toolCallCommon struct {
-	id           string
-	name         string
-	displayName  string
-	toolClientID *string
-	meta         ahptypes.JSONObject
+	id          string
+	name        string
+	displayName string
+	contributor *ahptypes.ToolCallContributor
+	meta        ahptypes.JSONObject
 }
 
 func toolCallMeta(tc ahptypes.ToolCallState) toolCallCommon {
 	switch v := tc.Value.(type) {
 	case *ahptypes.ToolCallStreamingState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	case *ahptypes.ToolCallPendingConfirmationState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	case *ahptypes.ToolCallRunningState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	case *ahptypes.ToolCallPendingResultConfirmationState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	case *ahptypes.ToolCallCompletedState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	case *ahptypes.ToolCallCancelledState:
-		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.ToolClientId, v.Meta}
+		return toolCallCommon{v.ToolCallId, v.ToolName, v.DisplayName, v.Contributor, v.Meta}
 	}
 	return toolCallCommon{}
 }
@@ -189,7 +189,7 @@ func endTurn(state *ahptypes.SessionState, turnID string, turnState ahptypes.Tur
 			ToolCallId:        common.id,
 			ToolName:          common.name,
 			DisplayName:       common.displayName,
-			ToolClientId:      common.toolClientID,
+			Contributor:       common.contributor,
 			Meta:              common.meta,
 			InvocationMessage: invocation,
 			ToolInput:         toolInput,
@@ -248,6 +248,8 @@ func customizationID(c ahptypes.Customization) (string, bool) {
 		return v.Id, true
 	case *ahptypes.DirectoryCustomization:
 		return v.Id, true
+	case *ahptypes.McpServerCustomization:
+		return v.Id, true
 	}
 	return "", false
 }
@@ -285,6 +287,8 @@ func setContainerEnabled(c *ahptypes.Customization, enabled bool) {
 	case *ahptypes.PluginCustomization:
 		v.Enabled = enabled
 	case *ahptypes.DirectoryCustomization:
+		v.Enabled = enabled
+	case *ahptypes.McpServerCustomization:
 		v.Enabled = enabled
 	}
 }
@@ -421,12 +425,12 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 		state.ActiveTurn.ResponseParts = append(state.ActiveTurn.ResponseParts, ahptypes.ResponsePart{Value: &ahptypes.ToolCallResponsePart{
 			Kind: ahptypes.ResponsePartKindToolCall,
 			ToolCall: ahptypes.ToolCallState{Value: &ahptypes.ToolCallStreamingState{
-				Status:       ahptypes.ToolCallStatusStreaming,
-				ToolCallId:   a.ToolCallId,
-				ToolName:     a.ToolName,
-				DisplayName:  a.DisplayName,
-				ToolClientId: a.ToolClientId,
-				Meta:         a.Meta,
+				Status:      ahptypes.ToolCallStatusStreaming,
+				ToolCallId:  a.ToolCallId,
+				ToolName:    a.ToolName,
+				DisplayName: a.DisplayName,
+				Contributor: a.Contributor,
+				Meta:        a.Meta,
 			}},
 		}})
 		return ReduceOutcomeApplied
@@ -499,7 +503,11 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 		state.Summary.Activity = a.Activity
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionChangesetsChangedAction:
-		state.Summary.Changesets = append([]ahptypes.ChangesetSummary(nil), a.Changesets...)
+		if a.Changesets == nil {
+			state.Changesets = nil
+		} else {
+			state.Changesets = append([]ahptypes.Changeset(nil), a.Changesets...)
+		}
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionConfigChangedAction:
 		if state.Config == nil {
@@ -586,6 +594,8 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 			}
 		}
 		return ReduceOutcomeNoOp
+	case *ahptypes.SessionMcpServerStateChangedAction:
+		return applyMcpServerStatusChanged(state, a)
 	case *ahptypes.SessionTruncatedAction:
 		return applyTruncated(state, a.TurnId)
 	case *ahptypes.SessionInputRequestedAction:
@@ -769,7 +779,7 @@ func applyToolCallReady(state *ahptypes.SessionState, a *ahptypes.SessionToolCal
 					ToolCallId:        common.id,
 					ToolName:          common.name,
 					DisplayName:       common.displayName,
-					ToolClientId:      common.toolClientID,
+					Contributor:       common.contributor,
 					Meta:              common.meta,
 					InvocationMessage: a.InvocationMessage,
 					ToolInput:         a.ToolInput,
@@ -781,7 +791,7 @@ func applyToolCallReady(state *ahptypes.SessionState, a *ahptypes.SessionToolCal
 				ToolCallId:        common.id,
 				ToolName:          common.name,
 				DisplayName:       common.displayName,
-				ToolClientId:      common.toolClientID,
+				Contributor:       common.contributor,
 				Meta:              common.meta,
 				InvocationMessage: a.InvocationMessage,
 				ToolInput:         a.ToolInput,
@@ -829,7 +839,7 @@ func applyToolCallConfirmed(state *ahptypes.SessionState, a *ahptypes.SessionToo
 				ToolCallId:        s.ToolCallId,
 				ToolName:          s.ToolName,
 				DisplayName:       s.DisplayName,
-				ToolClientId:      s.ToolClientId,
+				Contributor:       s.Contributor,
 				Meta:              s.Meta,
 				InvocationMessage: s.InvocationMessage,
 				ToolInput:         toolInput,
@@ -846,7 +856,7 @@ func applyToolCallConfirmed(state *ahptypes.SessionState, a *ahptypes.SessionToo
 			ToolCallId:        s.ToolCallId,
 			ToolName:          s.ToolName,
 			DisplayName:       s.DisplayName,
-			ToolClientId:      s.ToolClientId,
+			Contributor:       s.Contributor,
 			Meta:              s.Meta,
 			InvocationMessage: s.InvocationMessage,
 			ToolInput:         s.ToolInput,
@@ -886,7 +896,7 @@ func applyToolCallComplete(state *ahptypes.SessionState, a *ahptypes.SessionTool
 				ToolCallId:        common.id,
 				ToolName:          common.name,
 				DisplayName:       common.displayName,
-				ToolClientId:      common.toolClientID,
+				Contributor:       common.contributor,
 				Meta:              common.meta,
 				InvocationMessage: invocation,
 				ToolInput:         toolInput,
@@ -904,7 +914,7 @@ func applyToolCallComplete(state *ahptypes.SessionState, a *ahptypes.SessionTool
 			ToolCallId:        common.id,
 			ToolName:          common.name,
 			DisplayName:       common.displayName,
-			ToolClientId:      common.toolClientID,
+			Contributor:       common.contributor,
 			Meta:              common.meta,
 			InvocationMessage: invocation,
 			ToolInput:         toolInput,
@@ -931,7 +941,7 @@ func applyToolCallResultConfirmed(state *ahptypes.SessionState, a *ahptypes.Sess
 				ToolCallId:        s.ToolCallId,
 				ToolName:          s.ToolName,
 				DisplayName:       s.DisplayName,
-				ToolClientId:      s.ToolClientId,
+				Contributor:       s.Contributor,
 				Meta:              s.Meta,
 				InvocationMessage: s.InvocationMessage,
 				ToolInput:         s.ToolInput,
@@ -949,7 +959,7 @@ func applyToolCallResultConfirmed(state *ahptypes.SessionState, a *ahptypes.Sess
 			ToolCallId:        s.ToolCallId,
 			ToolName:          s.ToolName,
 			DisplayName:       s.DisplayName,
-			ToolClientId:      s.ToolClientId,
+			Contributor:       s.Contributor,
 			Meta:              s.Meta,
 			InvocationMessage: s.InvocationMessage,
 			ToolInput:         s.ToolInput,
@@ -957,6 +967,46 @@ func applyToolCallResultConfirmed(state *ahptypes.SessionState, a *ahptypes.Sess
 			SelectedOption:    s.SelectedOption,
 		}}
 	})
+}
+
+func applyMcpServerStatusChanged(state *ahptypes.SessionState, a *ahptypes.SessionMcpServerStateChangedAction) ReduceOutcome {
+	list := state.Customizations
+	if list == nil {
+		return ReduceOutcomeNoOp
+	}
+	for i := range list {
+		got, ok := customizationID(list[i])
+		if !ok || got != a.Id {
+			continue
+		}
+		mcp, ok := list[i].Value.(*ahptypes.McpServerCustomization)
+		if !ok {
+			return ReduceOutcomeNoOp
+		}
+		mcp.State = a.State
+		mcp.Channel = a.Channel
+		return ReduceOutcomeApplied
+	}
+	for i := range list {
+		children := containerChildren(&list[i])
+		if children == nil {
+			continue
+		}
+		for j := range *children {
+			got, ok := childCustomizationID((*children)[j])
+			if !ok || got != a.Id {
+				continue
+			}
+			mcp, ok := (*children)[j].Value.(*ahptypes.McpServerCustomization)
+			if !ok {
+				return ReduceOutcomeNoOp
+			}
+			mcp.State = a.State
+			mcp.Channel = a.Channel
+			return ReduceOutcomeApplied
+		}
+	}
+	return ReduceOutcomeNoOp
 }
 
 func applyTruncated(state *ahptypes.SessionState, turnID *string) ReduceOutcome {
@@ -1110,7 +1160,26 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 		*ahptypes.ChangesetFileSetAction,
 		*ahptypes.ChangesetFileRemovedAction,
 		*ahptypes.ChangesetOperationsChangedAction,
+		*ahptypes.ChangesetOperationStatusChangedAction,
 		*ahptypes.ChangesetClearedAction:
+		return ReduceOutcomeNoOp
+	}
+	return ReduceOutcomeOutOfScope
+}
+
+// ─── Annotations Reducer ─────────────────────────────────────────
+
+// ApplyActionToAnnotations is the entry point for annotations actions.
+// Mirrors the Rust client's stub: every recognized annotations action
+// short-circuits as [ReduceOutcomeNoOp] until the full annotations
+// reducer is ported. Unrelated actions return [ReduceOutcomeOutOfScope].
+func ApplyActionToAnnotations(state *ahptypes.AnnotationsState, action ahptypes.StateAction) ReduceOutcome {
+	_ = state
+	switch action.Value.(type) {
+	case *ahptypes.AnnotationsSetAction,
+		*ahptypes.AnnotationsRemovedAction,
+		*ahptypes.AnnotationsEntrySetAction,
+		*ahptypes.AnnotationsEntryRemovedAction:
 		return ReduceOutcomeNoOp
 	}
 	return ReduceOutcomeOutOfScope

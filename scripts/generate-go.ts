@@ -158,6 +158,7 @@ function mapType(tsType: string): string {
     tsType === 'RootState | SessionState' ||
     tsType === 'RootState | SessionState | TerminalState' ||
     tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | AnnotationsState'
   ) {
     return 'SnapshotState';
   }
@@ -183,7 +184,9 @@ function mapType(tsType: string): string {
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
   if (recordMatch) {
     const inner = recordMatch[1].trim();
-    if (inner === 'unknown') return 'map[string]json.RawMessage';
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'unknown' || inner === 'never') return 'map[string]json.RawMessage';
     return `map[string]${mapTypeForSliceElem(inner)}`;
   }
 
@@ -628,8 +631,9 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason',
-  'ConfirmationOptionKind',
+  'ConfirmationOptionKind', 'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -648,6 +652,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'SessionState' },
   { name: 'SessionActiveClient' },
   { name: 'SessionSummary' },
+  { name: 'ChangesSummary' },
   { name: 'ProjectInfo' },
   { name: 'SessionConfigPropertySchema' },
   { name: 'SessionConfigSchema' },
@@ -675,6 +680,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'SimpleMessageAttachment' },
   { name: 'MessageEmbeddedResourceAttachment' },
   { name: 'MessageResourceAttachment' },
+  { name: 'MessageAnnotationsAttachment' },
   { name: 'MarkdownResponsePart' },
   { name: 'ContentRef' },
   { name: 'ResourceReponsePart', goName: 'ResourceResponsePart' },
@@ -710,6 +716,15 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'RuleCustomization' },
   { name: 'HookCustomization' },
   { name: 'McpServerCustomization' },
+  { name: 'McpServerCustomizationApps' },
+  { name: 'AhpMcpUiHostCapabilities' },
+  { name: 'McpServerStartingState' },
+  { name: 'McpServerReadyState' },
+  { name: 'McpServerAuthRequiredState' },
+  { name: 'McpServerErrorState' },
+  { name: 'McpServerStoppedState' },
+  { name: 'ToolCallClientContributor' },
+  { name: 'ToolCallMcpContributor' },
   { name: 'FileEdit' },
   { name: 'TerminalInfo' },
   { name: 'TerminalClientClaim' },
@@ -720,10 +735,14 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'UsageInfo' },
   { name: 'ErrorInfo' },
   { name: 'Snapshot' },
-  { name: 'ChangesetSummary' },
+  { name: 'Changeset' },
   { name: 'ChangesetState' },
   { name: 'ChangesetFile' },
   { name: 'ChangesetOperation' },
+  { name: 'AnnotationsSummary' },
+  { name: 'AnnotationsState' },
+  { name: 'Annotation' },
+  { name: 'AnnotationEntry' },
   { name: 'TelemetryCapabilities' },
   { name: 'ResourceWatchState' },
   { name: 'ResourceChange' },
@@ -844,6 +863,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { variantName: 'Simple', innerType: 'SimpleMessageAttachment', wireValue: 'simple' },
     { variantName: 'EmbeddedResource', innerType: 'MessageEmbeddedResourceAttachment', wireValue: 'embeddedResource' },
     { variantName: 'Resource', innerType: 'MessageResourceAttachment', wireValue: 'resource' },
+    { variantName: 'Annotations', innerType: 'MessageAnnotationsAttachment', wireValue: 'annotations' },
   ],
   unknown: true,
 };
@@ -851,10 +871,11 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 const CUSTOMIZATION_UNION: UnionConfig = {
   name: 'Customization',
   discriminantField: 'type',
-  doc: 'Customization is a top-level customization (plugin or directory).',
+  doc: 'Customization is a top-level customization (plugin, directory, or bare MCP server).',
   variants: [
     { variantName: 'Plugin', innerType: 'PluginCustomization', wireValue: 'plugin' },
     { variantName: 'Directory', innerType: 'DirectoryCustomization', wireValue: 'directory' },
+    { variantName: 'McpServer', innerType: 'McpServerCustomization', wireValue: 'mcpServer' },
   ],
   unknown: true,
 };
@@ -887,16 +908,42 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
   unknown: true,
 };
 
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  doc: 'McpServerState is the discriminated lifecycle status of an MCP server customization.',
+  variants: [
+    { variantName: 'Starting', innerType: 'McpServerStartingState', wireValue: 'starting' },
+    { variantName: 'Ready', innerType: 'McpServerReadyState', wireValue: 'ready' },
+    { variantName: 'AuthRequired', innerType: 'McpServerAuthRequiredState', wireValue: 'authRequired' },
+    { variantName: 'Error', innerType: 'McpServerErrorState', wireValue: 'error' },
+    { variantName: 'Stopped', innerType: 'McpServerStoppedState', wireValue: 'stopped' },
+  ],
+  unknown: true,
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  doc: 'ToolCallContributor identifies the contributor (client or MCP server) of a tool call.',
+  variants: [
+    { variantName: 'Client', innerType: 'ToolCallClientContributor', wireValue: 'client' },
+    { variantName: 'Mcp', innerType: 'ToolCallMcpContributor', wireValue: 'mcp' },
+  ],
+  unknown: true,
+};
+
 function generateSnapshotState(): string {
   return `// SnapshotState is the state payload of a snapshot — root, session,
-// terminal, or changeset state. The active variant is chosen by which
+// terminal, changeset, or annotations state. The active variant is chosen by which
 // pointer field is non-nil; UnmarshalJSON probes for required fields in
-// the canonical order (session → terminal → changeset → root).
+// the canonical order (session → terminal → changeset → annotations → root).
 type SnapshotState struct {
 \tRoot      *RootState      \`json:"-"\`
 \tSession   *SessionState   \`json:"-"\`
 \tTerminal  *TerminalState  \`json:"-"\`
 \tChangeset *ChangesetState \`json:"-"\`
+	Annotations *AnnotationsState  \`json:"-"\`
 }
 
 // MarshalJSON encodes whichever variant is currently populated.
@@ -908,6 +955,8 @@ func (s SnapshotState) MarshalJSON() ([]byte, error) {
 \t\treturn json.Marshal(s.Terminal)
 \tcase s.Changeset != nil:
 \t\treturn json.Marshal(s.Changeset)
+	case s.Annotations != nil:
+		return json.Marshal(s.Annotations)
 \tcase s.Root != nil:
 \t\treturn json.Marshal(s.Root)
 \tdefault:
@@ -942,6 +991,12 @@ func (s *SnapshotState) UnmarshalJSON(data []byte) error {
 \t\t\treturn err
 \t\t}
 \t\ts.Changeset = &v
+	case containsAll(probe, "annotations"):
+		var v AnnotationsState
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		s.Annotations = &v
 \tdefault:
 \t\tvar v RootState
 \t\tif err := json.Unmarshal(data, &v); err != nil {
@@ -1014,6 +1069,10 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
 
@@ -1066,6 +1125,7 @@ const ACTION_VARIANTS: {
   { type: 'session/customizationToggled', variantName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', variantName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', variantName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', variantName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', variantName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', variantName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', variantName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1076,6 +1136,10 @@ const ACTION_VARIANTS: {
   { type: 'changeset/operationsChanged', variantName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', variantName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', variantName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'annotations/set', variantName: 'AnnotationsSet', tsInterface: 'AnnotationsSetAction' },
+  { type: 'annotations/removed', variantName: 'AnnotationsRemoved', tsInterface: 'AnnotationsRemovedAction' },
+  { type: 'annotations/entrySet', variantName: 'AnnotationsEntrySet', tsInterface: 'AnnotationsEntrySetAction' },
+  { type: 'annotations/entryRemoved', variantName: 'AnnotationsEntryRemoved', tsInterface: 'AnnotationsEntryRemovedAction' },
   { type: 'root/terminalsChanged', variantName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'terminal/data', variantName: 'TerminalData', tsInterface: 'TerminalDataAction' },
   { type: 'terminal/input', variantName: 'TerminalInput', tsInterface: 'TerminalInputAction' },
@@ -1192,6 +1256,7 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
+  { name: 'ClientCapabilities' },
   { name: 'ReconnectParams' },
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
   { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
@@ -1688,6 +1753,8 @@ function checkExhaustiveness(project: Project): void {
     'ChildCustomization',
     'ChildCustomizationType',
     'CustomizationLoadState',
+    'McpServerState',
+    'ToolCallContributor',
     'ReconnectResult',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',

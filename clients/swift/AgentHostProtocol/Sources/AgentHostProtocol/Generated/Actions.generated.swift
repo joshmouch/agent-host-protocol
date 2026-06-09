@@ -41,6 +41,7 @@ public enum ActionType: String, Codable, Sendable {
     case sessionCustomizationToggled = "session/customizationToggled"
     case sessionCustomizationUpdated = "session/customizationUpdated"
     case sessionCustomizationRemoved = "session/customizationRemoved"
+    case sessionMcpServerStateChanged = "session/mcpServerStateChanged"
     case sessionTruncated = "session/truncated"
     case sessionIsReadChanged = "session/isReadChanged"
     case sessionIsArchivedChanged = "session/isArchivedChanged"
@@ -54,6 +55,10 @@ public enum ActionType: String, Codable, Sendable {
     case changesetOperationsChanged = "changeset/operationsChanged"
     case changesetOperationStatusChanged = "changeset/operationStatusChanged"
     case changesetCleared = "changeset/cleared"
+    case annotationsSet = "annotations/set"
+    case annotationsRemoved = "annotations/removed"
+    case annotationsEntrySet = "annotations/entrySet"
+    case annotationsEntryRemoved = "annotations/entryRemoved"
     case rootTerminalsChanged = "root/terminalsChanged"
     case rootConfigChanged = "root/configChanged"
     case terminalData = "terminal/data"
@@ -230,7 +235,7 @@ public struct SessionToolCallStartAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -241,9 +246,9 @@ public struct SessionToolCallStartAction: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called. Absent for
+    /// server-side tools that are not contributed by a client or MCP server.
+    public var contributor: ToolCallContributor?
 
     enum CodingKeys: String, CodingKey {
         case turnId
@@ -252,7 +257,7 @@ public struct SessionToolCallStartAction: Codable, Sendable {
         case type
         case toolName
         case displayName
-        case toolClientId
+        case contributor
     }
 
     public init(
@@ -262,7 +267,7 @@ public struct SessionToolCallStartAction: Codable, Sendable {
         type: ActionType,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil
+        contributor: ToolCallContributor? = nil
     ) {
         self.turnId = turnId
         self.toolCallId = toolCallId
@@ -270,7 +275,7 @@ public struct SessionToolCallStartAction: Codable, Sendable {
         self.type = type
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
     }
 }
 
@@ -280,7 +285,7 @@ public struct SessionToolCallDeltaAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -324,7 +329,7 @@ public struct SessionToolCallReadyAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -453,7 +458,7 @@ public struct SessionToolCallCompleteAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -497,7 +502,7 @@ public struct SessionToolCallResultConfirmedAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -704,11 +709,11 @@ public struct SessionActivityChangedAction: Codable, Sendable {
 public struct SessionChangesetsChangedAction: Codable, Sendable {
     public var type: ActionType
     /// New catalogue, or `undefined` to clear it
-    public var changesets: [ChangesetSummary]?
+    public var changesets: [Changeset]?
 
     public init(
         type: ActionType,
-        changesets: [ChangesetSummary]? = nil
+        changesets: [Changeset]? = nil
     ) {
         self.type = type
         self.changesets = changesets
@@ -929,6 +934,30 @@ public struct SessionCustomizationRemovedAction: Codable, Sendable {
     }
 }
 
+public struct SessionMcpServerStateChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The id of the {@link McpServerCustomization} to update.
+    public var id: String
+    /// The new lifecycle state.
+    public var state: McpServerState
+    /// Updated `mcp://` side-channel URI. Full-replacement: omit to clear
+    /// an existing channel (typical when leaving
+    /// {@link McpServerStatus.Ready | `Ready`}).
+    public var channel: String?
+
+    public init(
+        type: ActionType,
+        id: String,
+        state: McpServerState,
+        channel: String? = nil
+    ) {
+        self.type = type
+        self.id = id
+        self.state = state
+        self.channel = channel
+    }
+}
+
 public struct SessionTruncatedAction: Codable, Sendable {
     public var type: ActionType
     /// Keep turns up to and including this turn. Omit to clear all turns.
@@ -986,7 +1015,7 @@ public struct SessionToolCallContentChangedAction: Codable, Sendable {
     /// Tool call identifier
     public var toolCallId: String
     /// Additional provider-specific metadata for this tool call.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
     /// indicates the tool operated on a terminal (both `input` and `output` may
@@ -1108,6 +1137,70 @@ public struct ChangesetClearedAction: Codable, Sendable {
         type: ActionType
     ) {
         self.type = type
+    }
+}
+
+public struct AnnotationsSetAction: Codable, Sendable {
+    public var type: ActionType
+    /// The new or replacement annotation. MUST contain at least one entry.
+    public var annotation: Annotation
+
+    public init(
+        type: ActionType,
+        annotation: Annotation
+    ) {
+        self.type = type
+        self.annotation = annotation
+    }
+}
+
+public struct AnnotationsRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link Annotation.id} of the annotation to remove.
+    public var annotationId: String
+
+    public init(
+        type: ActionType,
+        annotationId: String
+    ) {
+        self.type = type
+        self.annotationId = annotationId
+    }
+}
+
+public struct AnnotationsEntrySetAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link Annotation.id} the entry belongs to.
+    public var annotationId: String
+    /// The new or replacement entry.
+    public var entry: AnnotationEntry
+
+    public init(
+        type: ActionType,
+        annotationId: String,
+        entry: AnnotationEntry
+    ) {
+        self.type = type
+        self.annotationId = annotationId
+        self.entry = entry
+    }
+}
+
+public struct AnnotationsEntryRemovedAction: Codable, Sendable {
+    public var type: ActionType
+    /// The {@link Annotation.id} the entry belongs to.
+    public var annotationId: String
+    /// The {@link AnnotationEntry.id} to remove.
+    public var entryId: String
+
+    public init(
+        type: ActionType,
+        annotationId: String,
+        entryId: String
+    ) {
+        self.type = type
+        self.annotationId = annotationId
+        self.entryId = entryId
     }
 }
 
@@ -1368,6 +1461,7 @@ public enum StateAction: Codable, Sendable {
     case sessionCustomizationToggled(SessionCustomizationToggledAction)
     case sessionCustomizationUpdated(SessionCustomizationUpdatedAction)
     case sessionCustomizationRemoved(SessionCustomizationRemovedAction)
+    case sessionMcpServerStatusChanged(SessionMcpServerStateChangedAction)
     case sessionTruncated(SessionTruncatedAction)
     case sessionConfigChanged(SessionConfigChangedAction)
     case sessionMetaChanged(SessionMetaChangedAction)
@@ -1378,6 +1472,10 @@ public enum StateAction: Codable, Sendable {
     case changesetOperationsChanged(ChangesetOperationsChangedAction)
     case changesetOperationStatusChanged(ChangesetOperationStatusChangedAction)
     case changesetCleared(ChangesetClearedAction)
+    case annotationsSet(AnnotationsSetAction)
+    case annotationsRemoved(AnnotationsRemovedAction)
+    case annotationsEntrySet(AnnotationsEntrySetAction)
+    case annotationsEntryRemoved(AnnotationsEntryRemovedAction)
     case rootTerminalsChanged(RootTerminalsChangedAction)
     case rootConfigChanged(RootConfigChangedAction)
     case terminalData(TerminalDataAction)
@@ -1477,6 +1575,8 @@ public enum StateAction: Codable, Sendable {
             self = .sessionCustomizationUpdated(try SessionCustomizationUpdatedAction(from: decoder))
         case "session/customizationRemoved":
             self = .sessionCustomizationRemoved(try SessionCustomizationRemovedAction(from: decoder))
+        case "session/mcpServerStateChanged":
+            self = .sessionMcpServerStatusChanged(try SessionMcpServerStateChangedAction(from: decoder))
         case "session/truncated":
             self = .sessionTruncated(try SessionTruncatedAction(from: decoder))
         case "session/configChanged":
@@ -1497,6 +1597,14 @@ public enum StateAction: Codable, Sendable {
             self = .changesetOperationStatusChanged(try ChangesetOperationStatusChangedAction(from: decoder))
         case "changeset/cleared":
             self = .changesetCleared(try ChangesetClearedAction(from: decoder))
+        case "annotations/set":
+            self = .annotationsSet(try AnnotationsSetAction(from: decoder))
+        case "annotations/removed":
+            self = .annotationsRemoved(try AnnotationsRemovedAction(from: decoder))
+        case "annotations/entrySet":
+            self = .annotationsEntrySet(try AnnotationsEntrySetAction(from: decoder))
+        case "annotations/entryRemoved":
+            self = .annotationsEntryRemoved(try AnnotationsEntryRemovedAction(from: decoder))
         case "root/terminalsChanged":
             self = .rootTerminalsChanged(try RootTerminalsChangedAction(from: decoder))
         case "root/configChanged":
@@ -1570,6 +1678,7 @@ public enum StateAction: Codable, Sendable {
         case .sessionCustomizationToggled(let v): try v.encode(to: encoder)
         case .sessionCustomizationUpdated(let v): try v.encode(to: encoder)
         case .sessionCustomizationRemoved(let v): try v.encode(to: encoder)
+        case .sessionMcpServerStatusChanged(let v): try v.encode(to: encoder)
         case .sessionTruncated(let v): try v.encode(to: encoder)
         case .sessionConfigChanged(let v): try v.encode(to: encoder)
         case .sessionMetaChanged(let v): try v.encode(to: encoder)
@@ -1580,6 +1689,10 @@ public enum StateAction: Codable, Sendable {
         case .changesetOperationsChanged(let v): try v.encode(to: encoder)
         case .changesetOperationStatusChanged(let v): try v.encode(to: encoder)
         case .changesetCleared(let v): try v.encode(to: encoder)
+        case .annotationsSet(let v): try v.encode(to: encoder)
+        case .annotationsRemoved(let v): try v.encode(to: encoder)
+        case .annotationsEntrySet(let v): try v.encode(to: encoder)
+        case .annotationsEntryRemoved(let v): try v.encode(to: encoder)
         case .rootTerminalsChanged(let v): try v.encode(to: encoder)
         case .rootConfigChanged(let v): try v.encode(to: encoder)
         case .terminalData(let v): try v.encode(to: encoder)

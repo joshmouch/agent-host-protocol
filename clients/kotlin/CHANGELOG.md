@@ -17,11 +17,68 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ### Added
 
+- `RootState` now exposes an optional `_meta` property bag (`meta: Map<String,
+  JsonElement>?`) for implementation-defined agent-host metadata, such as a
+  well-known `hostBuild` key carrying the host's build version/commit/date.
+
+## [0.3.0] — 2026-06-05
+
+Implements AHP 0.3.0.
+
+### Added
+
+- `McpServerCustomization` now exposes the full MCP lifecycle: `enabled`,
+  the discriminated `McpServerState` sealed interface
+  (`Starting`/`Ready`/`AuthRequired`/`Error`/`Stopped`), optional
+  `channel` URI for the `mcp://` side-channel, and optional `mcpApp`
+  block carrying `AhpMcpUiHostCapabilities` for MCP Apps.
+- `McpServerAuthRequiredState` variant carries `ProtectedResourceMetadata`
+  plus `reason` / `requiredScopes` / `description` so the existing
+  `authenticate` command can drive per-server auth.
+- `Customization.McpServer` top-level variant — hosts MAY surface bare
+  MCP servers directly rather than only inside a plugin or directory.
+- `SessionMcpServerStateChangedAction` — narrow upsert of
+  `state` + `channel` on an existing MCP server customization
+  by id.
+- `ClientCapabilities` data class on `InitializeParams.capabilities`
+  with first entry `mcpApps`.
+- `changeKind` field on `Changeset` (well-known values: `'session'`,
+  `'branch'`, `'uncommitted'`, `'turn'`, `'compare-turns'`).
 - `status` and `error` fields on `ChangesetOperation` and the
   `changeset/operationStatusChanged` action, tracking the
   `idle → running → error` lifecycle of a changeset operation.
 - `AgentCustomization._meta` provider metadata field.
+- Optional `changes` field on `SessionSummary` (`ChangesSummary` with optional `additions`, `deletions`, and `files` counts) summarising a session's file-change footprint.
+- New annotations channel (`ahp-session:/<uuid>/annotations`): `AnnotationsState`,
+  `Annotation`, `AnnotationEntry`,
+  `AnnotationsSummary`; the `annotationsReducer` top-level function and
+  `AnnotationsReducer` object; and the client-dispatchable `annotations/set`,
+  `annotations/removed`, `annotations/entrySet`, and `annotations/entryRemoved`
+  action variants — clients drive every annotation mutation by dispatching
+  these directly (assigning the `Annotation.id` / `AnnotationEntry.id`
+  themselves); and `SnapshotState.Annotations`.
+  `SessionSummary.annotations` surfaces the per-session `AnnotationsSummary`.
+- `MessageAnnotationsAttachment` (`annotations` `MessageAttachment` variant)
+  referencing annotations on a session's annotations channel by `resource`
+  URI, optionally narrowed to an `annotationIds` array.
 
+
+### Changed
+
+- Renamed the `ChangesetSummary` type to `Changeset`. The on-the-wire shape is unchanged.
+- Moved the `changesets` catalogue from `SessionSummary` to `SessionState`. The `session/changesetsChanged` action now updates `state.changesets` directly instead of `state.summary.changesets`.
+
+### Removed
+
+- Removed the `additions`, `deletions`, and `files` fields from `ChangesetSummary`. Aggregate counts now live on `SessionSummary.changes`; per-changeset views derive their own totals from `ChangesetState.files`.
+
+### Changed
+
+- `ToolCallBase.toolClientId: String?` replaced by
+  `ToolCallBase.contributor: ToolCallContributor?` (sealed interface
+  with `Client(clientId)` and `Mcp(customizationId)` variants).
+  `SessionToolCallStartAction` carries the new `contributor` field as
+  well.
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.

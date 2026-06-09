@@ -141,6 +141,7 @@ function mapType(tsType: string): string {
     tsType === 'RootState | SessionState' ||
     tsType === 'RootState | SessionState | TerminalState' ||
     tsType === 'RootState | SessionState | TerminalState | ChangesetState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | AnnotationsState'
   ) {
     return 'SnapshotState';
   }
@@ -166,7 +167,13 @@ function mapType(tsType: string): string {
 
   // Record<string, T>
   const recordMatch = tsType.match(/^Record<string,\s*(.+)>$/);
-  if (recordMatch) return `Map<String, ${mapType(recordMatch[1])}>`;
+  if (recordMatch) {
+    const inner = recordMatch[1].trim();
+    // `Record<string, never>` is the MCP-style marker for "empty object";
+    // treat it like `Record<string, unknown>` so the wire `{}` round-trips.
+    if (inner === 'never') return 'Map<String, JsonElement>';
+    return `Map<String, ${mapType(inner)}>`;
+  }
 
   // Partial<T>
   const partialMatch = tsType.match(/^Partial<(\w+)>$/);
@@ -312,7 +319,12 @@ function emitKDoc(doc: string, indent = ''): string[] {
   const lines = doc.split('\n');
   const out: string[] = [`${indent}/**`];
   for (const line of lines) {
-    out.push(`${indent} * ${line.trim()}`);
+    // Kotlin's tokenizer treats `/*` and `*/` as block-comment delimiters even
+    // inside KDoc backtick spans, so `\`tools/*\`` would open a nested
+    // comment that never closes. Insert a zero-width space (U+200B) to break
+    // the token without changing the rendered output.
+    const safe = line.trim().replace(/\/\*/g, '/\u200B*').replace(/\*\//g, '*\u200B/');
+    out.push(safe ? `${indent} * ${safe}` : `${indent} *`);
   }
   out.push(`${indent} */`);
   return out;
@@ -625,7 +637,8 @@ internal object StringOrMarkdownSerializer : KSerializer<StringOrMarkdown> {
 
 function generateSnapshotState(): string {
   return `/**
- * The state payload of a snapshot — root, session, terminal, or changeset state.
+ * The state payload of a snapshot — root, session, terminal, changeset,
+ * or annotations state.
  */
 @Serializable(with = SnapshotStateSerializer::class)
 sealed interface SnapshotState {
@@ -633,6 +646,7 @@ sealed interface SnapshotState {
     @JvmInline value class Session(val value: SessionState) : SnapshotState
     @JvmInline value class Terminal(val value: TerminalState) : SnapshotState
     @JvmInline value class Changeset(val value: ChangesetState) : SnapshotState
+    @JvmInline value class Annotations(val value: AnnotationsState) : SnapshotState
 }
 
 internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
@@ -647,12 +661,14 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             ?: error("Expected JsonObject for SnapshotState")
         // Try the most distinctive shape first. SessionState has required
         // \`summary\`; ChangesetState has required \`status\` + \`files\`;
-        // TerminalState has \`uri\` / \`size\` / \`buffer\`; RootState is the
-        // catch-all.
+        // AnnotationsState has required \`annotations\`; TerminalState has \`uri\`
+        // / \`size\` / \`buffer\`; RootState is the catch-all.
         return when {
             obj.containsKey("summary") -> SnapshotState.Session(input.json.decodeFromJsonElement(SessionState.serializer(), element))
             obj.containsKey("status") && obj.containsKey("files") ->
                 SnapshotState.Changeset(input.json.decodeFromJsonElement(ChangesetState.serializer(), element))
+            obj.containsKey("annotations") ->
+                SnapshotState.Annotations(input.json.decodeFromJsonElement(AnnotationsState.serializer(), element))
             obj.containsKey("size") || obj.containsKey("uri") || obj.containsKey("buffer") ->
                 SnapshotState.Terminal(input.json.decodeFromJsonElement(TerminalState.serializer(), element))
             else -> SnapshotState.Root(input.json.decodeFromJsonElement(RootState.serializer(), element))
@@ -667,6 +683,7 @@ internal object SnapshotStateSerializer : KSerializer<SnapshotState> {
             is SnapshotState.Session -> output.json.encodeToJsonElement(SessionState.serializer(), value.value)
             is SnapshotState.Terminal -> output.json.encodeToJsonElement(TerminalState.serializer(), value.value)
             is SnapshotState.Changeset -> output.json.encodeToJsonElement(ChangesetState.serializer(), value.value)
+            is SnapshotState.Annotations -> output.json.encodeToJsonElement(AnnotationsState.serializer(), value.value)
         }
         output.encodeJsonElement(element)
     }
@@ -740,7 +757,9 @@ const STATE_ENUMS = [
   'SessionInputResponseKind',
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
   'ToolCallConfirmationReason', 'ToolCallCancellationReason', 'ConfirmationOptionKind',
+  'ToolCallContributorKind',
   'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
 ];
 
@@ -748,7 +767,7 @@ const STATE_STRUCTS = [
   'Icon', 'ProtectedResourceMetadata', 'RootState', 'RootConfigState', 'AgentInfo',
   'SessionModelInfo', 'ModelSelection', 'AgentSelection', 'ConfigPropertySchema', 'ConfigSchema',
   'PendingMessage', 'SessionState', 'SessionActiveClient',
-  'SessionSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
+  'SessionSummary', 'ChangesSummary', 'ProjectInfo', 'SessionConfigState', 'Turn', 'ActiveTurn', 'Message',
   'SessionInputOption',
   'SessionInputTextAnswerValue', 'SessionInputNumberAnswerValue',
   'SessionInputBooleanAnswerValue', 'SessionInputSelectedAnswerValue',
@@ -760,6 +779,7 @@ const STATE_STRUCTS = [
   'SessionInputRequest',
   'TextPosition', 'TextRange', 'TextSelection',
   'SimpleMessageAttachment', 'MessageEmbeddedResourceAttachment', 'MessageResourceAttachment',
+  'MessageAnnotationsAttachment',
   'MarkdownResponsePart', 'ContentRef',
   'ResourceReponsePart', 'ToolCallResponsePart', 'ReasoningResponsePart',
   'SystemNotificationResponsePart',
@@ -775,11 +795,16 @@ const STATE_STRUCTS = [
   'PluginCustomization', 'ClientPluginCustomization', 'DirectoryCustomization',
   'AgentCustomization', 'SkillCustomization', 'PromptCustomization',
   'RuleCustomization', 'HookCustomization', 'McpServerCustomization',
+  'McpServerCustomizationApps', 'AhpMcpUiHostCapabilities',
+  'McpServerStartingState', 'McpServerReadyState', 'McpServerAuthRequiredState',
+  'McpServerErrorState', 'McpServerStoppedState',
+  'ToolCallClientContributor', 'ToolCallMcpContributor',
   'FileEdit', 'TerminalInfo',
   'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
-  'ChangesetSummary', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'Changeset', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
+  'AnnotationsSummary', 'AnnotationsState', 'Annotation', 'AnnotationEntry',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
 ];
@@ -878,6 +903,7 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
     { caseName: 'Simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'EmbeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
     { caseName: 'Resource', structName: 'MessageResourceAttachment', discriminantValue: 'resource' },
+    { caseName: 'Annotations', structName: 'MessageAnnotationsAttachment', discriminantValue: 'annotations' },
   ],
   unknown: true,
 };
@@ -888,6 +914,7 @@ const CUSTOMIZATION_UNION: UnionConfig = {
   variants: [
     { caseName: 'Plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'Directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
+    { caseName: 'McpServer', structName: 'McpServerCustomization', discriminantValue: 'mcpServer' },
   ],
   unknown: true,
 };
@@ -914,6 +941,29 @@ const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
     { caseName: 'Loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
     { caseName: 'Degraded', structName: 'CustomizationDegradedState', discriminantValue: 'degraded' },
     { caseName: 'Error', structName: 'CustomizationErrorState', discriminantValue: 'error' },
+  ],
+  unknown: true,
+};
+
+const MCP_SERVER_STATUS_UNION: UnionConfig = {
+  name: 'McpServerState',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'Starting', structName: 'McpServerStartingState', discriminantValue: 'starting' },
+    { caseName: 'Ready', structName: 'McpServerReadyState', discriminantValue: 'ready' },
+    { caseName: 'AuthRequired', structName: 'McpServerAuthRequiredState', discriminantValue: 'authRequired' },
+    { caseName: 'Error', structName: 'McpServerErrorState', discriminantValue: 'error' },
+    { caseName: 'Stopped', structName: 'McpServerStoppedState', discriminantValue: 'stopped' },
+  ],
+  unknown: true,
+};
+
+const TOOL_CALL_CONTRIBUTOR_UNION: UnionConfig = {
+  name: 'ToolCallContributor',
+  discriminantField: 'kind',
+  variants: [
+    { caseName: 'Client', structName: 'ToolCallClientContributor', discriminantValue: 'client' },
+    { caseName: 'Mcp', structName: 'ToolCallMcpContributor', discriminantValue: 'mcp' },
   ],
   unknown: true,
 };
@@ -977,6 +1027,10 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -1026,6 +1080,7 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'session/customizationToggled', caseName: 'SessionCustomizationToggled', tsInterface: 'SessionCustomizationToggledAction' },
   { type: 'session/customizationUpdated', caseName: 'SessionCustomizationUpdated', tsInterface: 'SessionCustomizationUpdatedAction' },
   { type: 'session/customizationRemoved', caseName: 'SessionCustomizationRemoved', tsInterface: 'SessionCustomizationRemovedAction' },
+  { type: 'session/mcpServerStateChanged', caseName: 'SessionMcpServerStateChanged', tsInterface: 'SessionMcpServerStateChangedAction' },
   { type: 'session/truncated', caseName: 'SessionTruncated', tsInterface: 'SessionTruncatedAction' },
   { type: 'session/configChanged', caseName: 'SessionConfigChanged', tsInterface: 'SessionConfigChangedAction' },
   { type: 'session/metaChanged', caseName: 'SessionMetaChanged', tsInterface: 'SessionMetaChangedAction' },
@@ -1036,6 +1091,10 @@ const ACTION_VARIANTS: { type: string; caseName: string; tsInterface: string }[]
   { type: 'changeset/operationsChanged', caseName: 'ChangesetOperationsChanged', tsInterface: 'ChangesetOperationsChangedAction' },
   { type: 'changeset/operationStatusChanged', caseName: 'ChangesetOperationStatusChanged', tsInterface: 'ChangesetOperationStatusChangedAction' },
   { type: 'changeset/cleared', caseName: 'ChangesetCleared', tsInterface: 'ChangesetClearedAction' },
+  { type: 'annotations/set', caseName: 'AnnotationsSet', tsInterface: 'AnnotationsSetAction' },
+  { type: 'annotations/removed', caseName: 'AnnotationsRemoved', tsInterface: 'AnnotationsRemovedAction' },
+  { type: 'annotations/entrySet', caseName: 'AnnotationsEntrySet', tsInterface: 'AnnotationsEntrySetAction' },
+  { type: 'annotations/entryRemoved', caseName: 'AnnotationsEntryRemoved', tsInterface: 'AnnotationsEntryRemovedAction' },
   { type: 'root/terminalsChanged', caseName: 'RootTerminalsChanged', tsInterface: 'RootTerminalsChangedAction' },
   { type: 'root/configChanged', caseName: 'RootConfigChanged', tsInterface: 'RootConfigChangedAction' },
   { type: 'terminal/data', caseName: 'TerminalData', tsInterface: 'TerminalDataAction' },
@@ -1189,6 +1248,7 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ContentEncoding', 'CompletionItem
 
 const COMMAND_STRUCTS = [
   'InitializeParams', 'InitializeResult',
+  'ClientCapabilities',
   'ReconnectParams', 'ReconnectReplayResult', 'ReconnectSnapshotResult',
   'SubscribeParams', 'SubscribeResult',
   'SessionForkSource', 'CreateSessionParams', 'DisposeSessionParams',
@@ -1694,6 +1754,8 @@ function checkExhaustiveness(project: Project): void {
     'MessageAttachmentBase',        // base interface, flattened into the variant data classes via `extends`
     'Customization',                // CUSTOMIZATION_UNION discriminated union
     'ChildCustomization',           // CHILD_CUSTOMIZATION_UNION discriminated union
+    'McpServerState',              // MCP_SERVER_STATUS_UNION discriminated union
+    'ToolCallContributor',          // TOOL_CALL_CONTRIBUTOR_UNION discriminated union
     'ChildCustomizationType',       // TS subset alias of CustomizationType; consumers reuse CustomizationType
     'CustomizationLoadState',       // CUSTOMIZATION_LOAD_STATE_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()

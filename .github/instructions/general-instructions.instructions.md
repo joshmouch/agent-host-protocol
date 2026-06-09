@@ -36,6 +36,10 @@ applyTo: 'types/**/*.ts'
 
 - `number` types are assumed to be 64-bit integers. If a floating point values are reasonable for a field, you MUST annotate its jsdoc with `@format float`
 - For actions or commands that could be implemented by returning an array `T[]` directly, still prefer to wrap it in `{ items: T[] }` for forward compatibility. This allows adding additional fields later without breaking the shape.
+- Naming discriminants for discriminated unions:
+  - Lifecycle / state-machine unions: name the union `Foo*State` and its discriminant enum `Foo*Status`. Variant interfaces are `Foo*State` (e.g. `ToolCallState` + `ToolCallStatus` + `ToolCallStreamingState`; `McpServerState` + `McpServerStatus` + `McpServerStartingState`; `CustomizationLoadState` + `CustomizationLoadStatus`).
+  - General/typological unions (not a lifecycle): name the discriminant `Foo*Kind` (e.g. `MessageAttachment` + `MessageAttachmentKind`, `ResponsePart` + `ResponsePartKind`, `ToolCallContributor` + `ToolCallContributorKind`).
+  - Generator note: variant interface names must differ from the union wrapper names emitted by the per-language generators (e.g. Kotlin emits `value class FooStateStarting(val value: FooStartingState)`), so name variants `Foo*State` rather than `FooStatus*`.
 - After making your changes, check to make sure the documentation in `docs` is up to date. For significant new flows or features, consider adding new documentation for it. Note that Mermaid diagrams are allowed.
 - Whenever you change or add an action, you must review the reducers in `types/reducers.ts` to see if that needs to be propagated into the state. If it does, add the appropriate logic and unit tests for it.
 - Never update the protocol version unless you were instructed to do so.

@@ -63,7 +63,7 @@ public enum SessionLifecycle: String, Codable, Sendable {
 }
 
 /// Bitset of summary-level session status flags.
-/// 
+///
 /// Use bitwise checks instead of equality for non-terminal activity. For example,
 /// `status & SessionStatus.InProgress` matches both ordinary in-progress turns
 /// and turns that are paused waiting for input.
@@ -133,6 +133,8 @@ public enum MessageAttachmentKind: String, Codable, Sendable {
     case embeddedResource = "embeddedResource"
     /// An attachment that references a resource by URI.
     case resource = "resource"
+    /// An attachment that references annotations on an annotations channel.
+    case annotations = "annotations"
 }
 
 /// Discriminant for response part types.
@@ -155,7 +157,7 @@ public enum ToolCallStatus: String, Codable, Sendable {
 }
 
 /// How a tool call was confirmed for execution.
-/// 
+///
 /// - `NotNeeded` — No confirmation required (auto-approved)
 /// - `UserAction` — User explicitly approved
 /// - `Setting` — Approved by a persistent user setting
@@ -178,6 +180,11 @@ public enum ConfirmationOptionKind: String, Codable, Sendable {
     case deny = "deny"
 }
 
+public enum ToolCallContributorKind: String, Codable, Sendable {
+    case client = "client"
+    case mCP = "mcp"
+}
+
 /// Discriminant for tool result content types.
 public enum ToolResultContentType: String, Codable, Sendable {
     case text = "text"
@@ -189,12 +196,14 @@ public enum ToolResultContentType: String, Codable, Sendable {
 }
 
 /// Discriminant for the kind of customization.
-/// 
+///
 /// Top-level entries in {@link SessionState.customizations} and
-/// {@link AgentInfo.customizations} are always
-/// {@link CustomizationType.Plugin | `Plugin`} or
-/// {@link CustomizationType.Directory | `Directory`}; the remaining
-/// types appear only as children of those containers.
+/// {@link AgentInfo.customizations} are either container customizations
+/// ({@link CustomizationType.Plugin | `Plugin`} or
+/// {@link CustomizationType.Directory | `Directory`}) or
+/// {@link CustomizationType.McpServer | `McpServer`} entries surfaced
+/// directly by the host. The remaining types appear only as children of
+/// a container.
 public enum CustomizationType: String, Codable, Sendable {
     case plugin = "plugin"
     case directory = "directory"
@@ -220,6 +229,51 @@ public enum TerminalClaimKind: String, Codable, Sendable {
     case session = "session"
 }
 
+/// Discriminant for the {@link McpServerState} union.
+public enum McpServerStatus: String, Codable, Sendable {
+    /// Server has been registered but is not yet running.
+    case starting = "starting"
+    /// Server is running and serving requests.
+    case ready = "ready"
+    /// Server is reachable but requires additional authentication before it
+    /// can start, or before it can serve a particular request. Carries the
+    /// RFC 9728 Protected Resource Metadata the client needs to obtain a
+    /// token; the client then pushes the token via the existing
+    /// `authenticate` command.
+    case authRequired = "authRequired"
+    /// Server failed to start, crashed, or otherwise transitioned to a fatal error.
+    case error = "error"
+    /// Server has been shut down.
+    case stopped = "stopped"
+}
+
+/// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
+/// state. Mirrors the three failure modes defined by the
+/// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
+public enum McpAuthRequiredReason: String, Codable, Sendable {
+    /// No token has been provided yet (HTTP 401, no prior token).
+    case required = "required"
+    /// A previously valid token expired or was revoked (HTTP 401).
+    case expired = "expired"
+    /// Step-up auth: a token is present but its scopes are insufficient for
+    /// the requested operation (HTTP 403 with
+    /// `WWW-Authenticate: Bearer error="insufficient_scope"`).
+    ///
+    /// Unlike {@link Required} and {@link Expired} — which typically surface
+    /// before any tool work is in flight — `InsufficientScope` is almost
+    /// always triggered by an MCP request issued mid-turn (a `tools/call`,
+    /// `resources/read`, etc.). The host SHOULD pair the
+    /// {@link McpServerAuthRequiredState} transition with
+    /// {@link SessionStatus.InputNeeded} on
+    /// {@link SessionSummary.status | the session} so the activity becomes
+    /// visible at the session-summary level, and clients SHOULD watch for
+    /// this kind on any
+    /// {@link McpServerCustomization | MCP server} backing a running tool
+    /// call so they can present an explicit "grant more access" affordance
+    /// tied to the blocked tool call.
+    case insufficientScope = "insufficientScope"
+}
+
 /// Computation lifecycle of a {@link ChangesetState}.
 public enum ChangesetStatus: String, Codable, Sendable {
     /// The server is still computing the contents of this changeset.
@@ -232,7 +286,7 @@ public enum ChangesetStatus: String, Codable, Sendable {
 }
 
 /// Execution lifecycle of a {@link ChangesetOperation}.
-/// 
+///
 /// An operation is invoked imperatively via `invokeChangesetOperation`, but
 /// its progress and outcome are reflected back into changeset state so that
 /// every subscriber observes a consistent view (e.g. a spinner on a "Create
@@ -270,10 +324,10 @@ public enum ResourceChangeType: String, Codable, Sendable {
 public struct Icon: Codable, Sendable {
     /// A standard URI pointing to an icon resource. May be an HTTP/HTTPS URL or a
     /// `data:` URI with Base64-encoded image data.
-    /// 
+    ///
     /// Consumers SHOULD take steps to ensure URLs serving icons are from the
     /// same domain as the client/server or a trusted domain.
-    /// 
+    ///
     /// Consumers SHOULD take appropriate precautions when consuming SVGs as they can contain
     /// executable JavaScript.
     public var src: String
@@ -282,13 +336,13 @@ public struct Icon: Codable, Sendable {
     public var contentType: String?
     /// Optional array of strings that specify sizes at which the icon can be used.
     /// Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
-    /// 
+    ///
     /// If not provided, the client should assume that the icon can be used at any size.
     public var sizes: [String]?
     /// Optional specifier for the theme this icon is designed for. `"light"` indicates
     /// the icon is designed to be used with a light background, and `"dark"` indicates
     /// the icon is designed to be used with a dark background.
-    /// 
+    ///
     /// If not provided, the client should assume the icon can be used with any theme.
     public var theme: String?
 
@@ -332,13 +386,13 @@ public struct ProtectedResourceMetadata: Codable, Sendable {
     /// OPTIONAL. URL of the resource's terms of service.
     public var resourceTosUri: String?
     /// AHP extension. Whether authentication is required for this resource.
-    /// 
+    ///
     /// - `true` (default) — the agent cannot be used without a valid token.
     /// The server SHOULD return `AuthRequired` (`-32007`) if the client
     /// attempts to use the agent without authenticating.
     /// - `false` — the agent works without authentication but MAY offer
     /// enhanced capabilities when a token is provided.
-    /// 
+    ///
     /// Clients SHOULD treat an absent field the same as `true`.
     public var required: Bool?
 
@@ -398,17 +452,31 @@ public struct RootState: Codable, Sendable {
     public var terminals: [TerminalInfo]?
     /// Agent host configuration schema and current values
     public var config: RootConfigState?
+    /// Additional implementation-defined metadata about the agent host itself.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case agents
+        case activeSessions
+        case terminals
+        case config
+        case meta = "_meta"
+    }
 
     public init(
         agents: [AgentInfo],
         activeSessions: Int? = nil,
         terminals: [TerminalInfo]? = nil,
-        config: RootConfigState? = nil
+        config: RootConfigState? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.agents = agents
         self.activeSessions = activeSessions
         self.terminals = terminals
         self.config = config
+        self.meta = meta
     }
 }
 
@@ -437,7 +505,7 @@ public struct AgentInfo: Codable, Sendable {
     /// Available models for this agent
     public var models: [SessionModelInfo]
     /// Protected resources this agent requires authentication for.
-    /// 
+    ///
     /// Each entry describes an OAuth 2.0 protected resource using
     /// [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728) semantics.
     /// Clients should obtain tokens from the declared `authorization_servers`
@@ -445,14 +513,16 @@ public struct AgentInfo: Codable, Sendable {
     /// with this agent.
     public var protectedResources: [ProtectedResourceMetadata]?
     /// Customizations associated with this agent.
-    /// 
-    /// Always container customizations —
+    ///
+    /// Either container customizations —
     /// {@link PluginCustomization | `PluginCustomization`} entries the agent
     /// bundles, plus {@link DirectoryCustomization | `DirectoryCustomization`}
-    /// entries it watches in any workspace it's used with. When a session is
-    /// created with this agent, these entries are augmented (e.g. directory
-    /// URIs are resolved against the workspace, children are parsed) and
-    /// propagated into the session's `customizations` list.
+    /// entries it watches in any workspace it's used with — or top-level
+    /// {@link McpServerCustomization | `McpServerCustomization`} entries
+    /// the agent host declares directly. When a session is created with
+    /// this agent, these entries are augmented (e.g. directory URIs are
+    /// resolved against the workspace, children are parsed) and propagated
+    /// into the session's `customizations` list.
     public var customizations: [Customization]?
 
     public init(
@@ -490,7 +560,7 @@ public struct SessionModelInfo: Codable, Sendable {
     /// {@link ModelSelection.config} when creating or changing sessions.
     public var configSchema: ConfigSchema?
     /// Additional provider-specific metadata for this model.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `pricing` key may carry model pricing metadata.
     public var meta: [String: AnyCodable]?
@@ -676,19 +746,33 @@ public struct SessionState: Codable, Sendable {
     /// Session configuration schema and current values
     public var config: SessionConfigState?
     /// Top-level customizations active in this session.
-    /// 
-    /// Always container customizations — {@link PluginCustomization} or
-    /// {@link DirectoryCustomization}. Children (agents, skills, prompts,
-    /// rules, hooks, MCP servers) live in each container's
+    ///
+    /// Always one of the {@link Customization} variants:
+    ///
+    /// - Container customizations ({@link PluginCustomization},
+    /// {@link DirectoryCustomization}) whose children — agents, skills,
+    /// prompts, rules, hooks, MCP servers — live in each container's
     /// {@link ContainerCustomizationBase.children | `children`} array.
-    /// 
+    /// - Top-level {@link McpServerCustomization} entries the host
+    /// surfaces directly (for example a globally-configured MCP server
+    /// that isn't bundled in a plugin or directory). MCP servers may
+    /// also appear as children of a container.
+    ///
     /// Client-published plugins arrive via
     /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
     /// and the host propagates them into this list (typically with the
-    /// container's `clientId` set and `children` populated).
+    /// container's `clientId` set and `children` populated). Clients
+    /// publish in container shape only; bare MCP servers at the top level
+    /// are server-originated.
     public var customizations: [Customization]?
+    /// Catalogue of changesets the server can produce for this session. Each
+    /// entry advertises a subscribable view of file changes (uncommitted,
+    /// session-wide, per-turn, etc.) and the URI template the client expands
+    /// before subscribing. See {@link Changeset} for the full shape and
+    /// {@link /guide/changesets | Changesets} for an overview of the model.
+    public var changesets: [Changeset]?
     /// Additional provider-specific metadata for this session.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI.
     /// For example, a `git` key may provide extra git metadata about the session's
     /// workingDirectory.
@@ -707,6 +791,7 @@ public struct SessionState: Codable, Sendable {
         case inputRequests
         case config
         case customizations
+        case changesets
         case meta = "_meta"
     }
 
@@ -723,6 +808,7 @@ public struct SessionState: Codable, Sendable {
         inputRequests: [SessionInputRequest]? = nil,
         config: SessionConfigState? = nil,
         customizations: [Customization]? = nil,
+        changesets: [Changeset]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.summary = summary
@@ -737,6 +823,7 @@ public struct SessionState: Codable, Sendable {
         self.inputRequests = inputRequests
         self.config = config
         self.customizations = customizations
+        self.changesets = changesets
         self.meta = meta
     }
 }
@@ -749,7 +836,7 @@ public struct SessionActiveClient: Codable, Sendable {
     /// Tools this client provides to the session
     public var tools: [ToolDefinition]
     /// Plugin customizations this client contributes to the session.
-    /// 
+    ///
     /// Clients publish in [Open Plugins](https://open-plugins.com/) format
     /// — i.e. always container-shaped plugins. They MAY synthesize virtual
     /// plugins in memory and rely on the host to expand them into concrete
@@ -789,18 +876,22 @@ public struct SessionSummary: Codable, Sendable {
     /// Currently selected model
     public var model: ModelSelection?
     /// Currently selected custom agent.
-    /// 
+    ///
     /// Absent (`undefined`) means no custom agent is selected for this session
     /// — the session uses the provider's default behavior.
     public var agent: AgentSelection?
     /// The working directory URI for this session
     public var workingDirectory: String?
-    /// Catalogue of changesets the server can produce for this session. Each
-    /// entry advertises a subscribable view of file changes (uncommitted,
-    /// session-wide, per-turn, etc.) and the URI template the client expands
-    /// before subscribing. See {@link ChangesetSummary} for the full shape and
-    /// {@link /guide/changesets | Changesets} for an overview of the model.
-    public var changesets: [ChangesetSummary]?
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    public var changes: ChangesSummary?
+    /// Lightweight summary of this session's inline annotations channel
+    /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+    /// annotation / entry counts without subscribing. Absent when the session
+    /// does not expose an annotations channel.
+    public var annotations: AnnotationsSummary?
 
     public init(
         resource: String,
@@ -814,7 +905,8 @@ public struct SessionSummary: Codable, Sendable {
         model: ModelSelection? = nil,
         agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changesets: [ChangesetSummary]? = nil
+        changes: ChangesSummary? = nil,
+        annotations: AnnotationsSummary? = nil
     ) {
         self.resource = resource
         self.provider = provider
@@ -827,7 +919,27 @@ public struct SessionSummary: Codable, Sendable {
         self.model = model
         self.agent = agent
         self.workingDirectory = workingDirectory
-        self.changesets = changesets
+        self.changes = changes
+        self.annotations = annotations
+    }
+}
+
+public struct ChangesSummary: Codable, Sendable {
+    /// Total number of inserted lines across all changed files.
+    public var additions: Int?
+    /// Total number of deleted lines across all changed files.
+    public var deletions: Int?
+    /// Number of files that have changes.
+    public var files: Int?
+
+    public init(
+        additions: Int? = nil,
+        deletions: Int? = nil,
+        files: Int? = nil
+    ) {
+        self.additions = additions
+        self.deletions = deletions
+        self.files = files
     }
 }
 
@@ -867,7 +979,7 @@ public struct Turn: Codable, Sendable {
     /// The message that initiated the turn
     public var message: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
-    /// 
+    ///
     /// Consumers should derive display text by concatenating markdown parts,
     /// and find tool calls by filtering for `ToolCall` parts.
     public var responseParts: [ResponsePart]
@@ -901,7 +1013,7 @@ public struct ActiveTurn: Codable, Sendable {
     /// The message that initiated the turn
     public var message: Message
     /// All response content in stream order: text, tool calls, reasoning, and content refs.
-    /// 
+    ///
     /// Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
     public var responseParts: [ResponsePart]
     /// Token usage info
@@ -928,7 +1040,7 @@ public struct Message: Codable, Sendable {
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
     /// Additional provider-specific metadata for this message.
-    /// 
+    ///
     /// Clients MAY look for well-known keys here to provide enhanced UI, and
     /// agent hosts MAY use it to carry context that does not fit any other
     /// field. Mirrors the MCP `_meta` convention.
@@ -1343,18 +1455,18 @@ public struct SimpleMessageAttachment: Codable, Sendable {
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
     /// values include:
-    /// 
+    ///
     /// - `'image'`: the attachment is an image
     /// - `'document'`: the attachment is a textual document
     /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
     /// - `'directory'`: the attachment is a folder
     /// - `'selection'`: the attachment is a selection within a document
-    /// 
+    ///
     /// Implementations MAY provide additional values; clients SHOULD fall back
     /// to a reasonable default when an unknown value is encountered.
     public var displayKind: String?
     /// Additional implementation-defined metadata for the attachment.
-    /// 
+    ///
     /// If the attachment was produced by the `completions` command, the client
     /// MUST preserve every property of `_meta` originally returned by the agent
     /// host when sending the user message containing the accepted completion.
@@ -1362,7 +1474,7 @@ public struct SimpleMessageAttachment: Codable, Sendable {
     /// Discriminant
     public var type: MessageAttachmentKind
     /// Representation of the attachment as it should be shown to the model.
-    /// 
+    ///
     /// If the attachment was produced by the client, this property MUST be
     /// defined so the agent host can correctly interpret the attachment. This
     /// property MAY be omitted when the attachment originated from a
@@ -1404,18 +1516,18 @@ public struct MessageEmbeddedResourceAttachment: Codable, Sendable {
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
     /// values include:
-    /// 
+    ///
     /// - `'image'`: the attachment is an image
     /// - `'document'`: the attachment is a textual document
     /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
     /// - `'directory'`: the attachment is a folder
     /// - `'selection'`: the attachment is a selection within a document
-    /// 
+    ///
     /// Implementations MAY provide additional values; clients SHOULD fall back
     /// to a reasonable default when an unknown value is encountered.
     public var displayKind: String?
     /// Additional implementation-defined metadata for the attachment.
-    /// 
+    ///
     /// If the attachment was produced by the `completions` command, the client
     /// MUST preserve every property of `_meta` originally returned by the agent
     /// host when sending the user message containing the accepted completion.
@@ -1427,7 +1539,7 @@ public struct MessageEmbeddedResourceAttachment: Codable, Sendable {
     /// Content MIME type (e.g. `"image/png"`, `"application/pdf"`)
     public var contentType: String
     /// Optional selection within the attached textual resource.
-    /// 
+    ///
     /// Only meaningful for textual resources.
     public var selection: TextSelection?
 
@@ -1472,18 +1584,18 @@ public struct MessageResourceAttachment: Codable, Sendable {
     public var range: TextRange?
     /// Advisory display hint for clients rendering this attachment. Recognized
     /// values include:
-    /// 
+    ///
     /// - `'image'`: the attachment is an image
     /// - `'document'`: the attachment is a textual document
     /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
     /// - `'directory'`: the attachment is a folder
     /// - `'selection'`: the attachment is a selection within a document
-    /// 
+    ///
     /// Implementations MAY provide additional values; clients SHOULD fall back
     /// to a reasonable default when an unknown value is encountered.
     public var displayKind: String?
     /// Additional implementation-defined metadata for the attachment.
-    /// 
+    ///
     /// If the attachment was produced by the `completions` command, the client
     /// MUST preserve every property of `_meta` originally returned by the agent
     /// host when sending the user message containing the accepted completion.
@@ -1497,7 +1609,7 @@ public struct MessageResourceAttachment: Codable, Sendable {
     /// Discriminant
     public var type: MessageAttachmentKind
     /// Optional selection within the referenced textual resource.
-    /// 
+    ///
     /// Only meaningful for textual resources.
     public var selection: TextSelection?
 
@@ -1533,6 +1645,69 @@ public struct MessageResourceAttachment: Codable, Sendable {
         self.contentType = contentType
         self.type = type
         self.selection = selection
+    }
+}
+
+public struct MessageAnnotationsAttachment: Codable, Sendable {
+    /// A human-readable label for the attachment (e.g. the filename of a file
+    /// attachment). Used for display in UI.
+    public var label: String
+    /// If defined, the range in {@link Message.text} that references this
+    /// attachment. This is a text range, not a byte range.
+    public var range: TextRange?
+    /// Advisory display hint for clients rendering this attachment. Recognized
+    /// values include:
+    ///
+    /// - `'image'`: the attachment is an image
+    /// - `'document'`: the attachment is a textual document
+    /// - `'symbol'`: the attachment is a code symbol (e.g. a function or class)
+    /// - `'directory'`: the attachment is a folder
+    /// - `'selection'`: the attachment is a selection within a document
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var displayKind: String?
+    /// Additional implementation-defined metadata for the attachment.
+    ///
+    /// If the attachment was produced by the `completions` command, the client
+    /// MUST preserve every property of `_meta` originally returned by the agent
+    /// host when sending the user message containing the accepted completion.
+    public var meta: [String: AnyCodable]?
+    /// Discriminant
+    public var type: MessageAttachmentKind
+    /// The annotations channel URI (typically `ahp-session:/<uuid>/annotations`).
+    /// Matches {@link AnnotationsSummary.resource}.
+    public var resource: String
+    /// Specific {@link Annotation.id | annotation ids} to reference. When
+    /// omitted, the attachment references all annotations on the channel.
+    public var annotationIds: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case label
+        case range
+        case displayKind
+        case meta = "_meta"
+        case type
+        case resource
+        case annotationIds
+    }
+
+    public init(
+        label: String,
+        range: TextRange? = nil,
+        displayKind: String? = nil,
+        meta: [String: AnyCodable]? = nil,
+        type: MessageAttachmentKind,
+        resource: String,
+        annotationIds: [String]? = nil
+    ) {
+        self.label = label
+        self.range = range
+        self.displayKind = displayKind
+        self.meta = meta
+        self.type = type
+        self.resource = resource
+        self.annotationIds = annotationIds
     }
 }
 
@@ -1652,11 +1827,11 @@ public struct ToolCallResult: Codable, Sendable {
     /// Past-tense description of what the tool did
     public var pastTenseMessage: StringOrMarkdown
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     public var content: [ToolResultContent]?
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     public var structuredContent: [String: AnyCodable]?
     /// Error details if the tool failed
@@ -1684,18 +1859,13 @@ public struct ToolCallStreamingState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     public var status: ToolCallStatus
     /// Partial parameters accumulated so far
@@ -1707,7 +1877,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case status
         case partialInput
@@ -1718,7 +1888,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         status: ToolCallStatus,
         partialInput: String? = nil,
@@ -1727,7 +1897,7 @@ public struct ToolCallStreamingState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.status = status
         self.partialInput = partialInput
@@ -1742,18 +1912,13 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1776,7 +1941,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1791,7 +1956,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1804,7 +1969,7 @@ public struct ToolCallPendingConfirmationState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1823,18 +1988,13 @@ public struct ToolCallRunningState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1846,7 +2006,7 @@ public struct ToolCallRunningState: Codable, Sendable {
     /// The confirmation option the user selected, if confirmation options were provided
     public var selectedOption: ConfirmationOption?
     /// Partial content produced while the tool is still executing.
-    /// 
+    ///
     /// For example, a terminal content block lets clients subscribe to live
     /// output before the tool completes.
     public var content: [ToolResultContent]?
@@ -1855,7 +2015,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1869,7 +2029,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1881,7 +2041,7 @@ public struct ToolCallRunningState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1899,18 +2059,13 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -1921,11 +2076,11 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
     /// Past-tense description of what the tool did
     public var pastTenseMessage: StringOrMarkdown
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     public var content: [ToolResultContent]?
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     public var structuredContent: [String: AnyCodable]?
     /// Error details if the tool failed
@@ -1940,7 +2095,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -1958,7 +2113,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -1974,7 +2129,7 @@ public struct ToolCallPendingResultConfirmationState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -1996,18 +2151,13 @@ public struct ToolCallCompletedState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -2018,11 +2168,11 @@ public struct ToolCallCompletedState: Codable, Sendable {
     /// Past-tense description of what the tool did
     public var pastTenseMessage: StringOrMarkdown
     /// Unstructured result content blocks.
-    /// 
+    ///
     /// This mirrors the `content` field of MCP `CallToolResult`.
     public var content: [ToolResultContent]?
     /// Optional structured result object.
-    /// 
+    ///
     /// This mirrors the `structuredContent` field of MCP `CallToolResult`.
     public var structuredContent: [String: AnyCodable]?
     /// Error details if the tool failed
@@ -2037,7 +2187,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -2055,7 +2205,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -2071,7 +2221,7 @@ public struct ToolCallCompletedState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -2093,18 +2243,13 @@ public struct ToolCallCancelledState: Codable, Sendable {
     public var toolName: String
     /// Human-readable tool name
     public var displayName: String
-    /// If this tool is provided by a client, the `clientId` of the owning client.
-    /// Absent for server-side tools.
-    /// 
-    /// When set, the identified client is responsible for executing the tool and
-    /// dispatching `session/toolCallComplete` with the result.
-    public var toolClientId: String?
+    /// Reference to the contributor of the tool being called.
+    public var contributor: ToolCallContributor?
     /// Additional provider-specific metadata for this tool call.
-    /// 
-    /// Clients MAY look for well-known keys here to provide enhanced UI.
-    /// For example, a `ptyTerminal` key with `{ input: string; output: string }`
-    /// indicates the tool operated on a terminal (both `input` and `output` may
-    /// contain escape sequences).
+    ///
+    /// This MAY include a `ui` field corresponding to the MCP Apps (SEP-1865)
+    /// `McpUiToolMeta` found in MCP tool calls, which may be used in combination
+    /// with the {@link contributor} to serve MCP Apps.
     public var meta: [String: AnyCodable]?
     /// Message describing what the tool will do
     public var invocationMessage: StringOrMarkdown
@@ -2124,7 +2269,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         case toolCallId
         case toolName
         case displayName
-        case toolClientId
+        case contributor
         case meta = "_meta"
         case invocationMessage
         case toolInput
@@ -2139,7 +2284,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         toolCallId: String,
         toolName: String,
         displayName: String,
-        toolClientId: String? = nil,
+        contributor: ToolCallContributor? = nil,
         meta: [String: AnyCodable]? = nil,
         invocationMessage: StringOrMarkdown,
         toolInput: String? = nil,
@@ -2152,7 +2297,7 @@ public struct ToolCallCancelledState: Codable, Sendable {
         self.toolCallId = toolCallId
         self.toolName = toolName
         self.displayName = displayName
-        self.toolClientId = toolClientId
+        self.contributor = contributor
         self.meta = meta
         self.invocationMessage = invocationMessage
         self.toolInput = toolInput
@@ -2172,7 +2317,7 @@ public struct ConfirmationOption: Codable, Sendable {
     /// Whether this option represents an approval or denial
     public var kind: ConfirmationOptionKind
     /// Logical group number for visual categorisation.
-    /// 
+    ///
     /// Clients SHOULD display options in the order they are defined and MAY
     /// use differing group numbers to insert dividers between logical clusters
     /// of options.
@@ -2199,18 +2344,18 @@ public struct ToolDefinition: Codable, Sendable {
     /// Description of what the tool does
     public var description: String?
     /// JSON Schema defining the expected input parameters.
-    /// 
+    ///
     /// Optional because client-provided tools may not have formal schemas.
     /// Mirrors MCP `Tool.inputSchema`.
     public var inputSchema: AnyCodable?
     /// JSON Schema defining the structure of the tool's output.
-    /// 
+    ///
     /// Mirrors MCP `Tool.outputSchema`.
     public var outputSchema: AnyCodable?
     /// Behavioral hints about the tool. All properties are advisory.
     public var annotations: ToolAnnotations?
     /// Additional provider-specific metadata.
-    /// 
+    ///
     /// Mirrors the MCP `_meta` convention.
     public var meta: [String: AnyCodable]?
 
@@ -2445,7 +2590,7 @@ public struct PluginCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2469,7 +2614,7 @@ public struct PluginCustomization: Codable, Sendable {
     /// a load state for this container.
     public var load: CustomizationLoadState?
     /// Children discovered inside this container.
-    /// 
+    ///
     /// Absent means the host has not parsed this container yet. An empty
     /// array means the host parsed the container and it contributes
     /// nothing.
@@ -2508,7 +2653,7 @@ public struct ClientPluginCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2532,7 +2677,7 @@ public struct ClientPluginCustomization: Codable, Sendable {
     /// a load state for this container.
     public var load: CustomizationLoadState?
     /// Children discovered inside this container.
-    /// 
+    ///
     /// Absent means the host has not parsed this container yet. An empty
     /// array means the host parsed the container and it contributes
     /// nothing.
@@ -2575,7 +2720,7 @@ public struct DirectoryCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2599,7 +2744,7 @@ public struct DirectoryCustomization: Codable, Sendable {
     /// a load state for this container.
     public var load: CustomizationLoadState?
     /// Children discovered inside this container.
-    /// 
+    ///
     /// Absent means the host has not parsed this container yet. An empty
     /// array means the host parsed the container and it contributes
     /// nothing.
@@ -2646,7 +2791,7 @@ public struct AgentCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2666,7 +2811,7 @@ public struct AgentCustomization: Codable, Sendable {
     /// invoke it. Sourced from the agent file's frontmatter `description`.
     public var description: String?
     /// Additional provider-specific metadata for this custom agent.
-    /// 
+    ///
     /// Mirrors the MCP `_meta` convention.
     public var meta: [String: AnyCodable]?
 
@@ -2709,7 +2854,7 @@ public struct SkillCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2761,7 +2906,7 @@ public struct PromptCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2806,7 +2951,7 @@ public struct RuleCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2862,7 +3007,7 @@ public struct HookCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2903,7 +3048,7 @@ public struct McpServerCustomization: Codable, Sendable {
     public var id: String
     /// Source URI for this customization. A plugin URL, a file URI, or a
     /// directory URI.
-    /// 
+    ///
     /// For declarations that live inside a larger file — e.g. an MCP
     /// server declared inline in a `plugins.json` manifest — `uri` points
     /// to the containing file and {@link CustomizationBase.range | `range`}
@@ -2919,6 +3064,29 @@ public struct McpServerCustomization: Codable, Sendable {
     /// Absent when the customization covers the whole resource.
     public var range: TextRange?
     public var type: CustomizationType
+    /// Whether this MCP server is currently enabled.
+    public var enabled: Bool
+    /// Current lifecycle state of the MCP server.
+    public var state: McpServerState
+    /// An `mcp://`-protocol channel the client uses to side-channel traffic
+    /// into the upstream MCP server itself. The channel is NOT a fresh raw MCP
+    /// connection: it piggybacks on the AHP transport
+    /// and skips the MCP `initialize` sequence.
+    ///
+    /// The agent host MAY only serve a subset of MCP on this
+    /// channel; the served subset is described by domain-specific
+    /// capabilities such as those in
+    /// {@link McpServerCustomizationApps.capabilities}.
+    ///
+    /// The channel URI SHOULD be stable across the server's lifetime, but
+    /// the agent host MAY change it (for example across a restart) and
+    /// MAY only expose it while the server is in
+    /// {@link McpServerStatus.Ready | `Ready`}. Absence means no
+    /// side-channel is currently available.
+    public var channel: String?
+    /// MCP App support. This property SHOULD be advertised for MCP servers
+    /// which support apps.
+    public var mcpApp: McpServerCustomizationApps?
 
     public init(
         id: String,
@@ -2926,7 +3094,11 @@ public struct McpServerCustomization: Codable, Sendable {
         name: String,
         icons: [Icon]? = nil,
         range: TextRange? = nil,
-        type: CustomizationType
+        type: CustomizationType,
+        enabled: Bool,
+        state: McpServerState,
+        channel: String? = nil,
+        mcpApp: McpServerCustomizationApps? = nil
     ) {
         self.id = id
         self.uri = uri
@@ -2934,6 +3106,157 @@ public struct McpServerCustomization: Codable, Sendable {
         self.icons = icons
         self.range = range
         self.type = type
+        self.enabled = enabled
+        self.state = state
+        self.channel = channel
+        self.mcpApp = mcpApp
+    }
+}
+
+public struct McpServerCustomizationApps: Codable, Sendable {
+    /// The subset of MCP App
+    /// [`HostCapabilities`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx)
+    /// the AHP host can satisfy for Views backed by this server. The
+    /// client feeds these straight through into the `hostCapabilities` of
+    /// the `ui/initialize` response delivered to the View.
+    public var capabilities: AhpMcpUiHostCapabilities
+
+    public init(
+        capabilities: AhpMcpUiHostCapabilities
+    ) {
+        self.capabilities = capabilities
+    }
+}
+
+public struct AhpMcpUiHostCapabilities: Codable, Sendable {
+    /// Producer proxies the MCP `tools/*` methods to the upstream server.
+    public var serverTools: AnyCodable?
+    /// Producer proxies the MCP `resources/*` methods to the upstream server.
+    public var serverResources: AnyCodable?
+    /// Producer accepts `notifications/message` log entries from the App via `mcpNotification`.
+    public var logging: [String: AnyCodable]?
+    /// Producer serves `sampling/createMessage` via `mcpMethodCall`.
+    public var sampling: AnyCodable?
+
+    public init(
+        serverTools: AnyCodable? = nil,
+        serverResources: AnyCodable? = nil,
+        logging: [String: AnyCodable]? = nil,
+        sampling: AnyCodable? = nil
+    ) {
+        self.serverTools = serverTools
+        self.serverResources = serverResources
+        self.logging = logging
+        self.sampling = sampling
+    }
+}
+
+public struct McpServerStartingState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct McpServerReadyState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct McpServerAuthRequiredState: Codable, Sendable {
+    public var kind: McpServerStatus
+    /// Why authentication is required.
+    public var reason: McpAuthRequiredReason
+    /// RFC 9728 Protected Resource Metadata. The `resource` field is the
+    /// canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+    /// indicator. `authorization_servers` is REQUIRED by the MCP
+    /// authorization spec.
+    public var resource: ProtectedResourceMetadata
+    /// Scopes required for the current challenge, parsed from the
+    /// `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+    /// fallback). Authoritative for the next authorization request — clients
+    /// MUST NOT assume any subset/superset relationship to
+    /// `resource.scopes_supported`.
+    public var requiredScopes: [String]?
+    /// Human-readable hint, typically from the OAuth `error_description`.
+    public var description: String?
+
+    public init(
+        kind: McpServerStatus,
+        reason: McpAuthRequiredReason,
+        resource: ProtectedResourceMetadata,
+        requiredScopes: [String]? = nil,
+        description: String? = nil
+    ) {
+        self.kind = kind
+        self.reason = reason
+        self.resource = resource
+        self.requiredScopes = requiredScopes
+        self.description = description
+    }
+}
+
+public struct McpServerErrorState: Codable, Sendable {
+    public var kind: McpServerStatus
+    /// Error details.
+    public var error: ErrorInfo
+
+    public init(
+        kind: McpServerStatus,
+        error: ErrorInfo
+    ) {
+        self.kind = kind
+        self.error = error
+    }
+}
+
+public struct McpServerStoppedState: Codable, Sendable {
+    public var kind: McpServerStatus
+
+    public init(
+        kind: McpServerStatus
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct ToolCallClientContributor: Codable, Sendable {
+    public var kind: ToolCallContributorKind
+    /// If this tool is provided by a client, the `clientId` of the owning client.
+    /// Absent for server-side tools.
+    ///
+    /// When set, the identified client is responsible for executing the tool and
+    /// dispatching `session/toolCallComplete` with the result.
+    public var clientId: String
+
+    public init(
+        kind: ToolCallContributorKind,
+        clientId: String
+    ) {
+        self.kind = kind
+        self.clientId = clientId
+    }
+}
+
+public struct ToolCallMcpContributor: Codable, Sendable {
+    public var kind: ToolCallContributorKind
+    /// Customization ID of the corresponding MCP server in {@link SessionState.customizations}.
+    public var customizationId: String
+
+    public init(
+        kind: ToolCallContributorKind,
+        customizationId: String
+    ) {
+        self.kind = kind
+        self.customizationId = customizationId
     }
 }
 
@@ -3027,10 +3350,10 @@ public struct TerminalState: Codable, Sendable {
     /// Terminal height in rows
     public var rows: Int?
     /// Typed content parts, replacing the flat `content: string`.
-    /// 
+    ///
     /// Naive consumers that only need the raw VT stream can reconstruct it with:
     /// `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
-    /// 
+    ///
     /// Consumers that need command boundaries can filter by part type.
     public var content: [TerminalContentPart]
     /// Process exit code, set when the terminal process exits
@@ -3039,7 +3362,7 @@ public struct TerminalState: Codable, Sendable {
     public var claim: TerminalClaim
     /// Whether this terminal emits `terminal/commandExecuted` and
     /// `terminal/commandFinished` actions and populates `command`-typed parts.
-    /// 
+    ///
     /// Clients MUST check this flag before relying on command detection.
     /// Do NOT use the presence of a `command` part as a feature flag — parts
     /// are absent in the normal idle state.
@@ -3194,48 +3517,56 @@ public struct Snapshot: Codable, Sendable {
     }
 }
 
-public struct ChangesetSummary: Codable, Sendable {
+public struct Changeset: Codable, Sendable {
     /// Human-readable label, e.g. `"Uncommitted Changes"`.
     public var label: String
     /// RFC 6570 URI template. Clients parse the variables directly out of the
     /// template using the standard `{name}` syntax — they are not redeclared
     /// here.
-    /// 
+    ///
     /// Only the following template shapes are defined by this protocol; any
     /// other variable name MUST be ignored by clients (there is no
     /// protocol-defined way to obtain values for unknown variables):
-    /// 
+    ///
     /// | Variables in template                       | Meaning                                                                              |
     /// | ------------------------------------------- | ------------------------------------------------------------------------------------ |
     /// | _(none)_                                    | A static, session-wide changeset. The template is itself a subscribable URI.         |
     /// | `{turnId}`                                  | Per-turn slice. Expand with a `Turn.id` from the session.                            |
     /// | `{originalTurnId}` and `{modifiedTurnId}`   | Diff between two turns. Both variables MUST be present.                              |
-    /// 
+    ///
     /// Future protocol versions MAY add new well-known variables.
     public var uriTemplate: String
     /// Optional longer description.
     public var description: String?
-    /// Aggregate line additions across the changeset, when known.
-    public var additions: Int?
-    /// Aggregate line deletions across the changeset, when known.
-    public var deletions: Int?
-    /// Number of files in the changeset, when known.
-    public var files: Int?
+    /// Advisory hint describing what kind of changeset this is, so clients can
+    /// group, sort, or render an appropriate icon without parsing
+    /// {@link uriTemplate}. Recognized values include:
+    ///
+    /// - `'session'`: a static, session-wide changeset covering all changes the
+    /// agent has produced in this session.
+    /// - `'branch'`: changes relative to a base branch (e.g. a feature branch
+    /// diffed against `main`).
+    /// - `'uncommitted'`: the workspace's current uncommitted changes.
+    /// - `'turn'`: changes produced by a single turn. Typically paired with a
+    /// `{turnId}` variable in {@link uriTemplate}.
+    /// - `'compare-turns'`: a diff between two turns. Typically paired with
+    /// `{originalTurnId}` and `{modifiedTurnId}` variables in
+    /// {@link uriTemplate}.
+    ///
+    /// Implementations MAY provide additional values; clients SHOULD fall back
+    /// to a reasonable default when an unknown value is encountered.
+    public var changeKind: String
 
     public init(
         label: String,
         uriTemplate: String,
         description: String? = nil,
-        additions: Int? = nil,
-        deletions: Int? = nil,
-        files: Int? = nil
+        changeKind: String
     ) {
         self.label = label
         self.uriTemplate = uriTemplate
         self.description = description
-        self.additions = additions
-        self.deletions = deletions
-        self.files = files
+        self.changeKind = changeKind
     }
 }
 
@@ -3314,7 +3645,7 @@ public struct ChangesetOperation: Codable, Sendable {
     /// is in flight, {@link ChangesetOperationStatus.Error | Error} when the
     /// most recent invocation failed, and
     /// {@link ChangesetOperationStatus.Idle | Idle} otherwise.
-    /// 
+    ///
     /// Clients SHOULD reflect this state in the UI — e.g. disabling the
     /// control or showing a spinner while `Running`, and surfacing
     /// {@link error} while `Error`.
@@ -3344,23 +3675,139 @@ public struct ChangesetOperation: Codable, Sendable {
     }
 }
 
+public struct AnnotationsSummary: Codable, Sendable {
+    /// The subscribable annotations channel URI for the owning session
+    /// (typically `ahp-session:/<uuid>/annotations`). Surfaced explicitly even
+    /// though it is derivable from the session URI so badge UI does not need
+    /// to know the derivation rule.
+    public var resource: String
+    /// Total number of {@link Annotation} entries in the channel.
+    public var annotationCount: Int
+    /// Total number of {@link AnnotationEntry} entries across every annotation.
+    public var entryCount: Int
+
+    public init(
+        resource: String,
+        annotationCount: Int,
+        entryCount: Int
+    ) {
+        self.resource = resource
+        self.annotationCount = annotationCount
+        self.entryCount = entryCount
+    }
+}
+
+public struct AnnotationsState: Codable, Sendable {
+    /// Annotations in this channel, keyed by {@link Annotation.id}.
+    public var annotations: [Annotation]
+
+    public init(
+        annotations: [Annotation]
+    ) {
+        self.annotations = annotations
+    }
+}
+
+public struct Annotation: Codable, Sendable {
+    /// Stable identifier within the annotations channel. Assigned by the client
+    /// that dispatches the creating {@link AnnotationsSetAction}.
+    public var id: String
+    /// Turn that produced the file versions this annotation is anchored to.
+    /// Matches a {@link Turn.id} on the owning session.
+    public var turnId: String
+    /// The file the annotation is anchored to.
+    public var resource: String
+    /// Range within {@link resource} the annotation is anchored to. When
+    /// omitted the annotation is anchored to the entire file.
+    public var range: TextRange?
+    /// Whether the annotation has been resolved. Newly created annotations are
+    /// always unresolved (`false`); a client marks an annotation resolved (or
+    /// re-opens it) by dispatching an {@link AnnotationsSetAction} carrying the
+    /// updated flag.
+    public var resolved: Bool
+    /// Entries in this annotation, in dispatch order (oldest first). MUST
+    /// contain at least one entry.
+    public var entries: [AnnotationEntry]
+    /// Producer-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case turnId
+        case resource
+        case range
+        case resolved
+        case entries
+        case meta = "_meta"
+    }
+
+    public init(
+        id: String,
+        turnId: String,
+        resource: String,
+        range: TextRange? = nil,
+        resolved: Bool,
+        entries: [AnnotationEntry],
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.turnId = turnId
+        self.resource = resource
+        self.range = range
+        self.resolved = resolved
+        self.entries = entries
+        self.meta = meta
+    }
+}
+
+public struct AnnotationEntry: Codable, Sendable {
+    /// Stable identifier within the enclosing annotation. Assigned by the client
+    /// that dispatches the {@link AnnotationsEntrySetAction} (or the enclosing
+    /// {@link AnnotationsSetAction}) introducing the entry.
+    public var id: String
+    /// Entry body. A bare `string` is rendered as plain text; pass
+    /// `{ markdown: "…" }` to opt into Markdown rendering. See
+    /// {@link StringOrMarkdown}.
+    public var text: StringOrMarkdown
+    /// Producer-defined opaque metadata, surfaced to tooling but not
+    /// interpreted by the protocol.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case text
+        case meta = "_meta"
+    }
+
+    public init(
+        id: String,
+        text: StringOrMarkdown,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.text = text
+        self.meta = meta
+    }
+}
+
 public struct TelemetryCapabilities: Codable, Sendable {
     /// Channel URI (or RFC 6570 URI template) for OTLP log records
     /// (`otlp/exportLogs` notifications).
-    /// 
+    ///
     /// The following template variables are defined by this protocol; any
     /// other variable name MUST be ignored by clients (there is no
     /// protocol-defined way to obtain values for unknown variables):
-    /// 
+    ///
     /// | Variables in template | Meaning                                                                                                 |
     /// | --------------------- | ------------------------------------------------------------------------------------------------------- |
     /// | _(none)_              | The host does not support subscriber-side severity filtering. The template is itself a subscribable URI. |
     /// | `{level}`             | Minimum OTLP severity to deliver. Expand to one of the [OTLP `SeverityNumber`](https://opentelemetry.io/docs/specs/otel/logs/data-model/#field-severitynumber) short names (case-insensitive): `trace`, `debug`, `info`, `warn`, `error`, `fatal`. The server delivers log records whose `severityNumber` falls in the corresponding band or above. |
-    /// 
+    ///
     /// Hosts SHOULD honour the expanded `{level}`; clients MUST still filter
     /// defensively in case a host ignores the parameter. Hosts that do not
     /// advertise `{level}` deliver all severities.
-    /// 
+    ///
     /// Future protocol versions MAY add new well-known variables (e.g. scope
     /// or attribute filters).
     public var logs: String?
@@ -3697,6 +4144,7 @@ public enum MessageAttachment: Codable, Sendable {
     case simple(SimpleMessageAttachment)
     case embeddedResource(MessageEmbeddedResourceAttachment)
     case resource(MessageResourceAttachment)
+    case annotations(MessageAnnotationsAttachment)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "type"
@@ -3712,6 +4160,8 @@ public enum MessageAttachment: Codable, Sendable {
             self = .embeddedResource(try MessageEmbeddedResourceAttachment(from: decoder))
         case "resource":
             self = .resource(try MessageResourceAttachment(from: decoder))
+        case "annotations":
+            self = .annotations(try MessageAnnotationsAttachment(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown MessageAttachment discriminant: \(discriminant)")
         }
@@ -3722,6 +4172,7 @@ public enum MessageAttachment: Codable, Sendable {
         case .simple(let value): try value.encode(to: encoder)
         case .embeddedResource(let value): try value.encode(to: encoder)
         case .resource(let value): try value.encode(to: encoder)
+        case .annotations(let value): try value.encode(to: encoder)
         }
     }
 }
@@ -3729,6 +4180,7 @@ public enum MessageAttachment: Codable, Sendable {
 public enum Customization: Codable, Sendable {
     case plugin(PluginCustomization)
     case directory(DirectoryCustomization)
+    case mcpServer(McpServerCustomization)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "type"
@@ -3742,6 +4194,8 @@ public enum Customization: Codable, Sendable {
             self = .plugin(try PluginCustomization(from: decoder))
         case "directory":
             self = .directory(try DirectoryCustomization(from: decoder))
+        case "mcpServer":
+            self = .mcpServer(try McpServerCustomization(from: decoder))
         default:
             throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown Customization discriminant: \(discriminant)")
         }
@@ -3751,6 +4205,7 @@ public enum Customization: Codable, Sendable {
         switch self {
         case .plugin(let value): try value.encode(to: encoder)
         case .directory(let value): try value.encode(to: encoder)
+        case .mcpServer(let value): try value.encode(to: encoder)
         }
     }
 }
@@ -3837,6 +4292,76 @@ public enum CustomizationLoadState: Codable, Sendable {
     }
 }
 
+public enum McpServerState: Codable, Sendable {
+    case starting(McpServerStartingState)
+    case ready(McpServerReadyState)
+    case authRequired(McpServerAuthRequiredState)
+    case error(McpServerErrorState)
+    case stopped(McpServerStoppedState)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "starting":
+            self = .starting(try McpServerStartingState(from: decoder))
+        case "ready":
+            self = .ready(try McpServerReadyState(from: decoder))
+        case "authRequired":
+            self = .authRequired(try McpServerAuthRequiredState(from: decoder))
+        case "error":
+            self = .error(try McpServerErrorState(from: decoder))
+        case "stopped":
+            self = .stopped(try McpServerStoppedState(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown McpServerState discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .starting(let value): try value.encode(to: encoder)
+        case .ready(let value): try value.encode(to: encoder)
+        case .authRequired(let value): try value.encode(to: encoder)
+        case .error(let value): try value.encode(to: encoder)
+        case .stopped(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum ToolCallContributor: Codable, Sendable {
+    case client(ToolCallClientContributor)
+    case mcp(ToolCallMcpContributor)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "client":
+            self = .client(try ToolCallClientContributor(from: decoder))
+        case "mcp":
+            self = .mcp(try ToolCallMcpContributor(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ToolCallContributor discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .client(let value): try value.encode(to: encoder)
+        case .mcp(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
 public enum ToolResultContent: Codable, Sendable {
     case text(ToolResultTextContent)
     case embeddedResource(ToolResultEmbeddedResourceContent)
@@ -3891,12 +4416,13 @@ public enum ToolResultContent: Codable, Sendable {
     }
 }
 
-/// The state payload of a snapshot — root, session, terminal, or changeset state.
+/// The state payload of a snapshot — root, session, terminal, changeset, or annotations state.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
     case terminal(TerminalState)
     case changeset(ChangesetState)
+    case annotations(AnnotationsState)
 
     public init(from decoder: Decoder) throws {
         // SessionState has required `summary` field, try it first
@@ -3906,6 +4432,8 @@ public enum SnapshotState: Codable, Sendable {
             self = .terminal(terminal)
         } else if let changeset = try? ChangesetState(from: decoder) {
             self = .changeset(changeset)
+        } else if let annotations = try? AnnotationsState(from: decoder) {
+            self = .annotations(annotations)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -3917,6 +4445,7 @@ public enum SnapshotState: Codable, Sendable {
         case .session(let state): try state.encode(to: encoder)
         case .terminal(let state): try state.encode(to: encoder)
         case .changeset(let state): try state.encode(to: encoder)
+        case .annotations(let state): try state.encode(to: encoder)
         }
     }
 }

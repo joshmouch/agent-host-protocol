@@ -72,9 +72,9 @@ enum class ResourceType {
 
 /**
  * How {@link ResourceWriteParams.data} is placed within the target file.
- * 
+ *
  * Each mode interprets {@link ResourceWriteParams.position} differently:
- * 
+ *
  * - `truncate` (default): rooted at the **start** of the file. The file is
  * truncated at `position` (0 by default) and `data` is written from that
  * offset, so the resulting file is `existing[0..position] + data`. With
@@ -113,7 +113,7 @@ data class InitializeParams(
      * Protocol versions the client is willing to speak, ordered from most
      * preferred to least preferred. Each entry is a [SemVer](https://semver.org)
      * `MAJOR.MINOR.PATCH` string (e.g. `"0.1.0"`).
-     * 
+     *
      * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
      * If the server cannot speak any of the offered versions, it MUST return
      * error code `-32005` (`UnsupportedProtocolVersion`).
@@ -132,7 +132,15 @@ data class InitializeParams(
      * (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
      * user-facing strings such as confirmation option labels.
      */
-    val locale: String? = null
+    val locale: String? = null,
+    /**
+     * Optional client capability declarations.
+     *
+     * Servers SHOULD only advertise features whose corresponding client
+     * capability is set here. Absent means "not declared" — the server
+     * MUST assume the client does not support the feature.
+     */
+    val capabilities: ClientCapabilities? = null
 )
 
 @Serializable
@@ -170,6 +178,24 @@ data class InitializeResult(
      * filtering). Clients MAY ignore signals they cannot process.
      */
     val telemetry: TelemetryCapabilities? = null
+)
+
+@Serializable
+data class ClientCapabilities(
+    /**
+     * Client can render
+     * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
+     * it can host the View sandbox, run the `ui/​*` protocol against it,
+     * and forward `mcp://`-channel traffic on the App's behalf.
+     *
+     * Hosts SHOULD only populate
+     * {@link McpServerCustomization.mcpApp | `McpServerCustomization.mcpApp`}
+     * (and expose the corresponding
+     * {@link McpServerCustomization.channel | `mcp://` channel}) when this
+     * capability is declared. Clients that omit it MUST treat
+     * App-bearing tool calls as ordinary MCP tool calls.
+     */
+    val mcpApps: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -267,7 +293,7 @@ data class CreateSessionParams(
     val model: ModelSelection? = null,
     /**
      * Initial custom agent selection for the new session.
-     * 
+     *
      * Omit to start the session with no custom agent selected (provider default).
      */
     val agent: AgentSelection? = null,
@@ -287,7 +313,7 @@ data class CreateSessionParams(
     val config: Map<String, JsonElement>? = null,
     /**
      * Eagerly claim the active client role for the new session.
-     * 
+     *
      * When provided, the server initializes the session with this client as the
      * active client, equivalent to dispatching a `session/activeClientChanged`
      * action immediately after creation. The `clientId` MUST match the
@@ -944,9 +970,9 @@ data class CompletionItem(
      * by `insertText`. The range is the half-open interval
      * `[rangeStart, rangeEnd)` of character offsets, measured in UTF-16 code
      * units.
-     * 
+     *
      * When omitted, the client SHOULD insert `insertText` at the cursor.
-     * 
+     *
      * Note: this range refers to positions in the *current* input. The
      * attachment's own `rangeStart`/`rangeEnd` (when present) refer to
      * positions in the final {@link Message.text} after the item is
