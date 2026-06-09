@@ -29,14 +29,14 @@ type JsonRpcRequest struct {
 // JsonRpcSuccessResponse is a JSON-RPC 2.0 success response.
 type JsonRpcSuccessResponse struct {
 	JsonRpc JsonRpcVersion  `json:"jsonrpc"`
-ID      uint64          `json:"id"`
+	ID      uint64          `json:"id"`
 	Result  json.RawMessage `json:"result"`
 }
 
 // JsonRpcErrorResponse is a JSON-RPC 2.0 error response.
 type JsonRpcErrorResponse struct {
 	JsonRpc JsonRpcVersion `json:"jsonrpc"`
-ID      uint64         `json:"id"`
+	ID      uint64         `json:"id"`
 	Error   JsonRpcError   `json:"error"`
 }
 

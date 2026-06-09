@@ -77,8 +77,8 @@ type AnyValue = json.RawMessage
 // faithfully.
 type StringOrMarkdown struct {
 	// Markdown is non-nil iff the value was decoded from the
-// `{"markdown": "..."}` form.
-Markdown *string
+	// `{"markdown": "..."}` form.
+	Markdown *string
 
 	// Plain holds the value when decoded from a bare JSON string.
 	// Either Markdown or Plain (but never both) is non-nil after a

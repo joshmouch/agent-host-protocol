@@ -43,7 +43,7 @@ impl StringOrMarkdown {
     pub fn as_text(&self) -> &str {
         match self {
             Self::Plain(s) => s,
-Self::Markdown { markdown } => markdown,
+            Self::Markdown { markdown } => markdown,
         }
     }
 
