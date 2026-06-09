@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
 
 /**
  * Tests for bitset-style enums emitted as `@JvmInline value class` wrappers
- * over [Int]. These verify bitwise containment, the OR/AND combinators, and
+ * over [Long]. These verify bitwise containment, the OR/AND combinators, and
  * — most importantly — that unknown future bits survive a decode/encode
  * round-trip without being dropped.
  */

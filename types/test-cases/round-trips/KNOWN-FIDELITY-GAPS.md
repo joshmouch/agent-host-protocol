@@ -6,28 +6,23 @@ types and re-encodes; the re-encoded value must match the original (modulo
 null/empty normalization). The corpus pins forward-compatibility and exact-bit
 fidelity across the reference clients.
 
-Most fixtures round-trip cleanly on every client. The two cases below are
-genuine, documented gaps. Each client that cannot round-trip one of these
-fixtures records it in an explicit known-gap set and asserts that the set of
-fixtures it actually skips equals that declared set — so a gap that silently
-closes (or a new gap that silently opens) trips a drift tripwire in the test
-rather than passing unnoticed.
+Most fixtures round-trip cleanly on every client. The case below is a genuine,
+documented gap. Each client that cannot round-trip these fixtures records them
+in an explicit known-gap set and asserts that the set of fixtures it actually
+skips equals that declared set — so a gap that silently closes (or a new gap
+that silently opens) trips a drift tripwire in the test rather than passing
+unnoticed.
 
-## Representational gap — unknown wire keys (fixture 017)
+## Representational gap — unknown wire keys (fixtures 017 and 019)
 
-`017-unknown-wire-keys-ignored` carries extra, unmodeled keys on the wire.
+`017-unknown-wire-keys-ignored` and `019-channel-scoped-notification-uri` both
+carry extra, unmodeled keys on the wire (`unknownFutureKey`, `anotherUnknown`)
+with `expectReencodedAbsent` asserting those keys are dropped on re-encode.
 Clients with a runtime decoder model unknown keys as a passthrough and re-emit
-them verbatim. The TypeScript client has compile-time types only (no runtime
-decoder), so unknown keys it does not model cannot survive a decode→re-encode
-and are dropped. This is the one genuine type-system representational gap in the
-corpus; it is recorded with a drift tripwire and closes automatically if a
-validating/passthrough decoder is added.
-
-## Schema-invalid fixture skip (fixture 019)
-
-`019-channel-scoped-notification-uri` exercises a channel-scoped notification
-URI, but its payload is missing a schema-required field. Clients that validate
-against the schema skip this fixture explicitly rather than letting the suite's
-status depend on malformed input. The skip is recorded in each client's
-known-gap set and closes once the fixture payload is repaired to a schema-valid
-shape.
+them verbatim — they drop the key on decode, so the re-encoded output omits it
+and the assertion passes. The TypeScript client has compile-time types only (no
+runtime decoder), so unknown keys it does not model survive intact through
+`JSON.parse`→`JSON.stringify`, and the `expectReencodedAbsent` assertion fails
+for both fixtures. This is a genuine type-system representational gap; it is
+recorded with a drift tripwire and closes automatically if a validating/passthrough
+decoder is added.

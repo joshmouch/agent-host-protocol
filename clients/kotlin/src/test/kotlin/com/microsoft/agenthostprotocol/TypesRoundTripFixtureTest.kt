@@ -73,7 +73,8 @@ import kotlin.test.assertTrue
  *                               whole decoded union's active case. The .NET
  *                               concrete type name is mapped to the Kotlin
  *                               sealed-interface variant that carries the same
- *                               payload. The corpus name "JsonElement" is the
+ *                               payload. The corpus name "Unknown" is the
+ *                               language-neutral discriminator for the
  *                               forward-compat passthrough case
  *                               (`*Unknown(raw: JsonObject)`).
  *   - `expectJsonRpcVariant`  request|notification|success|error. Kotlin has no
@@ -435,7 +436,7 @@ class TypesRoundTripFixtureTest {
 
     private fun stateActionVariantName(a: StateAction): String? = when (a) {
         is StateActionSessionTitleChanged -> "SessionTitleChangedAction"
-        is StateActionUnknown -> "JsonElement" // corpus name for the passthrough case
+        is StateActionUnknown -> "Unknown" // corpus name for the passthrough case
         else -> a::class.simpleName
             ?.removePrefix("StateAction")
             ?.let { it + "Action" }
@@ -444,7 +445,7 @@ class TypesRoundTripFixtureTest {
     private fun customizationVariantName(c: Customization): String? = when (c) {
         is CustomizationPlugin -> "PluginCustomization"
         is CustomizationDirectory -> "DirectoryCustomization"
-        is CustomizationUnknown -> "JsonElement"
+        is CustomizationUnknown -> "Unknown"
         else -> null
     }
 

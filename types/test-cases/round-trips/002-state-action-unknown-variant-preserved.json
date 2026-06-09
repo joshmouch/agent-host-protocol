@@ -8,7 +8,7 @@
     "foo": 42
   },
   "expectVariant": {
-    "": "JsonElement"
+    "": "Unknown"
   },
   "reencodes": true
 }
