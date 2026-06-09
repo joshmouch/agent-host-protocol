@@ -16,7 +16,7 @@ use crate::state::{
     ChangesetOperation, ChangesetOperationStatus, ChangesetStatus, ConfirmationOption,
     Customization, ErrorInfo, McpServerState, Message, ModelSelection, PendingMessageKind,
     ResponsePart, SessionActiveClient, SessionInputAnswer, SessionInputRequest,
-    SessionInputResponseKind, TerminalClaim, TerminalInfo, ToolCallCancellationReason,
+    SessionInputResponseKind, TerminalClaim, TerminalInfo, TextRange, ToolCallCancellationReason,
     ToolCallConfirmationReason, ToolCallContributor, ToolCallResult, ToolDefinition,
     ToolResultContent, UsageInfo,
 };
