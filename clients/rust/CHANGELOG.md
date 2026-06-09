@@ -91,11 +91,21 @@ Implements AHP 0.3.0.
 
 ### Changed
 
+- **BREAKING:** `SessionStatus` is now a `u32` bitset newtype
+  (`struct SessionStatus(pub u32)` with named flag constants) instead of a
+  `#[repr(u32)]` enum. The wire form is a numeric bitset, so the enum could not
+  represent combined flags (e.g. `InProgress | IsArchived`) or preserve unknown
+  forward-compat bits. Combine flags with `|` and test with `contains(..)`.
 - `ToolCallBase.tool_client_id: Option<String>` replaced by
   `ToolCallBase.contributor: Option<ToolCallContributor>` (enum with
   `Client { client_id }` and `Mcp { customization_id }` variants).
   `SessionToolCallStartAction` carries the new `contributor` field as
   well. The reducer follows the rename.
+
+### Fixed
+
+- `SessionStatus` encode/decode fidelity: combined and unknown bitset bits now
+  round-trip exactly instead of being dropped or rejected.
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`. Bumps the `ahp-types`, `ahp`, and `ahp-ws` crates

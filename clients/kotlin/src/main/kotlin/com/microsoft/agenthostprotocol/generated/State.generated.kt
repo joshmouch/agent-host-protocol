@@ -123,7 +123,7 @@ enum class SessionLifecycle {
  */
 @Serializable(with = SessionStatusSerializer::class)
 @JvmInline
-value class SessionStatus(val rawValue: Int) {
+value class SessionStatus(val rawValue: Long) {
     operator fun contains(other: SessionStatus): Boolean =
         (rawValue and other.rawValue) == other.rawValue
 
@@ -134,38 +134,38 @@ value class SessionStatus(val rawValue: Int) {
         /**
          * Session is idle — no turn is active.
          */
-        val IDLE: SessionStatus = SessionStatus(1)
+        val IDLE: SessionStatus = SessionStatus(1L)
         /**
          * Session ended with an error.
          */
-        val ERROR: SessionStatus = SessionStatus(2)
+        val ERROR: SessionStatus = SessionStatus(2L)
         /**
          * A turn is actively streaming.
          */
-        val IN_PROGRESS: SessionStatus = SessionStatus(8)
+        val IN_PROGRESS: SessionStatus = SessionStatus(8L)
         /**
          * A turn is in progress but blocked waiting for user input or tool confirmation.
          */
-        val INPUT_NEEDED: SessionStatus = SessionStatus(24)
+        val INPUT_NEEDED: SessionStatus = SessionStatus(24L)
         /**
          * The client has viewed this session since its last modification.
          */
-        val IS_READ: SessionStatus = SessionStatus(32)
+        val IS_READ: SessionStatus = SessionStatus(32L)
         /**
          * The session has been archived by the client.
          */
-        val IS_ARCHIVED: SessionStatus = SessionStatus(64)
+        val IS_ARCHIVED: SessionStatus = SessionStatus(64L)
     }
 }
 
 internal object SessionStatusSerializer : KSerializer<SessionStatus> {
     override val descriptor: SerialDescriptor =
-        PrimitiveSerialDescriptor("SessionStatus", PrimitiveKind.INT)
+        PrimitiveSerialDescriptor("SessionStatus", PrimitiveKind.LONG)
     override fun serialize(encoder: Encoder, value: SessionStatus) {
-        encoder.encodeInt(value.rawValue)
+        encoder.encodeLong(value.rawValue)
     }
     override fun deserialize(decoder: Decoder): SessionStatus =
-        SessionStatus(decoder.decodeInt())
+        SessionStatus(decoder.decodeLong())
 }
 
 /**
