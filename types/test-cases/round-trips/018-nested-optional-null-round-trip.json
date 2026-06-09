@@ -1,0 +1,17 @@
+{
+  "name": "nested-optional-null-round-trip",
+  "description": "SessionSummary.project is an optional nested struct. A wire payload omitting it decodes with project null/absent, and a re-encode omits the `project` key entirely (JsonIgnore WhenWritingNull).",
+  "type": "SessionSummary",
+  "wire": {
+    "resource": "ahp-session:/s1",
+    "provider": "demo",
+    "title": "No project",
+    "status": 1,
+    "createdAt": 1,
+    "modifiedAt": 2
+  },
+  "expect": {
+    "title": "No project"
+  },
+  "expectReencodedAbsent": ["project"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "jsonrpc-request",
+  "description": "A JsonRpcMessage with id+method+params decodes as the request variant.",
+  "type": "JsonRpcMessage",
+  "wireRaw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{}}",
+  "expectJsonRpcVariant": "request"
+}

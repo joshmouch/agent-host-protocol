@@ -1,0 +1,18 @@
+{
+  "name": "long-above-int32-max-preserved",
+  "description": "ActionEnvelope.serverSeq is a 64-bit integer; a value above Int32.MaxValue (2147483647) round-trips without 32-bit truncation. Here serverSeq = Int32.MaxValue + 1234567 = 2148131814.",
+  "type": "ActionEnvelope",
+  "wire": {
+    "channel": "ahp-session:/s1",
+    "action": { "type": "session/titleChanged", "title": "x" },
+    "serverSeq": 2148131814,
+    "origin": null
+  },
+  "expect": {
+    "serverSeq": 2148131814
+  },
+  "expectNumberAbove": {
+    "serverSeq": 2147483647
+  },
+  "roundTripStable": true
+}

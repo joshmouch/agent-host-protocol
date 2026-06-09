@@ -1,0 +1,11 @@
+{
+  "name": "session-status-unknown-bits-preserved",
+  "description": "Unknown/forward-compat bits in the SessionStatus bitset survive a round-trip. InProgress(8)|IsArchived(64)|bit31(2147483648)=2147483720.",
+  "type": "SessionStatus",
+  "wireRaw": "2147483720",
+  "expectBitset": {
+    "has": ["InProgress", "IsArchived"],
+    "numeric": 2147483720
+  },
+  "reencodes": true
+}

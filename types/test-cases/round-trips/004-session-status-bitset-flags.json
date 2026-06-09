@@ -1,0 +1,12 @@
+{
+  "name": "session-status-bitset-flags",
+  "description": "SessionStatus is a numeric bitset on the wire. InProgress(8)|IsArchived(64)=72 decodes, the set bits are observable, and an unset bit (Idle=1) is absent.",
+  "type": "SessionStatus",
+  "wireRaw": "72",
+  "expectBitset": {
+    "has": ["InProgress", "IsArchived"],
+    "lacks": ["Idle"],
+    "numeric": 72
+  },
+  "reencodes": true
+}

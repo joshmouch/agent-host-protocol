@@ -1,0 +1,7 @@
+{
+  "name": "jsonrpc-success",
+  "description": "A JsonRpcMessage with id+result decodes as the success-response variant.",
+  "type": "JsonRpcMessage",
+  "wireRaw": "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
+  "expectJsonRpcVariant": "success"
+}

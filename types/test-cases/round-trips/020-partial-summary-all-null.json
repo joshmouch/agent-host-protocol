@@ -1,0 +1,11 @@
+{
+  "name": "partial-summary-all-null",
+  "description": "PartialSessionSummary has every field optional. An empty object decodes with every field null/absent and re-encodes back to an empty object — no exception.",
+  "type": "PartialSessionSummary",
+  "wireRaw": "{}",
+  "expectReencodedAbsent": [
+    "resource", "provider", "title", "status", "activity",
+    "createdAt", "modifiedAt", "project", "model", "agent", "workingDirectory"
+  ],
+  "reencodes": true
+}

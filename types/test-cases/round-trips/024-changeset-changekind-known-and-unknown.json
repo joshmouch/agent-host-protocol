@@ -1,0 +1,25 @@
+{
+  "name": "changeset-changekind-known-and-unknown",
+  "description": "A session/changesetsChanged action carrying two Changeset catalogue entries — one with a recognized changeKind ('session') and one with an UNKNOWN changeKind ('future-kind-xyz') — decodes and re-encodes byte-for-byte. changeKind is an open string field (clients fall back to a default for unrecognized values rather than dropping them), so the unknown variant survives the round-trip unchanged.",
+  "type": "StateAction",
+  "wire": {
+    "type": "session/changesetsChanged",
+    "changesets": [
+      {
+        "label": "Session Changes",
+        "uriTemplate": "copilot:/test-session/changeset/session",
+        "changeKind": "session"
+      },
+      {
+        "label": "Future Slice",
+        "uriTemplate": "copilot:/test-session/changeset/future",
+        "changeKind": "future-kind-xyz"
+      }
+    ]
+  },
+  "expect": {
+    "type": "session/changesetsChanged"
+  },
+  "reencodes": true,
+  "roundTripStable": true
+}
