@@ -41,6 +41,27 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
+
+        // NSNumber bridges promiscuously to Bool/Int/Double — pattern matching
+        // alone can't distinguish a Bool-backed NSNumber from an Int-backed one.
+        // Inspect objCType to dispatch faithfully to the underlying type.
+        // ('c' is also Int8's encoding, but JSONSerialization only ever produces
+        // 'c' for a Bool, so the JSON-decode path this type serves is unambiguous.)
+        if let number = value as? NSNumber, type(of: value) != Bool.self {
+            let objCType = number.objCType[0]
+            switch objCType {
+            case 0x63 /* 'c' */, 0x42 /* 'B' */:
+                try container.encode(number.boolValue)
+                return
+            case 0x66 /* 'f' */, 0x64 /* 'd' */:
+                try container.encode(number.doubleValue)
+                return
+            default:
+                try container.encode(number.int64Value)
+                return
+            }
+        }
+
         switch value {
         case is NSNull:
             try container.encodeNil()

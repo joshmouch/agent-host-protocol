@@ -92,6 +92,10 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Fixed
 
+- `AnyCodable.encode(to:)` now dispatches `NSNumber`-backed values by
+  `objCType` before the Swift pattern-match arms, preventing `Int` from being
+  corrupted to `Bool` and `Double` from being corrupted to `Int` when the
+  wrapped value originated from `JSONSerialization`.
 - Encode-fidelity: an unknown `StateAction` variant no longer re-encodes to
   `{}` (dropping its `type` discriminant and extra fields); the raw payload is
   preserved on decode and re-emitted verbatim.

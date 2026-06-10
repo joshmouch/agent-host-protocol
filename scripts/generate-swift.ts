@@ -1696,7 +1696,12 @@ function anyCodableContent(): string {
 import Foundation
 
 /// A type-erased \`Codable\` value for handling \`unknown\` and \`Record<string, unknown>\` types.
-public struct AnyCodable: Codable, Sendable, Equatable {
+///
+/// Marked \`@unchecked Sendable\` because the stored \`Any\` is only ever set to
+/// immutable, \`Sendable\`-safe types during decoding (Bool, Int, Double, String,
+/// NSNull, and recursive \`[Any]\`/\`[String: Any]\` of those). The value is \`let\`,
+/// so it cannot be mutated after initialization.
+public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
     public let value: Any
 
     public init(_ value: Any) {
@@ -1729,6 +1734,27 @@ public struct AnyCodable: Codable, Sendable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
+
+        // NSNumber bridges promiscuously to Bool/Int/Double — pattern matching
+        // alone can't distinguish a Bool-backed NSNumber from an Int-backed one.
+        // Inspect objCType to dispatch faithfully to the underlying type.
+        // ('c' is also Int8's encoding, but JSONSerialization only ever produces
+        // 'c' for a Bool, so the JSON-decode path this type serves is unambiguous.)
+        if let number = value as? NSNumber, type(of: value) != Bool.self {
+            let objCType = number.objCType[0]
+            switch objCType {
+            case 0x63 /* 'c' */, 0x42 /* 'B' */:
+                try container.encode(number.boolValue)
+                return
+            case 0x66 /* 'f' */, 0x64 /* 'd' */:
+                try container.encode(number.doubleValue)
+                return
+            default:
+                try container.encode(number.int64Value)
+                return
+            }
+        }
+
         switch value {
         case is NSNull:
             try container.encodeNil()
@@ -1765,6 +1791,15 @@ public struct AnyCodable: Codable, Sendable, Equatable {
             return lhs == rhs
         case let (lhs as String, rhs as String):
             return lhs == rhs
+        case let (lhs as [Any], rhs as [Any]):
+            guard lhs.count == rhs.count else { return false }
+            return zip(lhs, rhs).allSatisfy { AnyCodable($0) == AnyCodable($1) }
+        case let (lhs as [String: Any], rhs as [String: Any]):
+            guard lhs.count == rhs.count else { return false }
+            return lhs.allSatisfy { key, val in
+                guard let other = rhs[key] else { return false }
+                return AnyCodable(val) == AnyCodable(other)
+            }
         default:
             return false
         }
