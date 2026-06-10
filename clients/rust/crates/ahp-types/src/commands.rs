@@ -1079,12 +1079,6 @@ pub enum ChangesetOperationTarget {
         resource: Uri,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         side: Option<String>,
-        range: ChangesetOperationTargetRange,
+        range: TextRange,
     },
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChangesetOperationTargetRange {
-    pub start: i64,
-    pub end: i64,
 }

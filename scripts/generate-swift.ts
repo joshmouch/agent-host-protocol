@@ -25,6 +25,7 @@ import { readProtocolVersions } from './read-protocol-versions.js';
 
 const GENERATED_HEADER = '// Generated from types/*.ts — do not edit\n\nimport Foundation\n';
 
+
 /** PascalCase → camelCase */
 function toCamelCase(name: string): string {
   return name[0].toLowerCase() + name.slice(1);
@@ -305,8 +306,8 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
 
   if (isBitset) {
     lines.push(`public struct ${name}: OptionSet, Codable, Sendable, Hashable {`);
-    lines.push('    public let rawValue: Int');
-    lines.push('    public init(rawValue: Int) { self.rawValue = rawValue }');
+    lines.push('    public let rawValue: UInt32');
+    lines.push('    public init(rawValue: UInt32) { self.rawValue = rawValue }');
     lines.push('');
     for (const member of enumDecl.getMembers()) {
       const memberName = swiftIdentifier(toCamelCase(member.getName()));
@@ -426,6 +427,16 @@ interface UnionConfig {
   name: string;
   discriminantField: string;
   variants: UnionVariant[];
+  /**
+   * When true, an unrecognized discriminant value decodes into a raw
+   * `.unknown(AnyCodable)` passthrough case (instead of throwing) and
+   * re-encodes the preserved payload verbatim. Mirrors the .NET
+   * `UnionConverter(..., allowUnknown: true)` flag so open unions
+   * (StateAction, Customization, …) round-trip forward-compatibly.
+   * Defaults to false (closed union: throw on unknown — e.g.
+   * ChangesetOperationTarget, ReconnectResult).
+   */
+  allowUnknown?: boolean;
 }
 
 function generateDiscriminatedUnion(config: UnionConfig): string {
@@ -434,6 +445,11 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
 
   for (const v of config.variants) {
     lines.push(`    case ${v.caseName}(${v.structName})`);
+  }
+  if (config.allowUnknown) {
+    lines.push('    /// Unknown or future discriminant; the raw payload is preserved');
+    lines.push('    /// and re-encoded verbatim for forward-compatibility.');
+    lines.push('    case unknown(AnyCodable)');
   }
 
   lines.push('');
@@ -452,7 +468,11 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     lines.push(`            self = .${v.caseName}(try ${v.structName}(from: decoder))`);
   }
   lines.push('        default:');
-  lines.push(`            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ${config.name} discriminant: \\(discriminant)")`);
+  if (config.allowUnknown) {
+    lines.push('            self = .unknown(try AnyCodable(from: decoder))');
+  } else {
+    lines.push(`            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ${config.name} discriminant: \\(discriminant)")`);
+  }
   lines.push('        }');
   lines.push('    }');
 
@@ -462,6 +482,9 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   lines.push('        switch self {');
   for (const v of config.variants) {
     lines.push(`        case .${v.caseName}(let value): try value.encode(to: encoder)`);
+  }
+  if (config.allowUnknown) {
+    lines.push('        case .unknown(let value): try value.encode(to: encoder)');
   }
   lines.push('        }');
   lines.push('    }');
@@ -566,6 +589,11 @@ const STATE_STRUCTS = [
 const RESPONSE_PART_UNION: UnionConfig = {
   name: 'ResponsePart',
   discriminantField: 'kind',
+  // Open union: an unrecognized `kind` (e.g. a future protocol part type) is
+  // preserved as a raw AnyCodable passthrough and re-encoded verbatim so that
+  // snapshot decode and round-trip both succeed and delta reducers that target
+  // other parts (by id) still work correctly. Mirrors .NET allowUnknown.
+  allowUnknown: true,
   variants: [
     { caseName: 'markdown', structName: 'MarkdownResponsePart', discriminantValue: 'markdown' },
     { caseName: 'contentRef', structName: 'ResourceReponsePart', discriminantValue: 'contentRef' },
@@ -578,6 +606,9 @@ const RESPONSE_PART_UNION: UnionConfig = {
 const TOOL_CALL_STATE_UNION: UnionConfig = {
   name: 'ToolCallState',
   discriminantField: 'status',
+  // Open union: a future protocol version may add new tool call statuses.
+  // Preserve unknown discriminants verbatim for round-trip fidelity.
+  allowUnknown: true,
   variants: [
     { caseName: 'streaming', structName: 'ToolCallStreamingState', discriminantValue: 'streaming' },
     { caseName: 'pendingConfirmation', structName: 'ToolCallPendingConfirmationState', discriminantValue: 'pending-confirmation' },
@@ -591,6 +622,8 @@ const TOOL_CALL_STATE_UNION: UnionConfig = {
 const TERMINAL_CLAIM_UNION: UnionConfig = {
   name: 'TerminalClaim',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new terminal claim kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'client', structName: 'TerminalClientClaim', discriminantValue: 'client' },
     { caseName: 'session', structName: 'TerminalSessionClaim', discriminantValue: 'session' },
@@ -600,6 +633,8 @@ const TERMINAL_CLAIM_UNION: UnionConfig = {
 const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
   name: 'TerminalContentPart',
   discriminantField: 'type',
+  // Open union: future protocol versions may add new terminal content types.
+  allowUnknown: true,
   variants: [
     { caseName: 'unclassified', structName: 'TerminalUnclassifiedPart', discriminantValue: 'unclassified' },
     { caseName: 'command', structName: 'TerminalCommandPart', discriminantValue: 'command' },
@@ -609,6 +644,8 @@ const TERMINAL_CONTENT_PART_UNION: UnionConfig = {
 const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
   name: 'SessionInputQuestion',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new question kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'text', structName: 'SessionInputTextQuestion', discriminantValue: 'text' },
     { caseName: 'number', structName: 'SessionInputNumberQuestion', discriminantValue: 'number' },
@@ -622,6 +659,8 @@ const SESSION_INPUT_QUESTION_UNION: UnionConfig = {
 const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
   name: 'SessionInputAnswerValue',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new answer value kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'text', structName: 'SessionInputTextAnswerValue', discriminantValue: 'text' },
     { caseName: 'number', structName: 'SessionInputNumberAnswerValue', discriminantValue: 'number' },
@@ -634,6 +673,8 @@ const SESSION_INPUT_ANSWER_VALUE_UNION: UnionConfig = {
 const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
   name: 'SessionInputAnswer',
   discriminantField: 'state',
+  // Open union: future protocol versions may add new answer states.
+  allowUnknown: true,
   variants: [
     { caseName: 'draft', structName: 'SessionInputAnswered', discriminantValue: 'draft' },
     { caseName: 'submitted', structName: 'SessionInputAnswered', discriminantValue: 'submitted' },
@@ -644,6 +685,8 @@ const SESSION_INPUT_ANSWER_UNION: UnionConfig = {
 const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
   name: 'MessageAttachment',
   discriminantField: 'type',
+  // Open union: future protocol versions may add new attachment types.
+  allowUnknown: true,
   variants: [
     { caseName: 'simple', structName: 'SimpleMessageAttachment', discriminantValue: 'simple' },
     { caseName: 'embeddedResource', structName: 'MessageEmbeddedResourceAttachment', discriminantValue: 'embeddedResource' },
@@ -655,6 +698,10 @@ const MESSAGE_ATTACHMENT_UNION: UnionConfig = {
 const CUSTOMIZATION_UNION: UnionConfig = {
   name: 'Customization',
   discriminantField: 'type',
+  // Open union: mirrors .NET CustomizationConverter(allowUnknown: true)
+  // (State.generated.cs). An unrecognized `type` is preserved as a raw
+  // AnyCodable passthrough and re-encoded verbatim, not thrown.
+  allowUnknown: true,
   variants: [
     { caseName: 'plugin', structName: 'PluginCustomization', discriminantValue: 'plugin' },
     { caseName: 'directory', structName: 'DirectoryCustomization', discriminantValue: 'directory' },
@@ -665,6 +712,10 @@ const CUSTOMIZATION_UNION: UnionConfig = {
 const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
   name: 'ChildCustomization',
   discriminantField: 'type',
+  // Open union: mirrors CUSTOMIZATION_UNION's allowUnknown policy. Future
+  // protocol versions may add new child customization types (e.g. new plugin
+  // child kinds). An unrecognized type is preserved verbatim.
+  allowUnknown: true,
   variants: [
     { caseName: 'agent', structName: 'AgentCustomization', discriminantValue: 'agent' },
     { caseName: 'skill', structName: 'SkillCustomization', discriminantValue: 'skill' },
@@ -678,6 +729,8 @@ const CHILD_CUSTOMIZATION_UNION: UnionConfig = {
 const CUSTOMIZATION_LOAD_STATE_UNION: UnionConfig = {
   name: 'CustomizationLoadState',
   discriminantField: 'kind',
+  // Open union: future protocol versions may add new load state kinds.
+  allowUnknown: true,
   variants: [
     { caseName: 'loading', structName: 'CustomizationLoadingState', discriminantValue: 'loading' },
     { caseName: 'loaded', structName: 'CustomizationLoadedState', discriminantValue: 'loaded' },
@@ -715,6 +768,9 @@ function generateToolResultContentUnion(): string {
     case fileEdit(ToolResultFileEditContent)
     case terminal(ToolResultTerminalContent)
     case subagent(ToolResultSubagentContent)
+    /// Unknown or future tool result content type; the raw payload is preserved
+    /// and re-encoded verbatim for forward-compatibility.
+    case unknown(AnyCodable)
 
     private enum Keys: String, CodingKey {
         case type
@@ -737,10 +793,7 @@ function generateToolResultContentUnion(): string {
             case "subagent":
                 self = .subagent(try ToolResultSubagentContent(from: decoder))
             default:
-                throw DecodingError.dataCorruptedError(
-                    forKey: .type, in: container,
-                    debugDescription: "Unknown ToolResultContent type: \\(type)"
-                )
+                self = .unknown(try AnyCodable(from: decoder))
             }
         } else {
             throw DecodingError.dataCorrupted(
@@ -758,6 +811,7 @@ function generateToolResultContentUnion(): string {
         case .fileEdit(let v): try v.encode(to: encoder)
         case .terminal(let v): try v.encode(to: encoder)
         case .subagent(let v): try v.encode(to: encoder)
+        case .unknown(let v): try v.encode(to: encoder)
         }
     }
 }`;
@@ -1077,7 +1131,10 @@ function generateActionsFile(project: Project): string {
     lines.push(`    case ${v.caseName}(${v.tsInterface === '_merged_' ? 'SessionToolCallConfirmedAction' : v.tsInterface})`);
   }
   lines.push('    /// Unknown or future action type; reducers treat this as a no-op.');
-  lines.push('    case unknown(type: String)');
+  lines.push('    /// The raw payload (including its `type` discriminant) is preserved');
+  lines.push('    /// as an `AnyCodable` so a decode→encode round-trip re-emits it');
+  lines.push('    /// verbatim for forward-compatibility (mirrors .NET allowUnknown).');
+  lines.push('    case unknown(AnyCodable)');
   lines.push('');
   lines.push('    private enum TypeKey: String, CodingKey { case type }');
   lines.push('');
@@ -1093,7 +1150,7 @@ function generateActionsFile(project: Project): string {
     lines.push(`            self = .${v.caseName}(try ${structName}(from: decoder))`);
   }
   lines.push('        default:');
-  lines.push('            self = .unknown(type: type)');
+  lines.push('            self = .unknown(try AnyCodable(from: decoder))');
   lines.push('        }');
   lines.push('    }');
   lines.push('');
@@ -1102,7 +1159,7 @@ function generateActionsFile(project: Project): string {
   for (const v of ACTION_VARIANTS) {
     lines.push(`        case .${v.caseName}(let v): try v.encode(to: encoder)`);
   }
-  lines.push('        case .unknown: break');
+  lines.push('        case .unknown(let value): try value.encode(to: encoder)');
   lines.push('        }');
   lines.push('    }');
   lines.push('}');
@@ -1232,31 +1289,45 @@ public struct ChangesetOperationResourceTarget: Codable, Sendable {
         self.side = side
     }
 
+    // kind is the union discriminant: a fixed constant for this variant (so it
+    // is NOT decoded from the wire — the union already dispatched on it), but it
+    // MUST be re-emitted on encode so the wire stays a decodable
+    // discriminated-union value. Hence the custom encode and the decode-only
+    // CodingKeys that omit kind.
     private enum CodingKeys: String, CodingKey { case resource, side }
+    private enum EncodingKeys: String, CodingKey { case kind, resource, side }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(resource, forKey: .resource)
+        try container.encodeIfPresent(side, forKey: .side)
+    }
 }
 
 public struct ChangesetOperationRangeTarget: Codable, Sendable {
     public var kind: String { "range" }
     public var resource: String
     public var side: String?
-    public var range: ChangesetOperationTargetRange
+    public var range: TextRange
 
-    public init(resource: String, side: String? = nil, range: ChangesetOperationTargetRange) {
+    public init(resource: String, side: String? = nil, range: TextRange) {
         self.resource = resource
         self.side = side
         self.range = range
     }
 
+    // See ChangesetOperationResourceTarget: kind is re-emitted on encode but
+    // not decoded (the union dispatches on it).
     private enum CodingKeys: String, CodingKey { case resource, side, range }
-}
+    private enum EncodingKeys: String, CodingKey { case kind, resource, side, range }
 
-public struct ChangesetOperationTargetRange: Codable, Sendable {
-    public var start: Int
-    public var end: Int
-
-    public init(start: Int, end: Int) {
-        self.start = start
-        self.end = end
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: EncodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(resource, forKey: .resource)
+        try container.encodeIfPresent(side, forKey: .side)
+        try container.encode(range, forKey: .range)
     }
 }`;
 }

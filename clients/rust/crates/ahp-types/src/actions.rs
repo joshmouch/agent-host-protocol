@@ -188,6 +188,7 @@ pub struct ActionEnvelope {
     pub channel: Uri,
     pub action: StateAction,
     pub server_seq: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<ActionOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rejection_reason: Option<String>,
