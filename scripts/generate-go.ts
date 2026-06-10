@@ -63,6 +63,7 @@ export interface GenerateGoModuleOptions {
   readonly allowMissingFormatter?: boolean;
 }
 
+
 // ─── Name Mapping ────────────────────────────────────────────────────────────
 
 /** Strips the I prefix from interface names: IRootState → RootState */
@@ -1191,6 +1192,8 @@ type SessionToolCallConfirmedAction struct {
 }
 
 function generateActionEnvelope(): string {
+  // origin is `ActionOrigin | undefined`; the `| undefined` sentinel serializes to ABSENT,
+  // so it omits when empty — consistent with activity/usage and every other client.
   return `// ActionEnvelope wraps every action with the channel URI it
 // belongs to, the server-assigned monotonic sequence number, and an
 // optional origin record.
@@ -1198,7 +1201,7 @@ type ActionEnvelope struct {
 \tChannel         URI           \`json:"channel"\`
 \tAction          StateAction   \`json:"action"\`
 \tServerSeq       int64         \`json:"serverSeq"\`
-\tOrigin          *ActionOrigin \`json:"origin"\`
+\tOrigin          *ActionOrigin \`json:"origin,omitempty"\`
 \tRejectionReason *string       \`json:"rejectionReason,omitempty"\`
 }`;
 }
@@ -1335,20 +1338,13 @@ func (*ChangesetOperationResourceTarget) isChangesetOperationTarget() {}
 
 // ChangesetOperationRangeTarget targets a range within a resource.
 type ChangesetOperationRangeTarget struct {
-\tKind     string                          \`json:"kind"\`
-\tResource URI                             \`json:"resource"\`
-\tSide     *string                         \`json:"side,omitempty"\`
-\tRange    ChangesetOperationTargetRange   \`json:"range"\`
+\tKind     string  \`json:"kind"\`
+\tResource URI     \`json:"resource"\`
+\tSide     *string \`json:"side,omitempty"\`
+\tRange    TextRange \`json:"range"\`
 }
 
 func (*ChangesetOperationRangeTarget) isChangesetOperationTarget() {}
-
-// ChangesetOperationTargetRange is the [start, end] index pair for a
-// range target.
-type ChangesetOperationTargetRange struct {
-\tStart int64 \`json:"start"\`
-\tEnd   int64 \`json:"end"\`
-}
 
 // UnmarshalJSON dispatches on the \`kind\` discriminator.
 func (t *ChangesetOperationTarget) UnmarshalJSON(data []byte) error {

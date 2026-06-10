@@ -17,6 +17,16 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING:** `SessionStatus` is now an `OptionSet` with a `UInt32` rawValue
+  (was `Int`), an unsigned 32-bit bitset that preserves combined and unknown
+  forward-compat bits. Combine flags with set-union (`∪` / `union`) and test
+  membership with `contains(_:)`.
+- **BREAKING:** `ChangesetOperationTarget`'s range target now carries a nested
+  `TextRange` (`{start: {line, character}, end: {line, character}}`) instead of
+  a flat `{start, end}` integer pair.
+
 ### Added
 
 - `SnapshotState.resourceWatch` case and matching
@@ -52,6 +62,21 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   and resourceWatch fixture families — they now decode and assert, with the
   remaining gaps (unknown-discriminant response part; the not-yet-implemented
   annotations channel) pinned by an explicit drift tripwire.
+
+### Fixed
+
+- Encode-fidelity: an unknown `StateAction` variant no longer re-encodes to
+  `{}` (dropping its `type` discriminant and extra fields); the raw payload is
+  preserved on decode and re-emitted verbatim.
+- Forward-compatibility: unknown discriminants on wire-decoded discriminated
+  unions (`ResponsePart`, `ToolCallState`, `TerminalClaim`,
+  `TerminalContentPart`, `Customization`, and other evolvable unions) now decode
+  to a raw passthrough and re-encode verbatim instead of throwing
+  `DecodingError`, so a snapshot carrying an unknown variant still decodes and
+  subsequent actions fold correctly.
+- `ChangesetOperationResourceTarget` / `…RangeTarget` now encode their `kind`
+  discriminant (previously a computed property excluded from `CodingKeys`, so it
+  was dropped on encode).
 
 ## [0.3.0] — 2026-06-05
 
@@ -113,6 +138,7 @@ Implements AHP 0.3.0.
   cases). `SessionToolCallStartAction` carries the new `contributor`
   field as well. `Reducers.swift`, `NativeReducer.swift`, and
   `ToolCallStateExtensions.swift` follow the rename.
+
 ## [0.2.0] — 2026-05-28
 
 Implements AHP `0.2.0`.
