@@ -30,7 +30,7 @@ use ahp_types::{
     common::StringOrMarkdown,
     messages::JsonRpcMessage,
     notifications::{PartialSessionSummary, SessionAddedParams},
-    state::{Customization, SessionInputQuestion, SessionStatus, SessionSummary},
+    state::{ChatInputQuestion, Customization, SessionStatus, SessionSummary},
     version::{PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS},
 };
 use serde_json::{Number, Value};
@@ -215,7 +215,7 @@ fn decode_and_reencode(file: &str, type_name: &str, input_json: &str) -> Result<
         "StringOrMarkdown" => round_trip!(StringOrMarkdown),
         "JsonRpcMessage" => round_trip!(JsonRpcMessage),
         "ChangesetOperationTarget" => round_trip!(ChangesetOperationTarget),
-        "SessionInputQuestion" => round_trip!(SessionInputQuestion),
+        "ChatInputQuestion" => round_trip!(ChatInputQuestion),
         "SessionSummary" => round_trip!(SessionSummary),
         "SessionAddedParams" => round_trip!(SessionAddedParams),
         "PartialSessionSummary" => round_trip!(PartialSessionSummary),

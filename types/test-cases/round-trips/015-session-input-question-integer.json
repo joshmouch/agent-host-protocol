@@ -1,8 +1,8 @@
 {
   "name": "session-input-question-integer",
   "group": "A",
-  "description": "SessionInputQuestion kind=integer decodes the number-question variant, preserving the `integer` kind distinct from `number`; defaultValue survives the round-trip.",
-  "type": "SessionInputQuestion",
+  "description": "ChatInputQuestion kind=integer decodes the number-question variant, preserving the `integer` kind distinct from `number`; defaultValue survives the round-trip.",
+  "type": "ChatInputQuestion",
   "input": {
     "kind": "integer",
     "id": "q2",

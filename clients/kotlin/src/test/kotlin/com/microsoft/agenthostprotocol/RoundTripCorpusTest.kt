@@ -37,7 +37,7 @@ import com.microsoft.agenthostprotocol.generated.JsonRpcRequest
 import com.microsoft.agenthostprotocol.generated.JsonRpcSuccessResponse
 import com.microsoft.agenthostprotocol.generated.PartialSessionSummary
 import com.microsoft.agenthostprotocol.generated.SessionAddedParams
-import com.microsoft.agenthostprotocol.generated.SessionInputQuestion
+import com.microsoft.agenthostprotocol.generated.ChatInputQuestion
 import com.microsoft.agenthostprotocol.generated.SessionStatus
 import com.microsoft.agenthostprotocol.generated.SessionSummary
 import com.microsoft.agenthostprotocol.generated.StateAction
@@ -243,7 +243,7 @@ class RoundTripCorpusTest {
                 }
             }
             "ChangesetOperationTarget" -> rt(ChangesetOperationTarget.serializer())
-            "SessionInputQuestion" -> rt(SessionInputQuestion.serializer())
+            "ChatInputQuestion" -> rt(ChatInputQuestion.serializer())
             "SessionSummary" -> rt(SessionSummary.serializer())
             "SessionAddedParams" -> rt(SessionAddedParams.serializer())
             "PartialSessionSummary" -> rt(PartialSessionSummary.serializer())

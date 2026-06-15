@@ -218,8 +218,8 @@ func decodeAndReencode(t *testing.T, name, typ, inputJSON string) string {
 		var v ChangesetOperationTarget
 		dec(&v)
 		return enc(&v)
-	case "SessionInputQuestion":
-		var v SessionInputQuestion
+	case "ChatInputQuestion":
+		var v ChatInputQuestion
 		dec(&v)
 		return enc(&v)
 	case "SessionSummary":

@@ -176,8 +176,8 @@ final class TypesRoundTripFixtureTests: XCTestCase {
             return try reencode(dec.decode(JsonRpcMessage.self, from: inputData))
         case "ChangesetOperationTarget":
             return try reencode(dec.decode(ChangesetOperationTarget.self, from: inputData))
-        case "SessionInputQuestion":
-            return try reencode(dec.decode(SessionInputQuestion.self, from: inputData))
+        case "ChatInputQuestion":
+            return try reencode(dec.decode(ChatInputQuestion.self, from: inputData))
         case "SessionSummary":
             return try reencode(dec.decode(SessionSummary.self, from: inputData))
         case "SessionAddedParams":

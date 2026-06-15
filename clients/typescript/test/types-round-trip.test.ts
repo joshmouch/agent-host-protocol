@@ -54,7 +54,7 @@ import type {
 import type { StringOrMarkdown } from '../src/types/common/state.js';
 import type { ChangesetOperationTarget } from '../src/types/channels-changeset/commands.js';
 import type {
-  SessionInputQuestion,
+  ChatInputQuestion,
   Customization,
   SessionSummary,
 } from '../src/types/channels-session/state.js';
@@ -235,7 +235,7 @@ function bindToType(file: string, type: string, parsed: unknown): void {
     case 'StringOrMarkdown':   void (parsed as StringOrMarkdown); break;
     case 'JsonRpcMessage':     void (parsed as JsonValue); break;
     case 'ChangesetOperationTarget': void (parsed as ChangesetOperationTarget); break;
-    case 'SessionInputQuestion': void (parsed as SessionInputQuestion); break;
+    case 'ChatInputQuestion': void (parsed as ChatInputQuestion); break;
     case 'SessionSummary':     void (parsed as SessionSummary); break;
     case 'SessionAddedParams': void (parsed as SessionAddedParams); break;
     case 'PartialSessionSummary': void (parsed as Partial<SessionSummary>); break;
