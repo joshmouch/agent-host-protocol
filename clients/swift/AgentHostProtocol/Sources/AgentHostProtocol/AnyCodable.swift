@@ -47,6 +47,9 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
         // Inspect objCType to dispatch faithfully to the underlying type.
         // ('c' is also Int8's encoding, but JSONSerialization only ever produces
         // 'c' for a Bool, so the JSON-decode path this type serves is unambiguous.)
+        // Unsigned integer types ('C'/'I'/'S'/'L'/'Q') encode via uint64Value: a
+        // JSON integer above Int64.max is boxed as an unsigned 'Q' NSNumber, and
+        // int64Value would silently corrupt it (it does not round-trip).
         if let number = value as? NSNumber, type(of: value) != Bool.self {
             let objCType = number.objCType[0]
             switch objCType {
@@ -55,6 +58,9 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
                 return
             case 0x66 /* 'f' */, 0x64 /* 'd' */:
                 try container.encode(number.doubleValue)
+                return
+            case 0x43 /* 'C' */, 0x49 /* 'I' */, 0x53 /* 'S' */, 0x4C /* 'L' */, 0x51 /* 'Q' */:
+                try container.encode(number.uint64Value)
                 return
             default:
                 try container.encode(number.int64Value)
