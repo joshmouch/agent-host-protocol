@@ -1026,7 +1026,15 @@ final class MultiHostClientTests: XCTestCase {
         _ = try await multi.add(HostConfig(id: "local", label: "Local", transportFactory: factory))
         await waitForHostState(multi, id: "local") { $0.isConnected }
 
-        let versions = await capture.wait()
+        let versions = try await withThrowingTaskGroup(of: [String].self) { group in
+            group.addTask { await capture.wait() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(2))
+                throw TestTimeoutError()
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
         XCTAssertEqual(versions, SUPPORTED_PROTOCOL_VERSIONS,
             "HostRuntime must advertise SUPPORTED_PROTOCOL_VERSIONS on initialize")
         XCTAssertFalse(versions.contains("0.2.0"),
@@ -1407,9 +1415,12 @@ private actor ClosedObserver {
 /// Captures the `protocolVersions` list sent in the first `initialize` request.
 private actor InitVersionCapture {
     private var captured: [String]? = nil
+    private var hasStored = false
     private var waiter: CheckedContinuation<[String], Never>? = nil
 
     func store(_ versions: [String]) {
+        guard !hasStored else { return }
+        hasStored = true
         if let w = waiter {
             waiter = nil
             w.resume(returning: versions)
