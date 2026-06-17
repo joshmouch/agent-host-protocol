@@ -34,6 +34,7 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `ApplyActionToChangeset`, `ApplyActionToAnnotations`, and `ApplyActionToResourceWatch` — full reducer implementations replacing the previous stubs; all shared conformance fixtures in `types/test-cases/reducers/` for these three families now pass.
 - `SnapshotState.ResourceWatch` pointer field — the `Snapshot.state` union
   now accepts `ResourceWatchState`, decoded by probing for the required
   `root` + `recursive` keys (ordered between the existing changeset and
