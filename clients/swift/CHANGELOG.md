@@ -45,6 +45,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Fixed
 
+- `MultiHostClient`/host runtime now advertises the generated `SUPPORTED_PROTOCOL_VERSIONS` on `initialize` instead of a stale hard-coded `"0.2.0"`.
+
 - Session reducers now apply `_meta` (`meta`) updates from every
   tool-call-scoped action, not only `session/toolCallStart`.
 
