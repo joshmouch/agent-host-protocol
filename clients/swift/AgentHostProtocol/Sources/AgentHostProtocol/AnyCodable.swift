@@ -4,10 +4,12 @@ import Foundation
 
 /// A type-erased `Codable` value for handling `unknown` and `Record<string, unknown>` types.
 ///
-/// Marked `@unchecked Sendable` because the stored `Any` is only ever set to
-/// immutable, `Sendable`-safe types during decoding (Bool, Int, Double, String,
-/// NSNull, and recursive `[Any]`/`[String: Any]` of those). The value is `let`,
-/// so it cannot be mutated after initialization.
+/// Marked `@unchecked Sendable`: `value` is a `let`, so it cannot be mutated
+/// after initialization, and the decoding path only ever stores immutable,
+/// `Sendable`-safe types (Bool, Int, Double, String, NSNull, and recursive
+/// `[Any]`/`[String: Any]` of those). The public `init(_:)` accepts arbitrary
+/// `Any`, so Sendability is unchecked and relies on callers passing
+/// `Sendable`-safe values.
 public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
     public let value: Any
 
