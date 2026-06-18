@@ -1,0 +1,8 @@
+{
+  "client": "dotnet",
+  "packageVersion": "0.3.0",
+  "supportedProtocolVersions": [
+    "0.5.1",
+    "0.5.0"
+  ]
+}

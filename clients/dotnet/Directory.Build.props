@@ -1,0 +1,99 @@
+<Project>
+
+  <!--
+    Shared MSBuild properties for every project in the .NET client. Per-
+    project packaging (IsPackable / PackageId / Description) lives in the
+    individual .csproj files; this file carries the cross-cutting compiler
+    and metadata settings.
+  -->
+  <PropertyGroup>
+    <!-- Every project targets net8.0; the libraries run on any .NET 8+ runtime
+         via forward compatibility. -->
+    <LangVersion>12</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- Warnings are build errors: the C# analog of the Rust client's
+         clippy deny-warnings gate and the Go client's go vet. Keeps
+         nullable-ref and XML-doc cref warnings from accumulating. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: missing XML doc on a public member. Generated wire types
+         carry docs where the protocol provides them but not everywhere. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <IsPackable>false</IsPackable>
+
+    <!-- .NET Code Analysis. net8 already enables the analyzers, but the SDK
+         default rule set is deliberately small; AnalysisLevel pins the rule
+         vintage and EnforceCodeStyleInBuild runs the IDExxxx code-style rules
+         (the conventions the code already follows, encoded in .editorconfig)
+         at build time so TreatWarningsAsErrors gates them. The dispose
+         reliability rules (CA1001/CA2213/CA2000) are promoted to error in
+         .editorconfig. AnalysisMode=Recommended enables the broader rule set
+         (including CA2201 reserved-exception and CA1510 ArgumentNullException
+         modernization); all surfaced diagnostics have been fixed. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- Reproducible builds. Deterministic defaults true; the CI normalization
+         that makes embedded source paths portable is the CI-only flag below.
+         EmbedUntrackedSources embeds source files that are not tracked by source
+         control (e.g. generated files) into the PDB so debuggers can find them. -->
+    <Deterministic>true</Deterministic>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Async / threading discipline. The NET analyzers above do not cover the
+       async anti-patterns (sync-over-async, fake-async wrappers, async void,
+       unobserved Tasks, ConfigureAwait at library boundaries); the Microsoft
+       threading analyzers do. Analyzer-only (PrivateAssets=all keeps it out of
+       the consumer dependency graph); surfaced VSTHRD diagnostics are gated to
+       error by TreatWarningsAsErrors, the same as the CA rules. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="17.12.19" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    Project-wide usings shared by every project (generated wire types,
+    hand-written client, tests, examples). Declared once here instead of
+    repeating the same four `using` lines atop every generated file and
+    fully-qualifying `List<>` / `Dictionary<>` in hand-written code.
+    ImplicitUsings stays disabled — this is the explicit, auditable allow-list.
+  -->
+  <ItemGroup>
+    <Using Include="System" />
+    <Using Include="System.Collections.Generic" />
+    <Using Include="System.Text.Json" />
+    <Using Include="System.Text.Json.Serialization" />
+  </ItemGroup>
+
+  <!-- Package metadata applied to the publishable libraries. Non-packable
+       projects (tests, examples) harmlessly carry these properties — NuGet
+       reads them only during `dotnet pack`, which is never run for those
+       projects. The prior Condition="'$(IsPackable)' == 'true'" was always
+       false: Directory.Build.props is evaluated BEFORE each csproj sets
+       <IsPackable>true</IsPackable>, so packages were published without
+       Authors, License, ProjectUrl, Copyright, or the correct Version. -->
+  <PropertyGroup>
+    <Authors>Microsoft Corporation</Authors>
+    <Company>Microsoft Corporation</Company>
+    <Product>Agent Host Protocol</Product>
+    <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/microsoft/agent-host-protocol</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/microsoft/agent-host-protocol</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>agent-host-protocol;ahp;ai;agent;jsonrpc</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <!-- Version is the single source of truth in the VERSION file; the build reads
+         it so a release bump to VERSION actually changes the packed version. -->
+    <Version Condition="Exists('$(MSBuildThisFileDirectory)VERSION')">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</Version>
+    <Version Condition="!Exists('$(MSBuildThisFileDirectory)VERSION')">0.1.0</Version>
+  </PropertyGroup>
+
+</Project>

@@ -23,6 +23,7 @@ and a checked-in `clients/<lang>/release-metadata.json`.
 | TypeScript | `typescript/vX.Y.Z` | `clients/typescript/pipeline.yml` (Azure DevOps) | npm (`@microsoft/agent-host-protocol`) via ESRP. |
 | Swift      | `vX.Y.Z` (bare)     | `.github/workflows/publish-swift.yml` | SwiftPM resolves the tag directly. |
 | Go         | `clients/go/vX.Y.Z` | `.github/workflows/publish-go.yml` | Go module proxy resolves the tag directly. |
+| .NET       | `dotnet/vX.Y.Z`     | maintainer-owned pipeline (see below) | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`, `.WebSockets`). |
 
 > **Why Swift gets the bare semver tag namespace:** SwiftPM only resolves
 > packages by matching plain `X.Y.Z` / `vX.Y.Z` git tags at the manifest's
@@ -145,6 +146,26 @@ trigger started the run.
    for the tag. Go consumers resolve the tag via
    `go get github.com/microsoft/agent-host-protocol/clients/go@vX.Y.Z`;
    no registry push happens.
+
+### .NET (`dotnet/vX.Y.Z`)
+
+1. Update `clients/dotnet/VERSION` to the new bare semver string (no
+   leading `v`).
+2. Run `npm run generate:metadata` and commit the regenerated
+   `clients/dotnet/release-metadata.json`.
+3. Rotate `clients/dotnet/CHANGELOG.md`.
+4. Merge to `main`.
+5. Tag: `git tag dotnet/v0.X.Y && git push origin dotnet/v0.X.Y`.
+6. Publish the libraries (`Microsoft.AgentHostProtocol`,
+   `Microsoft.AgentHostProtocol.Abstractions`,
+   `Microsoft.AgentHostProtocol.WebSockets`) to NuGet.org. This client does
+   not ship its own publish automation — the maintainers wire the
+   `dotnet pack` + `dotnet nuget push` step into their own release pipeline,
+   the same way the Kotlin and TypeScript packages publish through the signed
+   Azure DevOps / ESRP pipelines rather than a GitHub Actions registry push.
+   The per-PR CI job already builds, tests, and runs the test-parity gate for
+   the solution; `npm run verify:changelog` guards the
+   `clients/dotnet/VERSION` ↔ `CHANGELOG.md` heading match.
 
 ### Spec (`spec/vX.Y.Z`)
 

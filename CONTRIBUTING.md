@@ -25,6 +25,8 @@ against them.
 | `clients/kotlin/` | Kotlin/JVM library (`com.microsoft.agenthostprotocol:agent-host-protocol`). |
 | `clients/swift/` | Swift package (consumed by SwiftPM at the repo root). |
 | `clients/typescript/` | npm package `@microsoft/agent-host-protocol`. |
+| `clients/go/` | Go module (`ahptypes`, `ahp`, `ahpws`). |
+| `clients/dotnet/` | .NET / NuGet packages (`Microsoft.AgentHostProtocol`, `.Abstractions`, `.WebSockets`). |
 | `.github/workflows/` | CI and per-artifact publish pipelines. |
 
 ## Local dev loop
@@ -42,6 +44,8 @@ cd clients/typescript && npm ci && npm test && npm run build
 cd clients/rust && cargo test --workspace
 cd clients/kotlin && ./gradlew build
 swift build && swift test        # Swift uses the root Package.swift
+cd clients/go && go test ./...
+cd clients/dotnet && dotnet test
 ```
 
 ## Releases
@@ -53,7 +57,7 @@ see [`docs/specification/versioning.md`](docs/specification/versioning.md).
 
 ## Updating CHANGELOGs
 
-This repo ships five independently-versioned artifacts (spec + four clients),
+This repo ships seven independently-versioned artifacts (spec + six clients),
 each with its own `CHANGELOG.md` in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 format. The publish workflows refuse to release a tag whose matching
 `## [X.Y.Z]` heading is missing, so every user-visible change should land its
@@ -94,4 +98,5 @@ When iterating on the protocol surface in `types/`, see
 for the project's editorial rules on type changes.
 
 For language-specific code-gen conventions, see the `AGENTS.md` file in each
-client directory (`clients/kotlin/AGENTS.md`, `clients/swift/AGENTS.md`).
+client directory (`clients/go/AGENTS.md`, `clients/kotlin/AGENTS.md`,
+`clients/swift/AGENTS.md`, `clients/dotnet/AGENTS.md`).

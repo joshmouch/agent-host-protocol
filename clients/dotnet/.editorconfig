@@ -1,0 +1,118 @@
+# Formatting + code-style conventions for the .NET client. Whitespace is gated
+# in CI by `dotnet format whitespace --verify-no-changes` (the C# analog of the
+# Go lane's `gofmt -l` check); the code-style (IDExxxx) and analyzer (CAxxxx)
+# rules below run at build time via <EnforceCodeStyleInBuild> +
+# <EnableNETAnalyzers> and are gated by <TreatWarningsAsErrors>.
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+tab_width = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+# ── C# code style (mirrors what the hand-written code already does) ──────────
+
+# File-scoped namespaces (25/25 src files use them; zero block-scoped). The code
+# follows this uniformly, so it is enforced (build error via TreatWarningsAsErrors).
+csharp_style_namespace_declarations = file_scoped:warning
+
+# `var` is the house style: heavily used where the type is apparent or named on
+# the right, but the code does keep explicit types in some spots, so this is a
+# documented preference (suggestion), not an enforced rule that would demand
+# reformatting the explicit-type sites.
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# Members are referenced unqualified (no `this.` / no type-name qualification).
+# The code follows this uniformly, so it is enforced.
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+
+# Brace control-flow bodies. The code mixes braced and single-line forms, so
+# this is a documented preference (suggestion) rather than an enforced rule.
+csharp_prefer_braces = true:suggestion
+
+# Modern expression preferences. The pattern-matching / initializer rules below
+# the code already follows uniformly (enforced); the expression-bodied and
+# simple-using preferences are documented (silent) since usage is mixed.
+csharp_style_expression_bodied_methods = true:silent
+csharp_style_expression_bodied_properties = true:silent
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+dotnet_style_object_initializer = true:warning
+dotnet_style_collection_initializer = true:warning
+csharp_prefer_simple_using_statement = true:silent
+
+# ── Code-analysis (CAxxxx) severities ───────────────────────────────────────
+
+# Dispose-reliability rules promoted to error: a type owning a disposable field
+# must be disposable (CA1001), disposable fields must be disposed (CA2213), and
+# objects must be disposed before going out of scope (CA2000). These are the
+# bounded high-value rules that catch the undisposed-CTS/semaphore class of leak
+# without pulling in the broader AnalysisMode=Recommended set.
+dotnet_diagnostic.CA1001.severity = error
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA2000.severity = error
+
+# ── Async / threading (VSTHRDxxxx) severities ───────────────────────────────
+
+# The Microsoft.VisualStudio.Threading analyzers stay enabled for their
+# high-value rule: VSTHRD002 (synchronously blocking on async via .Result /
+# .Wait() / .GetAwaiter().GetResult()) keeps its default error severity — that is
+# the genuinely deadlock-prone pattern, and the code is clean of it.
+#
+# Two rules are method-name / heuristic based and fire only on verified-correct
+# patterns here, so they are downgraded with the specific reason each is a false
+# positive:
+#
+# VSTHRD103 (call async methods when in an async method) matches by method NAME on
+# (a) MemoryStream.Write — an in-memory buffer copy, not I/O; (b) a fire-and-forget
+# CancellationTokenSource.Cancel() releasing a linked-token waiter, where
+# CancelAsync's await-the-callbacks semantics are unnecessary; (c) the synchronous
+# AhpClient.Connect factory, which does no I/O (the transport is already connected;
+# the handshake is the separate async InitializeAsync). None are sync-over-async.
+dotnet_diagnostic.VSTHRD103.severity = suggestion
+#
+# VSTHRD003 (avoid awaiting foreign Tasks) warns of a deadlock that needs
+# synchronization-context capture; every await in this library passes
+# ConfigureAwait(false), which prevents capture, so the awaited
+# TaskCompletionSource / SemaphoreSlim.WaitAsync tasks cannot deadlock.
+dotnet_diagnostic.VSTHRD003.severity = suggestion
+
+# ── Test / example relaxations ────────────────────────────────────────────────
+
+# Test method names use Method_Scenario underscores by deliberate convention
+# (mirrors the Swift/Go test naming); CA1707 (no underscores in identifiers)
+# does not apply to test code. The dispose rules above are a shipping-library
+# guard: test bodies legitimately new-up short-lived disposables (transports,
+# listeners, clients, stores) that the test runner / GC reclaim, so CA2000 /
+# CA1001 / CA2213 are not enforced as errors there.
+# CA2016: test infrastructure uses `Task.Run(() => SomeAsync(ct))` for
+# fire-and-forget background helpers where the lambda already forwards `ct` to
+# the actual async work; passing ct to Task.Run itself would cancel the task
+# scheduling, which is wrong here. 54 sites across FakeHost / MultiHostClientTests.
+# CA1861: inline `new[] { ... }` literals are idiomatic in single-call assertions
+# and the per-call allocation cost in tests is irrelevant.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA2213.severity = none
+dotnet_diagnostic.CA2016.severity = none
+dotnet_diagnostic.CA1861.severity = none
+# VSTHRD200 (Async naming convention) stays at error for the shipping libraries;
+# test helper methods are exempt, like the CA1707 underscore-naming relaxation.
+dotnet_diagnostic.VSTHRD200.severity = none
+
+# Examples are illustrative end-to-end snippets, not shipping code; the dispose
+# guard is likewise not enforced there.
+[examples/**/*.cs]
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA1001.severity = none
+dotnet_diagnostic.CA2213.severity = none

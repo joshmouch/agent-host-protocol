@@ -1,0 +1,46 @@
+#nullable enable
+
+using System.IO;
+using System.Text.Json;
+using Xunit;
+
+namespace Microsoft.AgentHostProtocol.Tests;
+
+/// <summary>
+/// Cross-implementation convergence: replays a real session trace produced by an
+/// INDEPENDENT AHP host (a separate WebSocket host running the canonical
+/// TypeScript <c>sessionReducer</c>) through the C# reducer and asserts the
+/// resulting state is byte-for-byte identical to the host's authoritative state.
+///
+/// The trace under <c>interop/</c> was captured over a real WebSocket; this test
+/// replays it offline so it runs in CI with no external dependency. It is
+/// complementary to the shared per-action fixtures: this is a multi-action
+/// session exercising the <c>serverSeq</c> + host-authoritative <c>modifiedAt</c>
+/// overlay model (microsoft/agent-host-protocol#186).
+/// </summary>
+public sealed class CrossImplementationConvergenceTests
+{
+    [Fact]
+    public void ConvergesWithCapturedCanonicalHostTrace()
+    {
+        var path = Path.Combine(System.AppContext.BaseDirectory, "interop", "independent-host-session-convergence.json");
+        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var root = doc.RootElement;
+        var opts = AhpJson.Options;
+
+        var state = root.GetProperty("initial").Deserialize<SessionState>(opts)!;
+        foreach (var env in root.GetProperty("envelopes").EnumerateArray())
+        {
+            var action = env.GetProperty("action").Deserialize<StateAction>(opts)!;
+            Reducers.ApplyToSession(state, action);
+
+            // As of AHP 0.5.0 the SessionState is flat and no longer carries a
+            // modifiedAt clock, so the session reducers are pure — no
+            // host-authoritative modifiedAt overlay is needed for convergence.
+        }
+
+        var got = JsonCanon.Of(JsonSerializer.SerializeToElement(state, opts));
+        var want = JsonCanon.Of(root.GetProperty("final"));
+        Assert.Equal(want, got);
+    }
+}

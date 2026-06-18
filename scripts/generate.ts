@@ -15,6 +15,7 @@ import { generateRustCrate } from './generate-rust.js';
 import { generateKotlinPackage } from './generate-kotlin.js';
 import { generateTypeScriptClient } from './generate-typescript.js';
 import { generateGoModule } from './generate-go.js';
+import { generateCSharpPackage } from './generate-csharp.js';
 import { generateReleaseMetadata } from './generate-release-metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,7 @@ const RUST_DIR = path.join(ROOT, 'clients', 'rust');
 const KOTLIN_DIR = path.join(ROOT, 'clients', 'kotlin');
 const TYPESCRIPT_TYPES_DIR = path.join(ROOT, 'clients', 'typescript', 'src', 'types');
 const GO_DIR = path.join(ROOT, 'clients', 'go');
+const DOTNET_DIR = path.join(ROOT, 'clients', 'dotnet');
 
 const args = process.argv.slice(2);
 const docsOnly = args.includes('--docs');
@@ -38,6 +40,7 @@ const rustOnly = args.includes('--rust');
 const kotlinOnly = args.includes('--kotlin');
 const typescriptOnly = args.includes('--typescript');
 const goOnly = args.includes('--go');
+const dotnetOnly = args.includes('--dotnet');
 const metadataOnly = args.includes('--metadata');
 const allowMissingFormatter = args.includes('--allow-missing-formatter');
 const generateAll =
@@ -49,6 +52,7 @@ const generateAll =
   !kotlinOnly &&
   !typescriptOnly &&
   !goOnly &&
+  !dotnetOnly &&
   !metadataOnly;
 
 // Load the TypeScript project
@@ -109,6 +113,12 @@ if (generateAll || goOnly) {
   console.log('Generating Go module...');
   generateGoModule(project, GO_DIR, { allowMissingFormatter });
   console.log(`  → Go module written to ${path.relative(ROOT, GO_DIR)}/`);
+}
+
+if (generateAll || dotnetOnly) {
+  console.log('Generating .NET package...');
+  generateCSharpPackage(project, DOTNET_DIR);
+  console.log(`  → .NET sources written to ${path.relative(ROOT, DOTNET_DIR)}/`);
 }
 
 if (generateAll || metadataOnly) {
