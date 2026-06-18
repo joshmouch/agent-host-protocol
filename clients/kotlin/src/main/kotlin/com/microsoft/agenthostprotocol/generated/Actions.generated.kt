@@ -283,7 +283,18 @@ data class ChatTurnStartedAction(
     /**
      * If this turn was auto-started from a queued message, the ID of that message
      */
-    val queuedMessageId: String? = null
+    val queuedMessageId: String? = null,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -300,7 +311,18 @@ data class ChatDeltaAction(
     /**
      * Text chunk
      */
-    val content: String
+    val content: String,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -313,7 +335,18 @@ data class ChatResponsePartAction(
     /**
      * Response part (markdown or content ref)
      */
-    val part: ResponsePart
+    val part: ResponsePart,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -557,7 +590,18 @@ data class ChatTurnCompleteAction(
     /**
      * Turn identifier
      */
-    val turnId: String
+    val turnId: String,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -566,7 +610,18 @@ data class ChatTurnCancelledAction(
     /**
      * Turn identifier
      */
-    val turnId: String
+    val turnId: String,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -579,7 +634,18 @@ data class ChatErrorAction(
     /**
      * Error details
      */
-    val error: ErrorInfo
+    val error: ErrorInfo,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -601,7 +667,18 @@ data class ChatUsageAction(
     /**
      * Token usage data
      */
-    val usage: UsageInfo
+    val usage: UsageInfo,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable
@@ -618,7 +695,18 @@ data class ChatReasoningAction(
     /**
      * Reasoning text chunk
      */
-    val content: String
+    val content: String,
+    /**
+     * Additional provider-specific metadata for this action.
+     *
+     * Clients MAY look for well-known keys here to provide enhanced UI, and
+     * agent hosts MAY use it to carry per-event context that does not fit any
+     * other field — for example, attributing the event to a specific agent
+     * (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+     * convention.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null
 )
 
 @Serializable

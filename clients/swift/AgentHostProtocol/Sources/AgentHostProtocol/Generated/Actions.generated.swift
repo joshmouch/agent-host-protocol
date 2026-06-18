@@ -243,17 +243,35 @@ public struct ChatTurnStartedAction: Codable, Sendable {
     public var message: Message
     /// If this turn was auto-started from a queued message, the ID of that message
     public var queuedMessageId: String?
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case message
+        case queuedMessageId
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
         message: Message,
-        queuedMessageId: String? = nil
+        queuedMessageId: String? = nil,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.message = message
         self.queuedMessageId = queuedMessageId
+        self.meta = meta
     }
 }
 
@@ -265,17 +283,35 @@ public struct ChatDeltaAction: Codable, Sendable {
     public var partId: String
     /// Text chunk
     public var content: String
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case partId
+        case content
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
         partId: String,
-        content: String
+        content: String,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.partId = partId
         self.content = content
+        self.meta = meta
     }
 }
 
@@ -285,15 +321,32 @@ public struct ChatResponsePartAction: Codable, Sendable {
     public var turnId: String
     /// Response part (markdown or content ref)
     public var part: ResponsePart
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case part
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
-        part: ResponsePart
+        part: ResponsePart,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.part = part
+        self.meta = meta
     }
 }
 
@@ -646,13 +699,29 @@ public struct ChatTurnCompleteAction: Codable, Sendable {
     public var type: ActionType
     /// Turn identifier
     public var turnId: String
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
-        turnId: String
+        turnId: String,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
+        self.meta = meta
     }
 }
 
@@ -660,13 +729,29 @@ public struct ChatTurnCancelledAction: Codable, Sendable {
     public var type: ActionType
     /// Turn identifier
     public var turnId: String
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
-        turnId: String
+        turnId: String,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
+        self.meta = meta
     }
 }
 
@@ -676,15 +761,32 @@ public struct ChatErrorAction: Codable, Sendable {
     public var turnId: String
     /// Error details
     public var error: ErrorInfo
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case error
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
-        error: ErrorInfo
+        error: ErrorInfo,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.error = error
+        self.meta = meta
     }
 }
 
@@ -708,15 +810,32 @@ public struct ChatUsageAction: Codable, Sendable {
     public var turnId: String
     /// Token usage data
     public var usage: UsageInfo
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case usage
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
-        usage: UsageInfo
+        usage: UsageInfo,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.usage = usage
+        self.meta = meta
     }
 }
 
@@ -728,17 +847,35 @@ public struct ChatReasoningAction: Codable, Sendable {
     public var partId: String
     /// Reasoning text chunk
     public var content: String
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case turnId
+        case partId
+        case content
+        case meta = "_meta"
+    }
 
     public init(
         type: ActionType,
         turnId: String,
         partId: String,
-        content: String
+        content: String,
+        meta: [String: AnyCodable]? = nil
     ) {
         self.type = type
         self.turnId = turnId
         self.partId = partId
         self.content = content
+        self.meta = meta
     }
 }
 

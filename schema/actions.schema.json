@@ -637,6 +637,11 @@
         "queuedMessageId": {
           "type": "string",
           "description": "If this turn was auto-started from a queued message, the ID of that message"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -663,6 +668,11 @@
         "content": {
           "type": "string",
           "description": "Text chunk"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -686,6 +696,11 @@
         "part": {
           "$ref": "#/$defs/ResponsePart",
           "description": "Response part (markdown or content ref)"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -1050,6 +1065,11 @@
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -1067,6 +1087,11 @@
         "turnId": {
           "type": "string",
           "description": "Turn identifier"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -1088,6 +1113,11 @@
         "error": {
           "$ref": "#/$defs/ErrorInfo",
           "description": "Error details"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -1110,6 +1140,11 @@
         "usage": {
           "$ref": "#/$defs/UsageInfo",
           "description": "Token usage data"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [
@@ -1136,6 +1171,11 @@
         "content": {
           "type": "string",
           "description": "Reasoning text chunk"
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Additional provider-specific metadata for this action.\n\nClients MAY look for well-known keys here to provide enhanced UI, and\nagent hosts MAY use it to carry per-event context that does not fit any\nother field — for example, attributing the event to a specific agent\n(such as a sub-agent acting within the turn). Mirrors the MCP `_meta`\nconvention."
         }
       },
       "required": [

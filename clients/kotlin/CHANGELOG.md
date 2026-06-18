@@ -21,6 +21,12 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related
   changeset operations together in the UI.
+- `_meta` (`meta`) field on the per-turn chat actions (`chat/turnStarted`,
+  `chat/delta`, `chat/responsePart`, `chat/reasoning`, `chat/usage`,
+  `chat/turnComplete`, `chat/turnCancelled`, `chat/error`) — optional
+  provider-specific metadata so hosts can carry portable per-event context,
+  such as attributing an event to a specific agent (e.g. a sub-agent acting
+  within the turn).
 
 ### Changed
 

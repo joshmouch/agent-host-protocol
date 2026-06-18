@@ -1585,6 +1585,7 @@ mod tests {
             turn_id: "t1".into(),
             message: user_message("hi"),
             queued_message_id: None,
+            meta: None,
         });
         assert_eq!(
             apply_action_to_chat(&mut s, &action),
@@ -1610,6 +1611,7 @@ mod tests {
             turn_id: "t1".into(),
             part_id: "p1".into(),
             content: ", world".into(),
+            meta: None,
         });
         assert_eq!(apply_action_to_chat(&mut s, &a), ReduceOutcome::Applied);
         match &s.active_turn.unwrap().response_parts[0] {
@@ -1630,6 +1632,7 @@ mod tests {
         s.status = SessionStatus::InProgress.bits();
         let a = StateAction::ChatTurnComplete(ahp_types::actions::ChatTurnCompleteAction {
             turn_id: "t1".into(),
+            meta: None,
         });
         assert_eq!(apply_action_to_chat(&mut s, &a), ReduceOutcome::Applied);
         assert!(s.active_turn.is_none());
@@ -1700,6 +1703,7 @@ mod tests {
         // A chat-scoped action is out of scope for the session reducer.
         let turn = StateAction::ChatTurnComplete(ahp_types::actions::ChatTurnCompleteAction {
             turn_id: "t1".into(),
+            meta: None,
         });
         assert_eq!(
             apply_action_to_session(&mut s, &turn),
