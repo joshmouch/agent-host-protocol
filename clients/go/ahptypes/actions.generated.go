@@ -209,6 +209,14 @@ type ChatTurnStartedAction struct {
 	Message Message `json:"message"`
 	// If this turn was auto-started from a queued message, the ID of that message
 	QueuedMessageId *string `json:"queuedMessageId,omitempty"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Streaming text chunk from the assistant, appended to a specific response part.
@@ -223,6 +231,14 @@ type ChatDeltaAction struct {
 	PartId string `json:"partId"`
 	// Text chunk
 	Content string `json:"content"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Structured content appended to the response.
@@ -232,6 +248,14 @@ type ChatResponsePartAction struct {
 	TurnId string `json:"turnId"`
 	// Response part (markdown or content ref)
 	Part ResponsePart `json:"part"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // A tool call begins — parameters are streaming from the LM.
@@ -425,6 +449,14 @@ type ChatTurnCompleteAction struct {
 	Type ActionType `json:"type"`
 	// Turn identifier
 	TurnId string `json:"turnId"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Turn was aborted; server stops processing.
@@ -432,6 +464,14 @@ type ChatTurnCancelledAction struct {
 	Type ActionType `json:"type"`
 	// Turn identifier
 	TurnId string `json:"turnId"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Error during turn processing.
@@ -441,6 +481,14 @@ type ChatErrorAction struct {
 	TurnId string `json:"turnId"`
 	// Error details
 	Error ErrorInfo `json:"error"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Session title updated. Fired by the server when the title is auto-generated
@@ -458,6 +506,14 @@ type ChatUsageAction struct {
 	TurnId string `json:"turnId"`
 	// Token usage data
 	Usage UsageInfo `json:"usage"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // Reasoning/thinking text from the model, appended to a specific reasoning response part.
@@ -472,6 +528,14 @@ type ChatReasoningAction struct {
 	PartId string `json:"partId"`
 	// Reasoning text chunk
 	Content string `json:"content"`
+	// Additional provider-specific metadata for this action.
+	//
+	// Clients MAY look for well-known keys here to provide enhanced UI, and
+	// agent hosts MAY use it to carry per-event context that does not fit any
+	// other field — for example, attributing the event to a specific agent
+	// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+	// convention.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
 // A pending message was set (upsert semantics: creates or replaces).

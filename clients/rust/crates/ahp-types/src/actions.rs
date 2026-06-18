@@ -311,6 +311,15 @@ pub struct ChatTurnStartedAction {
     /// If this turn was auto-started from a queued message, the ID of that message
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub queued_message_id: Option<String>,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Streaming text chunk from the assistant, appended to a specific response part.
@@ -326,6 +335,15 @@ pub struct ChatDeltaAction {
     pub part_id: String,
     /// Text chunk
     pub content: String,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Structured content appended to the response.
@@ -336,6 +354,15 @@ pub struct ChatResponsePartAction {
     pub turn_id: String,
     /// Response part (markdown or content ref)
     pub part: ResponsePart,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// A tool call begins — parameters are streaming from the LM.
@@ -566,6 +593,15 @@ pub struct ChatToolCallContentChangedAction {
 pub struct ChatTurnCompleteAction {
     /// Turn identifier
     pub turn_id: String,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Turn was aborted; server stops processing.
@@ -574,6 +610,15 @@ pub struct ChatTurnCompleteAction {
 pub struct ChatTurnCancelledAction {
     /// Turn identifier
     pub turn_id: String,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Error during turn processing.
@@ -584,6 +629,15 @@ pub struct ChatErrorAction {
     pub turn_id: String,
     /// Error details
     pub error: ErrorInfo,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Session title updated. Fired by the server when the title is auto-generated
@@ -603,6 +657,15 @@ pub struct ChatUsageAction {
     pub turn_id: String,
     /// Token usage data
     pub usage: UsageInfo,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Reasoning/thinking text from the model, appended to a specific reasoning response part.
@@ -618,6 +681,15 @@ pub struct ChatReasoningAction {
     pub part_id: String,
     /// Reasoning text chunk
     pub content: String,
+    /// Additional provider-specific metadata for this action.
+    ///
+    /// Clients MAY look for well-known keys here to provide enhanced UI, and
+    /// agent hosts MAY use it to carry per-event context that does not fit any
+    /// other field — for example, attributing the event to a specific agent
+    /// (such as a sub-agent acting within the turn). Mirrors the MCP `_meta`
+    /// convention.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
 }
 
 /// Model changed for this session.
