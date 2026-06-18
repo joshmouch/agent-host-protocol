@@ -46,6 +46,7 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 ### Fixed
 
 - `AnyCodable.encode` no longer corrupts `NSNumber`-backed `Int`/`Double` values to `Bool`/`Int`. `NSNumber` is now special-cased before the generic Swift type arms, using `CFBooleanGetTypeID()` to distinguish boolean from numeric `NSNumber` instances.
+- `AnyCodable.encode(to:)` now preserves unsigned integers above `Int64.max` (encoding `NSNumber` values whose `objCType` is unsigned via `uint64Value` instead of the signed `int64Value` fallback), and the `AnyCodable.swift` template in `scripts/generate-swift.ts` reproduces the full encode/equality logic so regenerating the scaffold no longer reintroduces the bug.
 - `MultiHostClient`/host runtime now advertises the generated `SUPPORTED_PROTOCOL_VERSIONS` on `initialize` instead of a stale hard-coded `"0.2.0"`.
 - Session reducers now apply `_meta` (`meta`) updates from every
   tool-call-scoped action, not only `session/toolCallStart`.

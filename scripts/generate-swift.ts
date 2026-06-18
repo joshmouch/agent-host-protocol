@@ -1696,7 +1696,12 @@ function anyCodableContent(): string {
 import Foundation
 
 /// A type-erased \`Codable\` value for handling \`unknown\` and \`Record<string, unknown>\` types.
-public struct AnyCodable: Codable, Sendable, Equatable {
+///
+/// Marked \`@unchecked Sendable\` because the stored \`Any\` is only ever set to
+/// immutable, \`Sendable\`-safe types during decoding (Bool, Int, Double, String,
+/// NSNull, and recursive \`[Any]\`/\`[String: Any]\` of those). The value is \`let\`,
+/// so it cannot be mutated after initialization.
+public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
     public let value: Any
 
     public init(_ value: Any) {
@@ -1732,12 +1737,35 @@ public struct AnyCodable: Codable, Sendable, Equatable {
         switch value {
         case is NSNull:
             try container.encodeNil()
-        case let bool as Bool:
+        // Native Swift types are matched first with an exact metatype guard so
+        // these arms stay reachable even though Swift also bridges them to NSNumber.
+        case let bool as Bool where type(of: value) == Bool.self:
             try container.encode(bool)
-        case let int as Int:
+        case let int as Int where type(of: value) == Int.self:
             try container.encode(int)
-        case let double as Double:
+        case let double as Double where type(of: value) == Double.self:
             try container.encode(double)
+        case let n as NSNumber:
+            // Reached only for NSNumber objects not already matched above (e.g.
+            // values produced by JSONSerialization.jsonObject). Use CFTypeID to
+            // distinguish booleans, then objCType for float/integral and signed/unsigned.
+            if CFGetTypeID(n) == CFBooleanGetTypeID() {
+                try container.encode(n.boolValue)
+            } else {
+                // objCType distinguishes float/double from integral, and signed
+                // from unsigned. A JSON integer above Int64.max is boxed as an
+                // unsigned NSNumber; int64Value would corrupt it (it does not
+                // round-trip), so those encode via uint64Value.
+                let objCType = String(cString: n.objCType)
+                switch objCType {
+                case "f", "d":
+                    try container.encode(n.doubleValue)
+                case "C", "I", "S", "L", "Q":
+                    try container.encode(n.uint64Value)
+                default:
+                    try container.encode(n.int64Value)
+                }
+            }
         case let string as String:
             try container.encode(string)
         case let array as [Any]:
@@ -1765,6 +1793,15 @@ public struct AnyCodable: Codable, Sendable, Equatable {
             return lhs == rhs
         case let (lhs as String, rhs as String):
             return lhs == rhs
+        case let (lhs as [Any], rhs as [Any]):
+            guard lhs.count == rhs.count else { return false }
+            return zip(lhs, rhs).allSatisfy { AnyCodable($0) == AnyCodable($1) }
+        case let (lhs as [String: Any], rhs as [String: Any]):
+            guard lhs.count == rhs.count else { return false }
+            return lhs.allSatisfy { key, val in
+                guard let other = rhs[key] else { return false }
+                return AnyCodable(val) == AnyCodable(other)
+            }
         default:
             return false
         }

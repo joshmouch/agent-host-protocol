@@ -55,14 +55,20 @@ public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
         case let n as NSNumber:
             // Reached only for NSNumber objects not already matched above (e.g.
             // values produced by JSONSerialization.jsonObject). Use CFTypeID to
-            // distinguish booleans, then objCType for float vs integral.
+            // distinguish booleans, then objCType for float/integral and signed/unsigned.
             if CFGetTypeID(n) == CFBooleanGetTypeID() {
                 try container.encode(n.boolValue)
             } else {
+                // objCType distinguishes float/double from integral, and signed
+                // from unsigned. A JSON integer above Int64.max is boxed as an
+                // unsigned NSNumber; int64Value would corrupt it (it does not
+                // round-trip), so those encode via uint64Value.
                 let objCType = String(cString: n.objCType)
                 switch objCType {
                 case "f", "d":
                     try container.encode(n.doubleValue)
+                case "C", "I", "S", "L", "Q":
+                    try container.encode(n.uint64Value)
                 default:
                     try container.encode(n.int64Value)
                 }
