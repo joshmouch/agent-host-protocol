@@ -150,6 +150,7 @@ pub mod error;
 pub mod hosts;
 pub mod multi_host_state_mirror;
 pub mod reducers;
+mod telemetry;
 pub mod transport;
 
 pub use ahp_types;

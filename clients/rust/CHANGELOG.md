@@ -19,6 +19,24 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 - `ahp_error_codes::CONFLICT` constant (`-32011`) added to `ahp-types`; covers ETag-conflict failures from `ResourceWriteParams.if_match` checks.
 - `apply_action_to_changeset`, `apply_action_to_annotations`, and `apply_action_to_resource_watch` reducers in `ahp`; all previously-skipped conformance fixtures for the `changeset`, `annotations`, and `resourceWatch` reducer families now pass.
+- Generated `telemetry` module (`ahp_types::telemetry`) — the shared
+  cross-client self-instrumentation span / metric / attribute name constants,
+  generated from the `types/telemetry/registry.ts` contract so they stay
+  identical across clients. Includes the `host-event` / `host-subscription` /
+  `host-resource` / `host-snapshot` / `host-summaries` `ahp.stream` values for
+  multi-host dropped-event accounting.
+- The `ahp` client now emits self-instrumentation **metrics** named by
+  `ahp_types::telemetry` through the [`metrics`](https://docs.rs/metrics)
+  facade: messages sent/received, request duration + in-flight, reconnects,
+  dropped events (per stream), and malformed frames, with `rpc.*` / `ahp.*`
+  attributes. The facade is a no-op until the host installs a recorder, so it
+  is zero-cost when unobserved. Only the names are shared; the instrumentation
+  is hand-written and idiomatic to Rust. Covered by a
+  `tests/telemetry_emission.rs` integration test that installs a `metrics-util`
+  recorder and asserts the metrics actually emit (names, the in-flight gauge
+  going `+1` → `0`, and the `rpc.method` / `ahp.outcome` / `ahp.message.kind`
+  attributes), plus an `examples/otel_export.rs` showing a consumer installing
+  a recorder to observe the client's self-instrumentation.
 - `ChangesetOperationStatus::Disabled` — new variant for changeset operations
   that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related
@@ -44,6 +62,14 @@ matching `## [X.Y.Z]` heading is missing from this file.
   as `null`.
 - Session reducers now apply `_meta` (`meta`) updates from every
   tool-call-scoped action, not only `session/toolCallStart`.
+- Client telemetry: a cancelled request is now tagged
+  `ahp.outcome=cancelled` instead of `ahp.outcome=timeout` on the
+  `ahp.client.request.duration` metric. Cancellation (the caller dropping the
+  request future) and the in-client `default_request_timeout` deadline are now
+  distinct outcomes. Cancellation is recorded via an RAII span guard, so a
+  cancelled request still emits a `request.duration` sample and the
+  `ahp.client.requests.in_flight` gauge is decremented (previously a dropped
+  request future emitted nothing and leaked the in-flight gauge at `+1`).
 
 ### Added
 

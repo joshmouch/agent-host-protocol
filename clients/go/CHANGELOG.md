@@ -16,6 +16,12 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- Generated telemetry-name constants (`telemetry.generated.go`) — the shared
+  cross-client self-instrumentation span / metric / attribute names, generated
+  from the `types/telemetry/registry.ts` contract so they stay identical across
+  clients. Includes the `host-event` / `host-subscription` / `host-resource` /
+  `host-snapshot` / `host-summaries` `ahp.stream` values for multi-host
+  dropped-event accounting.
 - `ChangesetOperationStatusDisabled` — new `ChangesetOperationStatus` value for
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.Group` — optional identifier for grouping related

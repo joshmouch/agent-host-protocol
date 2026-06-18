@@ -47,6 +47,7 @@ use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
 
 use crate::error::ClientError;
+use crate::telemetry;
 use crate::transport::{Transport, TransportMessage};
 
 /// Default size of a per-subscription broadcast channel. Consumers that
@@ -128,7 +129,10 @@ impl ClientEventStream {
             match self.rx.recv().await {
                 Ok(ev) => return Some(ev),
                 Err(broadcast::error::RecvError::Closed) => return None,
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    crate::telemetry::events_dropped(ahp_types::telemetry::STREAM_EVENT, n);
+                    continue;
+                }
             }
         }
     }
@@ -158,7 +162,10 @@ impl SessionSubscription {
                 // Slow consumer: skip the gap and keep going. Callers
                 // that need strict ordering should use a tighter buffer
                 // or their own backpressure.
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Lagged(n)) => {
+                    crate::telemetry::events_dropped(ahp_types::telemetry::STREAM_SUBSCRIPTION, n);
+                    continue;
+                }
             }
         }
     }
@@ -294,33 +301,77 @@ impl Client {
             pending.insert(id, tx);
         }
 
-        if self
-            .shared
-            .outbound
-            .send(Outbound::Message(req))
-            .await
-            .is_err()
-        {
-            self.shared.pending.lock().await.remove(&id);
-            return Err(ClientError::Shutdown);
-        }
+        // RAII span: increments the in-flight gauge now and owns the matching
+        // decrement + `request.duration` record exactly once. The two ways it
+        // settles map to the two distinct unsuccessful outcomes the contract
+        // separates:
+        //
+        //   * Caller CANCELLATION — the caller drops this future before it
+        //     resolves (e.g. `tokio::time::timeout(_, client.request(..))`
+        //     elapses, or a `select!` arm wins). The function body simply stops
+        //     at its current `.await`; the span's `Drop` then records the
+        //     request as [`OUTCOME_CANCELLED`]. Without the guard a dropped
+        //     future would emit no duration sample and leak the in-flight gauge.
+        //
+        //   * In-client TIMEOUT — our own `default_request_timeout` deadline
+        //     elapses. That is *not* a cancellation: we settle the span as
+        //     [`OUTCOME_TIMEOUT`] explicitly below.
+        //
+        // Any normal settle (ok / rpc-error / shutdown) is recorded via
+        // `span.settle(..)` after the body, after which `Drop` is a no-op.
+        let mut span = telemetry::RequestSpan::started(method);
+        let mut timed_out = false;
 
-        let result = match self.shared.config.default_request_timeout {
-            Some(dur) => match tokio::time::timeout(dur, rx).await {
-                Ok(r) => r,
-                Err(_) => {
-                    self.shared.pending.lock().await.remove(&id);
-                    return Err(ClientError::Cancelled);
-                }
-            },
-            None => rx.await,
+        let result: Result<R, ClientError> = 'req: {
+            if self
+                .shared
+                .outbound
+                .send(Outbound::Message(req))
+                .await
+                .is_err()
+            {
+                self.shared.pending.lock().await.remove(&id);
+                break 'req Err(ClientError::Shutdown);
+            }
+            crate::telemetry::message_sent(method, ahp_types::telemetry::MESSAGE_KIND_REQUEST);
+
+            let received = match self.shared.config.default_request_timeout {
+                Some(dur) => match tokio::time::timeout(dur, rx).await {
+                    Ok(r) => r,
+                    Err(_) => {
+                        // The in-client deadline elapsed: a genuine timeout,
+                        // distinct from a caller-driven cancellation. Flag it so
+                        // the outcome stage tags `timeout` (not `error`, and not
+                        // `cancelled` — the bug this fixes).
+                        self.shared.pending.lock().await.remove(&id);
+                        timed_out = true;
+                        break 'req Err(ClientError::Cancelled);
+                    }
+                },
+                None => rx.await,
+            };
+
+            match received {
+                Ok(Ok(value)) => serde_json::from_value(value).map_err(ClientError::from),
+                Ok(Err(e)) => Err(ClientError::Rpc(e)),
+                Err(_) => Err(ClientError::Shutdown),
+            }
         };
 
-        match result {
-            Ok(Ok(value)) => Ok(serde_json::from_value(value)?),
-            Ok(Err(e)) => Err(ClientError::Rpc(e)),
-            Err(_) => Err(ClientError::Shutdown),
-        }
+        // We reached the end of the body, so this was NOT a caller cancellation
+        // (a cancellation drops the future before here, leaving `span` to record
+        // CANCELLED in `Drop`). Settle with the real outcome: the in-client
+        // deadline reports `timeout`; everything else maps from `result`.
+        let outcome = if timed_out {
+            ahp_types::telemetry::OUTCOME_TIMEOUT
+        } else {
+            match &result {
+                Ok(_) => ahp_types::telemetry::OUTCOME_OK,
+                Err(_) => ahp_types::telemetry::OUTCOME_ERROR,
+            }
+        };
+        span.settle(outcome);
+        result
     }
 
     /// Send a JSON-RPC notification (fire-and-forget).
@@ -382,7 +433,12 @@ impl Client {
             last_seen_server_seq,
             subscriptions,
         };
-        self.request("reconnect", params).await
+        let result = self.request("reconnect", params).await;
+        crate::telemetry::reconnect(match &result {
+            Ok(_) => ahp_types::telemetry::OUTCOME_OK,
+            Err(_) => ahp_types::telemetry::OUTCOME_ERROR,
+        });
+        result
     }
 
     /// Subscribe to a URI and obtain a handle that streams
@@ -403,9 +459,10 @@ impl Client {
     /// `initialSubscriptions` during [`Client::initialize`].
     pub async fn attach_subscription(&self, uri: &str) -> SessionSubscription {
         let mut subs = self.shared.subscriptions.lock().await;
-        let tx = subs
-            .entry(uri.to_string())
-            .or_insert_with(|| broadcast::channel(self.shared.config.subscription_buffer).0);
+        let tx = subs.entry(uri.to_string()).or_insert_with(|| {
+            crate::telemetry::subscription_opened();
+            broadcast::channel(self.shared.config.subscription_buffer).0
+        });
         SessionSubscription {
             rx: tx.subscribe(),
             uri: uri.to_string(),
@@ -418,7 +475,9 @@ impl Client {
     pub async fn unsubscribe(&self, uri: String) -> Result<(), ClientError> {
         {
             let mut subs = self.shared.subscriptions.lock().await;
-            subs.remove(&uri);
+            if subs.remove(&uri).is_some() {
+                crate::telemetry::subscription_closed();
+            }
         }
         self.notify("unsubscribe", UnsubscribeParams { channel: uri })
             .await
@@ -504,8 +563,14 @@ async fn drive_transport<T: Transport>(
                 match inbound {
                     Ok(Some(wire)) => {
                         match wire.into_parsed() {
-                            Ok(msg) => dispatch_inbound(&shared, msg).await,
-                            Err(err) => tracing::warn!(?err, "malformed frame"),
+                            Ok(msg) => {
+                                crate::telemetry::message_received();
+                                dispatch_inbound(&shared, msg).await
+                            }
+                            Err(err) => {
+                                crate::telemetry::frame_malformed();
+                                tracing::warn!(?err, "malformed frame")
+                            }
                         }
                     }
                     Ok(None) => break,
@@ -528,6 +593,9 @@ async fn drive_transport<T: Transport>(
         }));
     }
     let mut subs = shared.subscriptions.lock().await;
+    for _ in 0..subs.len() {
+        crate::telemetry::subscription_closed();
+    }
     subs.clear();
     // Drop the top-level fan-out sender so any active
     // `ClientEventStream::recv()` resolves with `None` rather than

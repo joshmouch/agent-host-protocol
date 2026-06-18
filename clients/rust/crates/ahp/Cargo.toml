@@ -23,12 +23,16 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+metrics = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 serde_json = { workspace = true }
 ahp-ws = { path = "../ahp-ws" }
 tracing-subscriber = "0.3"
+# In-process metrics recorder used by the telemetry emission tests/example to
+# observe the client's self-instrumentation. Compatible with `metrics = 0.24`.
+metrics-util = "0.20"
 
 [[example]]
 name = "connect_ws"
@@ -37,3 +41,7 @@ path = "examples/connect_ws.rs"
 [[example]]
 name = "reducers_demo"
 path = "examples/reducers_demo.rs"
+
+[[example]]
+name = "otel_export"
+path = "examples/otel_export.rs"

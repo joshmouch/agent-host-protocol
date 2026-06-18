@@ -124,6 +124,7 @@ pub mod errors;
 pub mod messages;
 pub mod notifications;
 pub mod state;
+pub mod telemetry;
 pub mod version;
 
 pub use actions::{ActionEnvelope, ActionOrigin, ActionType, StateAction};

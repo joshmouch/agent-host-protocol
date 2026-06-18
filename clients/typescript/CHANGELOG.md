@@ -22,6 +22,12 @@ hotfix escape hatch.
 
 ### Added
 
+- Telemetry-name constants (`TELEMETRY_SOURCE`, `TELEMETRY_SPANS`,
+  `TELEMETRY_METRICS`, `TELEMETRY_ATTRIBUTES`, `TELEMETRY_VALUES`) — the shared
+  cross-client self-instrumentation names, re-exported from the package root.
+  Includes the `host-event` / `host-subscription` / `host-resource` /
+  `host-snapshot` / `host-summaries` `ahp.stream` values for multi-host
+  dropped-event accounting.
 - `ChangesetOperationStatus.Disabled` — new enum value for changeset
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

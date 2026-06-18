@@ -35,6 +35,7 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import { readTelemetry } from './read-telemetry.js';
 
 const GENERATED_HEADER =
   '// Generated from types/*.ts — do not edit\n\n' +
@@ -1894,6 +1895,73 @@ function checkExhaustiveness(project: Project): void {
   }
 }
 
+// ─── Telemetry Names File Generator ──────────────────────────────────────────
+
+function generateKotlinTelemetryFile(project: Project): string {
+  const t = readTelemetry(project);
+  /** PascalCase id → SCREAMING_SNAKE_CASE, matching the existing object-constant style. */
+  const scream = (s: string): string => toScreamingSnake(s);
+
+  const lines: string[] = [
+    '// Generated from types/telemetry/registry.ts — do not edit',
+    '',
+    `package ${PACKAGE}`,
+    '',
+    '/**',
+    ' * Cross-client telemetry NAMES — the self-instrumentation contract shared by every',
+    ' * AHP client, generated from `types/telemetry/registry.ts`. Only the names are shared;',
+    ' * the OpenTelemetry tracer / meter wiring is hand-written per language.',
+    ' */',
+    'object AhpTelemetryNames {',
+    '',
+    '    // ── Instrumentation scope ──',
+    `    /** ${t.source.doc} */`,
+    `    const val SOURCE: String = ${JSON.stringify(t.source.value)}`,
+    '',
+    '    // ── Span names ──',
+  ];
+
+  for (const span of t.spans) {
+    if (span.doc) lines.push(`    /** ${span.doc} */`);
+    lines.push(`    const val ${scream(span.id)}_SPAN: String = ${JSON.stringify(span.value)}`);
+  }
+
+  lines.push('');
+  lines.push('    // ── Metric names ──');
+  for (const metric of t.metrics) {
+    if (metric.doc) lines.push(`    /** ${metric.doc} */`);
+    lines.push(`    const val ${scream(metric.id)}: String = ${JSON.stringify(metric.value)}`);
+  }
+
+  lines.push('');
+  lines.push('    // ── Metric units ──');
+  for (const metric of t.metrics) {
+    lines.push(`    /** Unit for the \`${metric.value}\` metric. */`);
+    lines.push(`    const val ${scream(metric.id)}_UNIT: String = ${JSON.stringify(metric.unit)}`);
+  }
+
+  lines.push('');
+  lines.push('    // ── Attribute keys ──');
+  for (const attr of t.attributes) {
+    if (attr.doc) lines.push(`    /** ${attr.doc} */`);
+    lines.push(`    const val ATTR_${scream(attr.id)}: String = ${JSON.stringify(attr.value)}`);
+  }
+
+  lines.push('');
+  lines.push('    // ── Attribute values ──');
+  for (const group of t.values) {
+    for (const member of group.members) {
+      if (member.doc) lines.push(`    /** ${member.doc} */`);
+      lines.push(`    const val ${scream(group.group)}_${scream(member.id)}: String = ${JSON.stringify(member.value)}`);
+    }
+  }
+
+  lines.push('}');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 function generateVersionFile(project: Project): string {
@@ -1942,4 +2010,5 @@ export function generateKotlinPackage(project: Project, outputDir: string): void
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.kt'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.kt'), generateMessagesFile());
   fs.writeFileSync(path.join(generatedDir, 'Version.generated.kt'), generateVersionFile(project));
+  fs.writeFileSync(path.join(generatedDir, 'Telemetry.generated.kt'), generateKotlinTelemetryFile(project));
 }

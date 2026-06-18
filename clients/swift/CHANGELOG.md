@@ -19,6 +19,12 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Added
 
+- Generated `AhpTelemetryNames` — the shared cross-client self-instrumentation
+  span / metric / attribute names, generated from the
+  `types/telemetry/registry.ts` contract so they stay identical across clients.
+  Includes the `host-event` / `host-subscription` / `host-resource` /
+  `host-snapshot` / `host-summaries` `ahp.stream` values for multi-host
+  dropped-event accounting.
 - `ChangesetOperationStatus.disabled` — new case for changeset operations
   that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

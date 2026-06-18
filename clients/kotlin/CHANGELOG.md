@@ -17,6 +17,12 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ### Added
 
+- Generated `AhpTelemetryNames` object — the shared cross-client
+  self-instrumentation span / metric / attribute name constants, generated from
+  the `types/telemetry/registry.ts` contract so they stay identical across
+  clients. Includes the `host-event` / `host-subscription` / `host-resource` /
+  `host-snapshot` / `host-summaries` `ahp.stream` values for multi-host
+  dropped-event accounting.
 - `ChangesetOperationStatus.Disabled` — new enum value for changeset
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

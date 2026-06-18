@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import { readTelemetry } from './read-telemetry.js';
 
 const GENERATED_HEADER = '// Generated from types/*.ts — do not edit\n\nimport Foundation\n';
 
@@ -1871,6 +1872,81 @@ function checkExhaustiveness(project: Project): void {
   }
 }
 
+// ─── Telemetry Names File Generator ──────────────────────────────────────────
+
+function generateSwiftTelemetryFile(project: Project): string {
+  const camel = (s: string): string => s.charAt(0).toLowerCase() + s.slice(1);
+  const t = readTelemetry(project);
+  const lines: string[] = [GENERATED_HEADER];
+
+  lines.push('// MARK: - Telemetry Names');
+  lines.push('');
+  lines.push('/// Cross-client telemetry names — the self-instrumentation contract shared by every');
+  lines.push('/// AHP client, generated from `types/telemetry/registry.ts`. Only the names are shared;');
+  lines.push('/// the tracer / meter wiring is hand-written per platform.');
+  lines.push('public enum AhpTelemetryNames {');
+  lines.push('');
+
+  // Source
+  lines.push('    // MARK: - Source');
+  if (t.source.doc) lines.push(`    /// ${t.source.doc}`);
+  lines.push(`    public static let source = ${JSON.stringify(t.source.value)}`);
+  lines.push('');
+
+  // Span names
+  // Swift member name: camel(id) + "Span"  (e.g. id="Request" → "requestSpan")
+  lines.push('    // MARK: - Span Names');
+  for (const span of t.spans) {
+    if (span.doc) lines.push(`    /// ${span.doc}`);
+    lines.push(`    public static let ${camel(span.id)}Span = ${JSON.stringify(span.value)}`);
+  }
+  lines.push('');
+
+  // Metric names
+  // Swift member name: camel(id)  (e.g. id="MessagesSent" → "messagesSent")
+  lines.push('    // MARK: - Metric Names');
+  for (const metric of t.metrics) {
+    if (metric.doc) lines.push(`    /// ${metric.doc}`);
+    lines.push(`    public static let ${camel(metric.id)} = ${JSON.stringify(metric.value)}`);
+  }
+  lines.push('');
+
+  // Metric units
+  // Swift member name: camel(id) + "Unit"  (e.g. id="MessagesSent" → "messagesSentUnit")
+  lines.push('    // MARK: - Metric Units');
+  for (const metric of t.metrics) {
+    lines.push(`    /// Unit for the \`${metric.value}\` metric.`);
+    lines.push(`    public static let ${camel(metric.id)}Unit = ${JSON.stringify(metric.unit)}`);
+  }
+  lines.push('');
+
+  // Attribute keys
+  // Swift member name: "attr" + id  (id is PascalCase, e.g. id="RpcSystem" → "attrRpcSystem")
+  lines.push('    // MARK: - Attribute Keys');
+  for (const attr of t.attributes) {
+    if (attr.doc) lines.push(`    /// ${attr.doc}`);
+    lines.push(`    public static let attr${attr.id} = ${JSON.stringify(attr.value)}`);
+  }
+  lines.push('');
+
+  // Attribute values
+  // Swift member name: camel(group) + id  (group and id are PascalCase,
+  //   e.g. group="Outcome", id="Ok" → "outcomeOk")
+  lines.push('    // MARK: - Attribute Values');
+  for (const group of t.values) {
+    for (const member of group.members) {
+      if (member.doc) lines.push(`    /// ${member.doc}`);
+      lines.push(`    public static let ${camel(group.group)}${member.id} = ${JSON.stringify(member.value)}`);
+    }
+  }
+  lines.push('');
+
+  lines.push('}');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 function generateVersionFile(project: Project): string {
@@ -1921,4 +1997,5 @@ export function generateSwiftPackage(project: Project, outputDir: string): void 
   fs.writeFileSync(path.join(generatedDir, 'Errors.generated.swift'), generateErrorsFile(project));
   fs.writeFileSync(path.join(generatedDir, 'Messages.generated.swift'), generateMessagesFile());
   fs.writeFileSync(path.join(generatedDir, 'Version.generated.swift'), generateVersionFile(project));
+  fs.writeFileSync(path.join(generatedDir, 'Telemetry.generated.swift'), generateSwiftTelemetryFile(project));
 }

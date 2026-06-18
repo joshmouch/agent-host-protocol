@@ -41,6 +41,7 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import { readTelemetry } from './read-telemetry.js';
 
 const GENERATED_BANNER =
   '// Generated from types/*.ts — do not edit.\n' +
@@ -1953,6 +1954,56 @@ function resolveGoFmt(allowMissingFormatter: boolean): string | undefined {
   );
 }
 
+// ─── Telemetry Names File Generator ──────────────────────────────────────────
+
+function generateGoTelemetryFile(project: Project): string {
+  const t = readTelemetry(project);
+  const lines: string[] = [GENERATED_BANNER];
+
+  lines.push('// Cross-client telemetry NAMES — the self-instrumentation contract shared by every');
+  lines.push('// AHP client, generated from types/telemetry/registry.ts. Only the names are shared;');
+  lines.push('// the tracer / meter wiring is hand-written per language.');
+  lines.push('');
+  lines.push('const (');
+  if (t.source.doc) lines.push(`\t// ${t.source.doc}`);
+  lines.push(`\tTelemetrySource = ${JSON.stringify(t.source.value)}`);
+  lines.push('');
+  lines.push('\t// Span names.');
+  for (const span of t.spans) {
+    if (span.doc) lines.push(`\t// ${span.doc}`);
+    lines.push(`\t${span.id}Span = ${JSON.stringify(span.value)}`);
+  }
+  lines.push('');
+  lines.push('\t// Metric names.');
+  for (const metric of t.metrics) {
+    if (metric.doc) lines.push(`\t// ${metric.doc}`);
+    lines.push(`\t${metric.id}Metric = ${JSON.stringify(metric.value)}`);
+  }
+  lines.push('');
+  lines.push('\t// Metric units.');
+  for (const metric of t.metrics) {
+    lines.push(`\t// Unit for the ${metric.value} metric.`);
+    lines.push(`\t${metric.id}Unit = ${JSON.stringify(metric.unit)}`);
+  }
+  lines.push('');
+  lines.push('\t// Attribute keys.');
+  for (const attr of t.attributes) {
+    if (attr.doc) lines.push(`\t// ${attr.doc}`);
+    lines.push(`\tAttr${attr.id} = ${JSON.stringify(attr.value)}`);
+  }
+  lines.push('');
+  lines.push('\t// Attribute values.');
+  for (const group of t.values) {
+    for (const member of group.members) {
+      if (member.doc) lines.push(`\t// ${member.doc}`);
+      lines.push(`\t${group.group}${member.id} = ${JSON.stringify(member.value)}`);
+    }
+  }
+  lines.push(')');
+  lines.push('');
+  return lines.join('\n');
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 export function generateGoModule(project: Project, outputDir: string, options: GenerateGoModuleOptions = {}): void {
@@ -1970,6 +2021,7 @@ export function generateGoModule(project: Project, outputDir: string, options: G
   fs.writeFileSync(path.join(srcDir, 'errors.generated.go'), generateErrorsFile());
   fs.writeFileSync(path.join(srcDir, 'messages.generated.go'), generateMessagesFile());
   fs.writeFileSync(path.join(srcDir, 'version.generated.go'), generateVersionFile(project));
+  fs.writeFileSync(path.join(srcDir, 'telemetry.generated.go'), generateGoTelemetryFile(project));
 
   if (gofmt) {
     try {

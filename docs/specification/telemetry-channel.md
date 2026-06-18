@@ -2,6 +2,8 @@
 
 The telemetry channel is the way an agent host emits OpenTelemetry (OTel) data — logs, traces, and metrics — to AHP clients. It is a thin pass-through: payloads on the wire are [OTLP/JSON](https://github.com/open-telemetry/opentelemetry-proto) values verbatim. AHP only adds the routing envelope.
 
+> **Not to be confused with [client self-instrumentation](./self-instrumentation.md).** This channel is how the *host* delivers OTel data *to* clients. Self-instrumentation is how a client reports on *its own* operation (the RPC spans/metrics it emits) — a separate concern with its own shared name contract.
+
 This page is normative. The OTel data model itself is defined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto); AHP does not redeclare it.
 
 ## URI Scheme

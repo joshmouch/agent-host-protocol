@@ -375,3 +375,16 @@ export {
   isNotificationKnownToVersion,
   compareProtocolVersions,
 } from './version/registry.js';
+
+// Telemetry names — shared self-instrumentation contract
+export {
+  TELEMETRY_SOURCE,
+  TELEMETRY_METRIC_UNITS,
+  TelemetrySpan,
+  TelemetryMetric,
+  TelemetryAttribute,
+  TelemetryRpcSystem,
+  TelemetryOutcome,
+  TelemetryMessageKind,
+  TelemetryStream,
+} from './telemetry/registry.js';

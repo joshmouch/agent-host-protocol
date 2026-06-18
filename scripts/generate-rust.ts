@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import { readTelemetry } from './read-telemetry.js';
 
 const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
 
@@ -1767,6 +1768,67 @@ function checkExhaustiveness(project: Project): void {
   }
 }
 
+// ─── Telemetry Names File Generator ──────────────────────────────────────────
+
+/** Convert a PascalCase (or camelCase) identifier to SCREAMING_SNAKE_CASE. */
+function toScreamingSnake(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+}
+
+function generateRustTelemetryFile(project: Project): string {
+  const t = readTelemetry(project);
+  const lines: string[] = [GENERATED_BANNER];
+
+  lines.push('// ─── Instrumentation scope ───────────────────────────────────────────────\n');
+  if (t.source.doc) lines.push(`/// ${t.source.doc}`);
+  lines.push(`pub const TELEMETRY_SOURCE: &str = ${JSON.stringify(t.source.value)};\n`);
+
+  lines.push('// ─── Span names ──────────────────────────────────────────────────────────\n');
+  for (const span of t.spans) {
+    const constName = toScreamingSnake(span.id) + '_SPAN';
+    if (span.doc) lines.push(`/// ${span.doc}`);
+    lines.push(`pub const ${constName}: &str = ${JSON.stringify(span.value)};`);
+  }
+  lines.push('');
+
+  lines.push('// ─── Metric names ────────────────────────────────────────────────────────\n');
+  for (const metric of t.metrics) {
+    const constName = toScreamingSnake(metric.id);
+    if (metric.doc) lines.push(`/// ${metric.doc}`);
+    lines.push(`pub const ${constName}: &str = ${JSON.stringify(metric.value)};`);
+  }
+  lines.push('');
+
+  lines.push('// ─── Metric units ────────────────────────────────────────────────────────\n');
+  for (const metric of t.metrics) {
+    const constName = toScreamingSnake(metric.id) + '_UNIT';
+    lines.push(`/// Unit for the \`${metric.value}\` metric.`);
+    lines.push(`pub const ${constName}: &str = ${JSON.stringify(metric.unit)};`);
+  }
+  lines.push('');
+
+  lines.push('// ─── Attribute keys ──────────────────────────────────────────────────────\n');
+  for (const attr of t.attributes) {
+    const constName = 'ATTR_' + toScreamingSnake(attr.id);
+    if (attr.doc) lines.push(`/// ${attr.doc}`);
+    lines.push(`pub const ${constName}: &str = ${JSON.stringify(attr.value)};`);
+  }
+  lines.push('');
+
+  lines.push('// ─── Attribute values ────────────────────────────────────────────────────\n');
+  for (const group of t.values) {
+    const groupPrefix = toScreamingSnake(group.group) + '_';
+    for (const member of group.members) {
+      const constName = groupPrefix + toScreamingSnake(member.id);
+      if (member.doc) lines.push(`/// ${member.doc}`);
+      lines.push(`pub const ${constName}: &str = ${JSON.stringify(member.value)};`);
+    }
+  }
+  lines.push('');
+
+  return lines.join('\n');
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 export function generateRustCrate(project: Project, outputDir: string, options: GenerateRustCrateOptions = {}): void {
@@ -1791,6 +1853,7 @@ export function generateRustCrate(project: Project, outputDir: string, options: 
   fs.writeFileSync(path.join(srcDir, 'errors.rs'), generateErrorsFile());
   fs.writeFileSync(path.join(srcDir, 'messages.rs'), generateMessagesFile());
   fs.writeFileSync(path.join(srcDir, 'version.rs'), generateVersionFile(project));
+  fs.writeFileSync(path.join(srcDir, 'telemetry.rs'), generateRustTelemetryFile(project));
 
   try {
     execFileSync('cargo', ['fmt', '-p', 'ahp-types'], { cwd: outputDir, stdio: 'inherit' });

@@ -71,6 +71,7 @@ export default withMermaid(defineConfig({
             { text: 'Terminal Channel', link: '/specification/terminal-channel' },
             { text: 'Resource Watch Channel', link: '/specification/resource-watch-channel' },
             { text: 'Telemetry Channel', link: '/specification/telemetry-channel' },
+            { text: 'Client Self-Instrumentation', link: '/specification/self-instrumentation' },
           ],
         },
       ],
