@@ -16,6 +16,8 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ChangesetOperationStatusDisabled` — new `ChangesetOperationStatus` value for
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.Group` — optional identifier for grouping related

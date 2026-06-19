@@ -17,6 +17,8 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ### Added
 
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ChangesetOperationStatus.Disabled` — new enum value for changeset
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

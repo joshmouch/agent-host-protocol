@@ -1750,18 +1750,11 @@ type ToolResultTerminalContent struct {
 }
 
 // A reference, embedded in a tool result, to a worker chat spawned by the tool
-// call (a sub-agent delegation).
-//
-// A tool-spawned worker is a chat ({@link ChatState}), so `resource` is a chat
-// URI (`ahp-chat:/<cid>`) — not a session URI. Clients subscribe to it to
-// stream the worker's progress in real time, including its inner tool calls and
-// responses.
+// call (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).
 //
 // This is the spawning tool call's forward view of the worker. The worker chat
 // records the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),
-// whose `toolCallId` identifies the tool call that emitted this content. The
-// `ChatOrigin.Tool` record is canonical for the spawn relationship; hosts MUST
-// keep the two consistent, and clients MAY use either direction to render it.
+// whose `toolCallId` identifies the tool call that emitted this content.
 type ToolResultSubagentContent struct {
 	Type ToolResultContentType `json:"type"`
 	// Worker chat URI (subscribable for full chat state)

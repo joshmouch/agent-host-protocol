@@ -3614,7 +3614,7 @@
     },
     "ToolResultSubagentContent": {
       "type": "object",
-      "description": "A reference, embedded in a tool result, to a worker chat spawned by the tool\ncall (a sub-agent delegation).\n\nA tool-spawned worker is a chat ({@link ChatState}), so `resource` is a chat\nURI (`ahp-chat:/<cid>`) — not a session URI. Clients subscribe to it to\nstream the worker's progress in real time, including its inner tool calls and\nresponses.\n\nThis is the spawning tool call's forward view of the worker. The worker chat\nrecords the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),\nwhose `toolCallId` identifies the tool call that emitted this content. The\n`ChatOrigin.Tool` record is canonical for the spawn relationship; hosts MUST\nkeep the two consistent, and clients MAY use either direction to render it.",
+      "description": "A reference, embedded in a tool result, to a worker chat spawned by the tool\ncall (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).\n\nThis is the spawning tool call's forward view of the worker. The worker chat\nrecords the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),\nwhose `toolCallId` identifies the tool call that emitted this content.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ToolResultContentType.Subagent"

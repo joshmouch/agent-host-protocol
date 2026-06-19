@@ -19,6 +19,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Added
 
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ChangesetOperationStatus.disabled` — new case for changeset operations
   that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related
