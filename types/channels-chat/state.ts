@@ -512,13 +512,25 @@ export interface ActiveTurn {
  * @category Turn Types
  */
 export enum MessageKind {
+  /** Initiated directly by the user. */
   User = 'user',
+  /**
+   * Initiated by the agent itself rather than the user — for example, an
+   * agent that seeds the first turn of a chat it spawned.
+   */
+  Agent = 'agent',
+  /**
+   * Initiated by a tool rather than the user — for example, a tool that
+   * spawns a worker chat whose first turn carries a seed prompt.
+   */
+  Tool = 'tool',
+  /** A system-generated notification rather than a direct user message. */
   SystemNotification = 'systemNotification',
 }
 
 /**
  * A message that initiates or steers a turn. Messages can originate from the
- * user or be system-generated (see {@link MessageKind}).
+ * user, the agent, a tool, or be system-generated (see {@link MessageKind}).
  *
  * Attachments MAY be referenced inside {@link Message.text} via their
  * {@link MessageAttachmentBase.range} field. Attachments without a range are

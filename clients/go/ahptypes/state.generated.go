@@ -967,7 +967,7 @@ type ActiveTurn struct {
 }
 
 // A message that initiates or steers a turn. Messages can originate from the
-// user or be system-generated (see {@link MessageKind}).
+// user, the agent, a tool, or be system-generated (see {@link MessageKind}).
 //
 // Attachments MAY be referenced inside {@link Message.text} via their
 // {@link MessageAttachmentBase.range} field. Attachments without a range are

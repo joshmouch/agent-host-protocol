@@ -17,6 +17,9 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 ### Added
 
+- `MessageKind.AGENT` and `MessageKind.TOOL` — new enum values for turns
+  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
+  first turn of a worker chat it spawned).
 - `ChangesetOperationStatus.Disabled` — new enum value for changeset
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

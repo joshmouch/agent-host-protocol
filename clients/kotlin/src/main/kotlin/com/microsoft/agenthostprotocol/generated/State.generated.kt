@@ -289,8 +289,26 @@ enum class TurnState {
  */
 @Serializable
 enum class MessageKind {
+    /**
+     * Initiated directly by the user.
+     */
     @SerialName("user")
     USER,
+    /**
+     * Initiated by the agent itself rather than the user — for example, an
+     * agent that seeds the first turn of a chat it spawned.
+     */
+    @SerialName("agent")
+    AGENT,
+    /**
+     * Initiated by a tool rather than the user — for example, a tool that
+     * spawns a worker chat whose first turn carries a seed prompt.
+     */
+    @SerialName("tool")
+    TOOL,
+    /**
+     * A system-generated notification rather than a direct user message.
+     */
     @SerialName("systemNotification")
     SYSTEM_NOTIFICATION
 }

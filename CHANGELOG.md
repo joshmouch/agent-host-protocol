@@ -25,6 +25,10 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 ### Added
 
+- `MessageKind.Agent` and `MessageKind.Tool` — message origin kinds for turns
+  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
+  first turn of a worker chat it spawned), so a host no longer has to
+  misrepresent such a turn as `User` or `SystemNotification`.
 - `ChangesetOperationStatus.Disabled` — signals that a changeset operation is
   currently unavailable and cannot be invoked, so clients can render the
   control as disabled rather than hiding it.

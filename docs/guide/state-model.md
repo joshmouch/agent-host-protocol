@@ -199,6 +199,8 @@ MessageResourceAttachment {
 }
 ```
 
+A message's `origin.kind` records who initiated the turn: `user` for a direct user message, `agent` for a turn the agent seeds itself, `tool` for a turn a tool starts (for example, seeding the first turn of a worker chat it spawned), and `systemNotification` for a system-generated notification. A client is only allowed to send `user` messages.
+
 Attachments MAY be referenced inline by `text` via the optional `range` field, which points at a span in the message text. This is a text range, not a byte range. Attachments without a range are still associated with the message but are not anchored to a specific span.
 
 Resource and embedded-resource attachments MAY also include `selection` to identify a selected range within the attached textual resource. This is distinct from `range`, which only describes where the attachment is referenced in the user message text. Selected text is not embedded inline; consumers can resolve the resource and read the selected range when needed. `selection` is only meaningful for textual resources; binary resources may still use resource or embedded-resource attachments, but they should not use this text selection field.
