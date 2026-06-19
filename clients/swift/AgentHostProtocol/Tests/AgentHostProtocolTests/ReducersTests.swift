@@ -50,7 +50,7 @@ final class ReducersTests: XCTestCase {
             turns: [],
             activeTurn: ActiveTurn(
                 id: T,
-                message: Message(text: "Hello", origin: AnyCodable(["kind": "user"])),
+                message: Message(text: "Hello", origin: MessageOrigin(kind: .user)),
                 responseParts: [],
                 usage: nil
             )
@@ -70,9 +70,9 @@ final class ReducersTests: XCTestCase {
     }
 
     func testChatReducerDoesNotMutateTurnsArray() {
-        let turn1 = Turn(id: "t1", message: Message(text: "First", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
-        let turn2 = Turn(id: "t2", message: Message(text: "Second", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
-        let turn3 = Turn(id: "t3", message: Message(text: "Third", origin: AnyCodable(["kind": "user"])), responseParts: [], state: .complete)
+        let turn1 = Turn(id: "t1", message: Message(text: "First", origin: MessageOrigin(kind: .user)), responseParts: [], state: .complete)
+        let turn2 = Turn(id: "t2", message: Message(text: "Second", origin: MessageOrigin(kind: .user)), responseParts: [], state: .complete)
+        let turn3 = Turn(id: "t3", message: Message(text: "Third", origin: MessageOrigin(kind: .user)), responseParts: [], state: .complete)
         let state = ChatState(
             resource: C,
             title: "T",
@@ -92,7 +92,7 @@ final class ReducersTests: XCTestCase {
 
     func testClientDispatchableReturnsTrue() {
         let action: StateAction = .chatTurnStarted(ChatTurnStartedAction(
-            type: .chatTurnStarted, turnId: T, message: Message(text: "Hello", origin: AnyCodable(["kind": "user"]))
+            type: .chatTurnStarted, turnId: T, message: Message(text: "Hello", origin: MessageOrigin(kind: .user))
         ))
         XCTAssertTrue(isClientDispatchable(action))
     }
@@ -115,7 +115,7 @@ final class ReducersTests: XCTestCase {
         let next = chatReducer(
             state: state,
             action: .chatTurnStarted(ChatTurnStartedAction(
-                type: .chatTurnStarted, turnId: T, message: Message(text: "Hello", origin: AnyCodable(["kind": "user"]))
+                type: .chatTurnStarted, turnId: T, message: Message(text: "Hello", origin: MessageOrigin(kind: .user))
             ))
         )
         XCTAssertGreaterThan(next.modifiedAt, state.modifiedAt)

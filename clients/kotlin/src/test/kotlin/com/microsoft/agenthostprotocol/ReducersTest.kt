@@ -337,6 +337,6 @@ class ReducersTest {
         private const val MOCK_NOW: Long = 9999L
 
         private fun userMessage(text: String): Message =
-            Message(text = text, origin = buildJsonObject { put("kind", "user") })
+            Message(text = text, origin = MessageOrigin(kind = MessageKind.USER))
     }
 }

@@ -1524,12 +1524,16 @@ pub fn apply_action_to_resource_watch(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ahp_types::state::{ChatSummary, MarkdownResponsePart, Message, SessionSummary};
+    use ahp_types::state::{
+        ChatSummary, MarkdownResponsePart, Message, MessageKind, MessageOrigin, SessionSummary,
+    };
 
     fn user_message(text: &str) -> Message {
         Message {
             text: text.into(),
-            origin: serde_json::json!({ "kind": "user" }),
+            origin: MessageOrigin {
+                kind: MessageKind::User,
+            },
             attachments: None,
             meta: None,
         }

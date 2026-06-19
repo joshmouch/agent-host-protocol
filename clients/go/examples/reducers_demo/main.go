@@ -22,7 +22,7 @@ func main() {
 		{Value: &ahptypes.ChatTurnStartedAction{
 			Type:    ahptypes.ActionTypeChatTurnStarted,
 			TurnId:  "t1",
-			Message: ahptypes.Message{Text: "Hello!"},
+			Message: ahptypes.Message{Text: "Hello!", Origin: ahptypes.MessageOrigin{Kind: ahptypes.MessageKindUser}},
 		}},
 		{Value: &ahptypes.ChatResponsePartAction{
 			Type:   ahptypes.ActionTypeChatResponsePart,
