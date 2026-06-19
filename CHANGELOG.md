@@ -30,6 +30,9 @@ changes accumulate. Track in-flight protocol changes via PRs touching
   turns initiated by the agent or a tool rather than the user (e.g. a tool
   seeding the first message of a worker chat it spawned), so a host no longer
   has to misrepresent such a message as `User` or `SystemNotification`.
+- `ConfigPropertySchema.additionalProperties` — optional JSON Schema field
+  (`ConfigPropertySchema`) describing the schema for object-typed config
+  properties beyond those listed in `properties`.
 - `changeset/contentChanged` — full-replacement changeset action for sending
   batched files, optional operations, and error details on initial snapshots or
   bulk refreshes.
@@ -48,6 +51,11 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 ### Changed
 
+- `ToolResultSubagentContent.resource` is now specified as the spawned worker
+  **chat** URI (`ahp-chat:/<cid>`), not a session URI — a tool-spawned
+  sub-agent is a chat. Its doc now describes the correspondence with the worker
+  chat's `ChatOrigin` record (`kind: 'tool'`, matching `toolCallId`), which
+  remains the canonical representation of the spawn relationship.
 - `Snapshot.state` now accepts `ResourceWatchState`, so `initialize` /
   `reconnect` / `subscribe` can seed an `ahp-resource-watch:` channel from a
   point-in-time snapshot. Existing variants (root, session, terminal,

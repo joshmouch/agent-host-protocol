@@ -2083,6 +2083,10 @@
             "type": "string"
           },
           "description": "JSON Schema: list of required property ids (used when `type` is `'object'`)"
+        },
+        "additionalProperties": {
+          "$ref": "#/$defs/ConfigPropertySchema",
+          "description": "JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`)."
         }
       },
       "required": [
@@ -2783,6 +2787,10 @@
             "type": "string"
           },
           "description": "JSON Schema: list of required property ids (used when `type` is `'object'`)"
+        },
+        "additionalProperties": {
+          "$ref": "#/$defs/ConfigPropertySchema",
+          "description": "JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`)."
         },
         "enumDynamic": {
           "type": "boolean",
@@ -5429,14 +5437,14 @@
     },
     "ToolResultSubagentContent": {
       "type": "object",
-      "description": "A reference to a subagent session spawned by a tool.\n\nClients can subscribe to the subagent's session URI to stream its\nprogress in real time, including inner tool calls and responses.",
+      "description": "A reference, embedded in a tool result, to a worker chat spawned by the tool\ncall (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).\n\nThis is the spawning tool call's forward view of the worker. The worker chat\nrecords the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),\nwhose `toolCallId` identifies the tool call that emitted this content.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ToolResultContentType.Subagent"
         },
         "resource": {
           "$ref": "#/$defs/URI",
-          "description": "Subagent session URI (subscribable for full session state)"
+          "description": "Worker chat URI (subscribable for full chat state)"
         },
         "title": {
           "type": "string",
@@ -6133,7 +6141,8 @@
             "toolCallId"
           ]
         }
-      ]
+      ],
+      "description": "How a chat came into existence. Clients MAY use it to render\ncontextual UI (parent indicators, fork markers, \"spawned by tool\" badges).\n\nThe `tool` variant records a tool-spawned worker from the worker's side: its\n`chat`/`toolCallId` identify the spawning tool call in the parent chat. This\nis the canonical record of the spawn relationship. The same edge is surfaced\nfrom the parent's side by {@link ToolResultSubagentContent}, whose `resource`\nis this chat's URI; hosts MUST keep the two consistent."
     },
     "ChatInputQuestion": {
       "oneOf": [
@@ -6279,7 +6288,7 @@
           "$ref": "#/$defs/ToolResultSubagentContent"
         }
       ],
-      "description": "Content block in a tool result.\n\nMirrors the content blocks in MCP `CallToolResult.content`, plus\n`ToolResultResourceContent` for lazy-loading large results,\n`ToolResultFileEditContent` for file edit diffs,\n`ToolResultTerminalContent` for live terminal output, and\n`ToolResultSubagentContent` for subagent sessions (AHP extensions)."
+      "description": "Content block in a tool result.\n\nMirrors the content blocks in MCP `CallToolResult.content`, plus\n`ToolResultResourceContent` for lazy-loading large results,\n`ToolResultFileEditContent` for file edit diffs,\n`ToolResultTerminalContent` for live terminal output, and\n`ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions)."
     },
     "TerminalClaim": {
       "oneOf": [

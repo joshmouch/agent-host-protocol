@@ -23,6 +23,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   (previously an untyped `AnyCodable`); `MessageKind` covers `user`, `agent`,
   `tool`, and `systemNotification`, adding faithful agent- and tool-initiated
   origins.
+- `ConfigPropertySchema.additionalProperties` — optional field describing the
+  schema for object-typed config properties beyond those in `properties`.
 - `ChangesetContentChangedAction` for full-replacement changeset file
   snapshots with optional operations and error details.
 - `ChangesetOperationStatus.disabled` — new case for changeset operations
@@ -38,6 +40,11 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Changed
 
+- `ToolResultSubagentContent.resource` is now specified as the spawned worker
+  **chat** URI (`ahp-chat:/<cid>`), not a session URI — a tool-spawned
+  sub-agent is a chat. Its doc now describes the correspondence with the worker
+  chat's `ChatOrigin.tool` record (matching `toolCallId`), which remains the
+  canonical representation of the spawn relationship.
 - **BREAKING:** `SessionStatus` is now an `OptionSet` with a `UInt32` rawValue
   (was `Int`), an unsigned 32-bit bitset that preserves combined and unknown
   forward-compat bits. Combine flags with set-union (`∪` / `union`) and test

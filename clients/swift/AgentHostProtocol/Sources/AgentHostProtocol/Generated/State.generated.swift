@@ -85,9 +85,13 @@ public struct SessionStatus: OptionSet, Codable, Sendable, Hashable {
     public static let isArchived = SessionStatus(rawValue: 64)
 }
 
+/// Discriminant for {@link ChatOrigin} — how a chat came into existence.
 public enum ChatOriginKind: String, Codable, Sendable {
+    /// User created the chat explicitly (e.g. via the host UI).
     case user = "user"
+    /// Forked from an existing chat at a specific turn.
     case fork = "fork"
+    /// Spawned by a tool call running in another chat (e.g. a sub-agent delegation).
     case tool = "tool"
 }
 
@@ -687,6 +691,8 @@ public final class ConfigPropertySchema: Codable, @unchecked Sendable {
     public var properties: [String: ConfigPropertySchema]?
     /// JSON Schema: list of required property ids (used when `type` is `'object'`)
     public var required: [String]?
+    /// JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`).
+    public var additionalProperties: ConfigPropertySchema?
 
     enum CodingKeys: String, CodingKey {
         case type
@@ -700,6 +706,7 @@ public final class ConfigPropertySchema: Codable, @unchecked Sendable {
         case items
         case properties
         case required
+        case additionalProperties
     }
 
     public init(
@@ -713,7 +720,8 @@ public final class ConfigPropertySchema: Codable, @unchecked Sendable {
         readOnly: Bool? = nil,
         items: ConfigPropertySchema? = nil,
         properties: [String: ConfigPropertySchema]? = nil,
-        required: [String]? = nil
+        required: [String]? = nil,
+        additionalProperties: ConfigPropertySchema? = nil
     ) {
         self.type = type
         self.title = title
@@ -726,6 +734,7 @@ public final class ConfigPropertySchema: Codable, @unchecked Sendable {
         self.items = items
         self.properties = properties
         self.required = required
+        self.additionalProperties = additionalProperties
     }
 }
 
@@ -2709,7 +2718,7 @@ public struct ToolResultTerminalContent: Codable, Sendable {
 
 public struct ToolResultSubagentContent: Codable, Sendable {
     public var type: ToolResultContentType
-    /// Subagent session URI (subscribable for full session state)
+    /// Worker chat URI (subscribable for full chat state)
     public var resource: String
     /// Display title for the subagent
     public var title: String

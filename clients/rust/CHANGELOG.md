@@ -21,6 +21,8 @@ matching `## [X.Y.Z]` heading is missing from this file.
   (previously an untyped `serde_json::Value`); `MessageKind` covers `User`,
   `Agent`, `Tool`, and `SystemNotification`, adding faithful agent- and
   tool-initiated origins.
+- `ConfigPropertySchema.additional_properties` — optional field describing the
+  schema for object-typed config properties beyond those in `properties`.
 - `ChangesetContentChangedAction` for full-replacement changeset file
   snapshots with optional operations and error details.
 - `ahp_error_codes::CONFLICT` constant (`-32011`) added to `ahp-types`; covers ETag-conflict failures from `ResourceWriteParams.if_match` checks.
@@ -38,6 +40,11 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Changed
 
+- `ToolResultSubagentContent.resource` is now specified as the spawned worker
+  **chat** URI (`ahp-chat:/<cid>`), not a session URI — a tool-spawned
+  sub-agent is a chat. Its doc now describes the correspondence with the worker
+  chat's `ChatOrigin::Tool` record (matching `tool_call_id`), which remains the
+  canonical representation of the spawn relationship.
 - **BREAKING:** `SessionStatus` is now a `u32` bitset newtype
   (`struct SessionStatus(pub u32)` with named flag constants) instead of a
   `#[repr(u32)]` enum. The wire form is a numeric bitset, so the enum could not

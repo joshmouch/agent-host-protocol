@@ -168,12 +168,24 @@ internal object SessionStatusSerializer : KSerializer<SessionStatus> {
         SessionStatus(decoder.decodeLong().toUInt())
 }
 
+/**
+ * Discriminant for {@link ChatOrigin} — how a chat came into existence.
+ */
 @Serializable
 enum class ChatOriginKind {
+    /**
+     * User created the chat explicitly (e.g. via the host UI).
+     */
     @SerialName("user")
     USER,
+    /**
+     * Forked from an existing chat at a specific turn.
+     */
     @SerialName("fork")
     FORK,
+    /**
+     * Spawned by a tool call running in another chat (e.g. a sub-agent delegation).
+     */
     @SerialName("tool")
     TOOL
 }
@@ -971,7 +983,11 @@ data class ConfigPropertySchema(
     /**
      * JSON Schema: list of required property ids (used when `type` is `'object'`)
      */
-    val required: List<String>? = null
+    val required: List<String>? = null,
+    /**
+     * JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`).
+     */
+    val additionalProperties: ConfigPropertySchema? = null
 )
 
 @Serializable
@@ -2567,7 +2583,7 @@ data class ToolResultTerminalContent(
 data class ToolResultSubagentContent(
     val type: ToolResultContentType,
     /**
-     * Subagent session URI (subscribable for full session state)
+     * Worker chat URI (subscribable for full chat state)
      */
     val resource: String,
     /**

@@ -20,6 +20,8 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   (previously an untyped `json.RawMessage`); `MessageKind` covers `user`,
   `agent`, `tool`, and `systemNotification`, adding faithful agent- and
   tool-initiated origins.
+- `ConfigPropertySchema.AdditionalProperties` — optional field describing the
+  schema for object-typed config properties beyond those in `Properties`.
 - `ChangesetContentChangedAction` for full-replacement changeset file
   snapshots with optional operations and error details.
 - `ChangesetOperationStatusDisabled` — new `ChangesetOperationStatus` value for
@@ -35,6 +37,11 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Changed
 
+- `ToolResultSubagentContent.Resource` is now specified as the spawned worker
+  **chat** URI (`ahp-chat:/<cid>`), not a session URI — a tool-spawned
+  sub-agent is a chat. Its doc now describes the correspondence with the worker
+  chat's `ChatToolOrigin` record (matching `ToolCallId`), which remains the
+  canonical representation of the spawn relationship.
 - **BREAKING:** `ChangesetOperationTargetRange` is now a nested `TextRange`
   (`{start: {line, character}, end: {line, character}}`) instead of flat
   `{start, end}` `int64` fields.

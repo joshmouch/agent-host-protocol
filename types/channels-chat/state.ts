@@ -131,12 +131,32 @@ export interface ChatSummary {
   workingDirectory?: URI;
 }
 
+/**
+ * Discriminant for {@link ChatOrigin} — how a chat came into existence.
+ *
+ * @category Chat State
+ */
 export const enum ChatOriginKind {
+  /** User created the chat explicitly (e.g. via the host UI). */
   User = 'user',
+  /** Forked from an existing chat at a specific turn. */
   Fork = 'fork',
+  /** Spawned by a tool call running in another chat (e.g. a sub-agent delegation). */
   Tool = 'tool',
 }
 
+/**
+ * How a chat came into existence. Clients MAY use it to render
+ * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
+ *
+ * The `tool` variant records a tool-spawned worker from the worker's side: its
+ * `chat`/`toolCallId` identify the spawning tool call in the parent chat. This
+ * is the canonical record of the spawn relationship. The same edge is surfaced
+ * from the parent's side by {@link ToolResultSubagentContent}, whose `resource`
+ * is this chat's URI; hosts MUST keep the two consistent.
+ *
+ * @category Chat State
+ */
 export type ChatOrigin =
   | { kind: ChatOriginKind.User }
   | { kind: ChatOriginKind.Fork; chat: URI; turnId: string }
@@ -1172,16 +1192,18 @@ export interface ToolResultTerminalContent {
 }
 
 /**
- * A reference to a subagent session spawned by a tool.
+ * A reference, embedded in a tool result, to a worker chat spawned by the tool
+ * call (a sub-agent delegation), referenced by a chat URI (`ahp-chat:/...`).
  *
- * Clients can subscribe to the subagent's session URI to stream its
- * progress in real time, including inner tool calls and responses.
+ * This is the spawning tool call's forward view of the worker. The worker chat
+ * records the same edge in reverse via its {@link ChatOrigin} (`kind: 'tool'`),
+ * whose `toolCallId` identifies the tool call that emitted this content.
  *
  * @category Tool Result Content
  */
 export interface ToolResultSubagentContent {
   type: ToolResultContentType.Subagent;
-  /** Subagent session URI (subscribable for full session state) */
+  /** Worker chat URI (subscribable for full chat state) */
   resource: URI;
   /** Display title for the subagent */
   title: string;
@@ -1198,7 +1220,7 @@ export interface ToolResultSubagentContent {
  * `ToolResultResourceContent` for lazy-loading large results,
  * `ToolResultFileEditContent` for file edit diffs,
  * `ToolResultTerminalContent` for live terminal output, and
- * `ToolResultSubagentContent` for subagent sessions (AHP extensions).
+ * `ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions).
  *
  * @category Tool Result Content
  */
