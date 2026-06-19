@@ -1290,7 +1290,9 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 
 	case *ahptypes.ChangesetContentChangedAction:
 		state.Files = a.Files
-		state.Operations = a.Operations
+		if a.Operations != nil {
+			state.Operations = a.Operations
+		}
 		return ReduceOutcomeApplied
 
 	case *ahptypes.ChangesetOperationsChangedAction:

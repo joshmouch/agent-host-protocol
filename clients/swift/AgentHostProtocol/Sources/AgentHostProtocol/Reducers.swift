@@ -1042,7 +1042,9 @@ public func changesetReducer(state: ChangesetState, action: StateAction) -> Chan
     case .changesetContentChanged(let a):
         var next = state
         next.files = a.files
-        next.operations = a.operations
+        if let operations = a.operations {
+            next.operations = operations
+        }
         return next
 
     case .changesetOperationsChanged(let a):

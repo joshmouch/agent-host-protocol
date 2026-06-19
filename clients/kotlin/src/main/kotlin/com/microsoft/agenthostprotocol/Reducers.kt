@@ -1247,7 +1247,11 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
     }
 
     is StateActionChangesetContentChanged ->
-        state.copy(files = action.value.files, operations = action.value.operations)
+        if (action.value.operations == null) {
+            state.copy(files = action.value.files)
+        } else {
+            state.copy(files = action.value.files, operations = action.value.operations)
+        }
 
     is StateActionChangesetOperationsChanged ->
         state.copy(operations = action.value.operations)

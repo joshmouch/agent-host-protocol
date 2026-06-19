@@ -1005,9 +1005,13 @@ data class ChangesetContentChangedAction(
      */
     val files: List<ChangesetFile>,
     /**
-     * Full replacement operation list. Pass `undefined` to clear all operations.
+     * Full replacement operation list. Omit when operations are unchanged.
      */
-    val operations: List<ChangesetOperation>? = null
+    val operations: List<ChangesetOperation>? = null,
+    /**
+     * Error information, if the changeset content change failed.
+     */
+    val error: ErrorInfo? = null
 )
 
 @Serializable

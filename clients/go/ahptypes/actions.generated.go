@@ -870,8 +870,8 @@ type ChangesetFileRemovedAction struct {
 }
 
 // The changeset's full content changed. Full replacement semantics: `files`
-// replaces the previous file list, and `operations` replaces the previous
-// operation list (or removes it entirely when `operations` is `undefined`).
+// replaces the previous file list, and `operations`, when present, replaces
+// the previous operation list.
 //
 // Producers SHOULD use this action for initial snapshots and bulk refreshes;
 // use {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and
@@ -880,8 +880,10 @@ type ChangesetContentChangedAction struct {
 	Type ActionType `json:"type"`
 	// Full replacement file list.
 	Files []ChangesetFile `json:"files"`
-	// Full replacement operation list. Pass `undefined` to clear all operations.
+	// Full replacement operation list. Omit when operations are unchanged.
 	Operations []ChangesetOperation `json:"operations,omitempty"`
+	// Error information, if the changeset content change failed.
+	Error *ErrorInfo `json:"error,omitempty"`
 }
 
 // The set of operations available on this changeset changed. Full

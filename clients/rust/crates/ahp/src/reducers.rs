@@ -1373,7 +1373,9 @@ pub fn apply_action_to_changeset(
         }
         StateAction::ChangesetContentChanged(a) => {
             state.files = a.files.clone();
-            state.operations = a.operations.clone();
+            if let Some(operations) = &a.operations {
+                state.operations = Some(operations.clone());
+            }
             ReduceOutcome::Applied
         }
         StateAction::ChangesetOperationsChanged(a) => {

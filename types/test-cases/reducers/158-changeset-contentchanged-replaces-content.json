@@ -1,5 +1,5 @@
 {
-  "description": "changeset/contentChanged replaces files and operations and clears operations when undefined",
+  "description": "changeset/contentChanged replaces files and can update operations",
   "reducer": "changeset",
   "initial": {
     "status": "ready",
@@ -92,8 +92,7 @@
             }
           }
         }
-      ],
-      "operations": null
+      ]
     }
   ],
   "expected": {
@@ -112,6 +111,16 @@
             "added": 8
           }
         }
+      }
+    ],
+    "operations": [
+      {
+        "id": "make-pr",
+        "label": "Create Pull Request",
+        "scopes": [
+          "changeset"
+        ],
+        "status": "idle"
       }
     ]
   }

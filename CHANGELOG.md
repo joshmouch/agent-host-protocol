@@ -26,7 +26,8 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 ### Added
 
 - `changeset/contentChanged` — full-replacement changeset action for sending
-  batched files and operations on initial snapshots or bulk refreshes.
+  batched files, optional operations, and error details on initial snapshots or
+  bulk refreshes.
 - `ChangesetOperationStatus.Disabled` — signals that a changeset operation is
   currently unavailable and cannot be invoked, so clients can render the
   control as disabled rather than hiding it.

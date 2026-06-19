@@ -1304,17 +1304,21 @@ public struct ChangesetContentChangedAction: Codable, Sendable {
     public var type: ActionType
     /// Full replacement file list.
     public var files: [ChangesetFile]
-    /// Full replacement operation list. Pass `undefined` to clear all operations.
+    /// Full replacement operation list. Omit when operations are unchanged.
     public var operations: [ChangesetOperation]?
+    /// Error information, if the changeset content change failed.
+    public var error: ErrorInfo?
 
     public init(
         type: ActionType,
         files: [ChangesetFile],
-        operations: [ChangesetOperation]? = nil
+        operations: [ChangesetOperation]? = nil,
+        error: ErrorInfo? = nil
     ) {
         self.type = type
         self.files = files
         self.operations = operations
+        self.error = error
     }
 }
 

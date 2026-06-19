@@ -1062,8 +1062,8 @@ pub struct ChangesetFileRemovedAction {
 }
 
 /// The changeset's full content changed. Full replacement semantics: `files`
-/// replaces the previous file list, and `operations` replaces the previous
-/// operation list (or removes it entirely when `operations` is `undefined`).
+/// replaces the previous file list, and `operations`, when present, replaces
+/// the previous operation list.
 ///
 /// Producers SHOULD use this action for initial snapshots and bulk refreshes;
 /// use {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and
@@ -1073,9 +1073,12 @@ pub struct ChangesetFileRemovedAction {
 pub struct ChangesetContentChangedAction {
     /// Full replacement file list.
     pub files: Vec<ChangesetFile>,
-    /// Full replacement operation list. Pass `undefined` to clear all operations.
+    /// Full replacement operation list. Omit when operations are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operations: Option<Vec<ChangesetOperation>>,
+    /// Error information, if the changeset content change failed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ErrorInfo>,
 }
 
 /// The set of operations available on this changeset changed. Full
