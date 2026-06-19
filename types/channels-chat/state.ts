@@ -146,10 +146,7 @@ export const enum ChatOriginKind {
 }
 
 /**
- * How a chat came into existence.
- *
- * Origin is descriptive metadata, **not** a hierarchy — every chat is equally
- * addressable regardless of how it was created. Clients MAY use it to render
+ * How a chat came into existence. Clients MAY use it to render
  * contextual UI (parent indicators, fork markers, "spawned by tool" badges).
  *
  * The `tool` variant records a tool-spawned worker from the worker's side: its
