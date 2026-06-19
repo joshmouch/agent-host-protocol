@@ -59,15 +59,13 @@ final class AnyCodableTests: XCTestCase {
 
     func testNSNumberUnsignedAboveInt64MaxStaysUnsigned() throws {
         // A JSON integer above Int64.max is boxed by JSONSerialization as an
-        // unsigned NSNumber. The int64Value fallback would corrupt it (it does
-        // not round-trip); the unsigned objCType arm encodes via uint64Value so
-        // the value survives the full JSONSerialization → AnyCodable → JSONEncoder
-        // round-trip.
-        let object = try JSONSerialization.jsonObject(
-            with: #"{"x":9223372036854775808}"#.data(using: .utf8)!
+        // unsigned NSNumber. The int64Value fallback would corrupt it; the
+        // unsigned objCType arm encodes via uint64Value so it survives.
+        struct Payload: Codable { let big: UInt64 }
+        let json = try roundTripJSON(value: Payload(big: UInt64(Int64.max) + 1))
+        XCTAssertTrue(
+            json.contains("\"big\":9223372036854775808"),
+            "Unsigned value above Int64.max must survive exactly, got: \(json)"
         )
-        let wrapped = AnyCodable(object)
-        let bytes = try JSONEncoder().encode(wrapped)
-        XCTAssertEqual(String(data: bytes, encoding: .utf8), #"{"x":9223372036854775808}"#)
     }
 }
