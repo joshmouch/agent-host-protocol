@@ -1596,6 +1596,34 @@
         "fileId"
       ]
     },
+    "ChangesetContentChangedAction": {
+      "type": "object",
+      "description": "The changeset's full content changed. Full replacement semantics: `files`\nreplaces the previous file list, and `operations` replaces the previous\noperation list (or removes it entirely when `operations` is `undefined`).\n\nProducers SHOULD use this action for initial snapshots and bulk refreshes;\nuse {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and\n{@link ChangesetOperationsChangedAction} for incremental updates.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.ChangesetContentChanged"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetFile"
+          },
+          "description": "Full replacement file list."
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetOperation"
+          },
+          "description": "Full replacement operation list. Pass `undefined` to clear all operations."
+        }
+      },
+      "required": [
+        "type",
+        "files",
+        "operations"
+      ]
+    },
     "ChangesetOperationsChangedAction": {
       "type": "object",
       "description": "The set of operations available on this changeset changed. Full\nreplacement semantics: `operations` replaces the previous list (or\nremoves it entirely when `operations` is `undefined`).",
@@ -6429,6 +6457,9 @@
         },
         {
           "$ref": "#/$defs/ChangesetFileRemovedAction"
+        },
+        {
+          "$ref": "#/$defs/ChangesetContentChangedAction"
         },
         {
           "$ref": "#/$defs/ChangesetOperationsChangedAction"

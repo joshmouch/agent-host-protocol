@@ -126,6 +126,8 @@ pub enum ActionType {
     ChangesetFileSet,
     #[serde(rename = "changeset/fileRemoved")]
     ChangesetFileRemoved,
+    #[serde(rename = "changeset/contentChanged")]
+    ChangesetContentChanged,
     #[serde(rename = "changeset/operationsChanged")]
     ChangesetOperationsChanged,
     #[serde(rename = "changeset/operationStatusChanged")]
@@ -1059,6 +1061,23 @@ pub struct ChangesetFileRemovedAction {
     pub file_id: String,
 }
 
+/// The changeset's full content changed. Full replacement semantics: `files`
+/// replaces the previous file list, and `operations` replaces the previous
+/// operation list (or removes it entirely when `operations` is `undefined`).
+///
+/// Producers SHOULD use this action for initial snapshots and bulk refreshes;
+/// use {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and
+/// {@link ChangesetOperationsChangedAction} for incremental updates.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangesetContentChangedAction {
+    /// Full replacement file list.
+    pub files: Vec<ChangesetFile>,
+    /// Full replacement operation list. Pass `undefined` to clear all operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operations: Option<Vec<ChangesetOperation>>,
+}
+
 /// The set of operations available on this changeset changed. Full
 /// replacement semantics: `operations` replaces the previous list (or
 /// removes it entirely when `operations` is `undefined`).
@@ -1526,6 +1545,8 @@ pub enum StateAction {
     ChangesetFileSet(ChangesetFileSetAction),
     #[serde(rename = "changeset/fileRemoved")]
     ChangesetFileRemoved(ChangesetFileRemovedAction),
+    #[serde(rename = "changeset/contentChanged")]
+    ChangesetContentChanged(Box<ChangesetContentChangedAction>),
     #[serde(rename = "changeset/operationsChanged")]
     ChangesetOperationsChanged(ChangesetOperationsChangedAction),
     #[serde(rename = "changeset/operationStatusChanged")]

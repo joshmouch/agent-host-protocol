@@ -1371,6 +1371,11 @@ pub fn apply_action_to_changeset(
             state.files.remove(idx);
             ReduceOutcome::Applied
         }
+        StateAction::ChangesetContentChanged(a) => {
+            state.files = a.files.clone();
+            state.operations = a.operations.clone();
+            ReduceOutcome::Applied
+        }
         StateAction::ChangesetOperationsChanged(a) => {
             state.operations = a.operations.clone();
             ReduceOutcome::Applied

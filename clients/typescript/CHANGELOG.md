@@ -22,6 +22,8 @@ hotfix escape hatch.
 
 ### Added
 
+- `ChangesetContentChangedAction` for full-replacement changeset file and
+  operation snapshots.
 - `ChangesetOperationStatus.Disabled` — new enum value for changeset
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related
