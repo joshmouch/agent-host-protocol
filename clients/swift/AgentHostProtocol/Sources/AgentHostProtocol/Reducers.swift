@@ -1045,6 +1045,7 @@ public func changesetReducer(state: ChangesetState, action: StateAction) -> Chan
         if let operations = a.operations {
             next.operations = operations
         }
+        next.error = a.error
         return next
 
     case .changesetOperationsChanged(let a):

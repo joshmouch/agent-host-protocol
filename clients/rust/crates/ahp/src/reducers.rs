@@ -1376,6 +1376,7 @@ pub fn apply_action_to_changeset(
             if let Some(operations) = &a.operations {
                 state.operations = Some(operations.clone());
             }
+            state.error = a.error.clone();
             ReduceOutcome::Applied
         }
         StateAction::ChangesetOperationsChanged(a) => {

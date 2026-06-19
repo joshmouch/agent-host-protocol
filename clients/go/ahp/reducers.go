@@ -1293,6 +1293,7 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 		if a.Operations != nil {
 			state.Operations = a.Operations
 		}
+		state.Error = a.Error
 		return ReduceOutcomeApplied
 
 	case *ahptypes.ChangesetOperationsChangedAction:
