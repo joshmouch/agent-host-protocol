@@ -17,10 +17,12 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
-- `Message.origin`'s `kind` now defines `agent` and `tool` origins for turns
-  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
-  first turn of a worker chat it spawned), alongside the existing `user` and
-  `systemNotification` kinds.
+- `MessageOrigin` struct and `MessageKind` enum now type `Message.origin`
+  (previously an untyped `serde_json::Value`); `MessageKind` covers `User`,
+  `Agent`, `Tool`, and `SystemNotification`, adding faithful agent- and
+  tool-initiated origins.
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ahp_error_codes::CONFLICT` constant (`-32011`) added to `ahp-types`; covers ETag-conflict failures from `ResourceWriteParams.if_match` checks.
 - `apply_action_to_changeset`, `apply_action_to_annotations`, and `apply_action_to_resource_watch` reducers in `ahp`; all previously-skipped conformance fixtures for the `changeset`, `annotations`, and `resourceWatch` reducer families now pass.
 - `ChangesetOperationStatus::Disabled` — new variant for changeset operations

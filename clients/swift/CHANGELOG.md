@@ -19,10 +19,12 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 ### Added
 
-- `Message.origin`'s `kind` now defines `agent` and `tool` origins for turns
-  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
-  first turn of a worker chat it spawned), alongside the existing `user` and
-  `systemNotification` kinds.
+- `MessageOrigin` struct and `MessageKind` enum now type `Message.origin`
+  (previously an untyped `AnyCodable`); `MessageKind` covers `user`, `agent`,
+  `tool`, and `systemNotification`, adding faithful agent- and tool-initiated
+  origins.
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ChangesetOperationStatus.disabled` — new case for changeset operations
   that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.group` — optional identifier for grouping related

@@ -16,10 +16,12 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
-- `Message.Origin`'s `kind` now defines `agent` and `tool` origins for turns
-  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
-  first turn of a worker chat it spawned), alongside the existing `user` and
-  `systemNotification` kinds.
+- `MessageOrigin` struct and `MessageKind` type now model `Message.Origin`
+  (previously an untyped `json.RawMessage`); `MessageKind` covers `user`,
+  `agent`, `tool`, and `systemNotification`, adding faithful agent- and
+  tool-initiated origins.
+- `ChangesetContentChangedAction` for full-replacement changeset file
+  snapshots with optional operations and error details.
 - `ChangesetOperationStatusDisabled` — new `ChangesetOperationStatus` value for
   operations that are currently unavailable and cannot be invoked.
 - `ChangesetOperation.Group` — optional identifier for grouping related

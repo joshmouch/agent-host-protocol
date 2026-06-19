@@ -285,24 +285,24 @@ enum class TurnState {
 }
 
 /**
- * Discriminant for Message types.
+ * Discriminant for {@link MessageOrigin} — identifies who produced a message.
  */
 @Serializable
 enum class MessageKind {
     /**
-     * Initiated directly by the user.
+     * Sent directly by the user.
      */
     @SerialName("user")
     USER,
     /**
-     * Initiated by the agent itself rather than the user — for example, an
-     * agent that seeds the first turn of a chat it spawned.
+     * Produced by the agent itself rather than the user — for example, an agent
+     * that seeds the first message of a chat it spawned.
      */
     @SerialName("agent")
     AGENT,
     /**
-     * Initiated by a tool rather than the user — for example, a tool that
-     * spawns a worker chat whose first turn carries a seed prompt.
+     * Produced by a tool rather than the user — for example, a tool that spawns a
+     * worker chat whose first message carries a seed prompt.
      */
     @SerialName("tool")
     TOOL,
@@ -1406,7 +1406,7 @@ data class Message(
     /**
      * The origin of the message
      */
-    val origin: JsonElement,
+    val origin: MessageOrigin,
     /**
      * File/selection attachments
      */
@@ -1420,6 +1420,14 @@ data class Message(
      */
     @SerialName("_meta")
     val meta: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class MessageOrigin(
+    /**
+     * The kind of actor that produced the message.
+     */
+    val kind: MessageKind
 )
 
 @Serializable

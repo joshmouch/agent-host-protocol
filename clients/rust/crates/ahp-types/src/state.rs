@@ -235,6 +235,25 @@ pub enum TurnState {
     Error,
 }
 
+/// Discriminant for {@link MessageOrigin} — identifies who produced a message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MessageKind {
+    /// Sent directly by the user.
+    #[serde(rename = "user")]
+    User,
+    /// Produced by the agent itself rather than the user — for example, an agent
+    /// that seeds the first message of a chat it spawned.
+    #[serde(rename = "agent")]
+    Agent,
+    /// Produced by a tool rather than the user — for example, a tool that spawns a
+    /// worker chat whose first message carries a seed prompt.
+    #[serde(rename = "tool")]
+    Tool,
+    /// A system-generated notification rather than a direct user message.
+    #[serde(rename = "systemNotification")]
+    SystemNotification,
+}
+
 /// Discriminant for {@link MessageAttachment} variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MessageAttachmentKind {
@@ -1276,7 +1295,7 @@ pub struct ActiveTurn {
 }
 
 /// A message that initiates or steers a turn. Messages can originate from the
-/// user, the agent, a tool, or be system-generated (see {@link MessageKind}).
+/// user, the agent, a tool, or be system-generated (see {@link MessageOrigin}).
 ///
 /// Attachments MAY be referenced inside {@link Message.text} via their
 /// {@link MessageAttachmentBase.range} field. Attachments without a range are
@@ -1288,7 +1307,7 @@ pub struct Message {
     /// Message text
     pub text: String,
     /// The origin of the message
-    pub origin: AnyValue,
+    pub origin: MessageOrigin,
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
@@ -1299,6 +1318,16 @@ pub struct Message {
     /// field. Mirrors the MCP `_meta` convention.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
+}
+
+/// Identifies the origin of a {@link Message} — who produced it. For the message
+/// that initiates a turn ({@link Turn.message}), this is also the origin of the
+/// turn; for steering or queued messages it is just the origin of that message.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageOrigin {
+    /// The kind of actor that produced the message.
+    pub kind: MessageKind,
 }
 
 /// A choice in a select-style question.

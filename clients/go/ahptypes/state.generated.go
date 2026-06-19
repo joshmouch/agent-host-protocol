@@ -150,6 +150,22 @@ const (
 	TurnStateError     TurnState = "error"
 )
 
+// Discriminant for {@link MessageOrigin} — identifies who produced a message.
+type MessageKind string
+
+const (
+	// Sent directly by the user.
+	MessageKindUser MessageKind = "user"
+	// Produced by the agent itself rather than the user — for example, an agent
+	// that seeds the first message of a chat it spawned.
+	MessageKindAgent MessageKind = "agent"
+	// Produced by a tool rather than the user — for example, a tool that spawns a
+	// worker chat whose first message carries a seed prompt.
+	MessageKindTool MessageKind = "tool"
+	// A system-generated notification rather than a direct user message.
+	MessageKindSystemNotification MessageKind = "systemNotification"
+)
+
 // Discriminant for {@link MessageAttachment} variants.
 type MessageAttachmentKind string
 
@@ -967,7 +983,7 @@ type ActiveTurn struct {
 }
 
 // A message that initiates or steers a turn. Messages can originate from the
-// user, the agent, a tool, or be system-generated (see {@link MessageKind}).
+// user, the agent, a tool, or be system-generated (see {@link MessageOrigin}).
 //
 // Attachments MAY be referenced inside {@link Message.text} via their
 // {@link MessageAttachmentBase.range} field. Attachments without a range are
@@ -977,7 +993,7 @@ type Message struct {
 	// Message text
 	Text string `json:"text"`
 	// The origin of the message
-	Origin json.RawMessage `json:"origin"`
+	Origin MessageOrigin `json:"origin"`
 	// File/selection attachments
 	Attachments []MessageAttachment `json:"attachments,omitempty"`
 	// Additional provider-specific metadata for this message.
@@ -986,6 +1002,14 @@ type Message struct {
 	// agent hosts MAY use it to carry context that does not fit any other
 	// field. Mirrors the MCP `_meta` convention.
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+}
+
+// Identifies the origin of a {@link Message} — who produced it. For the message
+// that initiates a turn ({@link Turn.message}), this is also the origin of the
+// turn; for steering or queued messages it is just the origin of that message.
+type MessageOrigin struct {
+	// The kind of actor that produced the message.
+	Kind MessageKind `json:"kind"`
 }
 
 // A choice in a select-style question.

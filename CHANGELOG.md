@@ -25,10 +25,14 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 ### Added
 
-- `MessageKind.Agent` and `MessageKind.Tool` — message origin kinds for turns
-  initiated by the agent or a tool rather than the user (e.g. a tool seeding the
-  first turn of a worker chat it spawned), so a host no longer has to
-  misrepresent such a turn as `User` or `SystemNotification`.
+- `MessageOrigin` — `Message.origin` is now a named type (was an inline
+  `{ kind }` object), and its `MessageKind` gains `Agent` and `Tool` kinds for
+  turns initiated by the agent or a tool rather than the user (e.g. a tool
+  seeding the first message of a worker chat it spawned), so a host no longer
+  has to misrepresent such a message as `User` or `SystemNotification`.
+- `changeset/contentChanged` — full-replacement changeset action for sending
+  batched files, optional operations, and error details on initial snapshots or
+  bulk refreshes.
 - `ChangesetOperationStatus.Disabled` — signals that a changeset operation is
   currently unavailable and cannot be invoked, so clients can render the
   control as disabled rather than hiding it.

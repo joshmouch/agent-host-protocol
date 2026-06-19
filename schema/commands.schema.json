@@ -3702,24 +3702,29 @@
         "usage"
       ]
     },
+    "MessageOrigin": {
+      "type": "object",
+      "description": "Identifies the origin of a {@link Message} — who produced it. For the message\nthat initiates a turn ({@link Turn.message}), this is also the origin of the\nturn; for steering or queued messages it is just the origin of that message.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/MessageKind",
+          "description": "The kind of actor that produced the message."
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
     "Message": {
       "type": "object",
-      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, or be system-generated (see {@link MessageKind}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
+      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, or be system-generated (see {@link MessageOrigin}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
       "properties": {
         "text": {
           "type": "string",
           "description": "Message text"
         },
         "origin": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
-          ],
+          "$ref": "#/$defs/MessageOrigin",
           "description": "The origin of the message"
         },
         "attachments": {
@@ -6882,6 +6887,37 @@
       "required": [
         "type",
         "fileId"
+      ]
+    },
+    "ChangesetContentChangedAction": {
+      "type": "object",
+      "description": "The changeset's full content changed. Full replacement semantics: `files`\nreplaces the previous file list, and `operations`, when present, replaces\nthe previous operation list.\n\nProducers SHOULD use this action for initial snapshots and bulk refreshes;\nuse {@link ChangesetFileSetAction}, {@link ChangesetFileRemovedAction}, and\n{@link ChangesetOperationsChangedAction} for incremental updates.",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/ActionType.ChangesetContentChanged"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetFile"
+          },
+          "description": "Full replacement file list."
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ChangesetOperation"
+          },
+          "description": "Full replacement operation list. Omit when operations are unchanged."
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Error information, if the changeset content change failed."
+        }
+      },
+      "required": [
+        "type",
+        "files"
       ]
     },
     "ChangesetOperationsChangedAction": {

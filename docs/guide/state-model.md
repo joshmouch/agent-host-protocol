@@ -199,7 +199,7 @@ MessageResourceAttachment {
 }
 ```
 
-A message's `origin.kind` records who initiated the turn: `user` for a direct user message, `agent` for a turn the agent seeds itself, `tool` for a turn a tool starts (for example, seeding the first turn of a worker chat it spawned), and `systemNotification` for a system-generated notification. A client is only allowed to send `user` messages.
+A message's `origin.kind` records who produced the message: `user` for a direct user message, `agent` for one the agent produces itself, `tool` for one a tool produces (for example, seeding the first message of a worker chat it spawned), and `systemNotification` for a system-generated notification. For the message that initiates a turn this is also the origin of the turn; for steering or queued messages it is just the origin of that message. A client is only allowed to send `user` messages.
 
 Attachments MAY be referenced inline by `text` via the optional `range` field, which points at a span in the message text. This is a text range, not a byte range. Attachments without a range are still associated with the message but are not anchored to a specific span.
 

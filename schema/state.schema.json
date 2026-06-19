@@ -2465,24 +2465,29 @@
         "usage"
       ]
     },
+    "MessageOrigin": {
+      "type": "object",
+      "description": "Identifies the origin of a {@link Message} — who produced it. For the message\nthat initiates a turn ({@link Turn.message}), this is also the origin of the\nturn; for steering or queued messages it is just the origin of that message.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/MessageKind",
+          "description": "The kind of actor that produced the message."
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
     "Message": {
       "type": "object",
-      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, or be system-generated (see {@link MessageKind}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
+      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, or be system-generated (see {@link MessageOrigin}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
       "properties": {
         "text": {
           "type": "string",
           "description": "Message text"
         },
         "origin": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "kind"
-          ],
+          "$ref": "#/$defs/MessageOrigin",
           "description": "The origin of the message"
         },
         "attachments": {

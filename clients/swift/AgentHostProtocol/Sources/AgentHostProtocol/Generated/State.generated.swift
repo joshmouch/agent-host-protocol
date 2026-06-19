@@ -150,6 +150,20 @@ public enum TurnState: String, Codable, Sendable {
     case error = "error"
 }
 
+/// Discriminant for {@link MessageOrigin} — identifies who produced a message.
+public enum MessageKind: String, Codable, Sendable {
+    /// Sent directly by the user.
+    case user = "user"
+    /// Produced by the agent itself rather than the user — for example, an agent
+    /// that seeds the first message of a chat it spawned.
+    case agent = "agent"
+    /// Produced by a tool rather than the user — for example, a tool that spawns a
+    /// worker chat whose first message carries a seed prompt.
+    case tool = "tool"
+    /// A system-generated notification rather than a direct user message.
+    case systemNotification = "systemNotification"
+}
+
 /// Discriminant for {@link MessageAttachment} variants.
 public enum MessageAttachmentKind: String, Codable, Sendable {
     /// A simple, opaque attachment whose representation is described by the producer.
@@ -1209,7 +1223,7 @@ public struct Message: Codable, Sendable {
     /// Message text
     public var text: String
     /// The origin of the message
-    public var origin: AnyCodable
+    public var origin: MessageOrigin
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
     /// Additional provider-specific metadata for this message.
@@ -1228,7 +1242,7 @@ public struct Message: Codable, Sendable {
 
     public init(
         text: String,
-        origin: AnyCodable,
+        origin: MessageOrigin,
         attachments: [MessageAttachment]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
@@ -1236,6 +1250,17 @@ public struct Message: Codable, Sendable {
         self.origin = origin
         self.attachments = attachments
         self.meta = meta
+    }
+}
+
+public struct MessageOrigin: Codable, Sendable {
+    /// The kind of actor that produced the message.
+    public var kind: MessageKind
+
+    public init(
+        kind: MessageKind
+    ) {
+        self.kind = kind
     }
 }
 
