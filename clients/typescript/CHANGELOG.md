@@ -75,6 +75,7 @@ hotfix escape hatch.
 
 - `ahp-chat:` channel for per-chat conversation state; `SessionState.chats[]` catalog; `SessionState.defaultChat?` input-routing hint; `ChatOrigin` provenance union; `createChat` / `disposeChat` commands.
 - `ChatSummary.workingDirectory?` — optional per-chat working directory. Falls back to the session's `workingDirectory` when absent.
+- `ChatInteractivity` enum (`"full"` / `"read-only"` / `"hidden"`) and the optional `ChatSummary.interactivity` / `ChatState.interactivity` field describing how the user can interact with a chat. Absent defaults to `Full`.
 - Three discrete chat-catalog actions on the session channel — `SessionChatAddedAction` (upsert by `summary.resource`), `SessionChatRemovedAction`, and `SessionChatUpdatedAction` (partial-update with `Partial<ChatSummary>`).
 - `SessionDefaultChatChangedAction` (`session/defaultChatChanged`) — updates `SessionState.defaultChat` to steer new input to the designated chat; absent value clears the hint.
 - `ErrorInfo._meta?: Record<string, unknown>` — optional provider-specific metadata bag on error payloads, mirroring the existing `_meta` convention on `UsageInfo` and other protocol types. Clients MAY inspect well-known keys here for richer, localised error UI.

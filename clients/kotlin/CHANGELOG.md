@@ -68,6 +68,7 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 - `ahp-chat:` channel for per-chat conversation state; `SessionState.chats[]` catalog; `SessionState.defaultChat?` input-routing hint; `ChatOrigin` provenance union; `createChat` / `disposeChat` commands.
 - `ChatSummary.workingDirectory` — optional per-chat working directory. Falls back to the session's `workingDirectory` when absent.
+- `ChatInteractivity` enum (`Full` / `ReadOnly` / `Hidden`) and the optional `ChatSummary.interactivity` / `ChatState.interactivity` property describing how the user can interact with a chat. Absent defaults to `Full`.
 - Three discrete chat-catalog actions on the session channel — `SessionChatAddedAction` (upsert by `summary.resource`), `SessionChatRemovedAction`, and `SessionChatUpdatedAction` (partial-update payload).
 - `SessionDefaultChatChangedAction` (`session/defaultChatChanged`) — updates `SessionState.defaultChat` to steer new input to the designated chat; absent value clears the hint.
 - `ErrorInfo.meta: Map<String, JsonElement>?` — optional provider-specific metadata bag on error payloads (serialized as `_meta`), mirroring the existing `meta` field on `UsageInfo` and other protocol types. Clients MAY inspect well-known keys here for richer, localised error UI.

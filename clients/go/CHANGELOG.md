@@ -73,6 +73,7 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 - `ahp-chat:` channel for per-chat conversation state; `SessionState.chats[]` catalog; `SessionState.defaultChat?` input-routing hint; `ChatOrigin` provenance union; `createChat` / `disposeChat` commands.
 - `ChatSummary.WorkingDirectory` — optional per-chat working directory. Falls back to the session's `WorkingDirectory` when absent.
+- `ChatInteractivity` string enum (`ChatInteractivityFull` / `ChatInteractivityReadOnly` / `ChatInteractivityHidden`) and the optional `ChatSummary.Interactivity` / `ChatState.Interactivity` field describing how the user can interact with a chat. Absent defaults to `"full"`.
 - Three discrete chat-catalog actions on the session channel — `SessionChatAddedAction` (upsert by `Summary.Resource`), `SessionChatRemovedAction`, and `SessionChatUpdatedAction` (partial-update payload).
 - `SessionDefaultChatChangedAction` (`session/defaultChatChanged`) — updates `SessionState.DefaultChat` to steer new input to the designated chat; absent value clears the hint.
 - `ErrorInfo.Meta map[string]json.RawMessage` — optional provider-specific metadata bag on error payloads (`_meta` on the wire), mirroring the existing `Meta` field on `UsageInfo` and other protocol types.

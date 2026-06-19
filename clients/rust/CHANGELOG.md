@@ -82,6 +82,7 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 - `ahp-chat:` channel for per-chat conversation state; `SessionState.chats[]` catalog; `SessionState.defaultChat?` input-routing hint; `ChatOrigin` provenance union; `createChat` / `disposeChat` commands.
 - `ChatSummary.working_directory` — optional per-chat working directory. Falls back to the session's `working_directory` when absent.
+- `ChatInteractivity` enum (`Full` / `ReadOnly` / `Hidden`) and the optional `ChatSummary.interactivity` / `ChatState.interactivity` field describing how the user can interact with a chat. Absent defaults to `Full`.
 - Three discrete chat-catalog actions on the session channel — `SessionChatAdded` (upsert by `summary.resource`), `SessionChatRemoved`, and `SessionChatUpdated` (partial-update payload).
 - `SessionDefaultChatChanged` (`session/defaultChatChanged`) — updates `SessionState.default_chat` to steer new input to the designated chat; absent value clears the hint.
 - `ErrorInfo.meta: Option<JsonObject>` — optional provider-specific metadata bag on error payloads (serialized as `_meta`), mirroring the existing `meta` field on `UsageInfo` and other protocol types.
