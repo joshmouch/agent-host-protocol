@@ -25,6 +25,8 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 - `ConfigPropertySchema.Enum` field is now `[]json.RawMessage` instead of `[]string`,
   allowing numeric, boolean, and null enum values.
+- `ModelSelection.Config` values are now `json.RawMessage` instead of `string`,
+  allowing numeric, boolean, and null configuration values.
 
 ## [0.4.0] — 2026-06-19
 

@@ -933,9 +933,11 @@ data class ModelSelection(
      */
     val id: String,
     /**
-     * Model-specific configuration values
+     * Model-specific configuration values. Values are JSON primitives: most
+     * pickers produce strings, but some (e.g. a numeric context-size picker)
+     * produce numbers or booleans, which are carried through as-is.
      */
-    val config: Map<String, String>? = null
+    val config: Map<String, JsonElement>? = null
 )
 
 @Serializable

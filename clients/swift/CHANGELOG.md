@@ -28,6 +28,8 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 
 - `ConfigPropertySchema.enum` field is now `[AnyCodable]?` instead of
   `[String]?`, allowing numeric, boolean, and null enum values.
+- `ModelSelection.config` values are now `AnyCodable` instead of `String`,
+  allowing numeric, boolean, and null configuration values.
 
 ## [0.4.0] — 2026-06-19
 

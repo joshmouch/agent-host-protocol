@@ -674,9 +674,9 @@
         "config": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "$ref": "#/$defs/JsonPrimitive"
           },
-          "description": "Model-specific configuration values"
+          "description": "Model-specific configuration values. Values are JSON primitives: most\npickers produce strings, but some (e.g. a numeric context-size picker)\nproduce numbers or booleans, which are carried through as-is."
         }
       },
       "required": [

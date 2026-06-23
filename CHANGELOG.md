@@ -34,6 +34,7 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 ### Changed
 
 - `ConfigPropertySchema.enum` now accepts `JsonPrimitive[]` instead of `string[]`, allowing numeric, boolean, and null enum values.
+- `ModelSelection.config` values are now `JsonPrimitive` (`string | number | boolean | null`) instead of `string`, allowing numeric, boolean, and null configuration values.
 
 ## [0.5.0] — Unreleased
 

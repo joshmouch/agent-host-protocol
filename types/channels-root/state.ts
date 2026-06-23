@@ -6,6 +6,7 @@
 
 import type {
   ConfigSchema,
+  JsonPrimitive,
   ProtectedResourceMetadata,
 } from '../common/state.js';
 import type { TerminalInfo } from '../channels-terminal/state.js';
@@ -131,8 +132,12 @@ export interface SessionModelInfo {
 export interface ModelSelection {
   /** Model identifier */
   id: string;
-  /** Model-specific configuration values */
-  config?: Record<string, string>;
+  /**
+   * Model-specific configuration values. Values are JSON primitives: most
+   * pickers produce strings, but some (e.g. a numeric context-size picker)
+   * produce numbers or booleans, which are carried through as-is.
+   */
+  config?: Record<string, JsonPrimitive>;
 }
 
 // ─── Root Config Types ───────────────────────────────────────────────────────

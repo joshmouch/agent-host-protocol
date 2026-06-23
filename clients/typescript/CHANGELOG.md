@@ -32,6 +32,8 @@ hotfix escape hatch.
 
 - `ConfigPropertySchema.enum` field is now `JsonPrimitive[]` instead of
   `string[]`, allowing numeric, boolean, and null enum values.
+- `ModelSelection.config` values are now `JsonPrimitive` instead of `string`,
+  allowing numeric, boolean, and null configuration values.
 
 ### Fixed
 

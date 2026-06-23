@@ -783,9 +783,11 @@ pub struct SessionModelInfo {
 pub struct ModelSelection {
     /// Model identifier
     pub id: String,
-    /// Model-specific configuration values
+    /// Model-specific configuration values. Values are JSON primitives: most
+    /// pickers produce strings, but some (e.g. a numeric context-size picker)
+    /// produce numbers or booleans, which are carried through as-is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub config: Option<std::collections::HashMap<String, String>>,
+    pub config: Option<std::collections::HashMap<String, AnyValue>>,
 }
 
 /// A selected custom agent for a session.

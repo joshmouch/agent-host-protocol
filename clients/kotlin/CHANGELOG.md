@@ -26,6 +26,8 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
 
 - `ConfigPropertySchema.enum` field is now `List<JsonElement>?` instead of
   `List<String>?`, allowing numeric, boolean, and null enum values.
+- `ModelSelection.config` values are now `JsonElement` instead of `String`,
+  allowing numeric, boolean, and null configuration values.
 
 ## [0.4.0] — 2026-06-19
 

@@ -34,6 +34,8 @@ matching `## [X.Y.Z]` heading is missing from this file.
   on `ahp-ws` with `default-features = false, features = ["native-tls"]`.
 - `ConfigPropertySchema.enum` field is now `Option<Vec<AnyValue>>` instead of
   `Option<Vec<String>>`, allowing numeric, boolean, and null enum values.
+- `ModelSelection.config` values are now `AnyValue` instead of `String`,
+  allowing numeric, boolean, and null configuration values.
 
 ## [0.4.0] — 2026-06-19
 

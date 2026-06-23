@@ -564,8 +564,10 @@ type SessionModelInfo struct {
 type ModelSelection struct {
 	// Model identifier
 	Id string `json:"id"`
-	// Model-specific configuration values
-	Config map[string]string `json:"config,omitempty"`
+	// Model-specific configuration values. Values are JSON primitives: most
+	// pickers produce strings, but some (e.g. a numeric context-size picker)
+	// produce numbers or booleans, which are carried through as-is.
+	Config map[string]json.RawMessage `json:"config,omitempty"`
 }
 
 // A selected custom agent for a session.

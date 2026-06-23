@@ -655,12 +655,14 @@ public struct SessionModelInfo: Codable, Sendable {
 public struct ModelSelection: Codable, Sendable {
     /// Model identifier
     public var id: String
-    /// Model-specific configuration values
-    public var config: [String: String]?
+    /// Model-specific configuration values. Values are JSON primitives: most
+    /// pickers produce strings, but some (e.g. a numeric context-size picker)
+    /// produce numbers or booleans, which are carried through as-is.
+    public var config: [String: AnyCodable]?
 
     public init(
         id: String,
-        config: [String: String]? = nil
+        config: [String: AnyCodable]? = nil
     ) {
         self.id = id
         self.config = config
