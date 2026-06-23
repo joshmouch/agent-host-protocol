@@ -17,6 +17,9 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `DownloadProgressParams` struct and `DownloadPhase` enum (wire
+  `root/downloadProgress`) for reporting host-side resource download progress
+  (e.g. an agent's native SDK fetched lazily on first use).
 - `SessionModelInfo.maxOutputTokens` and `SessionModelInfo.maxPromptTokens`
   optional fields for communicating model token limits.
 - `SessionSummary.meta` (`_meta` on the wire) optional provider metadata field

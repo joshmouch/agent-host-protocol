@@ -38,6 +38,33 @@ enum class AuthRequiredReason {
     EXPIRED
 }
 
+/**
+ * Lifecycle phase of a single download.
+ */
+@Serializable
+enum class DownloadPhase {
+    /**
+     * The download has begun; no bytes received yet.
+     */
+    @SerialName("started")
+    STARTED,
+    /**
+     * A throttled progress sample with bytes received so far.
+     */
+    @SerialName("progress")
+    PROGRESS,
+    /**
+     * Terminal success frame; the resource is fully downloaded.
+     */
+    @SerialName("completed")
+    COMPLETED,
+    /**
+     * Terminal failure frame; see {@link DownloadProgressParams.error}.
+     */
+    @SerialName("failed")
+    FAILED
+}
+
 // ─── Notification Types ─────────────────────────────────────────────────────
 
 @Serializable
@@ -81,6 +108,56 @@ data class SessionSummaryChangedParams(
      * MUST be omitted by senders; receivers SHOULD ignore them if present.
      */
     val changes: PartialSessionSummary
+)
+
+@Serializable
+data class DownloadProgressParams(
+    /**
+     * Channel URI this notification belongs to (the root channel)
+     */
+    val channel: String,
+    /**
+     * Stable id for one download. Coalesces the frames of a single fetch and
+     * distinguishes concurrent downloads (e.g. two resources at once).
+     */
+    val downloadId: String,
+    /**
+     * Category of resource being downloaded. An open string (not a closed enum)
+     * so new resource types can be reported without a protocol bump. Known
+     * values today: `'agent-sdk'` (an agent's native SDK/runtime).
+     */
+    val kind: String,
+    /**
+     * Id of the resource within its {@link kind}, e.g. the provider id `'claude'`
+     * or `'codex'` for an `'agent-sdk'` download.
+     */
+    val resourceId: String,
+    /**
+     * Human-readable brand name for display, e.g. `'Claude'`. The host supplies
+     * the noun; the client owns the surrounding localized template.
+     */
+    val displayName: String,
+    /**
+     * Lifecycle phase of this frame.
+     */
+    val phase: DownloadPhase,
+    /**
+     * Bytes written so far. Monotonically non-decreasing within a `downloadId`.
+     */
+    val receivedBytes: Long,
+    /**
+     * Total bytes when known (e.g. from `Content-Length`); omitted ⇒ indeterminate.
+     */
+    val totalBytes: Long? = null,
+    /**
+     * Session whose action triggered the fetch, if any. Informational only —
+     * the download is host-level and shared across sessions.
+     */
+    val session: String? = null,
+    /**
+     * Short, non-localized failure reason; present only when `phase: 'failed'`.
+     */
+    val error: String? = null
 )
 
 @Serializable

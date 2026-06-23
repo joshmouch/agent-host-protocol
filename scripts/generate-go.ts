@@ -1533,12 +1533,13 @@ function generateCommandsFile(project: Project): string {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'DownloadPhase'];
 
 const NOTIFICATION_STRUCTS = [
   'SessionAddedParams',
   'SessionRemovedParams',
   'SessionSummaryChangedParams',
+  'DownloadProgressParams',
   'AuthRequiredParams',
   'OtlpExportLogsParams',
   'OtlpExportTracesParams',

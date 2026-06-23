@@ -145,6 +145,61 @@
         "changes"
       ]
     },
+    "DownloadProgressParams": {
+      "type": "object",
+      "description": "Broadcast on the root channel while the host downloads a resource on the\nclient's behalf — typically a multi-MB artifact fetched lazily the first time\nit is needed (today: an agent's native SDK/runtime, `kind: 'agent-sdk'`). Lets\nclients show a progress indicator instead of a silent multi-second hang.\n\nThe notification is intentionally **resource-agnostic** so the same channel\ncan report future downloads (additional agent runtimes, plugins, models, …)\nwithout a new method. The `kind` discriminant categorizes the resource and\n`resourceId` identifies it within that kind; clients that don't care can show\na single generic indicator driven by `displayName` + the byte counts.\n\nThis is **host-level**, not session state: the artifact is shared across every\nconsumer and the host deduplicates concurrent fetches into one download (one\n`downloadId`). The optional `session` field names the session whose action\ntriggered the fetch, purely as context — a client MAY attribute the progress\nto that session's row, or show a single global indicator and ignore it.\n\nSemantics:\n\n- Frames for one download share a stable `downloadId`. The first frame a\n  client observes for a `downloadId` begins the indicator even if it is not\n  `phase: 'started'` (a client that connects mid-download may miss the\n  `started` frame).\n- `receivedBytes` is monotonically non-decreasing within a `downloadId`.\n  `totalBytes` is present only when the host knows the size up front\n  (e.g. a `Content-Length`); when absent the client SHOULD show an\n  indeterminate indicator.\n- Exactly one terminal frame (`phase: 'completed'` or `'failed'`) ends a\n  download. `error` carries a short, non-localized reason on failure.\n- Like all notifications this is ephemeral and is **not** replayed on\n  reconnect. A client that never receives a terminal frame (the download\n  finished while it was disconnected) SHOULD expire the indicator after an\n  idle timeout.\n- The brand noun is carried in `displayName`; clients own the surrounding\n  (localized) template, e.g. `\"Downloading {displayName}… {pct}%\"`.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/URI",
+          "description": "Channel URI this notification belongs to (the root channel)"
+        },
+        "downloadId": {
+          "type": "string",
+          "description": "Stable id for one download. Coalesces the frames of a single fetch and\ndistinguishes concurrent downloads (e.g. two resources at once)."
+        },
+        "kind": {
+          "type": "string",
+          "description": "Category of resource being downloaded. An open string (not a closed enum)\nso new resource types can be reported without a protocol bump. Known\nvalues today: `'agent-sdk'` (an agent's native SDK/runtime)."
+        },
+        "resourceId": {
+          "type": "string",
+          "description": "Id of the resource within its {@link kind}, e.g. the provider id `'claude'`\nor `'codex'` for an `'agent-sdk'` download."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Human-readable brand name for display, e.g. `'Claude'`. The host supplies\nthe noun; the client owns the surrounding localized template."
+        },
+        "phase": {
+          "$ref": "#/$defs/DownloadPhase",
+          "description": "Lifecycle phase of this frame."
+        },
+        "receivedBytes": {
+          "type": "number",
+          "description": "Bytes written so far. Monotonically non-decreasing within a `downloadId`."
+        },
+        "totalBytes": {
+          "type": "number",
+          "description": "Total bytes when known (e.g. from `Content-Length`); omitted ⇒ indeterminate."
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session whose action triggered the fetch, if any. Informational only —\nthe download is host-level and shared across sessions."
+        },
+        "error": {
+          "type": "string",
+          "description": "Short, non-localized failure reason; present only when `phase: 'failed'`."
+        }
+      },
+      "required": [
+        "channel",
+        "downloadId",
+        "kind",
+        "resourceId",
+        "displayName",
+        "phase",
+        "receivedBytes"
+      ]
+    },
     "OtlpExportLogsParams": {
       "type": "object",
       "description": "Delivers a batch of OTLP log records to a client subscribed to the host's\nlogs channel (advertised on `TelemetryCapabilities.logs`).\n\nThe `payload` field is an OTLP/JSON `ExportLogsServiceRequest` value\nverbatim — i.e. an object of shape `{ resourceLogs: ResourceLogs[] }` as\ndefined by [opentelemetry-proto](https://github.com/open-telemetry/opentelemetry-proto/blob/main/opentelemetry/proto/collector/logs/v1/logs_service.proto).\nAHP does not redeclare the OTLP type system; clients SHOULD use an\nOpenTelemetry SDK or schema to parse it.\n\nLike all stateless-channel notifications, this is ephemeral: it is not\nreplayed on reconnect. Subscribers receive only batches emitted after\ntheir `subscribe` succeeds.",
@@ -216,6 +271,9 @@
         },
         {
           "$ref": "#/$defs/SessionSummaryChangedParams"
+        },
+        {
+          "$ref": "#/$defs/DownloadProgressParams"
         },
         {
           "$ref": "#/$defs/OtlpExportLogsParams"

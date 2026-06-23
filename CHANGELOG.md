@@ -25,6 +25,10 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 
 ### Added
 
+- `root/downloadProgress` (`DownloadProgressParams`, `DownloadPhase`) host→client
+  notification reporting progress while the host downloads a resource on the
+  client's behalf (e.g. an agent's native SDK fetched lazily on first use), so
+  clients can show a progress indicator instead of a silent multi-second hang.
 - `SessionModelInfo.maxOutputTokens` and `SessionModelInfo.maxPromptTokens`
   optional fields for communicating model token limits.
 - `SessionSummary._meta` optional provider metadata field for lightweight

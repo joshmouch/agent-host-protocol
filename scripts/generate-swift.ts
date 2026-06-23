@@ -1438,10 +1438,10 @@ public struct ChangesetOperationRangeTarget: Codable, Sendable {
 
 // ─── Notifications File Generator ────────────────────────────────────────────
 
-const NOTIFICATION_ENUMS = ['AuthRequiredReason'];
+const NOTIFICATION_ENUMS = ['AuthRequiredReason', 'DownloadPhase'];
 
 const NOTIFICATION_STRUCTS = [
-  'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'AuthRequiredParams',
+  'SessionAddedParams', 'SessionRemovedParams', 'SessionSummaryChangedParams', 'DownloadProgressParams', 'AuthRequiredParams',
   'OtlpExportLogsParams', 'OtlpExportTracesParams', 'OtlpExportMetricsParams',
 ];
 

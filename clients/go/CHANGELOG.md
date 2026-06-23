@@ -16,6 +16,9 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Added
 
+- `DownloadProgressParams` struct and `DownloadPhase` (wire
+  `root/downloadProgress`) for reporting host-side resource download progress
+  (e.g. an agent's native SDK fetched lazily on first use).
 - `SessionModelInfo.MaxOutputTokens` and `SessionModelInfo.MaxPromptTokens`
   optional fields for communicating model token limits.
 - `SessionSummary.Meta` (wire `_meta`) optional provider metadata field for

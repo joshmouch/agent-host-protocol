@@ -12,6 +12,18 @@ public enum AuthRequiredReason: String, Codable, Sendable {
     case expired = "expired"
 }
 
+/// Lifecycle phase of a single download.
+public enum DownloadPhase: String, Codable, Sendable {
+    /// The download has begun; no bytes received yet.
+    case started = "started"
+    /// A throttled progress sample with bytes received so far.
+    case progress = "progress"
+    /// Terminal success frame; the resource is fully downloaded.
+    case completed = "completed"
+    /// Terminal failure frame; see {@link DownloadProgressParams.error}.
+    case failed = "failed"
+}
+
 // MARK: - Notification Types
 
 public struct SessionAddedParams: Codable, Sendable {
@@ -63,6 +75,59 @@ public struct SessionSummaryChangedParams: Codable, Sendable {
         self.channel = channel
         self.session = session
         self.changes = changes
+    }
+}
+
+public struct DownloadProgressParams: Codable, Sendable {
+    /// Channel URI this notification belongs to (the root channel)
+    public var channel: String
+    /// Stable id for one download. Coalesces the frames of a single fetch and
+    /// distinguishes concurrent downloads (e.g. two resources at once).
+    public var downloadId: String
+    /// Category of resource being downloaded. An open string (not a closed enum)
+    /// so new resource types can be reported without a protocol bump. Known
+    /// values today: `'agent-sdk'` (an agent's native SDK/runtime).
+    public var kind: String
+    /// Id of the resource within its {@link kind}, e.g. the provider id `'claude'`
+    /// or `'codex'` for an `'agent-sdk'` download.
+    public var resourceId: String
+    /// Human-readable brand name for display, e.g. `'Claude'`. The host supplies
+    /// the noun; the client owns the surrounding localized template.
+    public var displayName: String
+    /// Lifecycle phase of this frame.
+    public var phase: DownloadPhase
+    /// Bytes written so far. Monotonically non-decreasing within a `downloadId`.
+    public var receivedBytes: Int
+    /// Total bytes when known (e.g. from `Content-Length`); omitted ⇒ indeterminate.
+    public var totalBytes: Int?
+    /// Session whose action triggered the fetch, if any. Informational only —
+    /// the download is host-level and shared across sessions.
+    public var session: String?
+    /// Short, non-localized failure reason; present only when `phase: 'failed'`.
+    public var error: String?
+
+    public init(
+        channel: String,
+        downloadId: String,
+        kind: String,
+        resourceId: String,
+        displayName: String,
+        phase: DownloadPhase,
+        receivedBytes: Int,
+        totalBytes: Int? = nil,
+        session: String? = nil,
+        error: String? = nil
+    ) {
+        self.channel = channel
+        self.downloadId = downloadId
+        self.kind = kind
+        self.resourceId = resourceId
+        self.displayName = displayName
+        self.phase = phase
+        self.receivedBytes = receivedBytes
+        self.totalBytes = totalBytes
+        self.session = session
+        self.error = error
     }
 }
 

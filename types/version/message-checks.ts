@@ -89,6 +89,7 @@ type _ExpectedServerNotifications =
   | 'root/sessionAdded'
   | 'root/sessionRemoved'
   | 'root/sessionSummaryChanged'
+  | 'root/downloadProgress'
   | 'auth/required'
   | 'otlp/exportLogs'
   | 'otlp/exportTraces'

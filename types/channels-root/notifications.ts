@@ -142,3 +142,121 @@ export interface SessionSummaryChangedParams {
    */
   changes: Partial<SessionSummary>;
 }
+
+// ─── root/downloadProgress ───────────────────────────────────────────────────
+
+/**
+ * Lifecycle phase of a single download.
+ *
+ * @category Protocol Notifications
+ */
+export const enum DownloadPhase {
+  /** The download has begun; no bytes received yet. */
+  Started = 'started',
+  /** A throttled progress sample with bytes received so far. */
+  Progress = 'progress',
+  /** Terminal success frame; the resource is fully downloaded. */
+  Completed = 'completed',
+  /** Terminal failure frame; see {@link DownloadProgressParams.error}. */
+  Failed = 'failed',
+}
+
+/**
+ * Broadcast on the root channel while the host downloads a resource on the
+ * client's behalf — typically a multi-MB artifact fetched lazily the first time
+ * it is needed (today: an agent's native SDK/runtime, `kind: 'agent-sdk'`). Lets
+ * clients show a progress indicator instead of a silent multi-second hang.
+ *
+ * The notification is intentionally **resource-agnostic** so the same channel
+ * can report future downloads (additional agent runtimes, plugins, models, …)
+ * without a new method. The `kind` discriminant categorizes the resource and
+ * `resourceId` identifies it within that kind; clients that don't care can show
+ * a single generic indicator driven by `displayName` + the byte counts.
+ *
+ * This is **host-level**, not session state: the artifact is shared across every
+ * consumer and the host deduplicates concurrent fetches into one download (one
+ * `downloadId`). The optional `session` field names the session whose action
+ * triggered the fetch, purely as context — a client MAY attribute the progress
+ * to that session's row, or show a single global indicator and ignore it.
+ *
+ * Semantics:
+ *
+ * - Frames for one download share a stable `downloadId`. The first frame a
+ *   client observes for a `downloadId` begins the indicator even if it is not
+ *   `phase: 'started'` (a client that connects mid-download may miss the
+ *   `started` frame).
+ * - `receivedBytes` is monotonically non-decreasing within a `downloadId`.
+ *   `totalBytes` is present only when the host knows the size up front
+ *   (e.g. a `Content-Length`); when absent the client SHOULD show an
+ *   indeterminate indicator.
+ * - Exactly one terminal frame (`phase: 'completed'` or `'failed'`) ends a
+ *   download. `error` carries a short, non-localized reason on failure.
+ * - Like all notifications this is ephemeral and is **not** replayed on
+ *   reconnect. A client that never receives a terminal frame (the download
+ *   finished while it was disconnected) SHOULD expire the indicator after an
+ *   idle timeout.
+ * - The brand noun is carried in `displayName`; clients own the surrounding
+ *   (localized) template, e.g. `"Downloading {displayName}… {pct}%"`.
+ *
+ * @category Protocol Notifications
+ * @method root/downloadProgress
+ * @direction Server → Client
+ * @messageType Notification
+ * @version 1
+ * @example
+ * ```json
+ * {
+ *   "jsonrpc": "2.0",
+ *   "method": "root/downloadProgress",
+ *   "params": {
+ *     "channel": "ahp-root://",
+ *     "downloadId": "d3f1c2",
+ *     "kind": "agent-sdk",
+ *     "resourceId": "claude",
+ *     "displayName": "Claude",
+ *     "phase": "progress",
+ *     "receivedBytes": 18874368,
+ *     "totalBytes": 41957498,
+ *     "session": "ahp-session:/<uuid>"
+ *   }
+ * }
+ * ```
+ */
+export interface DownloadProgressParams {
+  /** Channel URI this notification belongs to (the root channel) */
+  channel: URI;
+  /**
+   * Stable id for one download. Coalesces the frames of a single fetch and
+   * distinguishes concurrent downloads (e.g. two resources at once).
+   */
+  downloadId: string;
+  /**
+   * Category of resource being downloaded. An open string (not a closed enum)
+   * so new resource types can be reported without a protocol bump. Known
+   * values today: `'agent-sdk'` (an agent's native SDK/runtime).
+   */
+  kind: string;
+  /**
+   * Id of the resource within its {@link kind}, e.g. the provider id `'claude'`
+   * or `'codex'` for an `'agent-sdk'` download.
+   */
+  resourceId: string;
+  /**
+   * Human-readable brand name for display, e.g. `'Claude'`. The host supplies
+   * the noun; the client owns the surrounding localized template.
+   */
+  displayName: string;
+  /** Lifecycle phase of this frame. */
+  phase: DownloadPhase;
+  /** Bytes written so far. Monotonically non-decreasing within a `downloadId`. */
+  receivedBytes: number;
+  /** Total bytes when known (e.g. from `Content-Length`); omitted ⇒ indeterminate. */
+  totalBytes?: number;
+  /**
+   * Session whose action triggered the fetch, if any. Informational only —
+   * the download is host-level and shared across sessions.
+   */
+  session?: URI;
+  /** Short, non-localized failure reason; present only when `phase: 'failed'`. */
+  error?: string;
+}

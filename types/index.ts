@@ -320,13 +320,14 @@ export type {
   SessionAddedParams,
   SessionRemovedParams,
   SessionSummaryChangedParams,
+  DownloadProgressParams,
   AuthRequiredParams,
   OtlpExportLogsParams,
   OtlpExportTracesParams,
   OtlpExportMetricsParams,
 } from './notifications.js';
 
-export { AuthRequiredReason } from './notifications.js';
+export { AuthRequiredReason, DownloadPhase } from './notifications.js';
 
 // Message types (JSON-RPC wire format)
 export type {
