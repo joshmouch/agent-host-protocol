@@ -38,6 +38,7 @@
       }
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -85,6 +86,7 @@
       }
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": []
   }
 }

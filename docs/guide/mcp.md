@@ -126,7 +126,7 @@ The existing `authenticate` command requires `resource` to match one declared by
 
 MCP tools follow the normal AHP tool-call flow:
 
-- The agent harness inside the host discovers tools from each `ready` MCP server, the host normalizes them into the agent's tool catalogue, and exposes invocations through `session/toolCallStart` / `session/toolCallReady` / `session/toolCallComplete`.
+- The agent harness inside the host discovers tools from each `ready` MCP server, the host normalizes them into the agent's tool catalogue, and exposes invocations through `chat/toolCallStart` / `chat/toolCallReady` / `chat/toolCallComplete`.
 - The originating MCP server is identified by [`ToolCallContributor`](/reference/session#toolcallcontributor) on the tool call: `{ kind: 'mcp', customizationId: <McpServerCustomization.id> }`. Clients can use this to render the originating server's name/icon next to the tool call.
 
 There is no separate "MCP tool" state. From the client's perspective an MCP tool call is just a tool call with an MCP contributor.

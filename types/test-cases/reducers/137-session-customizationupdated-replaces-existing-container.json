@@ -33,6 +33,7 @@
         }
       }
     ],
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -84,6 +85,7 @@
         }
       }
     ],
+    "activeClients": [],
     "chats": []
   }
 }

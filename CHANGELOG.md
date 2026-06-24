@@ -30,11 +30,24 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 - `SessionSummary._meta` optional provider metadata field for lightweight
   session-list presentation hints.
 - `JsonPrimitive` type alias (`string | number | boolean | null`) in `types/common/state.ts`.
+- `session/activeClientRemoved` action to release a single active client from a
+  session by `clientId`.
 
 ### Changed
 
 - `ConfigPropertySchema.enum` now accepts `JsonPrimitive[]` instead of `string[]`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `JsonPrimitive` (`string | number | boolean | null`) instead of `string`, allowing numeric, boolean, and null configuration values.
+- `SessionState.activeClients` (a required array, keyed by `clientId`) replaces
+  the single optional `SessionState.activeClient`. A session may now have
+  multiple concurrent active clients.
+- `session/activeClientChanged` is renamed to `session/activeClientSet` with
+  upsert-by-`clientId` semantics. It no longer accepts `null` to unset the
+  active client — dispatch `session/activeClientRemoved` instead.
+
+### Removed
+
+- `session/activeClientToolsChanged`. An active client now updates its published
+  tools by re-dispatching `session/activeClientSet` with its full, updated entry.
 
 ## [0.5.0] — Unreleased
 

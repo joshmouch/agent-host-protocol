@@ -16,6 +16,7 @@
         "branch": "main"
       }
     },
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -45,6 +46,7 @@
       },
       "vscode.foo": 42
     },
+    "activeClients": [],
     "chats": []
   }
 }

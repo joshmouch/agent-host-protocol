@@ -80,10 +80,10 @@ enum class ActionType {
     SESSION_AGENT_CHANGED,
     @SerialName("session/serverToolsChanged")
     SESSION_SERVER_TOOLS_CHANGED,
-    @SerialName("session/activeClientChanged")
-    SESSION_ACTIVE_CLIENT_CHANGED,
-    @SerialName("session/activeClientToolsChanged")
-    SESSION_ACTIVE_CLIENT_TOOLS_CHANGED,
+    @SerialName("session/activeClientSet")
+    SESSION_ACTIVE_CLIENT_SET,
+    @SerialName("session/activeClientRemoved")
+    SESSION_ACTIVE_CLIENT_REMOVED,
     @SerialName("chat/pendingMessageSet")
     CHAT_PENDING_MESSAGE_SET,
     @SerialName("chat/pendingMessageRemoved")
@@ -776,21 +776,21 @@ data class SessionServerToolsChangedAction(
 )
 
 @Serializable
-data class SessionActiveClientChangedAction(
+data class SessionActiveClientSetAction(
     val type: ActionType,
     /**
-     * The new active client, or `null` to unset
+     * The active client to add or update, matched by `clientId`.
      */
-    val activeClient: SessionActiveClient? = null
+    val activeClient: SessionActiveClient
 )
 
 @Serializable
-data class SessionActiveClientToolsChangedAction(
+data class SessionActiveClientRemovedAction(
     val type: ActionType,
     /**
-     * Updated client tools list (full replacement)
+     * The `clientId` of the active client to remove.
      */
-    val tools: List<ToolDefinition>
+    val clientId: String
 )
 
 @Serializable
@@ -1365,8 +1365,8 @@ sealed interface StateAction
 @JvmInline value class StateActionSessionActivityChanged(val value: SessionActivityChangedAction) : StateAction
 @JvmInline value class StateActionSessionChangesetsChanged(val value: SessionChangesetsChangedAction) : StateAction
 @JvmInline value class StateActionSessionServerToolsChanged(val value: SessionServerToolsChangedAction) : StateAction
-@JvmInline value class StateActionSessionActiveClientChanged(val value: SessionActiveClientChangedAction) : StateAction
-@JvmInline value class StateActionSessionActiveClientToolsChanged(val value: SessionActiveClientToolsChangedAction) : StateAction
+@JvmInline value class StateActionSessionActiveClientSet(val value: SessionActiveClientSetAction) : StateAction
+@JvmInline value class StateActionSessionActiveClientRemoved(val value: SessionActiveClientRemovedAction) : StateAction
 @JvmInline value class StateActionChatPendingMessageSet(val value: ChatPendingMessageSetAction) : StateAction
 @JvmInline value class StateActionChatPendingMessageRemoved(val value: ChatPendingMessageRemovedAction) : StateAction
 @JvmInline value class StateActionChatQueuedMessagesReordered(val value: ChatQueuedMessagesReorderedAction) : StateAction
@@ -1453,8 +1453,8 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "session/activityChanged" -> StateActionSessionActivityChanged(input.json.decodeFromJsonElement(SessionActivityChangedAction.serializer(), element))
             "session/changesetsChanged" -> StateActionSessionChangesetsChanged(input.json.decodeFromJsonElement(SessionChangesetsChangedAction.serializer(), element))
             "session/serverToolsChanged" -> StateActionSessionServerToolsChanged(input.json.decodeFromJsonElement(SessionServerToolsChangedAction.serializer(), element))
-            "session/activeClientChanged" -> StateActionSessionActiveClientChanged(input.json.decodeFromJsonElement(SessionActiveClientChangedAction.serializer(), element))
-            "session/activeClientToolsChanged" -> StateActionSessionActiveClientToolsChanged(input.json.decodeFromJsonElement(SessionActiveClientToolsChangedAction.serializer(), element))
+            "session/activeClientSet" -> StateActionSessionActiveClientSet(input.json.decodeFromJsonElement(SessionActiveClientSetAction.serializer(), element))
+            "session/activeClientRemoved" -> StateActionSessionActiveClientRemoved(input.json.decodeFromJsonElement(SessionActiveClientRemovedAction.serializer(), element))
             "chat/pendingMessageSet" -> StateActionChatPendingMessageSet(input.json.decodeFromJsonElement(ChatPendingMessageSetAction.serializer(), element))
             "chat/pendingMessageRemoved" -> StateActionChatPendingMessageRemoved(input.json.decodeFromJsonElement(ChatPendingMessageRemovedAction.serializer(), element))
             "chat/queuedMessagesReordered" -> StateActionChatQueuedMessagesReordered(input.json.decodeFromJsonElement(ChatQueuedMessagesReorderedAction.serializer(), element))
@@ -1534,8 +1534,8 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionSessionActivityChanged -> output.json.encodeToJsonElement(SessionActivityChangedAction.serializer(), value.value)
             is StateActionSessionChangesetsChanged -> output.json.encodeToJsonElement(SessionChangesetsChangedAction.serializer(), value.value)
             is StateActionSessionServerToolsChanged -> output.json.encodeToJsonElement(SessionServerToolsChangedAction.serializer(), value.value)
-            is StateActionSessionActiveClientChanged -> output.json.encodeToJsonElement(SessionActiveClientChangedAction.serializer(), value.value)
-            is StateActionSessionActiveClientToolsChanged -> output.json.encodeToJsonElement(SessionActiveClientToolsChangedAction.serializer(), value.value)
+            is StateActionSessionActiveClientSet -> output.json.encodeToJsonElement(SessionActiveClientSetAction.serializer(), value.value)
+            is StateActionSessionActiveClientRemoved -> output.json.encodeToJsonElement(SessionActiveClientRemovedAction.serializer(), value.value)
             is StateActionChatPendingMessageSet -> output.json.encodeToJsonElement(ChatPendingMessageSetAction.serializer(), value.value)
             is StateActionChatPendingMessageRemoved -> output.json.encodeToJsonElement(ChatPendingMessageRemovedAction.serializer(), value.value)
             is StateActionChatQueuedMessagesReordered -> output.json.encodeToJsonElement(ChatQueuedMessagesReorderedAction.serializer(), value.value)

@@ -33,6 +33,7 @@ final class AHPStateMirrorTests: XCTestCase {
                 createdAt: 1, modifiedAt: 1
             ),
             lifecycle: .ready,
+            activeClients: [],
             chats: []
         )
         let snapshot = Snapshot(
@@ -75,6 +76,7 @@ final class AHPStateMirrorTests: XCTestCase {
                 createdAt: 1, modifiedAt: 1
             ),
             lifecycle: .ready,
+            activeClients: [],
             chats: []
         )
         await mirror.applySnapshot(Snapshot(

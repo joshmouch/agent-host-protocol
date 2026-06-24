@@ -412,21 +412,16 @@
         "tools"
       ]
     },
-    "SessionActiveClientChangedAction": {
+    "SessionActiveClientSetAction": {
       "type": "object",
-      "description": "The active client for this session has changed.\n\nA client dispatches this action with its own `SessionActiveClient` to claim\nthe active role, or with `null` to release it. The server SHOULD reject if\nanother client is already active. The server SHOULD automatically dispatch\nthis action with `activeClient: null` when the active client disconnects.",
+      "description": "An active client for this session was added or updated.\n\nUpsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:\na client dispatches this action with its own `SessionActiveClient` to join\nthe session's active clients or refresh its entry, replacing any existing\nentry that has the same `clientId`. Multiple clients may be active at once.\nThis is also how a client updates its published tools or customizations —\nre-dispatch with the full, updated entry. Use\n{@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to\nleave. The server SHOULD automatically dispatch that removal when an active\nclient disconnects.",
       "properties": {
         "type": {
-          "$ref": "#/$defs/ActionType.SessionActiveClientChanged"
+          "$ref": "#/$defs/ActionType.SessionActiveClientSet"
         },
         "activeClient": {
-          "oneOf": [
-            {
-              "$ref": "#/$defs/SessionActiveClient"
-            },
-            {}
-          ],
-          "description": "The new active client, or `null` to unset"
+          "$ref": "#/$defs/SessionActiveClient",
+          "description": "The active client to add or update, matched by `clientId`."
         }
       },
       "required": [
@@ -434,24 +429,21 @@
         "activeClient"
       ]
     },
-    "SessionActiveClientToolsChangedAction": {
+    "SessionActiveClientRemovedAction": {
       "type": "object",
-      "description": "The active client's tool list has changed.\n\nFull-replacement semantics: the `tools` array replaces the active client's\nprevious tools entirely. The server SHOULD reject if the dispatching client\nis not the current active client.",
+      "description": "An active client was removed from this session.\n\nRemoves the entry for the client identified by `clientId` from\n{@link SessionState.activeClients}; a no-op when no entry matches.\n\nThe host SHOULD dispatch this automatically when a client stops participating\nin the session — for example when it unsubscribes from the session channel,\nwhen it disconnects and does not reconnect within a host-defined grace\nperiod, or when a `reconnect` command's `subscriptions` omit a session the\nclient was still active in. When removing a client, the host SHOULD also\ncancel that client's in-flight tool calls — those whose tool call state\ncarries a client `ToolCallContributor` with the matching `clientId` — by\ndispatching `chat/toolCallComplete` with `result.success = false`. (There is\nno per-tool-call server cancel; a failed completion is the cancellation\nmechanism, and the call ends in `completed` status with a failed result.)",
       "properties": {
         "type": {
-          "$ref": "#/$defs/ActionType.SessionActiveClientToolsChanged"
+          "$ref": "#/$defs/ActionType.SessionActiveClientRemoved"
         },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDefinition"
-          },
-          "description": "Updated client tools list (full replacement)"
+        "clientId": {
+          "type": "string",
+          "description": "The `clientId` of the active client to remove."
         }
       },
       "required": [
         "type",
-        "tools"
+        "clientId"
       ]
     },
     "SessionCustomizationsChangedAction": {
@@ -954,7 +946,7 @@
     },
     "ChatToolCallCompleteAction": {
       "type": "object",
-      "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action with the execution result. The server\nSHOULD reject this action if the dispatching client does not match `toolClientId`.\n\nServers waiting on a client tool call MAY time out after a reasonable duration\nif the implementing client disconnects or becomes unresponsive, and dispatch\nthis action with `result.success = false` and an appropriate error.",
+      "description": "Tool execution finished. Transitions to `completed` or `pending-result-confirmation`\nif `requiresResultConfirmation` is `true`.\n\nFor client-provided tools (whose tool call state carries a client\n`ToolCallContributor` with a `clientId`), the owning client dispatches this\naction with the execution result. The server SHOULD reject this action if the\ndispatching client does not match the contributor's `clientId`.\n\nServers waiting on a client tool call MAY time out after a reasonable duration\nif the implementing client disconnects or becomes unresponsive, and dispatch\nthis action with `result.success = false` and an appropriate error.",
       "properties": {
         "turnId": {
           "type": "string",
@@ -1022,7 +1014,7 @@
     },
     "ChatToolCallContentChangedAction": {
       "type": "object",
-      "description": "Partial content produced while a tool is still executing.\n\nReplaces the `content` array on the running tool call state. Clients can\nuse this to display live feedback (e.g. a terminal reference) before the\ntool completes.\n\nFor client-provided tools (where `toolClientId` is set on the tool call state),\nthe owning client dispatches this action to stream intermediate content while\nexecuting. The server SHOULD reject this action if the dispatching client does\nnot match `toolClientId`.",
+      "description": "Partial content produced while a tool is still executing.\n\nReplaces the `content` array on the running tool call state. Clients can\nuse this to display live feedback (e.g. a terminal reference) before the\ntool completes.\n\nFor client-provided tools (whose tool call state carries a client\n`ToolCallContributor` with a `clientId`), the owning client dispatches this\naction to stream intermediate content while executing. The server SHOULD\nreject this action if the dispatching client does not match the contributor's\n`clientId`.",
       "properties": {
         "turnId": {
           "type": "string",
@@ -2535,9 +2527,12 @@
           },
           "description": "Tools provided by the server (agent host) for this session"
         },
-        "activeClient": {
-          "$ref": "#/$defs/SessionActiveClient",
-          "description": "The client currently providing tools and interactive capabilities to this session"
+        "activeClients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionActiveClient"
+          },
+          "description": "The clients currently providing tools and interactive capabilities to this\nsession. If multiple tools or customizations are provided by the same\nactive client, an agent host MAY deduplicate them when exposed to a model,\nwith a preference given to the client that started the turn.\n\nMembership is host-managed: clients add (or refresh) themselves with\n`session/activeClientSet`, and the host removes them with\n`session/activeClientRemoved` when they unsubscribe, disconnect without\nreconnecting in time, or reconnect without resubscribing to the session."
         },
         "chats": {
           "type": "array",
@@ -2559,7 +2554,7 @@
           "items": {
             "$ref": "#/$defs/Customization"
           },
-          "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
+          "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClients[].customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
         },
         "changesets": {
           "type": "array",
@@ -2577,12 +2572,13 @@
       "required": [
         "summary",
         "lifecycle",
+        "activeClients",
         "chats"
       ]
     },
     "SessionActiveClient": {
       "type": "object",
-      "description": "The client currently providing tools and interactive capabilities to a session.\n\nOnly one client may be active per session at a time. The server SHOULD\nautomatically unset the active client if that client disconnects.",
+      "description": "A client currently providing tools and interactive capabilities to a session.\n\nA session MAY have several active clients at once; entries in\n{@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD\nautomatically remove an active client when that client disconnects.",
       "properties": {
         "clientId": {
           "type": "string",
@@ -6390,10 +6386,10 @@
           "$ref": "#/$defs/SessionServerToolsChangedAction"
         },
         {
-          "$ref": "#/$defs/SessionActiveClientChangedAction"
+          "$ref": "#/$defs/SessionActiveClientSetAction"
         },
         {
-          "$ref": "#/$defs/SessionActiveClientToolsChangedAction"
+          "$ref": "#/$defs/SessionActiveClientRemovedAction"
         },
         {
           "$ref": "#/$defs/SessionCustomizationsChangedAction"

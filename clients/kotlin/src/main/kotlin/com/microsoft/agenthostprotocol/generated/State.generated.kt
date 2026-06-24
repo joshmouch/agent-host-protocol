@@ -1178,9 +1178,17 @@ data class SessionState(
      */
     val serverTools: List<ToolDefinition>? = null,
     /**
-     * The client currently providing tools and interactive capabilities to this session
+     * The clients currently providing tools and interactive capabilities to this
+     * session. If multiple tools or customizations are provided by the same
+     * active client, an agent host MAY deduplicate them when exposed to a model,
+     * with a preference given to the client that started the turn.
+     *
+     * Membership is host-managed: clients add (or refresh) themselves with
+     * `session/activeClientSet`, and the host removes them with
+     * `session/activeClientRemoved` when they unsubscribe, disconnect without
+     * reconnecting in time, or reconnect without resubscribing to the session.
      */
-    val activeClient: SessionActiveClient? = null,
+    val activeClients: List<SessionActiveClient>,
     /**
      * Catalog of chats in this session.
      */
@@ -1211,7 +1219,7 @@ data class SessionState(
      * also appear as children of a container.
      *
      * Client-published plugins arrive via
-     * {@link SessionActiveClient.customizations | `activeClient.customizations`}
+     * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
      * and the host propagates them into this list (typically with the
      * container's `clientId` set and `children` populated). Clients
      * publish in container shape only; bare MCP servers at the top level

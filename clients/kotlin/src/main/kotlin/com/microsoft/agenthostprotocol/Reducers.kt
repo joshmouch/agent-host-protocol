@@ -530,11 +530,27 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
 
     is StateActionSessionServerToolsChanged -> state.copy(serverTools = action.value.tools)
 
-    is StateActionSessionActiveClientChanged -> state.copy(activeClient = action.value.activeClient)
+    is StateActionSessionActiveClientSet -> {
+        val client = action.value.activeClient
+        val idx = state.activeClients.indexOfFirst { it.clientId == client.clientId }
+        if (idx < 0) {
+            state.copy(activeClients = state.activeClients + client)
+        } else {
+            val updated = state.activeClients.toMutableList()
+            updated[idx] = client
+            state.copy(activeClients = updated)
+        }
+    }
 
-    is StateActionSessionActiveClientToolsChanged -> {
-        val client = state.activeClient
-        if (client == null) state else state.copy(activeClient = client.copy(tools = action.value.tools))
+    is StateActionSessionActiveClientRemoved -> {
+        val idx = state.activeClients.indexOfFirst { it.clientId == action.value.clientId }
+        if (idx < 0) {
+            state
+        } else {
+            val updated = state.activeClients.toMutableList()
+            updated.removeAt(idx)
+            state.copy(activeClients = updated)
+        }
     }
 
     is StateActionSessionCustomizationsChanged -> state.copy(customizations = action.value.customizations)

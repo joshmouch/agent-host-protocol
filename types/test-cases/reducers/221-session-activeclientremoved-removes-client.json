@@ -1,5 +1,5 @@
 {
-  "description": "session/activeClientToolsChanged without activeClient is no-op",
+  "description": "session/activeClientRemoved removes the named client",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -11,16 +11,22 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
+    "activeClients": [
+      {
+        "clientId": "vscode-1",
+        "tools": []
+      },
+      {
+        "clientId": "cli-1",
+        "tools": []
+      }
+    ],
     "chats": []
   },
   "actions": [
     {
-      "type": "session/activeClientToolsChanged",
-      "tools": [
-        {
-          "name": "openFile"
-        }
-      ]
+      "type": "session/activeClientRemoved",
+      "clientId": "vscode-1"
     }
   ],
   "expected": {
@@ -33,6 +39,12 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
+    "activeClients": [
+      {
+        "clientId": "cli-1",
+        "tools": []
+      }
+    ],
     "chats": []
   }
 }

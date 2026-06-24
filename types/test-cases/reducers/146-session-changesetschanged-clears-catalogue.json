@@ -18,6 +18,7 @@
         "changeKind": "session"
       }
     ],
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -36,6 +37,7 @@
       "modifiedAt": 1000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": []
   }
 }

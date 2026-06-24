@@ -302,6 +302,7 @@ class ReducersTest {
             modifiedAt = 1000L,
         ),
         lifecycle = SessionLifecycle.READY,
+        activeClients = emptyList(),
         chats = emptyList(),
     )
 

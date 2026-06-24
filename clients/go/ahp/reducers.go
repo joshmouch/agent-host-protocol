@@ -726,15 +726,23 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 	case *ahptypes.SessionServerToolsChangedAction:
 		state.ServerTools = append([]ahptypes.ToolDefinition(nil), a.Tools...)
 		return ReduceOutcomeApplied
-	case *ahptypes.SessionActiveClientChangedAction:
-		state.ActiveClient = a.ActiveClient
-		return ReduceOutcomeApplied
-	case *ahptypes.SessionActiveClientToolsChangedAction:
-		if state.ActiveClient == nil {
-			return ReduceOutcomeNoOp
+	case *ahptypes.SessionActiveClientSetAction:
+		for i := range state.ActiveClients {
+			if state.ActiveClients[i].ClientId == a.ActiveClient.ClientId {
+				state.ActiveClients[i] = a.ActiveClient
+				return ReduceOutcomeApplied
+			}
 		}
-		state.ActiveClient.Tools = append([]ahptypes.ToolDefinition(nil), a.Tools...)
+		state.ActiveClients = append(state.ActiveClients, a.ActiveClient)
 		return ReduceOutcomeApplied
+	case *ahptypes.SessionActiveClientRemovedAction:
+		for i := range state.ActiveClients {
+			if state.ActiveClients[i].ClientId == a.ClientId {
+				state.ActiveClients = append(state.ActiveClients[:i], state.ActiveClients[i+1:]...)
+				return ReduceOutcomeApplied
+			}
+		}
+		return ReduceOutcomeNoOp
 	case *ahptypes.SessionCustomizationsChangedAction:
 		state.Customizations = append([]ahptypes.Customization(nil), a.Customizations...)
 		return ReduceOutcomeApplied

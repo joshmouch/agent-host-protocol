@@ -17,8 +17,8 @@ import type {
   SessionModelChangedAction,
   SessionAgentChangedAction,
   SessionServerToolsChangedAction,
-  SessionActiveClientChangedAction,
-  SessionActiveClientToolsChangedAction,
+  SessionActiveClientSetAction,
+  SessionActiveClientRemovedAction,
   SessionCustomizationsChangedAction,
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
@@ -114,8 +114,8 @@ export type SessionAction =
   | SessionModelChangedAction
   | SessionAgentChangedAction
   | SessionServerToolsChangedAction
-  | SessionActiveClientChangedAction
-  | SessionActiveClientToolsChangedAction
+  | SessionActiveClientSetAction
+  | SessionActiveClientRemovedAction
   | SessionCustomizationsChangedAction
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction
@@ -134,8 +134,8 @@ export type ClientSessionAction =
   | SessionTitleChangedAction
   | SessionModelChangedAction
   | SessionAgentChangedAction
-  | SessionActiveClientChangedAction
-  | SessionActiveClientToolsChangedAction
+  | SessionActiveClientSetAction
+  | SessionActiveClientRemovedAction
   | SessionCustomizationToggledAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction
@@ -336,8 +336,8 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.SessionModelChanged]: true,
   [ActionType.SessionAgentChanged]: true,
   [ActionType.SessionServerToolsChanged]: false,
-  [ActionType.SessionActiveClientChanged]: true,
-  [ActionType.SessionActiveClientToolsChanged]: true,
+  [ActionType.SessionActiveClientSet]: true,
+  [ActionType.SessionActiveClientRemoved]: true,
   [ActionType.SessionCustomizationsChanged]: false,
   [ActionType.SessionCustomizationToggled]: true,
   [ActionType.SessionCustomizationUpdated]: false,

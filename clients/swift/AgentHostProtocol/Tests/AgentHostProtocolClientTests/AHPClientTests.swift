@@ -58,6 +58,7 @@ final class AHPClientTests: XCTestCase {
                         createdAt: 1, modifiedAt: 1
                     ),
                     lifecycle: .ready,
+                    activeClients: [],
                     chats: []
                 )),
                 fromSeq: 0

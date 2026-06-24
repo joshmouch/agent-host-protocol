@@ -1,5 +1,5 @@
 {
-  "description": "session/activeClientChanged unsets client",
+  "description": "session/activeClientSet adds a client",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -11,16 +11,17 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
-    "activeClient": {
-      "clientId": "vscode-1",
-      "tools": []
-    },
+    "activeClients": [],
     "chats": []
   },
   "actions": [
     {
-      "type": "session/activeClientChanged",
-      "activeClient": null
+      "type": "session/activeClientSet",
+      "activeClient": {
+        "clientId": "vscode-1",
+        "displayName": "VS Code",
+        "tools": []
+      }
     }
   ],
   "expected": {
@@ -33,7 +34,13 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
-    "activeClient": null,
+    "activeClients": [
+      {
+        "clientId": "vscode-1",
+        "displayName": "VS Code",
+        "tools": []
+      }
+    ],
     "chats": []
   }
 }

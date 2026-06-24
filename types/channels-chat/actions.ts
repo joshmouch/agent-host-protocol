@@ -271,9 +271,10 @@ export type ChatToolCallConfirmedAction =
  * Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
  * if `requiresResultConfirmation` is `true`.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action with the execution result. The server
- * SHOULD reject this action if the dispatching client does not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action with the execution result. The server SHOULD reject this action if the
+ * dispatching client does not match the contributor's `clientId`.
  *
  * Servers waiting on a client tool call MAY time out after a reasonable duration
  * if the implementing client disconnects or becomes unresponsive, and dispatch
@@ -313,10 +314,11 @@ export interface ChatToolCallResultConfirmedAction extends ToolCallActionBase {
  * use this to display live feedback (e.g. a terminal reference) before the
  * tool completes.
  *
- * For client-provided tools (where `toolClientId` is set on the tool call state),
- * the owning client dispatches this action to stream intermediate content while
- * executing. The server SHOULD reject this action if the dispatching client does
- * not match `toolClientId`.
+ * For client-provided tools (whose tool call state carries a client
+ * `ToolCallContributor` with a `clientId`), the owning client dispatches this
+ * action to stream intermediate content while executing. The server SHOULD
+ * reject this action if the dispatching client does not match the contributor's
+ * `clientId`.
  *
  * @category Chat Actions
  * @version 1

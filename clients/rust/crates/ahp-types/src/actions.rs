@@ -80,10 +80,10 @@ pub enum ActionType {
     SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
-    #[serde(rename = "session/activeClientChanged")]
-    SessionActiveClientChanged,
-    #[serde(rename = "session/activeClientToolsChanged")]
-    SessionActiveClientToolsChanged,
+    #[serde(rename = "session/activeClientSet")]
+    SessionActiveClientSet,
+    #[serde(rename = "session/activeClientRemoved")]
+    SessionActiveClientRemoved,
     #[serde(rename = "chat/pendingMessageSet")]
     ChatPendingMessageSet,
     #[serde(rename = "chat/pendingMessageRemoved")]
@@ -509,9 +509,10 @@ pub struct ChatToolCallConfirmedAction {
 /// Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
 /// if `requiresResultConfirmation` is `true`.
 ///
-/// For client-provided tools (where `toolClientId` is set on the tool call state),
-/// the owning client dispatches this action with the execution result. The server
-/// SHOULD reject this action if the dispatching client does not match `toolClientId`.
+/// For client-provided tools (whose tool call state carries a client
+/// `ToolCallContributor` with a `clientId`), the owning client dispatches this
+/// action with the execution result. The server SHOULD reject this action if the
+/// dispatching client does not match the contributor's `clientId`.
 ///
 /// Servers waiting on a client tool call MAY time out after a reasonable duration
 /// if the implementing client disconnects or becomes unresponsive, and dispatch
@@ -566,10 +567,11 @@ pub struct ChatToolCallResultConfirmedAction {
 /// use this to display live feedback (e.g. a terminal reference) before the
 /// tool completes.
 ///
-/// For client-provided tools (where `toolClientId` is set on the tool call state),
-/// the owning client dispatches this action to stream intermediate content while
-/// executing. The server SHOULD reject this action if the dispatching client does
-/// not match `toolClientId`.
+/// For client-provided tools (whose tool call state carries a client
+/// `ToolCallContributor` with a `clientId`), the owning client dispatches this
+/// action to stream intermediate content while executing. The server SHOULD
+/// reject this action if the dispatching client does not match the contributor's
+/// `clientId`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatToolCallContentChangedAction {
@@ -781,30 +783,44 @@ pub struct SessionServerToolsChangedAction {
     pub tools: Vec<ToolDefinition>,
 }
 
-/// The active client for this session has changed.
+/// An active client for this session was added or updated.
 ///
-/// A client dispatches this action with its own `SessionActiveClient` to claim
-/// the active role, or with `null` to release it. The server SHOULD reject if
-/// another client is already active. The server SHOULD automatically dispatch
-/// this action with `activeClient: null` when the active client disconnects.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionActiveClientChangedAction {
-    /// The new active client, or `null` to unset
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active_client: Option<SessionActiveClient>,
-}
-
-/// The active client's tool list has changed.
-///
-/// Full-replacement semantics: the `tools` array replaces the active client's
-/// previous tools entirely. The server SHOULD reject if the dispatching client
-/// is not the current active client.
+/// Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
+/// a client dispatches this action with its own `SessionActiveClient` to join
+/// the session's active clients or refresh its entry, replacing any existing
+/// entry that has the same `clientId`. Multiple clients may be active at once.
+/// This is also how a client updates its published tools or customizations —
+/// re-dispatch with the full, updated entry. Use
+/// {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
+/// leave. The server SHOULD automatically dispatch that removal when an active
+/// client disconnects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionActiveClientToolsChangedAction {
-    /// Updated client tools list (full replacement)
-    pub tools: Vec<ToolDefinition>,
+pub struct SessionActiveClientSetAction {
+    /// The active client to add or update, matched by `clientId`.
+    pub active_client: SessionActiveClient,
+}
+
+/// An active client was removed from this session.
+///
+/// Removes the entry for the client identified by `clientId` from
+/// {@link SessionState.activeClients}; a no-op when no entry matches.
+///
+/// The host SHOULD dispatch this automatically when a client stops participating
+/// in the session — for example when it unsubscribes from the session channel,
+/// when it disconnects and does not reconnect within a host-defined grace
+/// period, or when a `reconnect` command's `subscriptions` omit a session the
+/// client was still active in. When removing a client, the host SHOULD also
+/// cancel that client's in-flight tool calls — those whose tool call state
+/// carries a client `ToolCallContributor` with the matching `clientId` — by
+/// dispatching `chat/toolCallComplete` with `result.success = false`. (There is
+/// no per-tool-call server cancel; a failed completion is the cancellation
+/// mechanism, and the call ends in `completed` status with a failed result.)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionActiveClientRemovedAction {
+    /// The `clientId` of the active client to remove.
+    pub client_id: String,
 }
 
 /// A pending message was set (upsert semantics: creates or replaces).
@@ -1510,10 +1526,10 @@ pub enum StateAction {
     SessionChangesetsChanged(SessionChangesetsChangedAction),
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged(SessionServerToolsChangedAction),
-    #[serde(rename = "session/activeClientChanged")]
-    SessionActiveClientChanged(SessionActiveClientChangedAction),
-    #[serde(rename = "session/activeClientToolsChanged")]
-    SessionActiveClientToolsChanged(SessionActiveClientToolsChangedAction),
+    #[serde(rename = "session/activeClientSet")]
+    SessionActiveClientSet(SessionActiveClientSetAction),
+    #[serde(rename = "session/activeClientRemoved")]
+    SessionActiveClientRemoved(SessionActiveClientRemovedAction),
     #[serde(rename = "chat/pendingMessageSet")]
     ChatPendingMessageSet(ChatPendingMessageSetAction),
     #[serde(rename = "chat/pendingMessageRemoved")]

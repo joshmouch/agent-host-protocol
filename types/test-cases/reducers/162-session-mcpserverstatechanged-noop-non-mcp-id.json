@@ -11,6 +11,7 @@
       "modifiedAt": 1000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": [],
     "customizations": [
       {
@@ -58,6 +59,7 @@
       "modifiedAt": 1000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": [],
     "customizations": [
       {

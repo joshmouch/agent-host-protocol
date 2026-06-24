@@ -33,8 +33,8 @@ public enum ActionType: String, Codable, Sendable {
     case sessionModelChanged = "session/modelChanged"
     case sessionAgentChanged = "session/agentChanged"
     case sessionServerToolsChanged = "session/serverToolsChanged"
-    case sessionActiveClientChanged = "session/activeClientChanged"
-    case sessionActiveClientToolsChanged = "session/activeClientToolsChanged"
+    case sessionActiveClientSet = "session/activeClientSet"
+    case sessionActiveClientRemoved = "session/activeClientRemoved"
     case chatPendingMessageSet = "chat/pendingMessageSet"
     case chatPendingMessageRemoved = "chat/pendingMessageRemoved"
     case chatQueuedMessagesReordered = "chat/queuedMessagesReordered"
@@ -979,31 +979,31 @@ public struct SessionServerToolsChangedAction: Codable, Sendable {
     }
 }
 
-public struct SessionActiveClientChangedAction: Codable, Sendable {
+public struct SessionActiveClientSetAction: Codable, Sendable {
     public var type: ActionType
-    /// The new active client, or `null` to unset
-    public var activeClient: SessionActiveClient?
+    /// The active client to add or update, matched by `clientId`.
+    public var activeClient: SessionActiveClient
 
     public init(
         type: ActionType,
-        activeClient: SessionActiveClient? = nil
+        activeClient: SessionActiveClient
     ) {
         self.type = type
         self.activeClient = activeClient
     }
 }
 
-public struct SessionActiveClientToolsChangedAction: Codable, Sendable {
+public struct SessionActiveClientRemovedAction: Codable, Sendable {
     public var type: ActionType
-    /// Updated client tools list (full replacement)
-    public var tools: [ToolDefinition]
+    /// The `clientId` of the active client to remove.
+    public var clientId: String
 
     public init(
         type: ActionType,
-        tools: [ToolDefinition]
+        clientId: String
     ) {
         self.type = type
-        self.tools = tools
+        self.clientId = clientId
     }
 }
 
@@ -1776,8 +1776,8 @@ public enum StateAction: Codable, Sendable {
     case sessionActivityChanged(SessionActivityChangedAction)
     case sessionChangesetsChanged(SessionChangesetsChangedAction)
     case sessionServerToolsChanged(SessionServerToolsChangedAction)
-    case sessionActiveClientChanged(SessionActiveClientChangedAction)
-    case sessionActiveClientToolsChanged(SessionActiveClientToolsChangedAction)
+    case sessionActiveClientSet(SessionActiveClientSetAction)
+    case sessionActiveClientRemoved(SessionActiveClientRemovedAction)
     case chatPendingMessageSet(ChatPendingMessageSetAction)
     case chatPendingMessageRemoved(ChatPendingMessageRemovedAction)
     case chatQueuedMessagesReordered(ChatQueuedMessagesReorderedAction)
@@ -1892,10 +1892,10 @@ public enum StateAction: Codable, Sendable {
             self = .sessionChangesetsChanged(try SessionChangesetsChangedAction(from: decoder))
         case "session/serverToolsChanged":
             self = .sessionServerToolsChanged(try SessionServerToolsChangedAction(from: decoder))
-        case "session/activeClientChanged":
-            self = .sessionActiveClientChanged(try SessionActiveClientChangedAction(from: decoder))
-        case "session/activeClientToolsChanged":
-            self = .sessionActiveClientToolsChanged(try SessionActiveClientToolsChangedAction(from: decoder))
+        case "session/activeClientSet":
+            self = .sessionActiveClientSet(try SessionActiveClientSetAction(from: decoder))
+        case "session/activeClientRemoved":
+            self = .sessionActiveClientRemoved(try SessionActiveClientRemovedAction(from: decoder))
         case "chat/pendingMessageSet":
             self = .chatPendingMessageSet(try ChatPendingMessageSetAction(from: decoder))
         case "chat/pendingMessageRemoved":
@@ -2014,8 +2014,8 @@ public enum StateAction: Codable, Sendable {
         case .sessionActivityChanged(let v): try v.encode(to: encoder)
         case .sessionChangesetsChanged(let v): try v.encode(to: encoder)
         case .sessionServerToolsChanged(let v): try v.encode(to: encoder)
-        case .sessionActiveClientChanged(let v): try v.encode(to: encoder)
-        case .sessionActiveClientToolsChanged(let v): try v.encode(to: encoder)
+        case .sessionActiveClientSet(let v): try v.encode(to: encoder)
+        case .sessionActiveClientRemoved(let v): try v.encode(to: encoder)
         case .chatPendingMessageSet(let v): try v.encode(to: encoder)
         case .chatPendingMessageRemoved(let v): try v.encode(to: encoder)
         case .chatQueuedMessagesReordered(let v): try v.encode(to: encoder)

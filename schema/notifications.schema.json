@@ -859,9 +859,12 @@
           },
           "description": "Tools provided by the server (agent host) for this session"
         },
-        "activeClient": {
-          "$ref": "#/$defs/SessionActiveClient",
-          "description": "The client currently providing tools and interactive capabilities to this session"
+        "activeClients": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionActiveClient"
+          },
+          "description": "The clients currently providing tools and interactive capabilities to this\nsession. If multiple tools or customizations are provided by the same\nactive client, an agent host MAY deduplicate them when exposed to a model,\nwith a preference given to the client that started the turn.\n\nMembership is host-managed: clients add (or refresh) themselves with\n`session/activeClientSet`, and the host removes them with\n`session/activeClientRemoved` when they unsubscribe, disconnect without\nreconnecting in time, or reconnect without resubscribing to the session."
         },
         "chats": {
           "type": "array",
@@ -883,7 +886,7 @@
           "items": {
             "$ref": "#/$defs/Customization"
           },
-          "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClient.customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
+          "description": "Top-level customizations active in this session.\n\nAlways one of the {@link Customization} variants:\n\n- Container customizations ({@link PluginCustomization},\n  {@link DirectoryCustomization}) whose children — agents, skills,\n  prompts, rules, hooks, MCP servers — live in each container's\n  {@link ContainerCustomizationBase.children | `children`} array.\n- Top-level {@link McpServerCustomization} entries the host\n  surfaces directly (for example a globally-configured MCP server\n  that isn't bundled in a plugin or directory). MCP servers may\n  also appear as children of a container.\n\nClient-published plugins arrive via\n{@link SessionActiveClient.customizations | `activeClients[].customizations`}\nand the host propagates them into this list (typically with the\ncontainer's `clientId` set and `children` populated). Clients\npublish in container shape only; bare MCP servers at the top level\nare server-originated."
         },
         "changesets": {
           "type": "array",
@@ -901,12 +904,13 @@
       "required": [
         "summary",
         "lifecycle",
+        "activeClients",
         "chats"
       ]
     },
     "SessionActiveClient": {
       "type": "object",
-      "description": "The client currently providing tools and interactive capabilities to a session.\n\nOnly one client may be active per session at a time. The server SHOULD\nautomatically unset the active client if that client disconnects.",
+      "description": "A client currently providing tools and interactive capabilities to a session.\n\nA session MAY have several active clients at once; entries in\n{@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD\nautomatically remove an active client when that client disconnects.",
       "properties": {
         "clientId": {
           "type": "string",

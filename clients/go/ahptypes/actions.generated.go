@@ -46,8 +46,8 @@ const (
 	ActionTypeSessionModelChanged               ActionType = "session/modelChanged"
 	ActionTypeSessionAgentChanged               ActionType = "session/agentChanged"
 	ActionTypeSessionServerToolsChanged         ActionType = "session/serverToolsChanged"
-	ActionTypeSessionActiveClientChanged        ActionType = "session/activeClientChanged"
-	ActionTypeSessionActiveClientToolsChanged   ActionType = "session/activeClientToolsChanged"
+	ActionTypeSessionActiveClientSet            ActionType = "session/activeClientSet"
+	ActionTypeSessionActiveClientRemoved        ActionType = "session/activeClientRemoved"
 	ActionTypeChatPendingMessageSet             ActionType = "chat/pendingMessageSet"
 	ActionTypeChatPendingMessageRemoved         ActionType = "chat/pendingMessageRemoved"
 	ActionTypeChatQueuedMessagesReordered       ActionType = "chat/queuedMessagesReordered"
@@ -372,9 +372,10 @@ type ChatToolCallConfirmedAction struct {
 // Tool execution finished. Transitions to `completed` or `pending-result-confirmation`
 // if `requiresResultConfirmation` is `true`.
 //
-// For client-provided tools (where `toolClientId` is set on the tool call state),
-// the owning client dispatches this action with the execution result. The server
-// SHOULD reject this action if the dispatching client does not match `toolClientId`.
+// For client-provided tools (whose tool call state carries a client
+// `ToolCallContributor` with a `clientId`), the owning client dispatches this
+// action with the execution result. The server SHOULD reject this action if the
+// dispatching client does not match the contributor's `clientId`.
 //
 // Servers waiting on a client tool call MAY time out after a reasonable duration
 // if the implementing client disconnects or becomes unresponsive, and dispatch
@@ -424,10 +425,11 @@ type ChatToolCallResultConfirmedAction struct {
 // use this to display live feedback (e.g. a terminal reference) before the
 // tool completes.
 //
-// For client-provided tools (where `toolClientId` is set on the tool call state),
-// the owning client dispatches this action to stream intermediate content while
-// executing. The server SHOULD reject this action if the dispatching client does
-// not match `toolClientId`.
+// For client-provided tools (whose tool call state carries a client
+// `ToolCallContributor` with a `clientId`), the owning client dispatches this
+// action to stream intermediate content while executing. The server SHOULD
+// reject this action if the dispatching client does not match the contributor's
+// `clientId`.
 type ChatToolCallContentChangedAction struct {
 	// Turn identifier
 	TurnId string `json:"turnId"`
@@ -714,27 +716,42 @@ type SessionServerToolsChangedAction struct {
 	Tools []ToolDefinition `json:"tools"`
 }
 
-// The active client for this session has changed.
+// An active client for this session was added or updated.
 //
-// A client dispatches this action with its own `SessionActiveClient` to claim
-// the active role, or with `null` to release it. The server SHOULD reject if
-// another client is already active. The server SHOULD automatically dispatch
-// this action with `activeClient: null` when the active client disconnects.
-type SessionActiveClientChangedAction struct {
+// Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
+// a client dispatches this action with its own `SessionActiveClient` to join
+// the session's active clients or refresh its entry, replacing any existing
+// entry that has the same `clientId`. Multiple clients may be active at once.
+// This is also how a client updates its published tools or customizations —
+// re-dispatch with the full, updated entry. Use
+// {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
+// leave. The server SHOULD automatically dispatch that removal when an active
+// client disconnects.
+type SessionActiveClientSetAction struct {
 	Type ActionType `json:"type"`
-	// The new active client, or `null` to unset
-	ActiveClient *SessionActiveClient `json:"activeClient,omitempty"`
+	// The active client to add or update, matched by `clientId`.
+	ActiveClient SessionActiveClient `json:"activeClient"`
 }
 
-// The active client's tool list has changed.
+// An active client was removed from this session.
 //
-// Full-replacement semantics: the `tools` array replaces the active client's
-// previous tools entirely. The server SHOULD reject if the dispatching client
-// is not the current active client.
-type SessionActiveClientToolsChangedAction struct {
+// Removes the entry for the client identified by `clientId` from
+// {@link SessionState.activeClients}; a no-op when no entry matches.
+//
+// The host SHOULD dispatch this automatically when a client stops participating
+// in the session — for example when it unsubscribes from the session channel,
+// when it disconnects and does not reconnect within a host-defined grace
+// period, or when a `reconnect` command's `subscriptions` omit a session the
+// client was still active in. When removing a client, the host SHOULD also
+// cancel that client's in-flight tool calls — those whose tool call state
+// carries a client `ToolCallContributor` with the matching `clientId` — by
+// dispatching `chat/toolCallComplete` with `result.success = false`. (There is
+// no per-tool-call server cancel; a failed completion is the cancellation
+// mechanism, and the call ends in `completed` status with a failed result.)
+type SessionActiveClientRemovedAction struct {
 	Type ActionType `json:"type"`
-	// Updated client tools list (full replacement)
-	Tools []ToolDefinition `json:"tools"`
+	// The `clientId` of the active client to remove.
+	ClientId string `json:"clientId"`
 }
 
 // The session's customizations have changed.
@@ -1222,8 +1239,8 @@ func (*SessionIsArchivedChangedAction) isStateAction()          {}
 func (*SessionActivityChangedAction) isStateAction()            {}
 func (*SessionChangesetsChangedAction) isStateAction()          {}
 func (*SessionServerToolsChangedAction) isStateAction()         {}
-func (*SessionActiveClientChangedAction) isStateAction()        {}
-func (*SessionActiveClientToolsChangedAction) isStateAction()   {}
+func (*SessionActiveClientSetAction) isStateAction()            {}
+func (*SessionActiveClientRemovedAction) isStateAction()        {}
 func (*SessionCustomizationsChangedAction) isStateAction()      {}
 func (*SessionCustomizationToggledAction) isStateAction()       {}
 func (*SessionCustomizationUpdatedAction) isStateAction()       {}
@@ -1505,14 +1522,14 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		u.Value = &value
-	case "session/activeClientChanged":
-		var value SessionActiveClientChangedAction
+	case "session/activeClientSet":
+		var value SessionActiveClientSetAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}
 		u.Value = &value
-	case "session/activeClientToolsChanged":
-		var value SessionActiveClientToolsChangedAction
+	case "session/activeClientRemoved":
+		var value SessionActiveClientRemovedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

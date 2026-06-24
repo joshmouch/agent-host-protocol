@@ -42,6 +42,12 @@ applyTo: 'types/**/*.ts'
   - Generator note: variant interface names must differ from the union wrapper names emitted by the per-language generators (e.g. Kotlin emits `value class FooStateStarting(val value: FooStartingState)`), so name variants `Foo*State` rather than `FooStatus*`.
 - After making your changes, check to make sure the documentation in `docs` is up to date. For significant new flows or features, consider adding new documentation for it. Note that Mermaid diagrams are allowed.
 - Whenever you change or add an action, you must review the reducers in `types/reducers.ts` to see if that needs to be propagated into the state. If it does, add the appropriate logic and unit tests for it.
+- Actions that mutate a keyed collection in state (an array whose entries are identified by a stable key such as `id`, `clientId`, `resource`, or a URI — e.g. `chats`, `customizations`, `files`, `annotations`, `activeClients`) MUST follow the established add/remove/update convention rather than inventing a new shape:
+  - **Upsert** (`Foo*Set`): the action carries the **full entry object**. The reducer finds the entry by key, **appends** it when absent and **replaces** it in place when present (never duplicating a key). Always name a generic create-or-replace action `Set` — not `Added`, `Changed`, or `Updated` — so the upsert convention is recognisable at a glance.
+  - **Remove** (`Foo*Removed`): the action carries **only the key** (e.g. `{ clientId }`, `{ fileId }`), never the whole object. The reducer is a **no-op returning the original `state`** when no entry matches.
+  - **Partial update** (`Foo*Updated`): the action carries the **key plus the optional fields that changed**; the reducer merges them onto the existing entry and is a **no-op returning `state`** when no entry matches. Ignore the key inside any `changes` payload so it can't be reassigned.
+  - Prefer a key-only **remove** action over an upsert that accepts a nullable/sentinel "unset" value (e.g. do not model removal as `Changed` with `entry: null`).
+  - Reducer mechanics are uniform: `const idx = list.findIndex(x => x.<key> === action.<key>)`, branch on `idx < 0`, copy immutably (`list.slice()` / `[...list]`), then write or `splice`, and return `{ ...state, <collection>: next }`. Every branch (insert, replace, remove, no-op) needs a fixture in `types/test-cases/reducers/` to keep `types/reducers.ts` at 100% branch coverage.
 - Never update the protocol version unless you were instructed to do so.
 
 ## Finalizing changes

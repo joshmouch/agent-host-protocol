@@ -11,6 +11,7 @@
       "modifiedAt": 2000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -28,6 +29,7 @@
       "modifiedAt": 2000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": []
   }
 }

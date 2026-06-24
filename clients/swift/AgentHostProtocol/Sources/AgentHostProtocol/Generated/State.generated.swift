@@ -948,8 +948,16 @@ public struct SessionState: Codable, Sendable {
     public var creationError: ErrorInfo?
     /// Tools provided by the server (agent host) for this session
     public var serverTools: [ToolDefinition]?
-    /// The client currently providing tools and interactive capabilities to this session
-    public var activeClient: SessionActiveClient?
+    /// The clients currently providing tools and interactive capabilities to this
+    /// session. If multiple tools or customizations are provided by the same
+    /// active client, an agent host MAY deduplicate them when exposed to a model,
+    /// with a preference given to the client that started the turn.
+    ///
+    /// Membership is host-managed: clients add (or refresh) themselves with
+    /// `session/activeClientSet`, and the host removes them with
+    /// `session/activeClientRemoved` when they unsubscribe, disconnect without
+    /// reconnecting in time, or reconnect without resubscribing to the session.
+    public var activeClients: [SessionActiveClient]
     /// Catalog of chats in this session.
     public var chats: [ChatSummary]
     /// The chat that receives input when the user addresses the session without
@@ -973,7 +981,7 @@ public struct SessionState: Codable, Sendable {
     /// also appear as children of a container.
     ///
     /// Client-published plugins arrive via
-    /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
+    /// {@link SessionActiveClient.customizations | `activeClients[].customizations`}
     /// and the host propagates them into this list (typically with the
     /// container's `clientId` set and `children` populated). Clients
     /// publish in container shape only; bare MCP servers at the top level
@@ -997,7 +1005,7 @@ public struct SessionState: Codable, Sendable {
         case lifecycle
         case creationError
         case serverTools
-        case activeClient
+        case activeClients
         case chats
         case defaultChat
         case config
@@ -1011,7 +1019,7 @@ public struct SessionState: Codable, Sendable {
         lifecycle: SessionLifecycle,
         creationError: ErrorInfo? = nil,
         serverTools: [ToolDefinition]? = nil,
-        activeClient: SessionActiveClient? = nil,
+        activeClients: [SessionActiveClient],
         chats: [ChatSummary],
         defaultChat: String? = nil,
         config: SessionConfigState? = nil,
@@ -1023,7 +1031,7 @@ public struct SessionState: Codable, Sendable {
         self.lifecycle = lifecycle
         self.creationError = creationError
         self.serverTools = serverTools
-        self.activeClient = activeClient
+        self.activeClients = activeClients
         self.chats = chats
         self.defaultChat = defaultChat
         self.config = config

@@ -21,13 +21,29 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
   optional fields for communicating model token limits.
 - `SessionSummary.meta` (`_meta` on the wire) optional provider metadata field
   for lightweight session-list presentation hints.
+- `SessionActiveClientRemovedAction` (`StateActionSessionActiveClientRemoved`,
+  wire `session/activeClientRemoved`) to release a single active client by
+  `clientId`.
 
 ### Changed
 
+- `SessionState.activeClients` (`List<SessionActiveClient>`, required) replaces
+  the single nullable `SessionState.activeClient`; `sessionReducer` upserts and
+  removes entries keyed by `clientId`.
+- `StateActionSessionActiveClientChanged` is renamed to
+  `StateActionSessionActiveClientSet` (wire `session/activeClientSet`) with
+  upsert-by-`clientId` semantics; it no longer unsets the active client
+  (dispatch `session/activeClientRemoved` instead).
 - `ConfigPropertySchema.enum` field is now `List<JsonElement>?` instead of
   `List<String>?`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `JsonElement` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `StateActionSessionActiveClientSet` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

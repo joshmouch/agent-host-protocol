@@ -20,13 +20,28 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   optional fields for communicating model token limits.
 - `SessionSummary.Meta` (wire `_meta`) optional provider metadata field for
   lightweight session-list presentation hints.
+- `SessionActiveClientRemovedAction` (wire `session/activeClientRemoved`) to
+  release a single active client by `ClientId`.
 
 ### Changed
 
+- `SessionState.ActiveClients` (`[]SessionActiveClient`, required) replaces the
+  single pointer `SessionState.ActiveClient`; `ApplyActionToSession` upserts and
+  removes entries keyed by `ClientId`.
+- `SessionActiveClientChangedAction` is renamed to `SessionActiveClientSetAction`
+  (wire `session/activeClientSet`) with upsert-by-`ClientId` semantics; it no
+  longer unsets the active client (dispatch `session/activeClientRemoved`
+  instead).
 - `ConfigPropertySchema.Enum` field is now `[]json.RawMessage` instead of `[]string`,
   allowing numeric, boolean, and null enum values.
 - `ModelSelection.Config` values are now `json.RawMessage` instead of `string`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `SessionActiveClientSetAction` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

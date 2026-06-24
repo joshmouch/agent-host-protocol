@@ -23,13 +23,29 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   optional fields for communicating model token limits.
 - `SessionSummary.meta` (`_meta` on the wire) optional provider metadata field
   for lightweight session-list presentation hints.
+- `SessionActiveClientRemovedAction` (`StateAction.sessionActiveClientRemoved`,
+  wire `session/activeClientRemoved`) to release a single active client by
+  `clientId`.
 
 ### Changed
 
+- `SessionState.activeClients` (`[SessionActiveClient]`, required) replaces the
+  single optional `SessionState.activeClient`; the session reducer upserts and
+  removes entries keyed by `clientId`.
+- `StateAction.sessionActiveClientChanged` is renamed to
+  `StateAction.sessionActiveClientSet` (wire `session/activeClientSet`) with
+  upsert-by-`clientId` semantics; it no longer unsets the active client
+  (dispatch `session/activeClientRemoved` instead).
 - `ConfigPropertySchema.enum` field is now `[AnyCodable]?` instead of
   `[String]?`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `AnyCodable` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `StateAction.sessionActiveClientSet` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

@@ -37,6 +37,7 @@ final class ReducersTests: XCTestCase {
                 modifiedAt: 1000
             ),
             lifecycle: lifecycle,
+            activeClients: [],
             chats: []
         )
     }

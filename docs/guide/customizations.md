@@ -14,7 +14,7 @@ For MCP-specific behaviour (server lifecycle, authentication, App support), see 
 Customizations enter a session from two places:
 
 1. **Server-provided** — The agent host declares containers on each agent via `AgentInfo.customizations`. When a session is created, the host resolves the containers, parses their contents, and exposes the result in `SessionState.customizations`.
-2. **Client-provided** — The active client contributes `ClientPluginCustomization` entries via `SessionActiveClient.customizations` (a `PluginCustomization` with an optional `nonce`). The host MAY parse the published plugin and surface it (with its children) in the session's top-level list.
+2. **Client-provided** — An active client contributes `ClientPluginCustomization` entries via `SessionActiveClient.customizations` (a `PluginCustomization` with an optional `nonce`). The host MAY parse the published plugin and surface it (with its children) in the session's top-level list.
 
 ```mermaid
 flowchart LR
@@ -28,7 +28,7 @@ flowchart LR
     end
 
     AI -- "host resolves & parses\non session create" --> SC
-    AC -- "client publishes ClientPluginCustomization\nvia activeClientChanged" --> SC
+    AC -- "client publishes ClientPluginCustomization\nvia activeClientSet" --> SC
 ```
 
 Clients publish in Open Plugins shape only. They MAY synthesize a virtual plugin in memory if their real source is on disk; mapping a workspace location to a physical directory is the host's job, not the client's.
@@ -174,11 +174,11 @@ The protocol does not define a dedicated save action — directories plus `resou
 
 ## Client-Published Plugins
 
-A client claims the active role and contributes plugins via `session/activeClientChanged`. Client customizations are `ClientPluginCustomization` values — `PluginCustomization` with an optional `nonce` the host can use to detect changes between publications.
+A client joins a session as an active client and contributes plugins via `session/activeClientSet`. A session may have several active clients at once; entries are keyed by `clientId`. Client customizations are `ClientPluginCustomization` values — `PluginCustomization` with an optional `nonce` the host can use to detect changes between publications.
 
 ```typescript
 dispatch({
-  type: 'session/activeClientChanged',
+  type: 'session/activeClientSet',
   activeClient: {
     clientId: 'my-client-id',
     displayName: 'VS Code',
@@ -197,14 +197,14 @@ dispatch({
 });
 ```
 
-The host parses the plugin and surfaces it in `SessionState.customizations` with `clientId` set and `children` populated. When the active client disconnects or is replaced, the host SHOULD remove its customizations from the session list.
+The host parses the plugin and surfaces it in `SessionState.customizations` with `clientId` set and `children` populated. When an active client disconnects (or is removed via `session/activeClientRemoved`), the host SHOULD remove its customizations from the session list.
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Server
 
-    Client->>Server: activeClientChanged (with ClientPluginCustomization[])
+    Client->>Server: activeClientSet (with ClientPluginCustomization[])
     Server->>Client: action echoed
 
     Note over Server: Host parses each plugin
@@ -213,22 +213,22 @@ sequenceDiagram
 
 ## Client-Provided Tools
 
-AHP sessions can expose tools from two sources: **server tools** provided by the agent host, and **client tools** provided by the active client (e.g. an IDE). Client tools let the agent invoke capabilities that only the client has access to.
+AHP sessions can expose tools from two sources: **server tools** provided by the agent host, and **client tools** provided by an active client (e.g. an IDE). Client tools let the agent invoke capabilities that only the client has access to.
 
 Key design points:
 
-- **Client tools are state, not RPC.** They live in `SessionState.activeClient.tools` and are visible to all subscribers.
+- **Client tools are state, not RPC.** They live in `SessionState.activeClients[].tools` and are visible to all subscribers.
 - **Tool execution follows the same state machine** as server tools — the only difference is _who_ executes: for client tools, the owning client does.
-- **The server identifies client tool calls** by setting `toolClientId` on `session/toolCallStart`.
+- **The server identifies client tool calls** by setting the tool call's client `contributor` (with the owning `clientId`) on `chat/toolCallStart`.
 
 ### Registering Tools
 
-A client registers its tools by including them in the `session/activeClientChanged` payload (the same action used to register customizations):
+A client registers its tools by including them in the `session/activeClientSet` payload (the same action used to register customizations):
 
 ```typescript
-// Client claims the active role with tools and customizations
+// Client joins as an active client with tools and customizations
 dispatch({
-  type: 'session/activeClientChanged',
+  type: 'session/activeClientSet',
   session: sessionUri,
   activeClient: {
     clientId: 'my-client-id',
@@ -249,21 +249,26 @@ dispatch({
 });
 ```
 
-After registration, the reducer stores the tools in `state.activeClient.tools`.
+After registration, the reducer stores the tools on the matching entry in `state.activeClients` (keyed by `clientId`).
 
 ### Updating Tools
 
-To change the tool list without re-claiming the active role, dispatch `session/activeClientToolsChanged`:
+To change its tool list, a client re-dispatches `session/activeClientSet` with its full, updated `SessionActiveClient` entry. The upsert (keyed by `clientId`) replaces the previous entry — tools and all:
 
 ```typescript
 dispatch({
-  type: 'session/activeClientToolsChanged',
+  type: 'session/activeClientSet',
   session: sessionUri,
-  tools: updatedToolList, // full replacement
+  activeClient: {
+    clientId: 'my-client-id',
+    displayName: 'VS Code',
+    tools: updatedToolList, // full replacement
+    customizations: [ /* unchanged — host may skip re-parsing via nonce */ ],
+  },
 });
 ```
 
-Both actions use **full-replacement semantics** — the entire `tools` array is replaced.
+There is no separate tools-only action: because each `activeClients` entry has a single owner, re-publishing the whole entry is the canonical way to update either its `tools` or its `customizations`. Hosts MAY use each `ClientPluginCustomization`'s `nonce` to detect unchanged customizations and skip re-parsing.
 
 ### Tool Name Uniqueness
 
@@ -279,35 +284,35 @@ sequenceDiagram
     participant Client
 
     Note over Server: LLM selects a client tool
-    Server->>Client: toolCallStart (toolClientId = client's clientId)
+    Server->>Client: toolCallStart (contributor.clientId = client's clientId)
     Server->>Client: toolCallDelta (streaming parameters)
     Server->>Client: toolCallReady (confirmed: 'not-needed')
 
-    Note over Client: Client sees toolClientId matches,<br/>begins execution
+    Note over Client: Client sees contributor.clientId matches,<br/>begins execution
 
     Client->>Server: toolCallContentChanged (streaming progress)
     Client->>Server: toolCallComplete (result)
 ```
 
-1. **`session/toolCallStart`** — The server dispatches this with `toolClientId` set to the active client's `clientId`. This tells the client it owns the tool call.
+1. **`chat/toolCallStart`** — The server dispatches this with the tool call's `contributor` set to a client contributor whose `clientId` is the owning client's. This tells the client it owns the tool call.
 
-2. **`session/toolCallDelta`** (zero or more) — The server streams partial parameters as the LLM generates them. The client can observe `partialInput` on the tool call state to preview the arguments.
+2. **`chat/toolCallDelta`** (zero or more) — The server streams partial parameters as the LLM generates them. The client can observe `partialInput` on the tool call state to preview the arguments.
 
-3. **`session/toolCallReady`** — Parameters are complete. For client-provided tools, the server typically sets `confirmed: 'not-needed'` so the tool transitions directly to `running`. If the server wants user confirmation first, it omits `confirmed` and the standard confirmation flow applies.
+3. **`chat/toolCallReady`** — Parameters are complete. For client-provided tools, the server typically sets `confirmed: 'not-needed'` so the tool transitions directly to `running`. If the server wants user confirmation first, it omits `confirmed` and the standard confirmation flow applies.
 
 4. **Client executes** — When the tool call reaches `running` status, the owning client begins execution using the `toolInput` from the tool call state.
 
-5. **`session/toolCallContentChanged`** (zero or more, client-dispatched) — While executing, the client MAY stream intermediate content (e.g. terminal output, partial results) by dispatching this action. This replaces the `content` array on the running tool call state.
+5. **`chat/toolCallContentChanged`** (zero or more, client-dispatched) — While executing, the client MAY stream intermediate content (e.g. terminal output, partial results) by dispatching this action. This replaces the `content` array on the running tool call state.
 
-6. **`session/toolCallComplete`** (client-dispatched) — The client dispatches this with the execution result. The server SHOULD reject this action if the dispatching client does not match `toolClientId`.
+6. **`chat/toolCallComplete`** (client-dispatched) — The client dispatches this with the execution result. The server SHOULD reject this action if the dispatching client does not match the tool call's `contributor.clientId`.
 
 ### Denying an Unrecognized Tool
 
-If the client receives a tool call for a tool it does not recognize (e.g. after a stale registration), it MUST dispatch `session/toolCallConfirmed` with `approved: false`:
+If the client receives a tool call for a tool it does not recognize (e.g. after a stale registration), it MUST dispatch `chat/toolCallConfirmed` with `approved: false`:
 
 ```typescript
 dispatch({
-  type: 'session/toolCallConfirmed',
+  type: 'chat/toolCallConfirmed',
   session: sessionUri,
   turnId,
   toolCallId,
@@ -316,15 +321,64 @@ dispatch({
 });
 ```
 
-### Client Disconnect and Tool Calls
+### Active-Client Lifecycle
 
-When the active client disconnects, the server SHOULD:
+Active membership is **session-scoped** and host-managed:
 
-1. Dispatch `session/activeClientChanged` with `activeClient: null` to clear the active client (and its tools and customizations).
-2. Allow a reasonable grace period for the client to reconnect.
-3. If the client does not reconnect, cancel any in-progress tool calls owned by that client by dispatching `session/toolCallComplete` with `result.success = false` and an appropriate error message.
+- **Join.** A client adds itself with `session/activeClientSet` (an upsert keyed
+  by `clientId`). Several clients may be active at once. A client never needs to
+  "unset" itself — it simply stops refreshing and lets the host remove it.
+- **Leave.** The host removes a client with `session/activeClientRemoved` (by
+  `clientId`). The host SHOULD do this when:
+  1. the client **unsubscribes** from the session channel;
+  2. the client **disconnects** and does not reconnect within a host-defined
+     grace period; or
+  3. the client **reconnects but does not resubscribe** to a session it was
+     still active in — i.e. the `reconnect` command's `subscriptions` omit that
+     session URI.
 
-This ensures tool calls do not remain stuck in `running` state indefinitely.
+The grace-period duration and exact policy are host-defined; the protocol only
+defines the `session/activeClientSet` / `session/activeClientRemoved` actions
+used to express the result.
+
+### Cancelling a Removed Client's Tool Calls
+
+When the host removes an active client, it SHOULD also cancel that client's
+in-flight tool calls so they do not remain stuck in `running` indefinitely. A
+client tool call is one whose state carries a client `ToolCallContributor` with
+the matching `clientId`; these may be spread across several chats in the
+session. For each such call the host dispatches `chat/toolCallComplete` with
+`result.success = false` and an explanatory message.
+
+::: tip
+"Cancellation" here is a **failed completion**: the call ends in `completed`
+status with `result.success = false`, not in `cancelled` status. There is no
+per-tool-call server-initiated cancel action — `cancelled` status is reserved
+for the user-driven denial / skip / result-denied confirmation flows (and the
+whole-turn `chat/turnCancelled`, which force-cancels every in-progress call in
+the turn regardless of owner).
+:::
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+
+    Note over Client,Server: Grace period after an unexpected disconnect
+    Client--xServer: connection dropped
+
+    alt reconnects and resubscribes to the session in time
+        Client->>Server: reconnect (subscriptions include session)
+        Note over Server: client stays in activeClients
+    else grace period elapses, or reconnect omits the session
+        Note over Server: Host removes the client
+        Server->>Client: session/activeClientRemoved (clientId)
+        loop each running tool call owned by clientId (across the session's chats)
+            Server->>Client: chat/toolCallComplete (success: false)
+        end
+        Note over Server: Host also drops the client's<br/>tools and customizations
+    end
+```
 
 ## Actions Summary
 
@@ -334,11 +388,11 @@ This ensures tool calls do not remain stuck in `running` state indefinitely.
 | `session/customizationToggled` | **Yes** | Client toggled a container or child on or off by id |
 | `session/customizationUpdated` | No | Server upserts a top-level container by id (full-entry replacement, including children) |
 | `session/customizationRemoved` | No | Server removes a customization by id (containers cascade) |
-| `session/activeClientChanged` | **Yes** | Client claims/releases the active role (with tools + customizations) |
-| `session/activeClientToolsChanged` | **Yes** | Client updates its tool list without re-claiming |
-| `session/toolCallStart` | No | Server begins a tool call (sets `toolClientId` for client tools) |
-| `session/toolCallComplete` | **Yes** | Client finishes executing a tool call |
-| `session/toolCallContentChanged` | **Yes** | Client streams intermediate tool output |
+| `session/activeClientSet` | **Yes** | Client joins or refreshes as an active client (with tools + customizations), keyed by `clientId` |
+| `session/activeClientRemoved` | **Yes** | Client leaves the active set (by `clientId`) |
+| `chat/toolCallStart` | No | Server begins a tool call (sets the client `contributor` for client tools) |
+| `chat/toolCallComplete` | **Yes** | Client finishes executing a tool call |
+| `chat/toolCallContentChanged` | **Yes** | Client streams intermediate tool output |
 
 ## Full Session Flow
 
@@ -357,7 +411,7 @@ sequenceDiagram
 
     Note over Client,Server: 2. Client becomes active with its own plugin
 
-    Client->>Server: activeClientChanged (tools + customizations: [Plugin C])
+    Client->>Server: activeClientSet (tools + customizations: [Plugin C])
     Server->>Client: action echoed
 
     Server->>Client: customizationUpdated (Plugin C: load: loading)
@@ -370,7 +424,7 @@ sequenceDiagram
 
     Note over Client,Server: 4. Active client disconnects
 
-    Server->>Client: activeClientChanged (null)
+    Server->>Client: activeClientRemoved (clientId)
     Server->>Client: customizationRemoved (Plugin C)
 ```
 

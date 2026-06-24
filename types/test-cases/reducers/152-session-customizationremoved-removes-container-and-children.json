@@ -35,6 +35,7 @@
         "enabled": true
       }
     ],
+    "activeClients": [],
     "chats": []
   },
   "actions": [
@@ -62,6 +63,7 @@
         "enabled": true
       }
     ],
+    "activeClients": [],
     "chats": []
   }
 }

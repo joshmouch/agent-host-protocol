@@ -292,10 +292,10 @@ pub struct CreateSessionParams {
     /// Keys and values correspond to the schema returned by the server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<JsonObject>,
-    /// Eagerly claim the active client role for the new session.
+    /// Eagerly claim an active client role for the new session.
     ///
-    /// When provided, the server initializes the session with this client as the
-    /// active client, equivalent to dispatching a `session/activeClientChanged`
+    /// When provided, the server initializes the session with this client as an
+    /// active client, equivalent to dispatching a `session/activeClientSet`
     /// action immediately after creation. The `clientId` MUST match the
     /// `clientId` the creating client supplied in `initialize`.
     #[serde(default, skip_serializing_if = "Option::is_none")]

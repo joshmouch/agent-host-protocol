@@ -41,6 +41,7 @@ final class NativeReducerTests: XCTestCase {
                 modifiedAt: 1000
             ),
             lifecycle: lifecycle,
+            activeClients: [],
             chats: []
         )
     }

@@ -1,5 +1,5 @@
 {
-  "description": "session/activeClientChanged sets client",
+  "description": "session/activeClientRemoved is a no-op for an unknown client",
   "reducer": "session",
   "initial": {
     "summary": {
@@ -11,16 +11,18 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
+    "activeClients": [
+      {
+        "clientId": "vscode-1",
+        "tools": []
+      }
+    ],
     "chats": []
   },
   "actions": [
     {
-      "type": "session/activeClientChanged",
-      "activeClient": {
-        "clientId": "vscode-1",
-        "displayName": "VS Code",
-        "tools": []
-      }
+      "type": "session/activeClientRemoved",
+      "clientId": "unknown-client"
     }
   ],
   "expected": {
@@ -33,11 +35,12 @@
       "modifiedAt": 1000
     },
     "lifecycle": "creating",
-    "activeClient": {
-      "clientId": "vscode-1",
-      "displayName": "VS Code",
-      "tools": []
-    },
+    "activeClients": [
+      {
+        "clientId": "vscode-1",
+        "tools": []
+      }
+    ],
     "chats": []
   }
 }

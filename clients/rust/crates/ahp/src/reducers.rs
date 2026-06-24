@@ -639,15 +639,27 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             state.server_tools = Some(a.tools.clone());
             ReduceOutcome::Applied
         }
-        StateAction::SessionActiveClientChanged(a) => {
-            state.active_client = a.active_client.clone();
+        StateAction::SessionActiveClientSet(a) => {
+            if let Some(idx) = state
+                .active_clients
+                .iter()
+                .position(|client| client.client_id == a.active_client.client_id)
+            {
+                state.active_clients[idx] = a.active_client.clone();
+            } else {
+                state.active_clients.push(a.active_client.clone());
+            }
             ReduceOutcome::Applied
         }
-        StateAction::SessionActiveClientToolsChanged(a) => {
-            let Some(ac) = state.active_client.as_mut() else {
+        StateAction::SessionActiveClientRemoved(a) => {
+            let Some(idx) = state
+                .active_clients
+                .iter()
+                .position(|client| client.client_id == a.client_id)
+            else {
                 return ReduceOutcome::NoOp;
             };
-            ac.tools = a.tools.clone();
+            state.active_clients.remove(idx);
             ReduceOutcome::Applied
         }
         StateAction::SessionCustomizationsChanged(a) => {
@@ -1560,7 +1572,7 @@ mod tests {
             lifecycle: SessionLifecycle::Creating,
             creation_error: None,
             server_tools: None,
-            active_client: None,
+            active_clients: Vec::new(),
             chats: Vec::new(),
             default_chat: None,
             config: None,

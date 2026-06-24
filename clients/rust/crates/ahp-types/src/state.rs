@@ -1008,9 +1008,16 @@ pub struct SessionState {
     /// Tools provided by the server (agent host) for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_tools: Option<Vec<ToolDefinition>>,
-    /// The client currently providing tools and interactive capabilities to this session
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub active_client: Option<SessionActiveClient>,
+    /// The clients currently providing tools and interactive capabilities to this
+    /// session. If multiple tools or customizations are provided by the same
+    /// active client, an agent host MAY deduplicate them when exposed to a model,
+    /// with a preference given to the client that started the turn.
+    ///
+    /// Membership is host-managed: clients add (or refresh) themselves with
+    /// `session/activeClientSet`, and the host removes them with
+    /// `session/activeClientRemoved` when they unsubscribe, disconnect without
+    /// reconnecting in time, or reconnect without resubscribing to the session.
+    pub active_clients: Vec<SessionActiveClient>,
     /// Catalog of chats in this session.
     pub chats: Vec<ChatSummary>,
     /// The chat that receives input when the user addresses the session without
@@ -1036,7 +1043,7 @@ pub struct SessionState {
     ///   also appear as children of a container.
     ///
     /// Client-published plugins arrive via
-    /// {@link SessionActiveClient.customizations | `activeClient.customizations`}
+    /// {@link SessionActiveClient.customizations | `activeClients[].customizations`}
     /// and the host propagates them into this list (typically with the
     /// container's `clientId` set and `children` populated). Clients
     /// publish in container shape only; bare MCP servers at the top level
@@ -1059,10 +1066,11 @@ pub struct SessionState {
     pub meta: Option<JsonObject>,
 }
 
-/// The client currently providing tools and interactive capabilities to a session.
+/// A client currently providing tools and interactive capabilities to a session.
 ///
-/// Only one client may be active per session at a time. The server SHOULD
-/// automatically unset the active client if that client disconnects.
+/// A session MAY have several active clients at once; entries in
+/// {@link SessionState.activeClients} are keyed by `clientId`. The server SHOULD
+/// automatically remove an active client when that client disconnects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionActiveClient {

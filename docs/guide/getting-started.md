@@ -136,12 +136,12 @@ The server begins agent processing and streams back actions:
 
 When the agent invokes a tool, the server emits a sequence of actions modelling the tool call's lifecycle (see [State Model — Tool Call Lifecycle](/guide/state-model#tool-call-lifecycle) for the full state machine):
 
-1. `session/toolCallStart` — a new tool call begins.
-2. `session/toolCallDelta` — partial parameters stream in.
-3. `session/toolCallReady` — parameters complete. If the tool requires user confirmation, the call transitions to `pending-confirmation`; otherwise it goes directly to `running`.
-4. `session/toolCallComplete` — tool execution finished.
+1. `chat/toolCallStart` — a new tool call begins.
+2. `chat/toolCallDelta` — partial parameters stream in.
+3. `chat/toolCallReady` — parameters complete. If the tool requires user confirmation, the call transitions to `pending-confirmation`; otherwise it goes directly to `running`.
+4. `chat/toolCallComplete` — tool execution finished.
 
-The client resolves a `pending-confirmation` tool call by dispatching `session/toolCallConfirmed`:
+The client resolves a `pending-confirmation` tool call by dispatching `chat/toolCallConfirmed`:
 
 ```jsonc
 // Client → Server: approve the tool call
@@ -152,7 +152,7 @@ The client resolves a `pending-confirmation` tool call by dispatching `session/t
     "channel": "ahp-session:/<uuid>",
     "clientSeq": 2,
     "action": {
-      "type": "session/toolCallConfirmed",
+      "type": "chat/toolCallConfirmed",
       "turnId": "turn-1",
       "toolCallId": "tc-1",
       "approved": true,

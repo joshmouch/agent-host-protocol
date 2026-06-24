@@ -11,13 +11,16 @@
       "modifiedAt": 1000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": [
       {
         "resource": "ahp-chat:/c1",
         "title": "Chat 1",
         "status": 1,
         "modifiedAt": "1970-01-01T00:00:01.000Z",
-        "origin": { "kind": "user" }
+        "origin": {
+          "kind": "user"
+        }
       }
     ]
   },
@@ -25,7 +28,9 @@
     {
       "type": "session/chatUpdated",
       "chat": "ahp-chat:/cX",
-      "changes": { "title": "Never written" }
+      "changes": {
+        "title": "Never written"
+      }
     }
   ],
   "expected": {
@@ -38,13 +43,16 @@
       "modifiedAt": 1000
     },
     "lifecycle": "ready",
+    "activeClients": [],
     "chats": [
       {
         "resource": "ahp-chat:/c1",
         "title": "Chat 1",
         "status": 1,
         "modifiedAt": "1970-01-01T00:00:01.000Z",
-        "origin": { "kind": "user" }
+        "origin": {
+          "kind": "user"
+        }
       }
     ]
   }

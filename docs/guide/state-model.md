@@ -315,11 +315,11 @@ stateDiagram-v2
 
 ### Mid-execution Re-confirmation
 
-When a running tool needs additional user approval (e.g. a shell permission), the server dispatches `session/toolCallReady` again without `confirmed`. This transitions the tool call from `running` back to `pending-confirmation`, updating `invocationMessage` and `_meta` with context about what needs approval. The client uses the standard `session/toolCallConfirmed` flow to approve or deny.
+When a running tool needs additional user approval (e.g. a shell permission), the server dispatches `chat/toolCallReady` again without `confirmed`. This transitions the tool call from `running` back to `pending-confirmation`, updating `invocationMessage` and `_meta` with context about what needs approval. The client uses the standard `chat/toolCallConfirmed` flow to approve or deny.
 
 ### Editable Parameters
 
-When `editable` is `true` on a `pending-confirmation` tool call, the client may allow the user to modify the tool's input parameters before confirming. If the user edits the parameters, the client includes `editedToolInput` on the `session/toolCallConfirmed` action. The reducer uses `editedToolInput` (if present) in place of the original `toolInput` when transitioning to `running`.
+When `editable` is `true` on a `pending-confirmation` tool call, the client may allow the user to modify the tool's input parameters before confirming. If the user edits the parameters, the client includes `editedToolInput` on the `chat/toolCallConfirmed` action. The reducer uses `editedToolInput` (if present) in place of the original `toolInput` when transitioning to `running`.
 
 When a turn completes, non-terminal tool calls in `responseParts` are force-cancelled with reason `'skipped'`.
 
@@ -329,12 +329,12 @@ By default, clients render a binary approve/deny UI for `pending-confirmation` t
 
 | Field   | Type                  | Description                                                                                                                                                         |
 | ------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`    | `string`              | Unique identifier, returned in the `session/toolCallConfirmed` action as `selectedOptionId`.                                                                        |
+| `id`    | `string`              | Unique identifier, returned in the `chat/toolCallConfirmed` action as `selectedOptionId`.                                                                        |
 | `label` | `string`              | Human-readable text for the button or menu item. The server SHOULD localise this using the client's `locale` (sent in `initialize`).                                |
 | `kind`  | `'approve' \| 'deny'` | Classifies the option so the server and client know whether it represents approval or denial.                                                                       |
 | `group` | `number?`             | Logical group number. Clients SHOULD display options in the order they are defined and MAY use differing group numbers to insert dividers between logical clusters. |
 
-For example, a server might offer `"Approve"`, `"Approve in this Session"`, `"Deny"`, and `"Deny with reason"`. When the user picks an option, the client dispatches `session/toolCallConfirmed` with `selectedOptionId` set to the chosen option's `id`. The reducer resolves the full `ConfirmationOption` object and stores it as `selectedOption` on the resulting `running` or `cancelled` state, and it carries through to `completed`.
+For example, a server might offer `"Approve"`, `"Approve in this Session"`, `"Deny"`, and `"Deny with reason"`. When the user picks an option, the client dispatches `chat/toolCallConfirmed` with `selectedOptionId` set to the chosen option's `id`. The reducer resolves the full `ConfirmationOption` object and stores it as `selectedOption` on the resulting `running` or `cancelled` state, and it carries through to `completed`.
 
 ## Session Input Requests
 

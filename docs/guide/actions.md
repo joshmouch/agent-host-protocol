@@ -65,15 +65,15 @@ Tool calls follow a discriminated-union state machine — see [State Model — T
 
 | Type | Client-dispatchable? | When |
 |---|---|---|
-| `session/toolCallStart` | No | Tool call created; LM begins streaming parameters |
-| `session/toolCallDelta` | No | Streaming partial parameters appended |
-| `session/toolCallReady` | No | Parameters complete (or running tool needs re-confirmation) |
-| `session/toolCallConfirmed` | **Yes** | Client approves or denies a pending tool call |
-| `session/toolCallComplete` | **Yes**¹ | Tool execution finished |
-| `session/toolCallResultConfirmed` | **Yes** | Client approves or denies a pending result |
-| `session/toolCallContentChanged` | **Yes**¹ | Streaming intermediate content while a tool is running |
+| `chat/toolCallStart` | No | Tool call created; LM begins streaming parameters |
+| `chat/toolCallDelta` | No | Streaming partial parameters appended |
+| `chat/toolCallReady` | No | Parameters complete (or running tool needs re-confirmation) |
+| `chat/toolCallConfirmed` | **Yes** | Client approves or denies a pending tool call |
+| `chat/toolCallComplete` | **Yes**¹ | Tool execution finished |
+| `chat/toolCallResultConfirmed` | **Yes** | Client approves or denies a pending result |
+| `chat/toolCallContentChanged` | **Yes**¹ | Streaming intermediate content while a tool is running |
 
-¹ Client-dispatchable for **client-provided tools** only (where `toolClientId` matches the dispatching client). For server-side tools, only the server produces these actions.
+¹ Client-dispatchable for **client-provided tools** only (where the tool call's `contributor.clientId` matches the dispatching client). For server-side tools, only the server produces these actions.
 
 ### Activity & Metadata
 
@@ -93,8 +93,8 @@ Tool calls follow a discriminated-union state machine — see [State Model — T
 | Type | Client-dispatchable? | When |
 |---|---|---|
 | `session/serverToolsChanged` | No | Server-provided tool list changed (full replacement) |
-| `session/activeClientChanged` | **Yes** | A client claims (or releases) the active role, with its tools and customizations |
-| `session/activeClientToolsChanged` | **Yes** | The active client's tool list changed (full replacement) |
+| `session/activeClientSet` | **Yes** | A client joins or refreshes as an active client (keyed by `clientId`), with its tools and customizations |
+| `session/activeClientRemoved` | **Yes** | A client leaves the active set (by `clientId`) |
 
 See [Customizations & Client Tools](/guide/customizations) for the full flow.
 
@@ -185,7 +185,7 @@ The client applies the action **optimistically** to its local state before sendi
 | Action | Server-side effect |
 |---|---|
 | `session/turnStarted` | Begins agent processing for the new turn |
-| `session/toolCallConfirmed` | Approves or denies a pending tool call; unblocks or cancels tool execution |
+| `chat/toolCallConfirmed` | Approves or denies a pending tool call; unblocks or cancels tool execution |
 | `session/turnCancelled` | Aborts the in-progress turn |
 | `session/titleChanged` | Updates the session title (rename) |
 | `session/modelChanged` | Changes the model for subsequent turns |

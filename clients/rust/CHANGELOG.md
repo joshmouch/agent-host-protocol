@@ -21,6 +21,8 @@ matching `## [X.Y.Z]` heading is missing from this file.
   optional fields for communicating model token limits.
 - `SessionSummary.meta` (`_meta` on the wire) optional provider metadata field
   for lightweight session-list presentation hints.
+- `StateAction::SessionActiveClientRemoved` (`SessionActiveClientRemovedAction`)
+  to release a single active client by `client_id`.
 - `ahp-ws` TLS backend is now selectable via Cargo features: `native-tls`,
   `rustls-tls-native-roots` (default), and `rustls-tls-webpki-roots`. The crate
   no longer forces `tokio-tungstenite/native-tls` onto the dependency graph, so
@@ -36,6 +38,19 @@ matching `## [X.Y.Z]` heading is missing from this file.
   `Option<Vec<String>>`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `AnyValue` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+- `SessionState.active_clients` (`Vec<SessionActiveClient>`, required) replaces
+  the single optional `SessionState.active_client`; the session reducer upserts
+  and removes entries keyed by `client_id`.
+- `StateAction::SessionActiveClientChanged` is renamed to
+  `StateAction::SessionActiveClientSet` with upsert-by-`client_id` semantics; it
+  no longer unsets the active client (dispatch `SessionActiveClientRemoved`
+  instead).
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `SessionActiveClientSet` with its full,
+  updated entry.
 
 ## [0.4.0] — 2026-06-19
 
