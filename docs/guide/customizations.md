@@ -253,18 +253,22 @@ After registration, the reducer stores the tools on the matching entry in `state
 
 ### Updating Tools
 
-To change the tool list without re-publishing the whole entry, dispatch `session/activeClientToolsChanged` with the `clientId` whose tools changed:
+To change its tool list, a client re-dispatches `session/activeClientSet` with its full, updated `SessionActiveClient` entry. The upsert (keyed by `clientId`) replaces the previous entry — tools and all:
 
 ```typescript
 dispatch({
-  type: 'session/activeClientToolsChanged',
+  type: 'session/activeClientSet',
   session: sessionUri,
-  clientId: 'my-client-id',
-  tools: updatedToolList, // full replacement
+  activeClient: {
+    clientId: 'my-client-id',
+    displayName: 'VS Code',
+    tools: updatedToolList, // full replacement
+    customizations: [ /* unchanged — host may skip re-parsing via nonce */ ],
+  },
 });
 ```
 
-Both actions use **full-replacement semantics** — the entire `tools` array is replaced.
+There is no separate tools-only action: because each `activeClients` entry has a single owner, re-publishing the whole entry is the canonical way to update either its `tools` or its `customizations`. Hosts MAY use each `ClientPluginCustomization`'s `nonce` to detect unchanged customizations and skip re-parsing.
 
 ### Tool Name Uniqueness
 
@@ -386,7 +390,6 @@ sequenceDiagram
 | `session/customizationRemoved` | No | Server removes a customization by id (containers cascade) |
 | `session/activeClientSet` | **Yes** | Client joins or refreshes as an active client (with tools + customizations), keyed by `clientId` |
 | `session/activeClientRemoved` | **Yes** | Client leaves the active set (by `clientId`) |
-| `session/activeClientToolsChanged` | **Yes** | An active client updates its tool list without re-publishing |
 | `chat/toolCallStart` | No | Server begins a tool call (sets the client `contributor` for client tools) |
 | `chat/toolCallComplete` | **Yes** | Client finishes executing a tool call |
 | `chat/toolCallContentChanged` | **Yes** | Client streams intermediate tool output |

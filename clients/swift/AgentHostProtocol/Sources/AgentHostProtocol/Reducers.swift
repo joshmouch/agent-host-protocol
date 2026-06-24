@@ -587,12 +587,6 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.activeClients.remove(at: idx)
         return next
 
-    case .sessionActiveClientToolsChanged(let a):
-        guard let idx = state.activeClients.firstIndex(where: { $0.clientId == a.clientId }) else { return state }
-        var next = state
-        next.activeClients[idx].tools = a.tools
-        return next
-
     // ── Customizations ──────────────────────────────────────────────────
 
     case .sessionCustomizationsChanged(let a):
@@ -685,7 +679,6 @@ public let clientDispatchableActions: Set<String> = [
     "session/agentChanged",
     "session/activeClientSet",
     "session/activeClientRemoved",
-    "session/activeClientToolsChanged",
     "chat/pendingMessageSet",
     "chat/pendingMessageRemoved",
     "chat/queuedMessagesReordered",
@@ -702,7 +695,7 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
     case .chatTurnStarted, .chatToolCallConfirmed, .chatToolCallComplete,
          .chatToolCallResultConfirmed, .chatTurnCancelled,
          .sessionModelChanged, .sessionAgentChanged, .sessionActiveClientSet,
-         .sessionActiveClientRemoved, .sessionActiveClientToolsChanged,
+         .sessionActiveClientRemoved,
          .chatPendingMessageSet,
          .chatPendingMessageRemoved, .chatQueuedMessagesReordered,
          .chatInputAnswerChanged, .chatInputCompleted,

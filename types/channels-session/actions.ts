@@ -246,12 +246,14 @@ export interface SessionServerToolsChangedAction {
  * An active client for this session was added or updated.
  *
  * Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
- * a client dispatches this action with its own `SessionActiveClient` to claim
- * the active role or refresh its entry, replacing any existing entry that has
- * the same `clientId`. Multiple clients may be active at once. Use
+ * a client dispatches this action with its own `SessionActiveClient` to join
+ * the session's active clients or refresh its entry, replacing any existing
+ * entry that has the same `clientId`. Multiple clients may be active at once.
+ * This is also how a client updates its published tools or customizations —
+ * re-dispatch with the full, updated entry. Use
  * {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
- * release the role. The server SHOULD automatically dispatch that removal when
- * an active client disconnects.
+ * leave. The server SHOULD automatically dispatch that removal when an active
+ * client disconnects.
  *
  * @category Session Actions
  * @version 1
@@ -288,26 +290,6 @@ export interface SessionActiveClientRemovedAction {
   type: ActionType.SessionActiveClientRemoved;
   /** The `clientId` of the active client to remove. */
   clientId: string;
-}
-
-/**
- * An active client's tool list has changed.
- *
- * Full-replacement semantics: the `tools` array replaces the named active
- * client's previous tools entirely. The active client is identified by
- * `clientId`; the action is a no-op when no active client matches. The server
- * SHOULD reject if the dispatching client is not the named active client.
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionActiveClientToolsChangedAction {
-  type: ActionType.SessionActiveClientToolsChanged;
-  /** The `clientId` of the active client whose tools changed. */
-  clientId: string;
-  /** Updated client tools list (full replacement) */
-  tools: ToolDefinition[];
 }
 
 // ─── Customization Actions ───────────────────────────────────────────────────

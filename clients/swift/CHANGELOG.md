@@ -36,15 +36,16 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   `StateAction.sessionActiveClientSet` (wire `session/activeClientSet`) with
   upsert-by-`clientId` semantics; it no longer unsets the active client
   (dispatch `session/activeClientRemoved` instead).
-- `SessionActiveClientToolsChangedAction` gains a `clientId` field naming which
-  active client's tools changed.
-
-### Changed
-
 - `ConfigPropertySchema.enum` field is now `[AnyCodable]?` instead of
   `[String]?`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `AnyCodable` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `StateAction.sessionActiveClientSet` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

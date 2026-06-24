@@ -168,7 +168,6 @@ export type {
   SessionServerToolsChangedAction,
   SessionActiveClientSetAction,
   SessionActiveClientRemovedAction,
-  SessionActiveClientToolsChangedAction,
   ChatPendingMessageSetAction,
   ChatPendingMessageRemovedAction,
   ChatQueuedMessagesReorderedAction,

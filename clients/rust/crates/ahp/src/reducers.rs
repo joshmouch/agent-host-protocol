@@ -662,17 +662,6 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             state.active_clients.remove(idx);
             ReduceOutcome::Applied
         }
-        StateAction::SessionActiveClientToolsChanged(a) => {
-            let Some(ac) = state
-                .active_clients
-                .iter_mut()
-                .find(|client| client.client_id == a.client_id)
-            else {
-                return ReduceOutcome::NoOp;
-            };
-            ac.tools = a.tools.clone();
-            ReduceOutcome::Applied
-        }
         StateAction::SessionCustomizationsChanged(a) => {
             state.customizations = Some(a.customizations.clone());
             ReduceOutcome::Applied

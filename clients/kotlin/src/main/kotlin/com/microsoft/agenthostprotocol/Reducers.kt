@@ -553,17 +553,6 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
         }
     }
 
-    is StateActionSessionActiveClientToolsChanged -> {
-        val idx = state.activeClients.indexOfFirst { it.clientId == action.value.clientId }
-        if (idx < 0) {
-            state
-        } else {
-            val updated = state.activeClients.toMutableList()
-            updated[idx] = updated[idx].copy(tools = action.value.tools)
-            state.copy(activeClients = updated)
-        }
-    }
-
     is StateActionSessionCustomizationsChanged -> state.copy(customizations = action.value.customizations)
 
     is StateActionSessionCustomizationToggled -> {

@@ -743,14 +743,6 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 			}
 		}
 		return ReduceOutcomeNoOp
-	case *ahptypes.SessionActiveClientToolsChangedAction:
-		for i := range state.ActiveClients {
-			if state.ActiveClients[i].ClientId == a.ClientId {
-				state.ActiveClients[i].Tools = append([]ahptypes.ToolDefinition(nil), a.Tools...)
-				return ReduceOutcomeApplied
-			}
-		}
-		return ReduceOutcomeNoOp
 	case *ahptypes.SessionCustomizationsChangedAction:
 		state.Customizations = append([]ahptypes.Customization(nil), a.Customizations...)
 		return ReduceOutcomeApplied

@@ -84,8 +84,6 @@ pub enum ActionType {
     SessionActiveClientSet,
     #[serde(rename = "session/activeClientRemoved")]
     SessionActiveClientRemoved,
-    #[serde(rename = "session/activeClientToolsChanged")]
-    SessionActiveClientToolsChanged,
     #[serde(rename = "chat/pendingMessageSet")]
     ChatPendingMessageSet,
     #[serde(rename = "chat/pendingMessageRemoved")]
@@ -788,12 +786,14 @@ pub struct SessionServerToolsChangedAction {
 /// An active client for this session was added or updated.
 ///
 /// Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
-/// a client dispatches this action with its own `SessionActiveClient` to claim
-/// the active role or refresh its entry, replacing any existing entry that has
-/// the same `clientId`. Multiple clients may be active at once. Use
+/// a client dispatches this action with its own `SessionActiveClient` to join
+/// the session's active clients or refresh its entry, replacing any existing
+/// entry that has the same `clientId`. Multiple clients may be active at once.
+/// This is also how a client updates its published tools or customizations —
+/// re-dispatch with the full, updated entry. Use
 /// {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
-/// release the role. The server SHOULD automatically dispatch that removal when
-/// an active client disconnects.
+/// leave. The server SHOULD automatically dispatch that removal when an active
+/// client disconnects.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionActiveClientSetAction {
@@ -821,21 +821,6 @@ pub struct SessionActiveClientSetAction {
 pub struct SessionActiveClientRemovedAction {
     /// The `clientId` of the active client to remove.
     pub client_id: String,
-}
-
-/// An active client's tool list has changed.
-///
-/// Full-replacement semantics: the `tools` array replaces the named active
-/// client's previous tools entirely. The active client is identified by
-/// `clientId`; the action is a no-op when no active client matches. The server
-/// SHOULD reject if the dispatching client is not the named active client.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionActiveClientToolsChangedAction {
-    /// The `clientId` of the active client whose tools changed.
-    pub client_id: String,
-    /// Updated client tools list (full replacement)
-    pub tools: Vec<ToolDefinition>,
 }
 
 /// A pending message was set (upsert semantics: creates or replaces).
@@ -1545,8 +1530,6 @@ pub enum StateAction {
     SessionActiveClientSet(SessionActiveClientSetAction),
     #[serde(rename = "session/activeClientRemoved")]
     SessionActiveClientRemoved(SessionActiveClientRemovedAction),
-    #[serde(rename = "session/activeClientToolsChanged")]
-    SessionActiveClientToolsChanged(SessionActiveClientToolsChangedAction),
     #[serde(rename = "chat/pendingMessageSet")]
     ChatPendingMessageSet(ChatPendingMessageSetAction),
     #[serde(rename = "chat/pendingMessageRemoved")]

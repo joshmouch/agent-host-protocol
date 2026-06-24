@@ -48,7 +48,6 @@ const (
 	ActionTypeSessionServerToolsChanged         ActionType = "session/serverToolsChanged"
 	ActionTypeSessionActiveClientSet            ActionType = "session/activeClientSet"
 	ActionTypeSessionActiveClientRemoved        ActionType = "session/activeClientRemoved"
-	ActionTypeSessionActiveClientToolsChanged   ActionType = "session/activeClientToolsChanged"
 	ActionTypeChatPendingMessageSet             ActionType = "chat/pendingMessageSet"
 	ActionTypeChatPendingMessageRemoved         ActionType = "chat/pendingMessageRemoved"
 	ActionTypeChatQueuedMessagesReordered       ActionType = "chat/queuedMessagesReordered"
@@ -720,12 +719,14 @@ type SessionServerToolsChangedAction struct {
 // An active client for this session was added or updated.
 //
 // Upsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:
-// a client dispatches this action with its own `SessionActiveClient` to claim
-// the active role or refresh its entry, replacing any existing entry that has
-// the same `clientId`. Multiple clients may be active at once. Use
+// a client dispatches this action with its own `SessionActiveClient` to join
+// the session's active clients or refresh its entry, replacing any existing
+// entry that has the same `clientId`. Multiple clients may be active at once.
+// This is also how a client updates its published tools or customizations —
+// re-dispatch with the full, updated entry. Use
 // {@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to
-// release the role. The server SHOULD automatically dispatch that removal when
-// an active client disconnects.
+// leave. The server SHOULD automatically dispatch that removal when an active
+// client disconnects.
 type SessionActiveClientSetAction struct {
 	Type ActionType `json:"type"`
 	// The active client to add or update, matched by `clientId`.
@@ -751,20 +752,6 @@ type SessionActiveClientRemovedAction struct {
 	Type ActionType `json:"type"`
 	// The `clientId` of the active client to remove.
 	ClientId string `json:"clientId"`
-}
-
-// An active client's tool list has changed.
-//
-// Full-replacement semantics: the `tools` array replaces the named active
-// client's previous tools entirely. The active client is identified by
-// `clientId`; the action is a no-op when no active client matches. The server
-// SHOULD reject if the dispatching client is not the named active client.
-type SessionActiveClientToolsChangedAction struct {
-	Type ActionType `json:"type"`
-	// The `clientId` of the active client whose tools changed.
-	ClientId string `json:"clientId"`
-	// Updated client tools list (full replacement)
-	Tools []ToolDefinition `json:"tools"`
 }
 
 // The session's customizations have changed.
@@ -1254,7 +1241,6 @@ func (*SessionChangesetsChangedAction) isStateAction()          {}
 func (*SessionServerToolsChangedAction) isStateAction()         {}
 func (*SessionActiveClientSetAction) isStateAction()            {}
 func (*SessionActiveClientRemovedAction) isStateAction()        {}
-func (*SessionActiveClientToolsChangedAction) isStateAction()   {}
 func (*SessionCustomizationsChangedAction) isStateAction()      {}
 func (*SessionCustomizationToggledAction) isStateAction()       {}
 func (*SessionCustomizationUpdatedAction) isStateAction()       {}
@@ -1544,12 +1530,6 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "session/activeClientRemoved":
 		var value SessionActiveClientRemovedAction
-		if err := json.Unmarshal(data, &value); err != nil {
-			return err
-		}
-		u.Value = &value
-	case "session/activeClientToolsChanged":
-		var value SessionActiveClientToolsChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

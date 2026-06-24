@@ -95,7 +95,6 @@ Tool calls follow a discriminated-union state machine — see [State Model — T
 | `session/serverToolsChanged` | No | Server-provided tool list changed (full replacement) |
 | `session/activeClientSet` | **Yes** | A client joins or refreshes as an active client (keyed by `clientId`), with its tools and customizations |
 | `session/activeClientRemoved` | **Yes** | A client leaves the active set (by `clientId`) |
-| `session/activeClientToolsChanged` | **Yes** | An active client's tool list changed (full replacement, by `clientId`) |
 
 See [Customizations & Client Tools](/guide/customizations) for the full flow.
 

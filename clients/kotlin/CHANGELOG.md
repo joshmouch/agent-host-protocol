@@ -34,15 +34,16 @@ versions (`*-SNAPSHOT`) are explicitly rejected by the publish pipeline; bump
   `StateActionSessionActiveClientSet` (wire `session/activeClientSet`) with
   upsert-by-`clientId` semantics; it no longer unsets the active client
   (dispatch `session/activeClientRemoved` instead).
-- `SessionActiveClientToolsChangedAction` gains a `clientId` field naming which
-  active client's tools changed.
-
-### Changed
-
 - `ConfigPropertySchema.enum` field is now `List<JsonElement>?` instead of
   `List<String>?`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `JsonElement` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `StateActionSessionActiveClientSet` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

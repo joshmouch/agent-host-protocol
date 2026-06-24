@@ -28,7 +28,6 @@ import type {
   SessionServerToolsChangedAction,
   SessionActiveClientSetAction,
   SessionActiveClientRemovedAction,
-  SessionActiveClientToolsChangedAction,
   SessionCustomizationsChangedAction,
   SessionCustomizationToggledAction,
   SessionCustomizationUpdatedAction,
@@ -140,7 +139,6 @@ export const enum ActionType {
   SessionServerToolsChanged = 'session/serverToolsChanged',
   SessionActiveClientSet = 'session/activeClientSet',
   SessionActiveClientRemoved = 'session/activeClientRemoved',
-  SessionActiveClientToolsChanged = 'session/activeClientToolsChanged',
   ChatPendingMessageSet = 'chat/pendingMessageSet',
   ChatPendingMessageRemoved = 'chat/pendingMessageRemoved',
   ChatQueuedMessagesReordered = 'chat/queuedMessagesReordered',
@@ -237,7 +235,6 @@ export type StateAction =
   | SessionServerToolsChangedAction
   | SessionActiveClientSetAction
   | SessionActiveClientRemovedAction
-  | SessionActiveClientToolsChangedAction
   | SessionCustomizationsChangedAction
   | SessionCustomizationToggledAction
   | SessionCustomizationUpdatedAction

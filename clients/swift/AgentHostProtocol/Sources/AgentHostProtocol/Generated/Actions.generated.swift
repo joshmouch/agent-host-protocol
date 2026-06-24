@@ -35,7 +35,6 @@ public enum ActionType: String, Codable, Sendable {
     case sessionServerToolsChanged = "session/serverToolsChanged"
     case sessionActiveClientSet = "session/activeClientSet"
     case sessionActiveClientRemoved = "session/activeClientRemoved"
-    case sessionActiveClientToolsChanged = "session/activeClientToolsChanged"
     case chatPendingMessageSet = "chat/pendingMessageSet"
     case chatPendingMessageRemoved = "chat/pendingMessageRemoved"
     case chatQueuedMessagesReordered = "chat/queuedMessagesReordered"
@@ -1008,24 +1007,6 @@ public struct SessionActiveClientRemovedAction: Codable, Sendable {
     }
 }
 
-public struct SessionActiveClientToolsChangedAction: Codable, Sendable {
-    public var type: ActionType
-    /// The `clientId` of the active client whose tools changed.
-    public var clientId: String
-    /// Updated client tools list (full replacement)
-    public var tools: [ToolDefinition]
-
-    public init(
-        type: ActionType,
-        clientId: String,
-        tools: [ToolDefinition]
-    ) {
-        self.type = type
-        self.clientId = clientId
-        self.tools = tools
-    }
-}
-
 public struct ChatPendingMessageSetAction: Codable, Sendable {
     public var type: ActionType
     /// Whether this is a steering or queued message
@@ -1797,7 +1778,6 @@ public enum StateAction: Codable, Sendable {
     case sessionServerToolsChanged(SessionServerToolsChangedAction)
     case sessionActiveClientSet(SessionActiveClientSetAction)
     case sessionActiveClientRemoved(SessionActiveClientRemovedAction)
-    case sessionActiveClientToolsChanged(SessionActiveClientToolsChangedAction)
     case chatPendingMessageSet(ChatPendingMessageSetAction)
     case chatPendingMessageRemoved(ChatPendingMessageRemovedAction)
     case chatQueuedMessagesReordered(ChatQueuedMessagesReorderedAction)
@@ -1916,8 +1896,6 @@ public enum StateAction: Codable, Sendable {
             self = .sessionActiveClientSet(try SessionActiveClientSetAction(from: decoder))
         case "session/activeClientRemoved":
             self = .sessionActiveClientRemoved(try SessionActiveClientRemovedAction(from: decoder))
-        case "session/activeClientToolsChanged":
-            self = .sessionActiveClientToolsChanged(try SessionActiveClientToolsChangedAction(from: decoder))
         case "chat/pendingMessageSet":
             self = .chatPendingMessageSet(try ChatPendingMessageSetAction(from: decoder))
         case "chat/pendingMessageRemoved":
@@ -2038,7 +2016,6 @@ public enum StateAction: Codable, Sendable {
         case .sessionServerToolsChanged(let v): try v.encode(to: encoder)
         case .sessionActiveClientSet(let v): try v.encode(to: encoder)
         case .sessionActiveClientRemoved(let v): try v.encode(to: encoder)
-        case .sessionActiveClientToolsChanged(let v): try v.encode(to: encoder)
         case .chatPendingMessageSet(let v): try v.encode(to: encoder)
         case .chatPendingMessageRemoved(let v): try v.encode(to: encoder)
         case .chatQueuedMessagesReordered(let v): try v.encode(to: encoder)

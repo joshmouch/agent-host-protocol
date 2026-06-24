@@ -181,17 +181,6 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       return { ...state, activeClients: updated };
     }
 
-    case ActionType.SessionActiveClientToolsChanged: {
-      const list = state.activeClients;
-      const idx = list.findIndex(c => c.clientId === action.clientId);
-      if (idx < 0) {
-        return state;
-      }
-      const updated = list.slice();
-      updated[idx] = { ...updated[idx], tools: action.tools };
-      return { ...state, activeClients: updated };
-    }
-
     // ── Customizations ──────────────────────────────────────────────────
 
     case ActionType.SessionCustomizationsChanged:

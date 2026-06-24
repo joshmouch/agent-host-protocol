@@ -42,8 +42,12 @@ hotfix escape hatch.
 - `SessionActiveClientChangedAction` is renamed to `SessionActiveClientSetAction`
   (`session/activeClientSet`) with upsert-by-`clientId` semantics; it no longer
   accepts `null` to unset (dispatch `session/activeClientRemoved` instead).
-- `SessionActiveClientToolsChangedAction` gains a `clientId` field naming which
-  active client's tools changed.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `SessionActiveClientSetAction` with its
+  full, updated entry.
 
 ### Fixed
 

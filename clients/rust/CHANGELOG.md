@@ -45,8 +45,12 @@ matching `## [X.Y.Z]` heading is missing from this file.
   `StateAction::SessionActiveClientSet` with upsert-by-`client_id` semantics; it
   no longer unsets the active client (dispatch `SessionActiveClientRemoved`
   instead).
-- `SessionActiveClientToolsChangedAction` gains a `client_id` field naming which
-  active client's tools changed.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `SessionActiveClientSet` with its full,
+  updated entry.
 
 ## [0.4.0] — 2026-06-19
 

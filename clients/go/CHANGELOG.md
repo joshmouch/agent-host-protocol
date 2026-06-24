@@ -32,15 +32,16 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   (wire `session/activeClientSet`) with upsert-by-`ClientId` semantics; it no
   longer unsets the active client (dispatch `session/activeClientRemoved`
   instead).
-- `SessionActiveClientToolsChangedAction` gains a `ClientId` field naming which
-  active client's tools changed.
-
-### Changed
-
 - `ConfigPropertySchema.Enum` field is now `[]json.RawMessage` instead of `[]string`,
   allowing numeric, boolean, and null enum values.
 - `ModelSelection.Config` values are now `json.RawMessage` instead of `string`,
   allowing numeric, boolean, and null configuration values.
+
+### Removed
+
+- `SessionActiveClientToolsChangedAction`. An active client now updates its
+  published tools by re-dispatching `SessionActiveClientSetAction` with its
+  full, updated entry.
 
 ## [0.4.0] — 2026-06-19
 

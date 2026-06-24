@@ -43,8 +43,11 @@ changes accumulate. Track in-flight protocol changes via PRs touching
 - `session/activeClientChanged` is renamed to `session/activeClientSet` with
   upsert-by-`clientId` semantics. It no longer accepts `null` to unset the
   active client — dispatch `session/activeClientRemoved` instead.
-- `session/activeClientToolsChanged` now carries a `clientId` identifying which
-  active client's tool list changed.
+
+### Removed
+
+- `session/activeClientToolsChanged`. An active client now updates its published
+  tools by re-dispatching `session/activeClientSet` with its full, updated entry.
 
 ## [0.5.0] — Unreleased
 

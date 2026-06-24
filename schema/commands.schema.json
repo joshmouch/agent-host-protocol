@@ -5732,7 +5732,7 @@
     },
     "SessionActiveClientSetAction": {
       "type": "object",
-      "description": "An active client for this session was added or updated.\n\nUpsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:\na client dispatches this action with its own `SessionActiveClient` to claim\nthe active role or refresh its entry, replacing any existing entry that has\nthe same `clientId`. Multiple clients may be active at once. Use\n{@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to\nrelease the role. The server SHOULD automatically dispatch that removal when\nan active client disconnects.",
+      "description": "An active client for this session was added or updated.\n\nUpsert semantics keyed by {@link SessionActiveClient.clientId | `clientId`}:\na client dispatches this action with its own `SessionActiveClient` to join\nthe session's active clients or refresh its entry, replacing any existing\nentry that has the same `clientId`. Multiple clients may be active at once.\nThis is also how a client updates its published tools or customizations —\nre-dispatch with the full, updated entry. Use\n{@link SessionActiveClientRemovedAction | `session/activeClientRemoved`} to\nleave. The server SHOULD automatically dispatch that removal when an active\nclient disconnects.",
       "properties": {
         "type": {
           "$ref": "#/$defs/ActionType.SessionActiveClientSet"
@@ -5762,31 +5762,6 @@
       "required": [
         "type",
         "clientId"
-      ]
-    },
-    "SessionActiveClientToolsChangedAction": {
-      "type": "object",
-      "description": "An active client's tool list has changed.\n\nFull-replacement semantics: the `tools` array replaces the named active\nclient's previous tools entirely. The active client is identified by\n`clientId`; the action is a no-op when no active client matches. The server\nSHOULD reject if the dispatching client is not the named active client.",
-      "properties": {
-        "type": {
-          "$ref": "#/$defs/ActionType.SessionActiveClientToolsChanged"
-        },
-        "clientId": {
-          "type": "string",
-          "description": "The `clientId` of the active client whose tools changed."
-        },
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ToolDefinition"
-          },
-          "description": "Updated client tools list (full replacement)"
-        }
-      },
-      "required": [
-        "type",
-        "clientId",
-        "tools"
       ]
     },
     "SessionCustomizationsChangedAction": {
