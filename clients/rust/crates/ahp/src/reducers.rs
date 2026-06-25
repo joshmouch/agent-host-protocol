@@ -580,8 +580,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionIsArchivedChanged(a) => {
-            state.status =
-                with_status_flag(state.status, SessionStatus::IsArchived, a.is_archived);
+            state.status = with_status_flag(state.status, SessionStatus::IsArchived, a.is_archived);
             ReduceOutcome::Applied
         }
         StateAction::SessionActivityChanged(a) => {
