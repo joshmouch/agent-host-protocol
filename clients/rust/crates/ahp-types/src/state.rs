@@ -797,7 +797,7 @@ pub struct ModelSelection {
 /// the session's effective customizations). Consumers resolve the agent's
 /// display name by looking up `uri` in the session's customization tree.
 ///
-/// A session with no `agent` selected uses the provider's default behavior.
+/// A message with no `agent` selected uses the provider's default behavior.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSelection {
@@ -908,12 +908,6 @@ pub struct ChatState {
     pub activity: Option<String>,
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     pub modified_at: String,
-    /// Optional per-chat model override (defaults to the session's model)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Optional per-chat agent override (defaults to the session's agent)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// How this chat came into existence
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<ChatOrigin>,
@@ -927,7 +921,7 @@ pub struct ChatState {
     /// Optional per-chat working directory.
     ///
     /// If absent, the chat inherits
-    /// {@link SessionSummary.workingDirectory | the session's working directory}.
+    /// {@link SessionState.workingDirectory | the session's working directory}.
     /// Hosts MAY override this for individual chats — for example, to give a
     /// subordinate chat its own git worktree so multiple chats in a session can
     /// make independent edits that the orchestrator later merges back.
@@ -947,6 +941,19 @@ pub struct ChatState {
     /// Requests for user input that are currently blocking or informing chat progress
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_requests: Option<Vec<ChatInputRequest>>,
+    /// The user's in-progress draft input for this chat — the message they are
+    /// composing but have not sent yet, including its
+    /// {@link Message.model | model} / {@link Message.agent | agent} selection
+    /// and attachments.
+    ///
+    /// Clients MAY periodically sync their local input state into this field so
+    /// a draft survives reloads and is visible to other clients viewing the same
+    /// chat. Eager syncing is **not** required — clients SHOULD debounce and MAY
+    /// sync only at convenient points. When presenting input UI for an existing
+    /// chat, clients SHOULD use any `draft` to initialize their input state.
+    /// Cleared (set to `undefined`) once the message is sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft: Option<Message>,
     /// Additional provider-specific metadata for this chat.
     #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
     pub meta: Option<JsonObject>,
@@ -969,12 +976,6 @@ pub struct ChatSummary {
     pub activity: Option<String>,
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     pub modified_at: String,
-    /// Optional per-chat model override (defaults to the session's model)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Optional per-chat agent override (defaults to the session's agent)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// How this chat came into existence
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<ChatOrigin>,
@@ -995,11 +996,39 @@ pub struct ChatSummary {
 }
 
 /// Full state for a single session, loaded when a client subscribes to the session's URI.
+///
+/// Inlines (denormalizes) every {@link SessionMetadata} field directly onto
+/// itself so subscribers receive one flat object instead of a nested summary.
+/// The lightweight catalog representation is {@link SessionSummary}, surfaced on
+/// the root channel; the host keeps the two in sync via
+/// `root/sessionSummaryChanged`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionState {
-    /// Lightweight session metadata
-    pub summary: SessionSummary,
+    /// Agent provider ID
+    pub provider: String,
+    /// Session title
+    pub title: String,
+    /// Current session status
+    pub status: u32,
+    /// Human-readable description of what the session is currently doing
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
+    /// Server-owned project for this session
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<ProjectInfo>,
+    /// The default working directory URI for this session. Individual chats
+    /// MAY override via {@link ChatSummary.workingDirectory | their own
+    /// `workingDirectory`}; this field acts as the fallback for any chat that
+    /// does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<Uri>,
+    /// Lightweight summary of this session's inline annotations channel
+    /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+    /// annotation / entry counts without subscribing. Absent when the session
+    /// does not expose an annotations channel.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<AnnotationsSummary>,
     /// Session initialization state
     pub lifecycle: SessionLifecycle,
     /// Error details if creation failed
@@ -1112,8 +1141,6 @@ pub struct SessionActiveClient {
 ///   chat currently driving the promoted status bits when a non-default chat
 ///   wins (e.g. the chat that raised `InputNeeded`).
 /// - `modifiedAt`: the max of all chats' `modifiedAt`.
-/// - `model` / `agent`: the session-level selection. Per-chat overrides are
-///   surfaced on individual {@link ChatSummary} entries, not aggregated up.
 /// - `workingDirectory`: the session-level **default**. Individual chats MAY
 ///   override via {@link ChatSummary.workingDirectory}; aggregating these up
 ///   is meaningless and SHOULD NOT be attempted.
@@ -1127,8 +1154,6 @@ pub struct SessionActiveClient {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionSummary {
-    /// Session URI
-    pub resource: Uri,
     /// Agent provider ID
     pub provider: String,
     /// Session title
@@ -1138,40 +1163,33 @@ pub struct SessionSummary {
     /// Human-readable description of what the session is currently doing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<String>,
-    /// Creation timestamp
-    pub created_at: i64,
-    /// Last modification timestamp
-    pub modified_at: i64,
     /// Server-owned project for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<ProjectInfo>,
-    /// Currently selected model
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Currently selected custom agent.
-    ///
-    /// Absent (`undefined`) means no custom agent is selected for this session
-    /// — the session uses the provider's default behavior.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// The default working directory URI for this session. Individual chats
     /// MAY override via {@link ChatSummary.workingDirectory | their own
     /// `workingDirectory`}; this field acts as the fallback for any chat that
     /// does not.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
-    /// Aggregate summary of file changes associated with this session. Servers
-    /// may populate this to give clients a quick at-a-glance view of the
-    /// session's footprint (e.g., for list rendering) without requiring the
-    /// client to subscribe to a changeset.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changes: Option<ChangesSummary>,
     /// Lightweight summary of this session's inline annotations channel
     /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
     /// annotation / entry counts without subscribing. Absent when the session
     /// does not expose an annotations channel.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotations: Option<AnnotationsSummary>,
+    /// Session URI
+    pub resource: Uri,
+    /// Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+    pub created_at: String,
+    /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+    pub modified_at: String,
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub changes: Option<ChangesSummary>,
     /// Lightweight server-defined metadata clients may use for the session
     /// presentation. The protocol does not interpret these values; producers
     /// SHOULD keep the payload small because summaries appear in session lists
@@ -1343,6 +1361,22 @@ pub struct Message {
     /// File/selection attachments
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<MessageAttachment>>,
+    /// The model this message was, or will be, sent with.
+    ///
+    /// For historic user/agent messages this records the model actually used, so
+    /// a client editing or resending the message can retain that selection. For a
+    /// {@link ChatState.draft | draft} it carries the model the user picked for
+    /// the message they are composing. Absent means the agent host's default
+    /// model applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+    /// The custom agent this message was, or will be, sent with.
+    ///
+    /// For historic messages this records the agent actually used; for a
+    /// {@link ChatState.draft | draft} it carries the agent the user picked.
+    /// Absent means no custom agent — the provider's default behavior applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
     /// Additional provider-specific metadata for this message.
     ///
     /// Clients MAY look for well-known keys here to provide enhanced UI, and

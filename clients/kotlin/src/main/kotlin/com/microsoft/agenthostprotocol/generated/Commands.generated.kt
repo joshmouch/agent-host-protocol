@@ -288,16 +288,6 @@ data class CreateSessionParams(
      */
     val provider: String? = null,
     /**
-     * Model selection (ID and optional model-specific configuration)
-     */
-    val model: ModelSelection? = null,
-    /**
-     * Initial custom agent selection for the new session.
-     *
-     * Omit to start the session with no custom agent selected (provider default).
-     */
-    val agent: AgentSelection? = null,
-    /**
      * Working directory for the session
      */
     val workingDirectory: String? = null,
@@ -356,14 +346,6 @@ data class CreateChatParams(
      * Optional initial message for the new chat.
      */
     val initialMessage: Message? = null,
-    /**
-     * Optional per-chat model override.
-     */
-    val model: ModelSelection? = null,
-    /**
-     * Optional per-chat agent override.
-     */
-    val agent: AgentSelection? = null,
     /**
      * Optional source chat and turn to fork from.
      */

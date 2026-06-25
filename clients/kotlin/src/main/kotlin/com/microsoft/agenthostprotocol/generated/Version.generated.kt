@@ -17,6 +17,4 @@ public const val PROTOCOL_VERSION: String = "0.5.0"
  */
 public val SUPPORTED_PROTOCOL_VERSIONS: List<String> = listOf(
     "0.5.0",
-    "0.4.0",
-    "0.3.0",
 )

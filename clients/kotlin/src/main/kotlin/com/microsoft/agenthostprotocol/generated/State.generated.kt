@@ -1051,14 +1051,6 @@ data class ChatState(
      */
     val modifiedAt: String,
     /**
-     * Optional per-chat model override (defaults to the session's model)
-     */
-    val model: ModelSelection? = null,
-    /**
-     * Optional per-chat agent override (defaults to the session's agent)
-     */
-    val agent: AgentSelection? = null,
-    /**
      * How this chat came into existence
      */
     val origin: ChatOrigin? = null,
@@ -1074,7 +1066,7 @@ data class ChatState(
      * Optional per-chat working directory.
      *
      * If absent, the chat inherits
-     * {@link SessionSummary.workingDirectory | the session's working directory}.
+     * {@link SessionState.workingDirectory | the session's working directory}.
      * Hosts MAY override this for individual chats — for example, to give a
      * subordinate chat its own git worktree so multiple chats in a session can
      * make independent edits that the orchestrator later merges back.
@@ -1100,6 +1092,20 @@ data class ChatState(
      * Requests for user input that are currently blocking or informing chat progress
      */
     val inputRequests: List<ChatInputRequest>? = null,
+    /**
+     * The user's in-progress draft input for this chat — the message they are
+     * composing but have not sent yet, including its
+     * {@link Message.model | model} / {@link Message.agent | agent} selection
+     * and attachments.
+     *
+     * Clients MAY periodically sync their local input state into this field so
+     * a draft survives reloads and is visible to other clients viewing the same
+     * chat. Eager syncing is **not** required — clients SHOULD debounce and MAY
+     * sync only at convenient points. When presenting input UI for an existing
+     * chat, clients SHOULD use any `draft` to initialize their input state.
+     * Cleared (set to `undefined`) once the message is sent.
+     */
+    val draft: Message? = null,
     /**
      * Additional provider-specific metadata for this chat.
      */
@@ -1130,14 +1136,6 @@ data class ChatSummary(
      */
     val modifiedAt: String,
     /**
-     * Optional per-chat model override (defaults to the session's model)
-     */
-    val model: ModelSelection? = null,
-    /**
-     * Optional per-chat agent override (defaults to the session's agent)
-     */
-    val agent: AgentSelection? = null,
-    /**
      * How this chat came into existence
      */
     val origin: ChatOrigin? = null,
@@ -1162,9 +1160,39 @@ data class ChatSummary(
 @Serializable
 data class SessionState(
     /**
-     * Lightweight session metadata
+     * Agent provider ID
      */
-    val summary: SessionSummary,
+    val provider: String,
+    /**
+     * Session title
+     */
+    val title: String,
+    /**
+     * Current session status
+     */
+    val status: SessionStatus,
+    /**
+     * Human-readable description of what the session is currently doing
+     */
+    val activity: String? = null,
+    /**
+     * Server-owned project for this session
+     */
+    val project: ProjectInfo? = null,
+    /**
+     * The default working directory URI for this session. Individual chats
+     * MAY override via {@link ChatSummary.workingDirectory | their own
+     * `workingDirectory`}; this field acts as the fallback for any chat that
+     * does not.
+     */
+    val workingDirectory: String? = null,
+    /**
+     * Lightweight summary of this session's inline annotations channel
+     * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+     * annotation / entry counts without subscribing. Absent when the session
+     * does not expose an annotations channel.
+     */
+    val annotations: AnnotationsSummary? = null,
     /**
      * Session initialization state
      */
@@ -1273,10 +1301,6 @@ data class SessionActiveClient(
 @Serializable
 data class SessionSummary(
     /**
-     * Session URI
-     */
-    val resource: String,
-    /**
      * Agent provider ID
      */
     val provider: String,
@@ -1293,28 +1317,9 @@ data class SessionSummary(
      */
     val activity: String? = null,
     /**
-     * Creation timestamp
-     */
-    val createdAt: Long,
-    /**
-     * Last modification timestamp
-     */
-    val modifiedAt: Long,
-    /**
      * Server-owned project for this session
      */
     val project: ProjectInfo? = null,
-    /**
-     * Currently selected model
-     */
-    val model: ModelSelection? = null,
-    /**
-     * Currently selected custom agent.
-     *
-     * Absent (`undefined`) means no custom agent is selected for this session
-     * — the session uses the provider's default behavior.
-     */
-    val agent: AgentSelection? = null,
     /**
      * The default working directory URI for this session. Individual chats
      * MAY override via {@link ChatSummary.workingDirectory | their own
@@ -1323,19 +1328,31 @@ data class SessionSummary(
      */
     val workingDirectory: String? = null,
     /**
-     * Aggregate summary of file changes associated with this session. Servers
-     * may populate this to give clients a quick at-a-glance view of the
-     * session's footprint (e.g., for list rendering) without requiring the
-     * client to subscribe to a changeset.
-     */
-    val changes: ChangesSummary? = null,
-    /**
      * Lightweight summary of this session's inline annotations channel
      * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
      * annotation / entry counts without subscribing. Absent when the session
      * does not expose an annotations channel.
      */
     val annotations: AnnotationsSummary? = null,
+    /**
+     * Session URI
+     */
+    val resource: String,
+    /**
+     * Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+     */
+    val createdAt: String,
+    /**
+     * Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+     */
+    val modifiedAt: String,
+    /**
+     * Aggregate summary of file changes associated with this session. Servers
+     * may populate this to give clients a quick at-a-glance view of the
+     * session's footprint (e.g., for list rendering) without requiring the
+     * client to subscribe to a changeset.
+     */
+    val changes: ChangesSummary? = null,
     /**
      * Lightweight server-defined metadata clients may use for the session
      * presentation. The protocol does not interpret these values; producers
@@ -1453,6 +1470,24 @@ data class Message(
      * File/selection attachments
      */
     val attachments: List<MessageAttachment>? = null,
+    /**
+     * The model this message was, or will be, sent with.
+     *
+     * For historic user/agent messages this records the model actually used, so
+     * a client editing or resending the message can retain that selection. For a
+     * {@link ChatState.draft | draft} it carries the model the user picked for
+     * the message they are composing. Absent means the agent host's default
+     * model applies.
+     */
+    val model: ModelSelection? = null,
+    /**
+     * The custom agent this message was, or will be, sent with.
+     *
+     * For historic messages this records the agent actually used; for a
+     * {@link ChatState.draft | draft} it carries the agent the user picked.
+     * Absent means no custom agent — the provider's default behavior applies.
+     */
+    val agent: AgentSelection? = null,
     /**
      * Additional provider-specific metadata for this message.
      *

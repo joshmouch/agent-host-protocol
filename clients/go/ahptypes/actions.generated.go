@@ -43,14 +43,13 @@ const (
 	ActionTypeSessionTitleChanged               ActionType = "session/titleChanged"
 	ActionTypeChatUsage                         ActionType = "chat/usage"
 	ActionTypeChatReasoning                     ActionType = "chat/reasoning"
-	ActionTypeSessionModelChanged               ActionType = "session/modelChanged"
-	ActionTypeSessionAgentChanged               ActionType = "session/agentChanged"
 	ActionTypeSessionServerToolsChanged         ActionType = "session/serverToolsChanged"
 	ActionTypeSessionActiveClientSet            ActionType = "session/activeClientSet"
 	ActionTypeSessionActiveClientRemoved        ActionType = "session/activeClientRemoved"
 	ActionTypeChatPendingMessageSet             ActionType = "chat/pendingMessageSet"
 	ActionTypeChatPendingMessageRemoved         ActionType = "chat/pendingMessageRemoved"
 	ActionTypeChatQueuedMessagesReordered       ActionType = "chat/queuedMessagesReordered"
+	ActionTypeChatDraftChanged                  ActionType = "chat/draftChanged"
 	ActionTypeChatInputRequested                ActionType = "chat/inputRequested"
 	ActionTypeChatInputAnswerChanged            ActionType = "chat/inputAnswerChanged"
 	ActionTypeChatInputCompleted                ActionType = "chat/inputCompleted"
@@ -586,6 +585,23 @@ type ChatQueuedMessagesReorderedAction struct {
 	Order []string `json:"order"`
 }
 
+// The chat's draft input changed.
+//
+// Clients MAY periodically sync their local input state — the message the user
+// is composing, including its {@link Message.model | model} /
+// {@link Message.agent | agent} selection and attachments — into the chat's
+// {@link ChatState.draft | `draft`} so it survives reloads and is visible to
+// other clients viewing the same chat. Eager syncing is **not** required;
+// clients SHOULD debounce and MAY sync only at convenient points. Set `draft`
+// to `undefined` to clear it (e.g. once the message is sent).
+//
+// A client is only allowed to draft {@link MessageKind.User} messages.
+type ChatDraftChangedAction struct {
+	Type ActionType `json:"type"`
+	// New draft message, or `undefined` to clear it
+	Draft *Message `json:"draft,omitempty"`
+}
+
 // A session requested input from the user.
 //
 // Full-request upsert semantics: the `request` replaces any existing request
@@ -637,28 +653,6 @@ type ChatTruncatedAction struct {
 	Type ActionType `json:"type"`
 	// Keep turns up to and including this turn. Omit to clear all turns.
 	TurnId *string `json:"turnId,omitempty"`
-}
-
-// Model changed for this session.
-type SessionModelChangedAction struct {
-	Type ActionType `json:"type"`
-	// New model selection
-	Model ModelSelection `json:"model"`
-}
-
-// Custom agent selection changed for this session.
-//
-// Omitting `agent` (or setting it to `undefined`) clears the selection and
-// resets the session to no selected custom agent (provider default behavior).
-//
-// When a turn is currently active, the server MUST defer the change until
-// the active turn completes, then apply it for the next turn (same rule as
-// {@link SessionModelChangedAction | `session/modelChanged`}).
-type SessionAgentChangedAction struct {
-	Type ActionType `json:"type"`
-	// New agent selection, or `undefined` to clear the selection and reset the
-	// session to no selected custom agent.
-	Agent *AgentSelection `json:"agent,omitempty"`
 }
 
 // The read state of the session changed.
@@ -1228,12 +1222,11 @@ func (*ChatReasoningAction) isStateAction()                     {}
 func (*ChatPendingMessageSetAction) isStateAction()             {}
 func (*ChatPendingMessageRemovedAction) isStateAction()         {}
 func (*ChatQueuedMessagesReorderedAction) isStateAction()       {}
+func (*ChatDraftChangedAction) isStateAction()                  {}
 func (*ChatInputRequestedAction) isStateAction()                {}
 func (*ChatInputAnswerChangedAction) isStateAction()            {}
 func (*ChatInputCompletedAction) isStateAction()                {}
 func (*ChatTruncatedAction) isStateAction()                     {}
-func (*SessionModelChangedAction) isStateAction()               {}
-func (*SessionAgentChangedAction) isStateAction()               {}
 func (*SessionIsReadChangedAction) isStateAction()              {}
 func (*SessionIsArchivedChangedAction) isStateAction()          {}
 func (*SessionActivityChangedAction) isStateAction()            {}
@@ -1456,6 +1449,12 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 			return err
 		}
 		u.Value = &value
+	case "chat/draftChanged":
+		var value ChatDraftChangedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
 	case "chat/inputRequested":
 		var value ChatInputRequestedAction
 		if err := json.Unmarshal(data, &value); err != nil {
@@ -1476,18 +1475,6 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "chat/truncated":
 		var value ChatTruncatedAction
-		if err := json.Unmarshal(data, &value); err != nil {
-			return err
-		}
-		u.Value = &value
-	case "session/modelChanged":
-		var value SessionModelChangedAction
-		if err := json.Unmarshal(data, &value); err != nil {
-			return err
-		}
-		u.Value = &value
-	case "session/agentChanged":
-		var value SessionAgentChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

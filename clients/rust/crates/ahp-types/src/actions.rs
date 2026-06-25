@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
+#[allow(unused_imports)]
 use crate::state::{
     AgentInfo, AgentSelection, Annotation, AnnotationEntry, Changeset, ChangesetFile,
     ChangesetOperation, ChangesetOperationStatus, ChangesetStatus, ChatInputAnswer,
@@ -74,10 +75,6 @@ pub enum ActionType {
     ChatUsage,
     #[serde(rename = "chat/reasoning")]
     ChatReasoning,
-    #[serde(rename = "session/modelChanged")]
-    SessionModelChanged,
-    #[serde(rename = "session/agentChanged")]
-    SessionAgentChanged,
     #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
     #[serde(rename = "session/activeClientSet")]
@@ -90,6 +87,8 @@ pub enum ActionType {
     ChatPendingMessageRemoved,
     #[serde(rename = "chat/queuedMessagesReordered")]
     ChatQueuedMessagesReordered,
+    #[serde(rename = "chat/draftChanged")]
+    ChatDraftChanged,
     #[serde(rename = "chat/inputRequested")]
     ChatInputRequested,
     #[serde(rename = "chat/inputAnswerChanged")]
@@ -696,31 +695,6 @@ pub struct ChatReasoningAction {
     pub meta: Option<JsonObject>,
 }
 
-/// Model changed for this session.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionModelChangedAction {
-    /// New model selection
-    pub model: ModelSelection,
-}
-
-/// Custom agent selection changed for this session.
-///
-/// Omitting `agent` (or setting it to `undefined`) clears the selection and
-/// resets the session to no selected custom agent (provider default behavior).
-///
-/// When a turn is currently active, the server MUST defer the change until
-/// the active turn completes, then apply it for the next turn (same rule as
-/// {@link SessionModelChangedAction | `session/modelChanged`}).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionAgentChangedAction {
-    /// New agent selection, or `undefined` to clear the selection and reset the
-    /// session to no selected custom agent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
-}
-
 /// The read state of the session changed.
 ///
 /// Dispatched by a client to mark a session as read (e.g. after viewing it)
@@ -869,6 +843,25 @@ pub struct ChatPendingMessageRemovedAction {
 pub struct ChatQueuedMessagesReorderedAction {
     /// Queued message IDs in the desired order
     pub order: Vec<String>,
+}
+
+/// The chat's draft input changed.
+///
+/// Clients MAY periodically sync their local input state — the message the user
+/// is composing, including its {@link Message.model | model} /
+/// {@link Message.agent | agent} selection and attachments — into the chat's
+/// {@link ChatState.draft | `draft`} so it survives reloads and is visible to
+/// other clients viewing the same chat. Eager syncing is **not** required;
+/// clients SHOULD debounce and MAY sync only at convenient points. Set `draft`
+/// to `undefined` to clear it (e.g. once the message is sent).
+///
+/// A client is only allowed to draft {@link MessageKind.User} messages.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatDraftChangedAction {
+    /// New draft message, or `undefined` to clear it
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft: Option<Message>,
 }
 
 /// A session requested input from the user.
@@ -1431,12 +1424,6 @@ pub struct PartialChatSummary {
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub modified_at: Option<String>,
-    /// Optional per-chat model override (defaults to the session's model)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Optional per-chat agent override (defaults to the session's agent)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// How this chat came into existence
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<ChatOrigin>,
@@ -1512,10 +1499,6 @@ pub enum StateAction {
     ChatUsage(ChatUsageAction),
     #[serde(rename = "chat/reasoning")]
     ChatReasoning(ChatReasoningAction),
-    #[serde(rename = "session/modelChanged")]
-    SessionModelChanged(SessionModelChangedAction),
-    #[serde(rename = "session/agentChanged")]
-    SessionAgentChanged(SessionAgentChangedAction),
     #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]
@@ -1536,6 +1519,8 @@ pub enum StateAction {
     ChatPendingMessageRemoved(ChatPendingMessageRemovedAction),
     #[serde(rename = "chat/queuedMessagesReordered")]
     ChatQueuedMessagesReordered(ChatQueuedMessagesReorderedAction),
+    #[serde(rename = "chat/draftChanged")]
+    ChatDraftChanged(ChatDraftChangedAction),
     #[serde(rename = "chat/inputRequested")]
     ChatInputRequested(ChatInputRequestedAction),
     #[serde(rename = "chat/inputAnswerChanged")]

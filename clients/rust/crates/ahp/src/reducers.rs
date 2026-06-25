@@ -246,10 +246,6 @@ fn touch_chat_modified(state: &mut ChatState) {
     state.modified_at = now_iso();
 }
 
-fn touch_session_modified(state: &mut SessionState) {
-    state.summary.modified_at = now_ms();
-}
-
 fn end_turn(
     state: &mut ChatState,
     turn_id: &str,
@@ -515,7 +511,7 @@ pub fn apply_action_to_root(state: &mut RootState, action: &StateAction) -> Redu
 pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -> ReduceOutcome {
     match action {
         StateAction::SessionReady(_) => {
-            // Lifecycle-only transition. Must not touch `summary.status`: see
+            // Lifecycle-only transition. Must not touch `status`: see
             // the equivalent TypeScript reducer for the rationale.
             state.lifecycle = SessionLifecycle::Ready;
             ReduceOutcome::Applied
@@ -563,12 +559,6 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             if let Some(modified_at) = &a.changes.modified_at {
                 chat.modified_at = modified_at.clone();
             }
-            if let Some(model) = &a.changes.model {
-                chat.model = Some(model.clone());
-            }
-            if let Some(agent) = &a.changes.agent {
-                chat.agent = Some(agent.clone());
-            }
             if let Some(origin) = &a.changes.origin {
                 chat.origin = Some(origin.clone());
             }
@@ -582,35 +572,20 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionTitleChanged(a) => {
-            state.summary.title = a.title.clone();
-            touch_session_modified(state);
-            ReduceOutcome::Applied
-        }
-        StateAction::SessionModelChanged(a) => {
-            state.summary.model = Some(a.model.clone());
-            touch_session_modified(state);
-            ReduceOutcome::Applied
-        }
-        StateAction::SessionAgentChanged(a) => {
-            state.summary.agent = a.agent.clone();
-            touch_session_modified(state);
+            state.title = a.title.clone();
             ReduceOutcome::Applied
         }
         StateAction::SessionIsReadChanged(a) => {
-            state.summary.status =
-                with_status_flag(state.summary.status, SessionStatus::IsRead, a.is_read);
+            state.status = with_status_flag(state.status, SessionStatus::IsRead, a.is_read);
             ReduceOutcome::Applied
         }
         StateAction::SessionIsArchivedChanged(a) => {
-            state.summary.status = with_status_flag(
-                state.summary.status,
-                SessionStatus::IsArchived,
-                a.is_archived,
-            );
+            state.status =
+                with_status_flag(state.status, SessionStatus::IsArchived, a.is_archived);
             ReduceOutcome::Applied
         }
         StateAction::SessionActivityChanged(a) => {
-            state.summary.activity = a.activity.clone();
+            state.activity = a.activity.clone();
             ReduceOutcome::Applied
         }
         StateAction::SessionChangesetsChanged(a) => {
@@ -628,7 +603,6 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
                     config.values.insert(k.clone(), v.clone());
                 }
             }
-            touch_session_modified(state);
             ReduceOutcome::Applied
         }
         StateAction::SessionMetaChanged(a) => {
@@ -949,6 +923,10 @@ pub fn apply_action_to_chat(state: &mut ChatState, action: &StateAction) -> Redu
             leftover.sort_by(|a, b| a.id.cmp(&b.id));
             reordered.extend(leftover);
             *list = reordered;
+            ReduceOutcome::Applied
+        }
+        StateAction::ChatDraftChanged(a) => {
+            state.draft = a.draft.clone();
             ReduceOutcome::Applied
         }
         _ => ReduceOutcome::OutOfScope,
@@ -1537,7 +1515,7 @@ pub fn apply_action_to_resource_watch(
 mod tests {
     use super::*;
     use ahp_types::state::{
-        ChatSummary, MarkdownResponsePart, Message, MessageKind, MessageOrigin, SessionSummary,
+        ChatSummary, MarkdownResponsePart, Message, MessageKind, MessageOrigin,
     };
 
     fn user_message(text: &str) -> Message {
@@ -1547,28 +1525,21 @@ mod tests {
                 kind: MessageKind::User,
             },
             attachments: None,
+            model: None,
+            agent: None,
             meta: None,
         }
     }
 
-    fn empty_session(resource: &str) -> SessionState {
+    fn empty_session(_resource: &str) -> SessionState {
         SessionState {
-            summary: SessionSummary {
-                resource: resource.to_string(),
-                provider: "test".to_string(),
-                title: String::new(),
-                status: SessionStatus::Idle.bits(),
-                activity: None,
-                created_at: 0,
-                modified_at: 0,
-                project: None,
-                model: None,
-                agent: None,
-                working_directory: None,
-                changes: None,
-                annotations: None,
-                meta: None,
-            },
+            provider: "test".to_string(),
+            title: String::new(),
+            status: SessionStatus::Idle.bits(),
+            activity: None,
+            project: None,
+            working_directory: None,
+            annotations: None,
             lifecycle: SessionLifecycle::Creating,
             creation_error: None,
             server_tools: None,
@@ -1589,8 +1560,6 @@ mod tests {
             status: SessionStatus::Idle.bits(),
             activity: None,
             modified_at: "1970-01-01T00:00:00.000Z".into(),
-            model: None,
-            agent: None,
             origin: None,
             interactivity: None,
             working_directory: None,
@@ -1599,6 +1568,7 @@ mod tests {
             steering_message: None,
             queued_messages: None,
             input_requests: None,
+            draft: None,
             meta: None,
         }
     }
@@ -1682,8 +1652,6 @@ mod tests {
             status: SessionStatus::Idle.bits(),
             activity: None,
             modified_at: "1970-01-01T00:00:00.000Z".into(),
-            model: None,
-            agent: None,
             origin: None,
             interactivity: None,
             working_directory: None,

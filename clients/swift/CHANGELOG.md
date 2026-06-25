@@ -26,6 +26,12 @@ the tag matches the version pinned in [`VERSION`](VERSION).
 - `SessionActiveClientRemovedAction` (`StateAction.sessionActiveClientRemoved`,
   wire `session/activeClientRemoved`) to release a single active client by
   `clientId`.
+- `ChatDraftChangedAction` (`StateAction.chatDraftChanged`, wire
+  `chat/draftChanged`) and `ChatState.draft` (`Message?`) to set or clear the
+  user's in-progress draft input for a chat. The chat reducer applies it
+  without stamping `modifiedAt`.
+- `Message.model` and `Message.agent` optional fields carrying the selection a
+  message was composed with.
 
 ### Changed
 
@@ -40,12 +46,23 @@ the tag matches the version pinned in [`VERSION`](VERSION).
   `[String]?`, allowing numeric, boolean, and null enum values.
 - `ModelSelection.config` values are now `AnyCodable` instead of `String`,
   allowing numeric, boolean, and null configuration values.
+- `SessionState` now inlines the session metadata fields (`provider`, `title`,
+  `status`, `activity`, `project`, `workingDirectory`, `annotations`) directly
+  instead of embedding a `summary: SessionSummary`. The session reducer mutates
+  these fields directly and no longer stamps a `modifiedAt`. `SessionSummary`
+  remains a root-only catalog struct whose `createdAt`/`modifiedAt` are now
+  ISO-8601 `String`s and which no longer carries `model`/`agent`.
+- `ChatState` and `ChatSummary` no longer carry `model`/`agent`.
 
 ### Removed
 
 - `SessionActiveClientToolsChangedAction`. An active client now updates its
   published tools by re-dispatching `StateAction.sessionActiveClientSet` with its
   full, updated entry.
+- `SessionModelChangedAction` (`StateAction.sessionModelChanged`,
+  `session/modelChanged`) and `SessionAgentChangedAction`
+  (`StateAction.sessionAgentChanged`, `session/agentChanged`), along with their
+  session-reducer handling.
 
 ## [0.4.0] — 2026-06-19
 

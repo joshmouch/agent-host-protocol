@@ -11,9 +11,7 @@ import type {
   SessionActiveClient,
   Customization,
   McpServerState,
-  AgentSelection,
 } from './state.js';
-import type { ModelSelection } from '../channels-root/state.js';
 import type { URI } from '../common/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { ChatSummary } from '../channels-chat/state.js';
@@ -122,42 +120,6 @@ export interface SessionTitleChangedAction {
   type: ActionType.SessionTitleChanged;
   /** New title */
   title: string;
-}
-
-/**
- * Model changed for this session.
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionModelChangedAction {
-  type: ActionType.SessionModelChanged;
-  /** New model selection */
-  model: ModelSelection;
-}
-
-/**
- * Custom agent selection changed for this session.
- *
- * Omitting `agent` (or setting it to `undefined`) clears the selection and
- * resets the session to no selected custom agent (provider default behavior).
- *
- * When a turn is currently active, the server MUST defer the change until
- * the active turn completes, then apply it for the next turn (same rule as
- * {@link SessionModelChangedAction | `session/modelChanged`}).
- *
- * @category Session Actions
- * @version 1
- * @clientDispatchable
- */
-export interface SessionAgentChangedAction {
-  type: ActionType.SessionAgentChanged;
-  /**
-   * New agent selection, or `undefined` to clear the selection and reset the
-   * session to no selected custom agent.
-   */
-  agent?: AgentSelection;
 }
 
 /**

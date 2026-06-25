@@ -23,8 +23,6 @@ import type {
   SessionChatUpdatedAction,
   SessionDefaultChatChangedAction,
   SessionTitleChangedAction,
-  SessionModelChangedAction,
-  SessionAgentChangedAction,
   SessionServerToolsChangedAction,
   SessionActiveClientSetAction,
   SessionActiveClientRemovedAction,
@@ -60,6 +58,7 @@ import type {
   ChatPendingMessageSetAction,
   ChatPendingMessageRemovedAction,
   ChatQueuedMessagesReorderedAction,
+  ChatDraftChangedAction,
   ChatInputRequestedAction,
   ChatInputAnswerChangedAction,
   ChatInputCompletedAction,
@@ -134,14 +133,13 @@ export const enum ActionType {
   SessionTitleChanged = 'session/titleChanged',
   ChatUsage = 'chat/usage',
   ChatReasoning = 'chat/reasoning',
-  SessionModelChanged = 'session/modelChanged',
-  SessionAgentChanged = 'session/agentChanged',
   SessionServerToolsChanged = 'session/serverToolsChanged',
   SessionActiveClientSet = 'session/activeClientSet',
   SessionActiveClientRemoved = 'session/activeClientRemoved',
   ChatPendingMessageSet = 'chat/pendingMessageSet',
   ChatPendingMessageRemoved = 'chat/pendingMessageRemoved',
   ChatQueuedMessagesReordered = 'chat/queuedMessagesReordered',
+  ChatDraftChanged = 'chat/draftChanged',
   ChatInputRequested = 'chat/inputRequested',
   ChatInputAnswerChanged = 'chat/inputAnswerChanged',
   ChatInputCompleted = 'chat/inputCompleted',
@@ -230,8 +228,6 @@ export type StateAction =
   | SessionChatUpdatedAction
   | SessionDefaultChatChangedAction
   | SessionTitleChangedAction
-  | SessionModelChangedAction
-  | SessionAgentChangedAction
   | SessionServerToolsChangedAction
   | SessionActiveClientSetAction
   | SessionActiveClientRemovedAction
@@ -264,6 +260,7 @@ export type StateAction =
   | ChatPendingMessageSetAction
   | ChatPendingMessageRemovedAction
   | ChatQueuedMessagesReorderedAction
+  | ChatDraftChangedAction
   | ChatInputRequestedAction
   | ChatInputAnswerChangedAction
   | ChatInputCompletedAction

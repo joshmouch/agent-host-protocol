@@ -273,14 +273,6 @@ pub struct CreateSessionParams {
     /// Agent provider ID
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
-    /// Model selection (ID and optional model-specific configuration)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Initial custom agent selection for the new session.
-    ///
-    /// Omit to start the session with no custom agent selected (provider default).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// Working directory for the session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directory: Option<Uri>,
@@ -333,12 +325,6 @@ pub struct CreateChatParams {
     /// Optional initial message for the new chat.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initial_message: Option<Message>,
-    /// Optional per-chat model override.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model: Option<ModelSelection>,
-    /// Optional per-chat agent override.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub agent: Option<AgentSelection>,
     /// Optional source chat and turn to fork from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<ChatForkSource>,

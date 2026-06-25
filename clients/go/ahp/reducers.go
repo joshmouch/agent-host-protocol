@@ -162,10 +162,6 @@ func refreshSummaryStatus(state *ahptypes.ChatState) {
 	state.Status = summaryStatus(state, nil)
 }
 
-func touchSessionModified(state *ahptypes.SessionState) {
-	state.Summary.ModifiedAt = nowMs()
-}
-
 func touchChatModified(state *ahptypes.ChatState) {
 	state.ModifiedAt = nowISOString()
 }
@@ -599,6 +595,9 @@ func ApplyActionToChat(state *ahptypes.ChatState, action ahptypes.StateAction) R
 		}
 		state.QueuedMessages = reordered
 		return ReduceOutcomeApplied
+	case *ahptypes.ChatDraftChangedAction:
+		state.Draft = a.Draft
+		return ReduceOutcomeApplied
 	}
 	return ReduceOutcomeOutOfScope
 }
@@ -615,12 +614,6 @@ func mergeChatSummaryPartial(summary *ahptypes.ChatSummary, changes ahptypes.Par
 	}
 	if changes.ModifiedAt != nil {
 		summary.ModifiedAt = *changes.ModifiedAt
-	}
-	if changes.Model != nil {
-		summary.Model = changes.Model
-	}
-	if changes.Agent != nil {
-		summary.Agent = changes.Agent
 	}
 	if changes.Origin != nil {
 		summary.Origin = changes.Origin
@@ -677,26 +670,16 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 		state.DefaultChat = a.DefaultChat
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionTitleChangedAction:
-		state.Summary.Title = a.Title
-		touchSessionModified(state)
-		return ReduceOutcomeApplied
-	case *ahptypes.SessionModelChangedAction:
-		model := a.Model
-		state.Summary.Model = &model
-		touchSessionModified(state)
-		return ReduceOutcomeApplied
-	case *ahptypes.SessionAgentChangedAction:
-		state.Summary.Agent = a.Agent
-		touchSessionModified(state)
+		state.Title = a.Title
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionIsReadChangedAction:
-		state.Summary.Status = withStatusFlag(state.Summary.Status, ahptypes.SessionStatusIsRead, a.IsRead)
+		state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsRead, a.IsRead)
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionIsArchivedChangedAction:
-		state.Summary.Status = withStatusFlag(state.Summary.Status, ahptypes.SessionStatusIsArchived, a.IsArchived)
+		state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsArchived, a.IsArchived)
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionActivityChangedAction:
-		state.Summary.Activity = a.Activity
+		state.Activity = a.Activity
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionChangesetsChangedAction:
 		if a.Changesets == nil {
@@ -718,7 +701,6 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 		for k, v := range a.Config {
 			state.Config.Values[k] = v
 		}
-		touchSessionModified(state)
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionMetaChangedAction:
 		state.Meta = a.Meta

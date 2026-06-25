@@ -542,6 +542,31 @@ export interface ChatQueuedMessagesReorderedAction {
   order: string[];
 }
 
+// ─── Draft Actions ───────────────────────────────────────────────────────────
+
+/**
+ * The chat's draft input changed.
+ *
+ * Clients MAY periodically sync their local input state — the message the user
+ * is composing, including its {@link Message.model | model} /
+ * {@link Message.agent | agent} selection and attachments — into the chat's
+ * {@link ChatState.draft | `draft`} so it survives reloads and is visible to
+ * other clients viewing the same chat. Eager syncing is **not** required;
+ * clients SHOULD debounce and MAY sync only at convenient points. Set `draft`
+ * to `undefined` to clear it (e.g. once the message is sent).
+ *
+ * A client is only allowed to draft {@link MessageKind.User} messages.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatDraftChangedAction {
+  type: ActionType.ChatDraftChanged;
+  /** New draft message, or `undefined` to clear it */
+  draft?: Message;
+}
+
 // ─── Session Input Actions ──────────────────────────────────────────────────
 
 /**
@@ -620,6 +645,7 @@ export type ChatAction =
   | ChatPendingMessageSetAction
   | ChatPendingMessageRemovedAction
   | ChatQueuedMessagesReorderedAction
+  | ChatDraftChangedAction
   | ChatInputRequestedAction
   | ChatInputAnswerChangedAction
   | ChatInputCompletedAction

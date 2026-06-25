@@ -80,7 +80,6 @@ public object ResourceWatchReducer : Reducer<ResourceWatchState, StateAction> {
  */
 public var currentTimestampProvider: () -> Long = { System.currentTimeMillis() }
 
-private fun now(): Long = currentTimestampProvider()
 private fun nowIsoString(): String = Instant.ofEpochMilli(currentTimestampProvider()).toString()
 
 // ─── Status Bitset Helpers ──────────────────────────────────────────────────
@@ -474,8 +473,6 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
                 status = c.status ?: prior.status,
                 activity = c.activity ?: prior.activity,
                 modifiedAt = c.modifiedAt ?: prior.modifiedAt,
-                model = c.model ?: prior.model,
-                agent = c.agent ?: prior.agent,
                 origin = c.origin ?: prior.origin,
                 workingDirectory = c.workingDirectory ?: prior.workingDirectory,
             )
@@ -487,33 +484,17 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
 
     is StateActionSessionDefaultChatChanged -> state.copy(defaultChat = action.value.defaultChat)
 
-    is StateActionSessionTitleChanged -> state.copy(
-        summary = state.summary.copy(title = action.value.title, modifiedAt = now()),
-    )
-
-    is StateActionSessionModelChanged -> state.copy(
-        summary = state.summary.copy(model = action.value.model, modifiedAt = now()),
-    )
-
-    is StateActionSessionAgentChanged -> state.copy(
-        summary = state.summary.copy(agent = action.value.agent, modifiedAt = now()),
-    )
+    is StateActionSessionTitleChanged -> state.copy(title = action.value.title)
 
     is StateActionSessionIsReadChanged -> state.copy(
-        summary = state.summary.copy(
-            status = withStatusFlag(state.summary.status, SessionStatus.IS_READ, action.value.isRead),
-        ),
+        status = withStatusFlag(state.status, SessionStatus.IS_READ, action.value.isRead),
     )
 
     is StateActionSessionIsArchivedChanged -> state.copy(
-        summary = state.summary.copy(
-            status = withStatusFlag(state.summary.status, SessionStatus.IS_ARCHIVED, action.value.isArchived),
-        ),
+        status = withStatusFlag(state.status, SessionStatus.IS_ARCHIVED, action.value.isArchived),
     )
 
-    is StateActionSessionActivityChanged -> state.copy(
-        summary = state.summary.copy(activity = action.value.activity),
-    )
+    is StateActionSessionActivityChanged -> state.copy(activity = action.value.activity)
 
     is StateActionSessionChangesetsChanged -> state.copy(changesets = action.value.changesets)
 
@@ -522,7 +503,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
         val config = state.config
         if (config == null) state else {
             val newValues = if (a.replace == true) a.config else config.values + a.config
-            state.copy(config = config.copy(values = newValues), summary = state.summary.copy(modifiedAt = now()))
+            state.copy(config = config.copy(values = newValues))
         }
     }
 
@@ -1113,6 +1094,8 @@ public fun chatReducer(state: ChatState, action: StateAction): ChatState = when 
         }
         state.copy(queuedMessages = reordered)
     }
+
+    is StateActionChatDraftChanged -> state.copy(draft = action.value.draft)
 
     else -> state
 

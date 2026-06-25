@@ -795,10 +795,6 @@ public struct ChatState: Codable, Sendable {
     public var activity: String?
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     public var modifiedAt: String
-    /// Optional per-chat model override (defaults to the session's model)
-    public var model: ModelSelection?
-    /// Optional per-chat agent override (defaults to the session's agent)
-    public var agent: AgentSelection?
     /// How this chat came into existence
     public var origin: ChatOrigin?
     /// How the user can interact with this chat. See {@link ChatInteractivity}.
@@ -810,7 +806,7 @@ public struct ChatState: Codable, Sendable {
     /// Optional per-chat working directory.
     ///
     /// If absent, the chat inherits
-    /// {@link SessionSummary.workingDirectory | the session's working directory}.
+    /// {@link SessionState.workingDirectory | the session's working directory}.
     /// Hosts MAY override this for individual chats — for example, to give a
     /// subordinate chat its own git worktree so multiple chats in a session can
     /// make independent edits that the orchestrator later merges back.
@@ -825,6 +821,18 @@ public struct ChatState: Codable, Sendable {
     public var queuedMessages: [PendingMessage]?
     /// Requests for user input that are currently blocking or informing chat progress
     public var inputRequests: [ChatInputRequest]?
+    /// The user's in-progress draft input for this chat — the message they are
+    /// composing but have not sent yet, including its
+    /// {@link Message.model | model} / {@link Message.agent | agent} selection
+    /// and attachments.
+    ///
+    /// Clients MAY periodically sync their local input state into this field so
+    /// a draft survives reloads and is visible to other clients viewing the same
+    /// chat. Eager syncing is **not** required — clients SHOULD debounce and MAY
+    /// sync only at convenient points. When presenting input UI for an existing
+    /// chat, clients SHOULD use any `draft` to initialize their input state.
+    /// Cleared (set to `undefined`) once the message is sent.
+    public var draft: Message?
     /// Additional provider-specific metadata for this chat.
     public var meta: [String: AnyCodable]?
 
@@ -834,8 +842,6 @@ public struct ChatState: Codable, Sendable {
         case status
         case activity
         case modifiedAt
-        case model
-        case agent
         case origin
         case interactivity
         case workingDirectory
@@ -844,6 +850,7 @@ public struct ChatState: Codable, Sendable {
         case steeringMessage
         case queuedMessages
         case inputRequests
+        case draft
         case meta = "_meta"
     }
 
@@ -853,8 +860,6 @@ public struct ChatState: Codable, Sendable {
         status: SessionStatus,
         activity: String? = nil,
         modifiedAt: String,
-        model: ModelSelection? = nil,
-        agent: AgentSelection? = nil,
         origin: ChatOrigin? = nil,
         interactivity: ChatInteractivity? = nil,
         workingDirectory: String? = nil,
@@ -863,6 +868,7 @@ public struct ChatState: Codable, Sendable {
         steeringMessage: PendingMessage? = nil,
         queuedMessages: [PendingMessage]? = nil,
         inputRequests: [ChatInputRequest]? = nil,
+        draft: Message? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.resource = resource
@@ -870,8 +876,6 @@ public struct ChatState: Codable, Sendable {
         self.status = status
         self.activity = activity
         self.modifiedAt = modifiedAt
-        self.model = model
-        self.agent = agent
         self.origin = origin
         self.interactivity = interactivity
         self.workingDirectory = workingDirectory
@@ -880,6 +884,7 @@ public struct ChatState: Codable, Sendable {
         self.steeringMessage = steeringMessage
         self.queuedMessages = queuedMessages
         self.inputRequests = inputRequests
+        self.draft = draft
         self.meta = meta
     }
 }
@@ -895,10 +900,6 @@ public struct ChatSummary: Codable, Sendable {
     public var activity: String?
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     public var modifiedAt: String
-    /// Optional per-chat model override (defaults to the session's model)
-    public var model: ModelSelection?
-    /// Optional per-chat agent override (defaults to the session's agent)
-    public var agent: AgentSelection?
     /// How this chat came into existence
     public var origin: ChatOrigin?
     /// How the user can interact with this chat. See {@link ChatInteractivity}.
@@ -920,8 +921,6 @@ public struct ChatSummary: Codable, Sendable {
         status: SessionStatus,
         activity: String? = nil,
         modifiedAt: String,
-        model: ModelSelection? = nil,
-        agent: AgentSelection? = nil,
         origin: ChatOrigin? = nil,
         interactivity: ChatInteractivity? = nil,
         workingDirectory: String? = nil
@@ -931,8 +930,6 @@ public struct ChatSummary: Codable, Sendable {
         self.status = status
         self.activity = activity
         self.modifiedAt = modifiedAt
-        self.model = model
-        self.agent = agent
         self.origin = origin
         self.interactivity = interactivity
         self.workingDirectory = workingDirectory
@@ -940,8 +937,26 @@ public struct ChatSummary: Codable, Sendable {
 }
 
 public struct SessionState: Codable, Sendable {
-    /// Lightweight session metadata
-    public var summary: SessionSummary
+    /// Agent provider ID
+    public var provider: String
+    /// Session title
+    public var title: String
+    /// Current session status
+    public var status: SessionStatus
+    /// Human-readable description of what the session is currently doing
+    public var activity: String?
+    /// Server-owned project for this session
+    public var project: ProjectInfo?
+    /// The default working directory URI for this session. Individual chats
+    /// MAY override via {@link ChatSummary.workingDirectory | their own
+    /// `workingDirectory`}; this field acts as the fallback for any chat that
+    /// does not.
+    public var workingDirectory: String?
+    /// Lightweight summary of this session's inline annotations channel
+    /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
+    /// annotation / entry counts without subscribing. Absent when the session
+    /// does not expose an annotations channel.
+    public var annotations: AnnotationsSummary?
     /// Session initialization state
     public var lifecycle: SessionLifecycle
     /// Error details if creation failed
@@ -1001,7 +1016,13 @@ public struct SessionState: Codable, Sendable {
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
-        case summary
+        case provider
+        case title
+        case status
+        case activity
+        case project
+        case workingDirectory
+        case annotations
         case lifecycle
         case creationError
         case serverTools
@@ -1015,7 +1036,13 @@ public struct SessionState: Codable, Sendable {
     }
 
     public init(
-        summary: SessionSummary,
+        provider: String,
+        title: String,
+        status: SessionStatus,
+        activity: String? = nil,
+        project: ProjectInfo? = nil,
+        workingDirectory: String? = nil,
+        annotations: AnnotationsSummary? = nil,
         lifecycle: SessionLifecycle,
         creationError: ErrorInfo? = nil,
         serverTools: [ToolDefinition]? = nil,
@@ -1027,7 +1054,13 @@ public struct SessionState: Codable, Sendable {
         changesets: [Changeset]? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
-        self.summary = summary
+        self.provider = provider
+        self.title = title
+        self.status = status
+        self.activity = activity
+        self.project = project
+        self.workingDirectory = workingDirectory
+        self.annotations = annotations
         self.lifecycle = lifecycle
         self.creationError = creationError
         self.serverTools = serverTools
@@ -1070,8 +1103,6 @@ public struct SessionActiveClient: Codable, Sendable {
 }
 
 public struct SessionSummary: Codable, Sendable {
-    /// Session URI
-    public var resource: String
     /// Agent provider ID
     public var provider: String
     /// Session title
@@ -1080,34 +1111,29 @@ public struct SessionSummary: Codable, Sendable {
     public var status: SessionStatus
     /// Human-readable description of what the session is currently doing
     public var activity: String?
-    /// Creation timestamp
-    public var createdAt: Int
-    /// Last modification timestamp
-    public var modifiedAt: Int
     /// Server-owned project for this session
     public var project: ProjectInfo?
-    /// Currently selected model
-    public var model: ModelSelection?
-    /// Currently selected custom agent.
-    ///
-    /// Absent (`undefined`) means no custom agent is selected for this session
-    /// — the session uses the provider's default behavior.
-    public var agent: AgentSelection?
     /// The default working directory URI for this session. Individual chats
     /// MAY override via {@link ChatSummary.workingDirectory | their own
     /// `workingDirectory`}; this field acts as the fallback for any chat that
     /// does not.
     public var workingDirectory: String?
-    /// Aggregate summary of file changes associated with this session. Servers
-    /// may populate this to give clients a quick at-a-glance view of the
-    /// session's footprint (e.g., for list rendering) without requiring the
-    /// client to subscribe to a changeset.
-    public var changes: ChangesSummary?
     /// Lightweight summary of this session's inline annotations channel
     /// (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
     /// annotation / entry counts without subscribing. Absent when the session
     /// does not expose an annotations channel.
     public var annotations: AnnotationsSummary?
+    /// Session URI
+    public var resource: String
+    /// Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+    public var createdAt: String
+    /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
+    public var modifiedAt: String
+    /// Aggregate summary of file changes associated with this session. Servers
+    /// may populate this to give clients a quick at-a-glance view of the
+    /// session's footprint (e.g., for list rendering) without requiring the
+    /// client to subscribe to a changeset.
+    public var changes: ChangesSummary?
     /// Lightweight server-defined metadata clients may use for the session
     /// presentation. The protocol does not interpret these values; producers
     /// SHOULD keep the payload small because summaries appear in session lists
@@ -1115,51 +1141,45 @@ public struct SessionSummary: Codable, Sendable {
     public var meta: [String: AnyCodable]?
 
     enum CodingKeys: String, CodingKey {
-        case resource
         case provider
         case title
         case status
         case activity
+        case project
+        case workingDirectory
+        case annotations
+        case resource
         case createdAt
         case modifiedAt
-        case project
-        case model
-        case agent
-        case workingDirectory
         case changes
-        case annotations
         case meta = "_meta"
     }
 
     public init(
-        resource: String,
         provider: String,
         title: String,
         status: SessionStatus,
         activity: String? = nil,
-        createdAt: Int,
-        modifiedAt: Int,
         project: ProjectInfo? = nil,
-        model: ModelSelection? = nil,
-        agent: AgentSelection? = nil,
         workingDirectory: String? = nil,
-        changes: ChangesSummary? = nil,
         annotations: AnnotationsSummary? = nil,
+        resource: String,
+        createdAt: String,
+        modifiedAt: String,
+        changes: ChangesSummary? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
-        self.resource = resource
         self.provider = provider
         self.title = title
         self.status = status
         self.activity = activity
+        self.project = project
+        self.workingDirectory = workingDirectory
+        self.annotations = annotations
+        self.resource = resource
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
-        self.project = project
-        self.model = model
-        self.agent = agent
-        self.workingDirectory = workingDirectory
         self.changes = changes
-        self.annotations = annotations
         self.meta = meta
     }
 }
@@ -1279,6 +1299,20 @@ public struct Message: Codable, Sendable {
     public var origin: MessageOrigin
     /// File/selection attachments
     public var attachments: [MessageAttachment]?
+    /// The model this message was, or will be, sent with.
+    ///
+    /// For historic user/agent messages this records the model actually used, so
+    /// a client editing or resending the message can retain that selection. For a
+    /// {@link ChatState.draft | draft} it carries the model the user picked for
+    /// the message they are composing. Absent means the agent host's default
+    /// model applies.
+    public var model: ModelSelection?
+    /// The custom agent this message was, or will be, sent with.
+    ///
+    /// For historic messages this records the agent actually used; for a
+    /// {@link ChatState.draft | draft} it carries the agent the user picked.
+    /// Absent means no custom agent — the provider's default behavior applies.
+    public var agent: AgentSelection?
     /// Additional provider-specific metadata for this message.
     ///
     /// Clients MAY look for well-known keys here to provide enhanced UI, and
@@ -1290,6 +1324,8 @@ public struct Message: Codable, Sendable {
         case text
         case origin
         case attachments
+        case model
+        case agent
         case meta = "_meta"
     }
 
@@ -1297,11 +1333,15 @@ public struct Message: Codable, Sendable {
         text: String,
         origin: MessageOrigin,
         attachments: [MessageAttachment]? = nil,
+        model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.text = text
         self.origin = origin
         self.attachments = attachments
+        self.model = model
+        self.agent = agent
         self.meta = meta
     }
 }

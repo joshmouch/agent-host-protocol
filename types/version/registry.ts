@@ -35,8 +35,6 @@ export const PROTOCOL_VERSION = '0.5.0';
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
   '0.5.0',
-  '0.4.0',
-  '0.3.0',
 ]);
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
@@ -86,8 +84,6 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.SessionChatUpdated]: '0.4.0',
   [ActionType.SessionDefaultChatChanged]: '0.4.0',
   [ActionType.SessionTitleChanged]: '0.1.0',
-  [ActionType.SessionModelChanged]: '0.1.0',
-  [ActionType.SessionAgentChanged]: '0.2.0',
   [ActionType.SessionServerToolsChanged]: '0.1.0',
   [ActionType.SessionActiveClientSet]: '0.5.0',
   [ActionType.SessionActiveClientRemoved]: '0.5.0',
@@ -120,6 +116,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.ChatPendingMessageSet]: '0.4.0',
   [ActionType.ChatPendingMessageRemoved]: '0.4.0',
   [ActionType.ChatQueuedMessagesReordered]: '0.4.0',
+  [ActionType.ChatDraftChanged]: '0.5.0',
   [ActionType.ChatInputRequested]: '0.4.0',
   [ActionType.ChatInputAnswerChanged]: '0.4.0',
   [ActionType.ChatInputCompleted]: '0.4.0',

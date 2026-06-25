@@ -23,6 +23,11 @@ matching `## [X.Y.Z]` heading is missing from this file.
   for lightweight session-list presentation hints.
 - `StateAction::SessionActiveClientRemoved` (`SessionActiveClientRemovedAction`)
   to release a single active client by `client_id`.
+- `StateAction::ChatDraftChanged` (`ChatDraftChangedAction`) and the chat-reducer
+  arm that sets or clears `ChatState.draft`.
+- `ChatState.draft` (`Option<Message>`) holding an in-progress, unsent message.
+- `Message.model` and `Message.agent` optional fields recording the model and
+  agent selected for a message.
 - `ahp-ws` TLS backend is now selectable via Cargo features: `native-tls`,
   `rustls-tls-native-roots` (default), and `rustls-tls-webpki-roots`. The crate
   no longer forces `tokio-tungstenite/native-tls` onto the dependency graph, so
@@ -30,6 +35,15 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Changed
 
+- `SessionState` no longer embeds a `summary` sub-struct; its metadata fields
+  (`provider`, `title`, `status`, `activity`, `project`, `working_directory`,
+  `annotations`) are now inlined directly on `SessionState`, which no longer
+  carries `model`, `agent`, `created_at`, or `modified_at`. The session reducer
+  reads and writes these flat fields and no longer stamps `modified_at`.
+- `SessionSummary.created_at` and `SessionSummary.modified_at` are now ISO-8601
+  `String`s (previously numeric); `SessionSummary` no longer has `model` or
+  `agent`.
+- `ChatState` and `ChatSummary` no longer carry `model` or `agent`.
 - `ahp-ws` now defaults to rustls (`rustls-tls-native-roots`, `ring` provider)
   instead of `native-tls`, dropping the OpenSSL link on Linux while still
   validating against the OS trust store. To keep the previous behaviour, depend
@@ -48,6 +62,9 @@ matching `## [X.Y.Z]` heading is missing from this file.
 
 ### Removed
 
+- `StateAction::SessionModelChanged` (`SessionModelChangedAction`) and
+  `StateAction::SessionAgentChanged` (`SessionAgentChangedAction`), along with
+  their session-reducer arms.
 - `SessionActiveClientToolsChangedAction`. An active client now updates its
   published tools by re-dispatching `SessionActiveClientSet` with its full,
   updated entry.
