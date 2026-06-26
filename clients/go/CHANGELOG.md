@@ -21,6 +21,9 @@ tag whose matching `## [X.Y.Z]` heading is missing from this file.
   sets or clears `state.Draft` without stamping `ModifiedAt`.
 - `Message.Model` and `Message.Agent` optional fields recording the model /
   agent selection a message was composed with.
+- `ProgressParams` struct (wire `root/progress`) — a generic progress notification
+  correlated by a `ProgressToken` (added on `CreateSessionParams`).
+  Used today for the lazy first-use download of an agent's native SDK.
 - `SessionModelInfo.MaxOutputTokens` and `SessionModelInfo.MaxPromptTokens`
   optional fields for communicating model token limits.
 - `SessionSummary.Meta` (wire `_meta`) optional provider metadata field for

@@ -319,6 +319,7 @@ export type {
   SessionAddedParams,
   SessionRemovedParams,
   SessionSummaryChangedParams,
+  ProgressParams,
   AuthRequiredParams,
   OtlpExportLogsParams,
   OtlpExportTracesParams,
