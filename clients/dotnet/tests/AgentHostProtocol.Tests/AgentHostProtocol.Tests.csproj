@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- xUnit 3 test projects are executables that host themselves on
+         Microsoft.Testing.Platform (the v3 default), so the project must emit
+         an Exe and let xunit.v3 generate the entry point. -->
+    <OutputType>Exe</OutputType>
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <!-- Route `dotnet test` through the Microsoft.Testing.Platform host instead
+         of the legacy VSTest target. Without this, `dotnet test` runs the empty
+         VSTest path (no adapter, since the VSTest SDK is intentionally absent),
+         reports "Build succeeded", and exits 0 even when tests FAIL — which would
+         make the CI gate silently green. With it, `dotnet test`'s exit code
+         reflects the real pass/fail result. -->
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Allow the net8.0 test host to roll forward to a newer installed
+         runtime (e.g. a box with only the .NET 10 runtime). CI installs the
+         net8.0 runtime and runs natively. -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- xUnit 3: xunit.v3 replaces the v2 `xunit` metapackage and brings its
+         own Microsoft.Testing.Platform host transitively. xunit.runner.visualstudio
+         3.x keeps plain `dotnet test` working against the MTP host. -->
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- ServiceCollection + BuildServiceProvider for the AddAgentHostProtocol tests
+         (the shipping library references only the Abstractions). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AgentHostProtocol/AgentHostProtocol.csproj" />
+    <ProjectReference Include="../../src/AgentHostProtocol.WebSockets/AgentHostProtocol.WebSockets.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="interop/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

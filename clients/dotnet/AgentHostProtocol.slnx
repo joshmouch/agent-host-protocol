@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/ConnectWs/ConnectWs.csproj" />
+    <Project Path="examples/ReducersDemo/ReducersDemo.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AgentHostProtocol.Abstractions/AgentHostProtocol.Abstractions.csproj" />
+    <Project Path="src/AgentHostProtocol.WebSockets/AgentHostProtocol.WebSockets.csproj" />
+    <Project Path="src/AgentHostProtocol/AgentHostProtocol.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentHostProtocol.Tests/AgentHostProtocol.Tests.csproj" />
+  </Folder>
+</Solution>

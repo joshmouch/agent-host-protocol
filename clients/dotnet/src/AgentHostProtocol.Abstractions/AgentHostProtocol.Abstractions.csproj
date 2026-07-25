@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Microsoft.AgentHostProtocol</RootNamespace>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>Microsoft.AgentHostProtocol.Abstractions</AssemblyName>
+    <IsPackable>true</IsPackable>
+    <PackageId>Microsoft.AgentHostProtocol.Abstractions</PackageId>
+    <Description>
+      Wire types, reducers' data contracts, and transport/serializer
+      interfaces for the Agent Host Protocol (AHP) — the synchronized,
+      multi-client state protocol for AI agent sessions. This package has no
+      I/O and no dependencies beyond the base class library; reference it to
+      parse, construct, or inspect AHP messages, or to implement a transport.
+    </Description>
+    <!-- Trim/AOT analyzer posture. The union/enum converters are reflection-
+         based (root.Deserialize(runtimeType), GetFields over [WireValue]), so this
+         package is NOT trim/AOT-safe and does not CLAIM to be — no IsTrimmable /
+         IsAotCompatible (those would mislead consumers into trimming/AOT-publishing
+         against it). These flags only turn the analyzers ON so those entry points
+         surface IL2026/IL3050 at build time and are declared unsafe via
+         [RequiresUnreferencedCode]/[RequiresDynamicCode] (source-gen is deferred
+         per docs/decisions/serialization.md). -->
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- SourceLink: pairs with the snupkg symbol packages + PublishRepositoryUrl
+       so consumers can step into normalized, reproducible source. PrivateAssets
+       keeps the tooling package out of the consumer's dependency graph. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

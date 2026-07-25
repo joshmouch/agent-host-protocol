@@ -17,10 +17,11 @@ The Agent Host Protocol (AHP) defines how a portable, standalone sessions server
 | **Kotlin** | [`com.microsoft.agenthostprotocol:agent-host-protocol`](https://central.sonatype.com/artifact/com.microsoft.agenthostprotocol/agent-host-protocol) | [![Maven Central](https://img.shields.io/maven-central/v/com.microsoft.agenthostprotocol/agent-host-protocol.svg?logo=apachemaven)](https://central.sonatype.com/artifact/com.microsoft.agenthostprotocol/agent-host-protocol) | [`clients/kotlin/`](clients/kotlin/) · [CHANGELOG](clients/kotlin/CHANGELOG.md) |
 | **Go** | [`github.com/microsoft/agent-host-protocol/clients/go`](https://pkg.go.dev/github.com/microsoft/agent-host-protocol/clients/go) | [![Go Reference](https://pkg.go.dev/badge/github.com/microsoft/agent-host-protocol/clients/go.svg)](https://pkg.go.dev/github.com/microsoft/agent-host-protocol/clients/go) | [`clients/go/`](clients/go/) · [CHANGELOG](clients/go/CHANGELOG.md) |
 | **Swift** | [SwiftPM: `microsoft/agent-host-protocol`](https://github.com/microsoft/agent-host-protocol) | [![Tag](https://img.shields.io/github/v/tag/microsoft/agent-host-protocol?filter=v*&label=SwiftPM&logo=swift)](https://github.com/microsoft/agent-host-protocol/tags) | [package README](clients/swift/AgentHostProtocol/README.md) · [CHANGELOG](clients/swift/CHANGELOG.md) |
+| **.NET** | `Microsoft.AgentHostProtocol` · `Microsoft.AgentHostProtocol.WebSockets` · `Microsoft.AgentHostProtocol.Abstractions` | _proposed_ | [`clients/dotnet/`](clients/dotnet/) · [CHANGELOG](clients/dotnet/CHANGELOG.md) |
 
 Other clients: [**AHPX**](https://github.com/TylerLeonhardt/ahpx) (CLI + Node.js client) and [**VS Code**](https://github.com/microsoft/vscode) (built-in Agent Sessions client).
 
-The Rust, Swift, and Go SDKs ship a `MultiHostClient` for talking to two or more hosts at once (single-host consumers use the same API via `MultiHostClient::single` / `.single(...)` / `hosts.Single(...)`). See [Connecting to Multiple Hosts](https://microsoft.github.io/agent-host-protocol/guide/clients-multi-host).
+The Rust, Swift, Go, and .NET SDKs ship a `MultiHostClient` for talking to two or more hosts at once (single-host consumers use the same API via `MultiHostClient::single` / `.single(...)` / `hosts.Single(...)` / `MultiHostClient.SingleAsync(...)`). See [Connecting to Multiple Hosts](https://microsoft.github.io/agent-host-protocol/guide/clients-multi-host).
 
 ## Servers
 

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsPublishable>false</IsPublishable>
+    <!-- Roll forward to the installed runtime on boxes without net8.0. -->
+    <RollForward>Major</RollForward>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/AgentHostProtocol/AgentHostProtocol.csproj" />
+  </ItemGroup>
+
+  <!-- The OpenTelemetry SDK + a console exporter. The AHP library itself takes
+       NO OpenTelemetry dependency — it originates only BCL ActivitySource/Meter
+       instruments. The CONSUMER (this example) brings OpenTelemetry and wires the
+       AHP instrumentation scope into its trace + metric pipelines. -->
+  <ItemGroup>
+    <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.9.0" />
+  </ItemGroup>
+
+</Project>
