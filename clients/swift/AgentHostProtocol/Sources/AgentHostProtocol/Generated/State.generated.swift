@@ -294,6 +294,13 @@ public enum CustomizationType: String, Codable, Sendable {
     case mcpServer = "mcpServer"
 }
 
+/// Scope at which customization enablement is decided.
+public enum CustomizationEnablementKind: String, Codable, Sendable {
+    case global = "global"
+    case workspace = "workspace"
+    case session = "session"
+}
+
 /// Discriminant values for {@link CustomizationLoadState}.
 public enum CustomizationLoadStatus: String, Codable, Sendable {
     case loading = "loading"
@@ -3510,8 +3517,6 @@ public struct PluginCustomization: Codable, Sendable {
     /// protocol; producers and consumers agree on its contents
     /// out-of-band.
     public var meta: [String: AnyCodable]?
-    /// Whether this container is currently enabled.
-    public var enabled: Bool
     /// `clientId` of the client that contributed this container. Absent for
     /// server-originated entries.
     public var clientId: String?
@@ -3525,6 +3530,8 @@ public struct PluginCustomization: Codable, Sendable {
     /// nothing.
     public var children: [ChildCustomization]?
     public var type: CustomizationType
+    /// Explicit enablement decisions. See {@link McpServerCustomization.enablement}.
+    public var enablement: [CustomizationEnablement]?
     /// Version of the plugin, sourced from the
     /// [Open Plugins](https://open-plugins.com/) manifest's optional
     /// `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
@@ -3540,11 +3547,11 @@ public struct PluginCustomization: Codable, Sendable {
         case icons
         case range
         case meta = "_meta"
-        case enabled
         case clientId
         case load
         case children
         case type
+        case enablement
         case version
     }
 
@@ -3555,11 +3562,11 @@ public struct PluginCustomization: Codable, Sendable {
         icons: [Icon]? = nil,
         range: TextRange? = nil,
         meta: [String: AnyCodable]? = nil,
-        enabled: Bool,
         clientId: String? = nil,
         load: CustomizationLoadState? = nil,
         children: [ChildCustomization]? = nil,
         type: CustomizationType,
+        enablement: [CustomizationEnablement]? = nil,
         version: String? = nil
     ) {
         self.id = id
@@ -3568,11 +3575,11 @@ public struct PluginCustomization: Codable, Sendable {
         self.icons = icons
         self.range = range
         self.meta = meta
-        self.enabled = enabled
         self.clientId = clientId
         self.load = load
         self.children = children
         self.type = type
+        self.enablement = enablement
         self.version = version
     }
 }
@@ -3605,8 +3612,6 @@ public struct ClientPluginCustomization: Codable, Sendable {
     /// protocol; producers and consumers agree on its contents
     /// out-of-band.
     public var meta: [String: AnyCodable]?
-    /// Whether this container is currently enabled.
-    public var enabled: Bool
     /// `clientId` of the client that contributed this container. Absent for
     /// server-originated entries.
     public var clientId: String?
@@ -3620,6 +3625,8 @@ public struct ClientPluginCustomization: Codable, Sendable {
     /// nothing.
     public var children: [ChildCustomization]?
     public var type: CustomizationType
+    /// Explicit enablement decisions. See {@link McpServerCustomization.enablement}.
+    public var enablement: [CustomizationEnablement]?
     /// Version of the plugin, sourced from the
     /// [Open Plugins](https://open-plugins.com/) manifest's optional
     /// `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
@@ -3629,6 +3636,15 @@ public struct ClientPluginCustomization: Codable, Sendable {
     public var version: String?
     /// Opaque version token used by the host to detect changes.
     public var nonce: String?
+    /// Explicit enablement decisions for children this plugin contributes,
+    /// keyed by child name (for MCP servers, the server name as it appears in
+    /// the bundled `.mcp.json`).
+    ///
+    /// Bundled children are discovered by the host rather than published by the
+    /// client, so the client cannot attach `enablement` to them directly. This
+    /// carries the client's global decision for each one; the host applies it
+    /// under the child's durable key.
+    public var childEnablement: [String: [CustomizationEnablement]]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -3637,13 +3653,14 @@ public struct ClientPluginCustomization: Codable, Sendable {
         case icons
         case range
         case meta = "_meta"
-        case enabled
         case clientId
         case load
         case children
         case type
+        case enablement
         case version
         case nonce
+        case childEnablement
     }
 
     public init(
@@ -3653,13 +3670,14 @@ public struct ClientPluginCustomization: Codable, Sendable {
         icons: [Icon]? = nil,
         range: TextRange? = nil,
         meta: [String: AnyCodable]? = nil,
-        enabled: Bool,
         clientId: String? = nil,
         load: CustomizationLoadState? = nil,
         children: [ChildCustomization]? = nil,
         type: CustomizationType,
+        enablement: [CustomizationEnablement]? = nil,
         version: String? = nil,
-        nonce: String? = nil
+        nonce: String? = nil,
+        childEnablement: [String: [CustomizationEnablement]]? = nil
     ) {
         self.id = id
         self.uri = uri
@@ -3667,13 +3685,14 @@ public struct ClientPluginCustomization: Codable, Sendable {
         self.icons = icons
         self.range = range
         self.meta = meta
-        self.enabled = enabled
         self.clientId = clientId
         self.load = load
         self.children = children
         self.type = type
+        self.enablement = enablement
         self.version = version
         self.nonce = nonce
+        self.childEnablement = childEnablement
     }
 }
 
@@ -3705,8 +3724,6 @@ public struct DirectoryCustomization: Codable, Sendable {
     /// protocol; producers and consumers agree on its contents
     /// out-of-band.
     public var meta: [String: AnyCodable]?
-    /// Whether this container is currently enabled.
-    public var enabled: Bool
     /// `clientId` of the client that contributed this container. Absent for
     /// server-originated entries.
     public var clientId: String?
@@ -3720,6 +3737,8 @@ public struct DirectoryCustomization: Codable, Sendable {
     /// nothing.
     public var children: [ChildCustomization]?
     public var type: CustomizationType
+    /// Whether this container is currently enabled.
+    public var enabled: Bool
     /// Which child customization type this directory holds.
     public var contents: CustomizationType
     /// Whether clients may write into this directory.
@@ -3732,11 +3751,11 @@ public struct DirectoryCustomization: Codable, Sendable {
         case icons
         case range
         case meta = "_meta"
-        case enabled
         case clientId
         case load
         case children
         case type
+        case enabled
         case contents
         case writable
     }
@@ -3748,11 +3767,11 @@ public struct DirectoryCustomization: Codable, Sendable {
         icons: [Icon]? = nil,
         range: TextRange? = nil,
         meta: [String: AnyCodable]? = nil,
-        enabled: Bool,
         clientId: String? = nil,
         load: CustomizationLoadState? = nil,
         children: [ChildCustomization]? = nil,
         type: CustomizationType,
+        enabled: Bool,
         contents: CustomizationType,
         writable: Bool
     ) {
@@ -3762,11 +3781,11 @@ public struct DirectoryCustomization: Codable, Sendable {
         self.icons = icons
         self.range = range
         self.meta = meta
-        self.enabled = enabled
         self.clientId = clientId
         self.load = load
         self.children = children
         self.type = type
+        self.enabled = enabled
         self.contents = contents
         self.writable = writable
     }
@@ -3805,9 +3824,10 @@ public struct AgentCustomization: Codable, Sendable {
     /// turned off on its own.
     ///
     /// This flag is independent of the parent container's: the **effective**
-    /// enabled state of a child is
-    /// `container.enabled && (child.enabled ?? true)`, so a disabled container
-    /// disables every child regardless of each child's own flag.
+    /// enabled state of a plugin child is the plugin's derived enabled value and
+    /// `(child.enabled ?? true)`, so a disabled plugin disables every child
+    /// regardless of each child's own flag. A directory child instead uses the
+    /// directory's `enabled` value and its own flag.
     ///
     /// A child is turned on or off by id with
     /// {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -3917,9 +3937,10 @@ public struct SkillCustomization: Codable, Sendable {
     /// turned off on its own.
     ///
     /// This flag is independent of the parent container's: the **effective**
-    /// enabled state of a child is
-    /// `container.enabled && (child.enabled ?? true)`, so a disabled container
-    /// disables every child regardless of each child's own flag.
+    /// enabled state of a plugin child is the plugin's derived enabled value and
+    /// `(child.enabled ?? true)`, so a disabled plugin disables every child
+    /// regardless of each child's own flag. A directory child instead uses the
+    /// directory's `enabled` value and its own flag.
     ///
     /// A child is turned on or off by id with
     /// {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -4011,9 +4032,10 @@ public struct PromptCustomization: Codable, Sendable {
     /// turned off on its own.
     ///
     /// This flag is independent of the parent container's: the **effective**
-    /// enabled state of a child is
-    /// `container.enabled && (child.enabled ?? true)`, so a disabled container
-    /// disables every child regardless of each child's own flag.
+    /// enabled state of a plugin child is the plugin's derived enabled value and
+    /// `(child.enabled ?? true)`, so a disabled plugin disables every child
+    /// regardless of each child's own flag. A directory child instead uses the
+    /// directory's `enabled` value and its own flag.
     ///
     /// A child is turned on or off by id with
     /// {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -4090,9 +4112,10 @@ public struct RuleCustomization: Codable, Sendable {
     /// turned off on its own.
     ///
     /// This flag is independent of the parent container's: the **effective**
-    /// enabled state of a child is
-    /// `container.enabled && (child.enabled ?? true)`, so a disabled container
-    /// disables every child regardless of each child's own flag.
+    /// enabled state of a plugin child is the plugin's derived enabled value and
+    /// `(child.enabled ?? true)`, so a disabled plugin disables every child
+    /// regardless of each child's own flag. A directory child instead uses the
+    /// directory's `enabled` value and its own flag.
     ///
     /// A child is turned on or off by id with
     /// {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -4182,9 +4205,10 @@ public struct HookCustomization: Codable, Sendable {
     /// turned off on its own.
     ///
     /// This flag is independent of the parent container's: the **effective**
-    /// enabled state of a child is
-    /// `container.enabled && (child.enabled ?? true)`, so a disabled container
-    /// disables every child regardless of each child's own flag.
+    /// enabled state of a plugin child is the plugin's derived enabled value and
+    /// `(child.enabled ?? true)`, so a disabled plugin disables every child
+    /// regardless of each child's own flag. A directory child instead uses the
+    /// directory's `enabled` value and its own flag.
     ///
     /// A child is turned on or off by id with
     /// {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -4252,8 +4276,25 @@ public struct McpServerCustomization: Codable, Sendable {
     /// out-of-band.
     public var meta: [String: AnyCodable]?
     public var type: CustomizationType
-    /// Whether this MCP server is currently enabled.
-    public var enabled: Bool
+    /// Explicit enablement decisions for this customization, one entry per scope
+    /// that has one. This is a wire contract: producers MUST publish entries
+    /// sorted by descending specificity (Session, Workspace, then Global).
+    /// The agent host emits at most one Workspace entry, for the session's primary
+    /// working directory. Consumers MAY treat
+    /// `enablement[0]` as the decisive decision and
+    /// `enablement?.[0]?.enabled ?? true` as the effective enabled value. An
+    /// absent or empty array means no explicit decision exists, so the
+    /// customization is enabled by default.
+    ///
+    /// Flows in both directions. A client publishes this alongside a customization
+    /// to assert its global decision, which is authoritative for the Global scope;
+    /// a client always includes its global entry, even when enabled. The host
+    /// publishes the fully resolved set across all scopes, and consumers derive
+    /// the effective enabled value from that set.
+    public var enablement: [CustomizationEnablement]?
+    /// Whether the client explicitly bundled this server and owns its Global
+    /// enablement decision.
+    public var isClientBundled: Bool?
     /// Current lifecycle state of the MCP server.
     public var state: McpServerState
     /// An `mcp://`-protocol channel the client uses to side-channel traffic
@@ -4284,7 +4325,8 @@ public struct McpServerCustomization: Codable, Sendable {
         case range
         case meta = "_meta"
         case type
-        case enabled
+        case enablement
+        case isClientBundled
         case state
         case channel
         case mcpApp
@@ -4298,7 +4340,8 @@ public struct McpServerCustomization: Codable, Sendable {
         range: TextRange? = nil,
         meta: [String: AnyCodable]? = nil,
         type: CustomizationType,
-        enabled: Bool,
+        enablement: [CustomizationEnablement]? = nil,
+        isClientBundled: Bool? = nil,
         state: McpServerState,
         channel: String? = nil,
         mcpApp: McpServerCustomizationApps? = nil
@@ -4310,7 +4353,8 @@ public struct McpServerCustomization: Codable, Sendable {
         self.range = range
         self.meta = meta
         self.type = type
-        self.enabled = enabled
+        self.enablement = enablement
+        self.isClientBundled = isClientBundled
         self.state = state
         self.channel = channel
         self.mcpApp = mcpApp
@@ -5224,6 +5268,70 @@ public struct ResourceChange: Codable, Sendable {
     ) {
         self.uri = uri
         self.type = type
+    }
+}
+
+// MARK: - Customization Enablement Union
+
+/// A single explicit customization enablement decision.
+public enum CustomizationEnablement: Codable, Sendable {
+    case global(CustomizationEnablementGlobal)
+    case workspace(CustomizationEnablementWorkspace)
+    case session(CustomizationEnablementSession)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case kind
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        switch try container.decode(String.self, forKey: .kind) {
+        case "global":
+            self = .global(try CustomizationEnablementGlobal(from: decoder))
+        case "workspace":
+            self = .workspace(try CustomizationEnablementWorkspace(from: decoder))
+        case "session":
+            self = .session(try CustomizationEnablementSession(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Unknown CustomizationEnablement kind")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .global(let value): try value.encode(to: encoder)
+        case .workspace(let value): try value.encode(to: encoder)
+        case .session(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public struct CustomizationEnablementGlobal: Codable, Sendable {
+    public var kind: String = "global"
+    public var enabled: Bool
+
+    public init(enabled: Bool) {
+        self.enabled = enabled
+    }
+}
+
+public struct CustomizationEnablementWorkspace: Codable, Sendable {
+    public var kind: String = "workspace"
+    public var uri: URI
+    public var enabled: Bool
+
+    public init(uri: URI, enabled: Bool) {
+        self.uri = uri
+        self.enabled = enabled
+    }
+}
+
+public struct CustomizationEnablementSession: Codable, Sendable {
+    public var kind: String = "session"
+    public var enabled: Bool
+
+    public init(enabled: Bool) {
+        self.enabled = enabled
     }
 }
 
