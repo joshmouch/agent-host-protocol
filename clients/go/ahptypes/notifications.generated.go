@@ -215,6 +215,8 @@ type PartialSessionSummary struct {
 	Status *SessionStatus `json:"status,omitempty"`
 	// Human-readable description of what the session is currently doing
 	Activity *string `json:"activity,omitempty"`
+	// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+	Origin *SessionOrigin `json:"origin,omitempty"`
 	// Server-owned project for this session
 	Project *ProjectInfo `json:"project,omitempty"`
 	// The working directories the session's agent has tool access to, as

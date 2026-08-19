@@ -32,6 +32,8 @@ import type { ActionEnvelope } from '../../types/common/actions.js';
 import type { Snapshot, URI } from '../../types/common/state.js';
 import type {
   ChangesetAction,
+  AutomationAction,
+  AutomationRunAction,
   RootAction,
   SessionAction,
   TerminalAction,
@@ -40,13 +42,18 @@ import type { ChangesetState } from '../../types/channels-changeset/state.js';
 import type { RootState } from '../../types/channels-root/state.js';
 import type { SessionState } from '../../types/channels-session/state.js';
 import type { TerminalState } from '../../types/channels-terminal/state.js';
+import type { AutomationCatalogState, AutomationState } from '../../types/channels-automation/state.js';
+import type { AutomationRunState } from '../../types/channels-automation-run/state.js';
 import { changesetReducer } from '../../types/channels-changeset/reducer.js';
 import { rootReducer } from '../../types/channels-root/reducer.js';
 import { sessionReducer } from '../../types/channels-session/reducer.js';
 import { terminalReducer } from '../../types/channels-terminal/reducer.js';
+import { automationReducer } from '../../types/channels-automation/reducer.js';
+import { automationRunReducer } from '../../types/channels-automation-run/reducer.js';
 import { ROOT_RESOURCE_URI, type HostId, type HostSubscriptionEvent } from './types.js';
 
 const INITIAL_ROOT: RootState = { agents: [] };
+const AUTOMATIONS_URI = 'ahp-automations://' as const;
 
 /**
  * Compound key tagging a channel URI with the host that produced it.
@@ -98,6 +105,9 @@ export class MultiHostStateMirror {
   private readonly sessionsMap = new Map<string, SessionState>();
   private readonly terminalsMap = new Map<string, TerminalState>();
   private readonly changesetsMap = new Map<string, ChangesetState>();
+  private readonly automationCatalogsMap = new Map<HostId, AutomationCatalogState>();
+  private readonly automationsMap = new Map<string, AutomationState>();
+  private readonly automationRunsMap = new Map<string, AutomationRunState>();
 
   /** All known root states keyed by host. */
   get rootStates(): ReadonlyMap<HostId, RootState> {
@@ -117,6 +127,20 @@ export class MultiHostStateMirror {
   /** All known changeset states keyed by `hostedResourceKey(hostId, uri)`. */
   get changesets(): ReadonlyMap<string, ChangesetState> {
     return this.changesetsMap;
+  }
+
+  /** Automation catalogue state keyed by host. */
+  get automationCatalogs(): ReadonlyMap<HostId, AutomationCatalogState> {
+    return this.automationCatalogsMap;
+  }
+
+  /** Catalogued automations keyed by `hostedResourceKey(hostId, resource)`. */
+  get automations(): ReadonlyMap<string, AutomationState> {
+    return this.automationsMap;
+  }
+
+  get automationRuns(): ReadonlyMap<string, AutomationRunState> {
+    return this.automationRunsMap;
   }
 
 
@@ -140,6 +164,10 @@ export class MultiHostStateMirror {
     return this.changesetsMap.get(hostedResourceKey(hostId, uri));
   }
 
+  /** Look up a catalogued automation by `(hostId, uri)`. */
+  getAutomation(hostId: HostId, uri: URI): AutomationState | undefined {
+    return this.automationsMap.get(hostedResourceKey(hostId, uri));
+  }
 
   /**
    * Convenience: apply a {@link HostSubscriptionEvent} produced by
@@ -187,6 +215,19 @@ export class MultiHostStateMirror {
       this.changesetsMap.set(key, changesetReducer(current, action as ChangesetAction));
       return;
     }
+    if (channel === AUTOMATIONS_URI) {
+      const current = this.automationCatalogsMap.get(hostId);
+      if (!current) return;
+      this.setAutomationCatalog(hostId, automationReducer(current, action as AutomationAction));
+      return;
+    }
+    if (channel.startsWith('ahp-automation-run:')) {
+      const key = hostedResourceKey(hostId, channel);
+      const current = this.automationRunsMap.get(key);
+      if (!current) return;
+      this.automationRunsMap.set(key, automationRunReducer(current, action as AutomationRunAction));
+      return;
+    }
   }
 
   /**
@@ -213,11 +254,20 @@ export class MultiHostStateMirror {
       this.changesetsMap.set(key, snapshot.state as ChangesetState);
       return;
     }
+    if (resource === AUTOMATIONS_URI) {
+      this.setAutomationCatalog(hostId, snapshot.state as AutomationCatalogState);
+      return;
+    }
+    if (resource.startsWith('ahp-automation-run:')) {
+      this.automationRunsMap.set(key, snapshot.state as AutomationRunState);
+      return;
+    }
   }
 
   /** Drop every slot keyed under `hostId` — root, sessions, terminals, changesets. */
   resetHost(hostId: HostId): void {
     this.rootStatesMap.delete(hostId);
+    this.automationCatalogsMap.delete(hostId);
     const prefix = hostedResourceKeyPrefix(hostId);
     for (const key of this.sessionsMap.keys()) {
       if (key.startsWith(prefix)) this.sessionsMap.delete(key);
@@ -228,6 +278,12 @@ export class MultiHostStateMirror {
     for (const key of this.changesetsMap.keys()) {
       if (key.startsWith(prefix)) this.changesetsMap.delete(key);
     }
+    for (const key of this.automationsMap.keys()) {
+      if (key.startsWith(prefix)) this.automationsMap.delete(key);
+    }
+    for (const key of this.automationRunsMap.keys()) {
+      if (key.startsWith(prefix)) this.automationRunsMap.delete(key);
+    }
   }
 
   /** Drop every host's state. */
@@ -236,5 +292,19 @@ export class MultiHostStateMirror {
     this.sessionsMap.clear();
     this.terminalsMap.clear();
     this.changesetsMap.clear();
+    this.automationCatalogsMap.clear();
+    this.automationsMap.clear();
+    this.automationRunsMap.clear();
+  }
+
+  private setAutomationCatalog(hostId: HostId, state: AutomationCatalogState): void {
+    this.automationCatalogsMap.set(hostId, state);
+    const prefix = hostedResourceKeyPrefix(hostId);
+    for (const key of this.automationsMap.keys()) {
+      if (key.startsWith(prefix)) this.automationsMap.delete(key);
+    }
+    for (const automation of state.automations) {
+      this.automationsMap.set(hostedResourceKey(hostId, automation.resource), automation);
+    }
   }
 }

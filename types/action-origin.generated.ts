@@ -89,6 +89,15 @@ import type {
   TerminalCommandExecutedAction,
   TerminalCommandFinishedAction,
   ResourceWatchChangedAction,
+  AutomationCreateRequestedAction,
+  AutomationUpdateRequestedAction,
+  AutomationSetAction,
+  AutomationRemovedAction,
+  AutomationRunLifecycleChangedAction,
+  AutomationRunSessionSetAction,
+  AutomationRunSessionRemovedAction,
+  AutomationRunPrimarySessionChangedAction,
+  AutomationRunCancelRequestedAction,
 } from './actions.js';
 
 import { ActionType } from './actions.js';
@@ -353,6 +362,48 @@ export type ServerResourceWatchAction =
   | ResourceWatchChangedAction
 ;
 
+/** Union of all automation-scoped actions. */
+export type AutomationAction =
+  | AutomationCreateRequestedAction
+  | AutomationUpdateRequestedAction
+  | AutomationSetAction
+  | AutomationRemovedAction
+;
+
+/** Union of automation actions that clients may dispatch. */
+export type ClientAutomationAction =
+  | AutomationCreateRequestedAction
+  | AutomationUpdateRequestedAction
+  | AutomationRemovedAction
+;
+
+/** Union of automation actions that only the server may produce. */
+export type ServerAutomationAction =
+  | AutomationSetAction
+;
+
+/** Union of all automation-run-scoped actions. */
+export type AutomationRunAction =
+  | AutomationRunLifecycleChangedAction
+  | AutomationRunSessionSetAction
+  | AutomationRunSessionRemovedAction
+  | AutomationRunPrimarySessionChangedAction
+  | AutomationRunCancelRequestedAction
+;
+
+/** Union of automation-run actions that clients may dispatch. */
+export type ClientAutomationRunAction =
+  | AutomationRunCancelRequestedAction
+;
+
+/** Union of automation-run actions that only the server may produce. */
+export type ServerAutomationRunAction =
+  | AutomationRunLifecycleChangedAction
+  | AutomationRunSessionSetAction
+  | AutomationRunSessionRemovedAction
+  | AutomationRunPrimarySessionChangedAction
+;
+
 // ─── Client-Dispatchable Map ─────────────────────────────────────────────────
 
 /**
@@ -446,4 +497,13 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
   [ActionType.TerminalCommandExecuted]: false,
   [ActionType.TerminalCommandFinished]: false,
   [ActionType.ResourceWatchChanged]: false,
+  [ActionType.AutomationCreateRequested]: true,
+  [ActionType.AutomationUpdateRequested]: true,
+  [ActionType.AutomationSet]: false,
+  [ActionType.AutomationRemoved]: true,
+  [ActionType.AutomationRunLifecycleChanged]: false,
+  [ActionType.AutomationRunSessionSet]: false,
+  [ActionType.AutomationRunSessionRemoved]: false,
+  [ActionType.AutomationRunPrimarySessionChanged]: false,
+  [ActionType.AutomationRunCancelRequested]: true,
 };

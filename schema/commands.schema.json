@@ -172,6 +172,10 @@
         "telemetry": {
           "$ref": "#/$defs/TelemetryCapabilities",
           "description": "OTLP telemetry channels the host emits, if any. Each populated field is\neither a literal `ahp-otlp:` channel URI or an RFC 6570 URI template a\nclient expands before subscribing (currently only the `logs` channel\ndefines a template variable, `{level}`, for subscriber-side severity\nfiltering). Clients MAY ignore signals they cannot process."
+        },
+        "automations": {
+          "$ref": "#/$defs/AutomationCapabilities",
+          "description": "Host-owned automation support. Presence means clients may subscribe to\n`ahp-automations://` for {@link AutomationCatalogState}; absence means the\nhost does not expose an automation catalogue or automation commands."
         }
       },
       "required": [
@@ -179,6 +183,48 @@
         "serverSeq",
         "snapshots"
       ]
+    },
+    "AutomationCapabilities": {
+      "type": "object",
+      "description": "Automation features supported by this host authority.\n\nThe presence of this object advertises the baseline `ahp-automations://`\ncatalogue. Optional fields describe additional host features and\nrestrictions.\n\nCapabilities describe implementation support.\n{@link AutomationState.operations} remains authoritative for which\ndefinition mutations are currently allowed on a particular automation.",
+      "properties": {
+        "create": {
+          "$ref": "#/$defs/AutomationCreateCapability",
+          "description": "Present when clients may dispatch {@link AutomationCreateRequestedAction}."
+        },
+        "schedules": {
+          "$ref": "#/$defs/AutomationScheduleCapabilities",
+          "description": "Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}."
+        },
+        "runCancellation": {
+          "$ref": "#/$defs/AutomationRunCancellationCapability",
+          "description": "Present when clients may request cancellation of `pending` or `running`\nautomation runs."
+        },
+        "runHistoryLimit": {
+          "type": "number",
+          "description": "Maximum terminal entries retained in {@link AutomationState.runs}. Active\nruns are not counted toward the limit. Absence means the retention limit is\nimplementation-defined."
+        }
+      }
+    },
+    "AutomationCreateCapability": {
+      "type": "object",
+      "description": "Presence capability for {@link AutomationCreateRequestedAction |\n`automation/createRequested`}.\n\nThe empty object means \"supported\"; fields are reserved for future\ncreate-specific options.",
+      "properties": {}
+    },
+    "AutomationScheduleCapabilities": {
+      "type": "object",
+      "description": "Host restrictions on portable {@link AutomationSchedule} triggers.\n\nThe cron grammar itself is fixed by AHP. Hosts MUST accept every expression\nin that grammar unless it violates an advertised interval restriction.",
+      "properties": {
+        "minIntervalMinutes": {
+          "type": "number",
+          "description": "Smallest permitted interval between consecutive occurrences produced by\n{@link AutomationSchedule.expression}. Omission means no restriction beyond\nthe cron format's one-minute resolution."
+        }
+      }
+    },
+    "AutomationRunCancellationCapability": {
+      "type": "object",
+      "description": "Presence capability for {@link AutomationRunCancelRequestedAction |\n`automationRun/cancelRequested`}.\n\nThe empty object means \"supported.\" Clients may dispatch the action for\n`pending` or `running` runs; terminal runs cannot be cancelled.",
+      "properties": {}
     },
     "PingParams": {
       "type": "object",
@@ -1498,6 +1544,138 @@
         "channel"
       ]
     },
+    "ListAutomationTriggerDefinitionsParams": {
+      "type": "object",
+      "description": "Discover event-trigger types available for a prospective session template.\n\nHosts may vary definitions by provider, workspace, and session\nconfiguration. Schedule triggers are protocol-defined and therefore do not\nappear in this result. The result describes current authoring and validation\nchoices. Saved {@link AutomationEventTrigger} values retain their selected\nevent descriptors for display but do not establish current availability.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-root://"
+          ],
+          "description": "Trigger definitions are discovered from the root channel."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional JSON-serializable metadata associated with this request.\nReceivers MUST ignore keys they do not understand."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Prospective provider id matching {@link AgentInfo.provider}, or omitted for the host default."
+        },
+        "workingDirectories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/URI"
+          },
+          "description": "Prospective {@link AutomationSessionTemplate.workingDirectories}."
+        },
+        "sessionConfig": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Prospective resolved {@link AutomationSessionTemplate.config}."
+        }
+      },
+      "required": [
+        "channel"
+      ]
+    },
+    "ListAutomationTriggerDefinitionsResult": {
+      "type": "object",
+      "description": "Host-defined event trigger types available for the supplied context.",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTriggerDefinition"
+          },
+          "description": "Available event trigger definitions."
+        }
+      },
+      "required": [
+        "items"
+      ]
+    },
+    "RunAutomationParams": {
+      "type": "object",
+      "description": "Start a manual run of an automation.\n\nManual execution is independent of {@link AutomationDefinition.enabled}.\nThe host persists the run before beginning session side effects.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-automations://"
+          ],
+          "description": "Manual runs are scoped to the catalogue channel."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional JSON-serializable metadata associated with this request.\nReceivers MUST ignore keys they do not understand."
+        },
+        "automation": {
+          "$ref": "#/$defs/URI",
+          "description": "Target {@link AutomationState.resource}."
+        },
+        "requestId": {
+          "type": "string",
+          "description": "Durable client-generated idempotency key. Retrying with the same key and\nautomation MUST return the original run URI rather than create another\nrun."
+        }
+      },
+      "required": [
+        "channel",
+        "automation",
+        "requestId"
+      ]
+    },
+    "RunAutomationResult": {
+      "type": "object",
+      "description": "Result identifying the existing or newly created run.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}."
+        }
+      },
+      "required": [
+        "resource"
+      ]
+    },
+    "FetchAutomationRunsParams": {
+      "type": "object",
+      "description": "Load one older page into a catalogued automation's run-history state.\n\nThe response only acknowledges the request. The updated full state arrives\nthrough {@link AutomationSetAction | `automation/set`} on the\n`ahp-automations://` channel, keeping all catalogue subscribers synchronized\nthrough the normal action stream.",
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": [
+            "ahp-automations://"
+          ],
+          "description": "Run-history loading is scoped to the catalogue channel."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Optional JSON-serializable metadata associated with this request.\nReceivers MUST ignore keys they do not understand."
+        },
+        "automation": {
+          "$ref": "#/$defs/URI",
+          "description": "Target {@link AutomationState.resource}."
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Cursor previously received as {@link AutomationState.runsNextCursor}.\nOmit to request the first page not already included by the snapshot."
+        }
+      },
+      "required": [
+        "channel",
+        "automation"
+      ]
+    },
+    "FetchAutomationRunsResult": {
+      "type": "object",
+      "description": "Empty acknowledgement; the updated automation state is delivered by action.",
+      "properties": {}
+    },
     "Icon": {
       "type": "object",
       "description": "An optionally-sized icon that can be displayed in a user interface.",
@@ -1911,6 +2089,12 @@
             },
             {
               "$ref": "#/$defs/ChatState"
+            },
+            {
+              "$ref": "#/$defs/AutomationCatalogState"
+            },
+            {
+              "$ref": "#/$defs/AutomationRunState"
             }
           ],
           "description": "The current state of the resource"
@@ -2142,6 +2326,28 @@
         "values"
       ]
     },
+    "AutomationSessionOrigin": {
+      "type": "object",
+      "description": "Provenance recorded on a session created for an automation run.\n\nThe links let clients navigate from an ordinary session to the task-level\nrun and its durable definition. The session channel remains authoritative\nfor this session's transcript, tools, confirmations, and changes.",
+      "properties": {
+        "kind": {
+          "const": "automation"
+        },
+        "automation": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning {@link AutomationState.resource}."
+        },
+        "run": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning {@link AutomationRunState.resource}."
+        }
+      },
+      "required": [
+        "kind",
+        "automation",
+        "run"
+      ]
+    },
     "SessionMetadata": {
       "type": "object",
       "description": "Metadata shared between the full {@link SessionState} (delivered when a\nclient subscribes to a session's URI) and the lightweight\n{@link SessionSummary} (carried in the root-channel session catalog).\n\nThese fields describe the session at a glance and appear in both places.\n`SessionState` owns the authoritative values for a subscribed session;\n`SessionSummary` mirrors them into the catalog so clients that only render a\nsession list don't have to subscribe to every session URI. The host keeps\nthe catalog in sync via `root/sessionSummaryChanged`.",
@@ -2161,6 +2367,10 @@
         "activity": {
           "type": "string",
           "description": "Human-readable description of what the session is currently doing"
+        },
+        "origin": {
+          "$ref": "#/$defs/SessionOrigin",
+          "description": "Durable {@link AutomationSessionOrigin}, when an automation run created this session."
         },
         "project": {
           "$ref": "#/$defs/ProjectInfo",
@@ -2203,6 +2413,10 @@
         "activity": {
           "type": "string",
           "description": "Human-readable description of what the session is currently doing"
+        },
+        "origin": {
+          "$ref": "#/$defs/SessionOrigin",
+          "description": "Durable {@link AutomationSessionOrigin}, when an automation run created this session."
         },
         "project": {
           "$ref": "#/$defs/ProjectInfo",
@@ -2507,6 +2721,10 @@
         "activity": {
           "type": "string",
           "description": "Human-readable description of what the session is currently doing"
+        },
+        "origin": {
+          "$ref": "#/$defs/SessionOrigin",
+          "description": "Durable {@link AutomationSessionOrigin}, when an automation run created this session."
         },
         "project": {
           "$ref": "#/$defs/ProjectInfo",
@@ -4500,7 +4718,7 @@
     },
     "Message": {
       "type": "object",
-      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, or be system-generated (see {@link MessageOrigin}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
+      "description": "A message that initiates or steers a turn. Messages can originate from the\nuser, the agent, a tool, an automation, or be system-generated (see\n{@link MessageOrigin}).\n\nAttachments MAY be referenced inside {@link Message.text} via their\n{@link MessageAttachmentBase.range} field. Attachments without a range are\nstill associated with the message but do not correspond to a specific span\nin the text.",
       "properties": {
         "text": {
           "type": "string",
@@ -6396,6 +6614,555 @@
       "required": [
         "uri",
         "type"
+      ]
+    },
+    "AutomationSchedule": {
+      "type": "object",
+      "description": "A portable recurring schedule evaluated in a named time zone.\n\nThe expression uses exactly five whitespace-separated fields, in this\norder:\n\n| Field | Values |\n| --- | --- |\n| minute | `0`–`59` |\n| hour | `0`–`23` |\n| day of month | `1`–`31` |\n| month | `1`–`12` or `JAN`–`DEC` |\n| day of week | `0`–`7` or `SUN`–`SAT`; both `0` and `7` mean Sunday |\n\nMonth and weekday names are ASCII and case-insensitive. Each field accepts\n`*`, a single value, an inclusive range (`1-5`), a comma-separated list of\nvalues or ranges (`1,3,8-10`), or a step applied to `*` or a range (for\nexample, &#42;/15 or `1-30/2`). A step MUST be a positive integer. AHP does\nnot support seconds, years, macros such as `@daily`, or Quartz extensions\nsuch as `?`, `L`, `W`, and `#`.\n\nMinute, hour, and month must all match. When both day-of-month and\nday-of-week are restricted (not `*`), an occurrence matches when either day\nfield matches, following Unix cron semantics.",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "Five-field AHP cron expression described by {@link AutomationSchedule}."
+        },
+        "timeZone": {
+          "type": "string",
+          "description": "IANA Time Zone Database identifier used to interpret the expression, for\nexample `\"UTC\"` or `\"Europe/Berlin\"`."
+        }
+      },
+      "required": [
+        "expression",
+        "timeZone"
+      ]
+    },
+    "AutomationScheduleTrigger": {
+      "type": "object",
+      "description": "Starts runs from a recurring cron schedule evaluated by the host.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier unique and stable within this automation definition. Recorded in\n{@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a\nrun."
+        },
+        "kind": {
+          "const": "schedule"
+        },
+        "schedule": {
+          "$ref": "#/$defs/AutomationSchedule",
+          "description": "Recurrence and time zone evaluated by the host."
+        },
+        "misfirePolicy": {
+          "$ref": "#/$defs/AutomationMisfirePolicy",
+          "description": "Policy for missed occurrences. Omission is equivalent to\n{@link AutomationMisfirePolicy.RunOnce}."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "schedule"
+      ]
+    },
+    "AutomationEventTrigger": {
+      "type": "object",
+      "description": "Starts runs from events understood by the owning host.\n\nEvent trigger types, events, and configuration are discovered through\n{@link ListAutomationTriggerDefinitionsParams |\nlistAutomationTriggerDefinitions}. The saved trigger includes the matching\nhuman-readable metadata so it remains displayable without repeating\ndiscovery.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifier unique and stable within this automation definition. Recorded in\n{@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a\nrun."
+        },
+        "kind": {
+          "const": "event"
+        },
+        "type": {
+          "type": "string",
+          "description": "Matches {@link AutomationTriggerDefinition.type}."
+        },
+        "title": {
+          "type": "string",
+          "description": "Host-normalized human-readable trigger type name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional host-normalized explanation of the trigger source."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTriggerEventDefinition"
+          },
+          "description": "Selected events for this trigger type.\n\nEvent ids carry the trigger semantics. Titles and descriptions are\nlast-known display metadata and do not indicate current availability."
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Values described by {@link AutomationTriggerDefinition.configSchema}.\nClients MUST preserve unknown entries when editing other fields."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "type",
+        "title",
+        "events"
+      ]
+    },
+    "AutomationTriggerEventDefinition": {
+      "type": "object",
+      "description": "Describes one host-defined trigger event.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable event id."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable event name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer explanation of when this event fires."
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "AutomationTriggerDefinition": {
+      "type": "object",
+      "description": "Describes one host-defined event trigger type available for a prospective\nautomation session template.\n\nTrigger definitions are discovery metadata, not durable automation state.\nHosts may return different definitions for different providers, working\ndirectories, or session configuration.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Stable type id stored in {@link AutomationEventTrigger.type}."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable trigger type name."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer explanation of the trigger source."
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTriggerEventDefinition"
+          },
+          "description": "Events available for selection. Saved triggers retain their selected event descriptors."
+        },
+        "configSchema": {
+          "$ref": "#/$defs/ConfigSchema",
+          "description": "Optional schema for {@link AutomationEventTrigger.config}."
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "events"
+      ]
+    },
+    "AutomationSessionTemplate": {
+      "type": "object",
+      "description": "Template from which the host creates a fresh session for each automation run.\n\nThe host revalidates every selection when the run starts. Definitions never\ncarry credentials, confirmation decisions, or durable permission grants.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "Provider id matching {@link AgentInfo.provider}. Omit to use the host's default provider."
+        },
+        "model": {
+          "$ref": "#/$defs/ModelSelection",
+          "description": "Optional model selection resolved when a run starts. Its\n{@link ModelSelection.id} matches a {@link SessionModelInfo.id} advertised\nby the selected provider."
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentSelection",
+          "description": "Optional custom agent selection identified by {@link AgentSelection.uri}."
+        },
+        "workingDirectories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/URI"
+          },
+          "description": "Ordered working-directory URIs for each created session, equivalent to\n{@link CreateSessionParams.workingDirectories}. Absence means a\nworkspace-less session."
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Session configuration values equivalent to\n{@link CreateSessionParams.config}, normally obtained from\n{@link ResolveSessionConfigResult.values}."
+        }
+      }
+    },
+    "AutomationDefinition": {
+      "type": "object",
+      "description": "Durable, client-editable definition of an automation.\n\nA definition combines the initial automation message, the session template\nused for each run, and zero or more automatic triggers. Run history,\ntimestamps, and currently allowed operations live on\n{@link AutomationState} rather than in the definition.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Human-readable automation name."
+        },
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "Initial message sent to every newly created run session. Its\n{@link Message.origin} kind MUST be {@link MessageKind.Automation}."
+        },
+        "session": {
+          "$ref": "#/$defs/AutomationSessionTemplate",
+          "description": "Template used to create fresh sessions for each run."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether automatic triggers may create runs. Manual runs remain available\nwhenever {@link AutomationOperation.Run} is advertised."
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTrigger"
+          },
+          "description": "Automatic triggers. An empty list means manual-only."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Opaque implementation-defined metadata. Clients MUST preserve unknown\nentries when updating the definition."
+        }
+      },
+      "required": [
+        "title",
+        "message",
+        "session",
+        "enabled",
+        "triggers"
+      ]
+    },
+    "AutomationState": {
+      "type": "object",
+      "description": "Authoritative state of one automation in the\n{@link AutomationCatalogState.automations} catalogue.\n\nThe host owns trigger evaluation, run claims, run retention, and operation\navailability. Clients render this state and submit actions or commands; they\nnever run a fallback scheduler for a host-owned definition.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Stable `ahp-automation:/<id>` resource identifier."
+        },
+        "definition": {
+          "$ref": "#/$defs/AutomationDefinition",
+          "description": "Current durable definition."
+        },
+        "nextRunAt": {
+          "type": "string",
+          "description": "Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending."
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationRunSummary"
+          },
+          "description": "Newest-first retained run summaries. This is a bounded window; use\n{@link FetchAutomationRunsParams | fetchAutomationRuns} when\n{@link AutomationState.runsNextCursor} is present."
+        },
+        "runsNextCursor": {
+          "type": "string",
+          "description": "Opaque cursor passed as {@link FetchAutomationRunsParams.cursor} for the next older run-history page."
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationOperation"
+          },
+          "description": "Operations currently permitted for this automation."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp in ISO 8601 format."
+        },
+        "modifiedAt": {
+          "type": "string",
+          "description": "Last definition modification timestamp in ISO 8601 format."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Opaque host-defined state metadata."
+        }
+      },
+      "required": [
+        "resource",
+        "definition",
+        "runs",
+        "operations",
+        "createdAt",
+        "modifiedAt"
+      ]
+    },
+    "AutomationCatalogState": {
+      "type": "object",
+      "description": "Authoritative automation catalogue exposed on the `ahp-automations://`\nchannel.\n\nA subscription snapshot contains every automation visible to the client.\nSubsequent {@link AutomationSetAction | `automation/set`} and\n{@link AutomationRemovedAction | `automation/removed`} actions keep the\ncatalogue synchronized and participate in normal reconnect replay.",
+      "properties": {
+        "automations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationState"
+          },
+          "description": "Full automation states keyed by {@link AutomationState.resource}."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Opaque host-defined catalogue metadata."
+        }
+      },
+      "required": [
+        "automations"
+      ]
+    },
+    "AutomationManualRunOrigin": {
+      "type": "object",
+      "description": "Origin recorded for a client-requested manual run.",
+      "properties": {
+        "kind": {
+          "const": "manual"
+        }
+      },
+      "required": [
+        "kind"
+      ]
+    },
+    "AutomationTriggeredRunOrigin": {
+      "type": "object",
+      "description": "Origin recorded for a run created by one of the automation's triggers.",
+      "properties": {
+        "kind": {
+          "const": "trigger"
+        },
+        "triggerId": {
+          "type": "string",
+          "description": "Matches the stable {@link AutomationScheduleTrigger.id} or\n{@link AutomationEventTrigger.id} in the definition."
+        },
+        "scheduledFor": {
+          "type": "string",
+          "description": "Intended schedule occurrence as an ISO 8601 timestamp. Present for\nschedule triggers and normally absent for event triggers."
+        },
+        "catchUp": {
+          "type": "boolean",
+          "description": "`true` when this is a catch-up run created by\n{@link AutomationMisfirePolicy.RunOnce}."
+        },
+        "event": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Host-defined, non-secret event provenance suitable for display or audit.\nThis is descriptive context, not an input that clients replay."
+        }
+      },
+      "required": [
+        "kind",
+        "triggerId"
+      ]
+    },
+    "AutomationPendingRunLifecycle": {
+      "type": "object",
+      "description": "A durable run exists but has not begun external execution.",
+      "properties": {
+        "status": {
+          "const": "pending"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Run creation timestamp in ISO 8601 format."
+        }
+      },
+      "required": [
+        "status",
+        "createdAt"
+      ]
+    },
+    "AutomationRunningRunLifecycle": {
+      "type": "object",
+      "description": "The run is executing linked sessions or awaiting interaction on them.\n\nLinked {@link SessionState.status} and {@link SessionState.inputNeeded}\nremain authoritative for whether user attention or client-side work is\nrequired.",
+      "properties": {
+        "status": {
+          "const": "running"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Run creation timestamp in ISO 8601 format."
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "First execution start timestamp in ISO 8601 format."
+        }
+      },
+      "required": [
+        "status",
+        "createdAt",
+        "startedAt"
+      ]
+    },
+    "AutomationCompletedRunLifecycle": {
+      "type": "object",
+      "description": "Terminal lifecycle for a successfully completed run.",
+      "properties": {
+        "status": {
+          "const": "completed"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Run creation timestamp in ISO 8601 format."
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "First execution start timestamp in ISO 8601 format."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Completion timestamp in ISO 8601 format."
+        },
+        "usage": {
+          "$ref": "#/$defs/UsageInfo",
+          "description": "Optional aggregate model usage across all linked sessions."
+        }
+      },
+      "required": [
+        "status",
+        "createdAt",
+        "startedAt",
+        "completedAt"
+      ]
+    },
+    "AutomationFailedRunLifecycle": {
+      "type": "object",
+      "description": "Terminal lifecycle for a run that ended with an error.\n\n`startedAt` is absent when failure occurred before execution began, such as\nsession-template validation or workspace preparation.",
+      "properties": {
+        "status": {
+          "const": "failed"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Run creation timestamp in ISO 8601 format."
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "First execution start timestamp in ISO 8601 format, when execution began."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Failure timestamp in ISO 8601 format."
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo",
+          "description": "Stable machine-readable and human-readable failure information."
+        }
+      },
+      "required": [
+        "status",
+        "createdAt",
+        "completedAt",
+        "error"
+      ]
+    },
+    "AutomationCancelledRunLifecycle": {
+      "type": "object",
+      "description": "Terminal lifecycle for a cancelled run.\n\n`startedAt` is absent when cancellation completed while the run was still\npending.",
+      "properties": {
+        "status": {
+          "const": "cancelled"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Run creation timestamp in ISO 8601 format."
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "First execution start timestamp in ISO 8601 format, when execution began."
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Cancellation completion timestamp in ISO 8601 format."
+        }
+      },
+      "required": [
+        "status",
+        "createdAt",
+        "completedAt"
+      ]
+    },
+    "AutomationRunSummary": {
+      "type": "object",
+      "description": "Lightweight projection of a run retained in its automation's history.\n\nA summary contains enough information to render run history without\nsubscribing to every `ahp-automation-run:` resource.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}."
+        },
+        "automation": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning `ahp-automation:` URI matching {@link AutomationRunState.automation}."
+        },
+        "origin": {
+          "$ref": "#/$defs/AutomationRunOrigin",
+          "description": "Immutable provenance matching {@link AutomationRunState.origin}."
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/AutomationRunLifecycle",
+          "description": "Current or terminal lifecycle snapshot matching {@link AutomationRunState.lifecycle}."
+        },
+        "primarySession": {
+          "$ref": "#/$defs/URI",
+          "description": "Session matching {@link AutomationRunState.primarySession}, when selected."
+        },
+        "sessionCount": {
+          "type": "number",
+          "description": "Number of entries in {@link AutomationRunState.sessions}."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Opaque host-defined summary metadata."
+        }
+      },
+      "required": [
+        "resource",
+        "automation",
+        "origin",
+        "lifecycle",
+        "sessionCount"
+      ]
+    },
+    "AutomationRunState": {
+      "type": "object",
+      "description": "Authoritative state of one subscribed `ahp-automation-run:` resource.\n\nThe run channel owns task-level lifecycle, provenance, and linked-session\nmembership. Linked session and chat channels remain authoritative for\ntranscripts, tools, interaction requirements, changesets, and per-session\nlifecycle.",
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "URI of this automation-run channel."
+        },
+        "automation": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning `ahp-automation:` URI matching {@link AutomationState.resource}."
+        },
+        "origin": {
+          "$ref": "#/$defs/AutomationRunOrigin",
+          "description": "Immutable provenance describing how this run was created."
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/AutomationRunLifecycle",
+          "description": "Current or terminal lifecycle."
+        },
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/URI"
+          },
+          "description": "Ordered, unique session URIs belonging to this run, each matching\n{@link SessionState.resource}. Entries may represent retries, parallel\nworkers, or delegated attempts."
+        },
+        "primarySession": {
+          "$ref": "#/$defs/URI",
+          "description": "Member of {@link AutomationRunState.sessions} that the host recommends opening first."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Opaque host-defined run metadata."
+        }
+      },
+      "required": [
+        "resource",
+        "automation",
+        "origin",
+        "lifecycle",
+        "sessions"
       ]
     },
     "ActionOrigin": {
@@ -8505,6 +9272,197 @@
         "changes"
       ]
     },
+    "AutomationDefinitionPatch": {
+      "type": "object",
+      "description": "Partial replacement of editable {@link AutomationDefinition} fields.\n\nOmitted fields are unchanged. Supplied arrays and objects replace their\ncorresponding values in full; they are not merged recursively.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Replacement {@link AutomationDefinition.title}."
+        },
+        "message": {
+          "$ref": "#/$defs/Message",
+          "description": "Replacement {@link AutomationDefinition.message}."
+        },
+        "session": {
+          "$ref": "#/$defs/AutomationSessionTemplate",
+          "description": "Replacement {@link AutomationDefinition.session}. The host revalidates\naffected event triggers when their discovery context changes."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Replacement {@link AutomationDefinition.enabled}."
+        },
+        "triggers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AutomationTrigger"
+          },
+          "description": "Complete replacement {@link AutomationDefinition.triggers}. The host\nvalidates event ids and normalizes event-trigger titles and descriptions."
+        },
+        "_meta": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Complete replacement {@link AutomationDefinition._meta}."
+        }
+      }
+    },
+    "AutomationCreateRequestedAction": {
+      "type": "object",
+      "description": "Ask the host to create a durable automation at a client-chosen resource.\n\nClients may dispatch this action only when the host advertises its `create`\nautomation capability. {@link AutomationCreateRequestedAction.resource |\n`resource`} MUST use the `ahp-automation:` scheme and MUST NOT already\nidentify an unrelated automation.\n\nThis side-effect request leaves optimistic catalogue state unchanged. The\nhost validates trigger ids and configuration, normalizes event-trigger\ntitles and descriptions, persists the definition, then publishes the\nauthoritative result with {@link AutomationSetAction | `automation/set`}.\nRejections leave the catalogue unchanged.",
+      "properties": {
+        "type": {
+          "const": "automation/createRequested"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Client-chosen `ahp-automation:` URI that becomes {@link AutomationState.resource}."
+        },
+        "definition": {
+          "$ref": "#/$defs/AutomationDefinition",
+          "description": "Complete initial {@link AutomationState.definition}."
+        }
+      },
+      "required": [
+        "type",
+        "resource",
+        "definition"
+      ]
+    },
+    "AutomationUpdateRequestedAction": {
+      "type": "object",
+      "description": "Ask the host to update editable fields of an existing automation.\n\nClients may dispatch this action only while the target advertises\n{@link AutomationOperation.Update}. The host revalidates that operation and\nthe client's authorization.\n\nThis side-effect request leaves optimistic catalogue state unchanged. The\nhost applies accepted patches to its current authoritative definition in\naction order, revalidates and normalizes affected event triggers, then\npublishes the result with\n{@link AutomationSetAction | `automation/set`}. Omitted fields remain\nunchanged; when accepted actions replace the same field, the later action in\nserver order wins.",
+      "properties": {
+        "type": {
+          "const": "automation/updateRequested"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "Target {@link AutomationState.resource}."
+        },
+        "changes": {
+          "$ref": "#/$defs/AutomationDefinitionPatch",
+          "description": "Editable {@link AutomationDefinition} fields to replace."
+        }
+      },
+      "required": [
+        "type",
+        "resource",
+        "changes"
+      ]
+    },
+    "AutomationSetAction": {
+      "type": "object",
+      "description": "Add or replace one full automation state in\n{@link AutomationCatalogState.automations}.\n\nExisting entries are matched by {@link AutomationState.resource} and\nreplaced in place. A previously unseen resource is appended.",
+      "properties": {
+        "type": {
+          "const": "automation/set"
+        },
+        "automation": {
+          "$ref": "#/$defs/AutomationState",
+          "description": "Full new or replacement automation state."
+        }
+      },
+      "required": [
+        "type",
+        "automation"
+      ]
+    },
+    "AutomationRemovedAction": {
+      "type": "object",
+      "description": "Remove one automation from {@link AutomationCatalogState.automations}.\n\nClients may dispatch this action only while the target advertises\n{@link AutomationOperation.Remove}. The host revalidates that operation\nbefore permanently deleting the automation. A rejected action leaves the\nauthoritative catalogue and durable definition unchanged.\n\nRemoving an unknown resource is a no-op.",
+      "properties": {
+        "type": {
+          "const": "automation/removed"
+        },
+        "resource": {
+          "$ref": "#/$defs/URI",
+          "description": "{@link AutomationState.resource} to remove."
+        }
+      },
+      "required": [
+        "type",
+        "resource"
+      ]
+    },
+    "AutomationRunLifecycleChangedAction": {
+      "type": "object",
+      "description": "Replace the run lifecycle.\n\nThe host dispatches this action for every lifecycle transition.",
+      "properties": {
+        "type": {
+          "const": "automationRun/lifecycleChanged"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/AutomationRunLifecycle",
+          "description": "Complete replacement {@link AutomationRunState.lifecycle}."
+        }
+      },
+      "required": [
+        "type",
+        "lifecycle"
+      ]
+    },
+    "AutomationRunSessionSetAction": {
+      "type": "object",
+      "description": "Add a session to {@link AutomationRunState.sessions}.\n\nSession URIs are unique. Setting an existing URI is a no-op.",
+      "properties": {
+        "type": {
+          "const": "automationRun/sessionSet"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Session URI to append to {@link AutomationRunState.sessions} when not already linked."
+        }
+      },
+      "required": [
+        "type",
+        "session"
+      ]
+    },
+    "AutomationRunSessionRemovedAction": {
+      "type": "object",
+      "description": "Remove a linked session from the run.\n\nRemoving the current primary session also clears\n{@link AutomationRunState.primarySession}. An unknown URI is a no-op.",
+      "properties": {
+        "type": {
+          "const": "automationRun/sessionRemoved"
+        },
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Entry in {@link AutomationRunState.sessions} to remove."
+        }
+      },
+      "required": [
+        "type",
+        "session"
+      ]
+    },
+    "AutomationRunPrimarySessionChangedAction": {
+      "type": "object",
+      "description": "Select or clear the session clients should open first for this run.",
+      "properties": {
+        "type": {
+          "const": "automationRun/primarySessionChanged"
+        },
+        "primarySession": {
+          "$ref": "#/$defs/URI",
+          "description": "New {@link AutomationRunState.primarySession}, or omitted to clear the selection."
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "AutomationRunCancelRequestedAction": {
+      "type": "object",
+      "description": "Ask the host to cancel this run.\n\nThis is the only client-dispatchable automation-run action. It is a\nside-effect request and deliberately leaves optimistic state unchanged. The\nclient may dispatch it only when the host advertises its `runCancellation`\ncapability and the current lifecycle is `pending` or `running`. The host\nrevalidates that the run is non-terminal. The authoritative outcome arrives\nlater through\n{@link AutomationRunLifecycleChangedAction}: cancellation may transition to\n`cancelled`, or the run may complete or fail before cancellation takes\neffect.",
+      "properties": {
+        "type": {
+          "const": "automationRun/cancelRequested"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
     "URI": {
       "type": "string",
       "description": "A URI string (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`)."
@@ -8768,6 +9726,33 @@
         },
         {
           "$ref": "#/$defs/ResourceWatchChangedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationCreateRequestedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationUpdateRequestedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationSetAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRemovedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunLifecycleChangedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunSessionSetAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunSessionRemovedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunPrimarySessionChangedAction"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunCancelRequestedAction"
         }
       ],
       "description": "Discriminated union of all state actions."
@@ -8970,6 +9955,10 @@
       ],
       "type": "number",
       "description": "Bitset of summary-level session status flags.\n\nUse bitwise checks instead of equality for non-terminal activity. For example,\n`status & SessionStatus.InProgress` matches both ordinary in-progress turns\nand turns that are paused waiting for input."
+    },
+    "SessionOrigin": {
+      "$ref": "#/$defs/AutomationSessionOrigin",
+      "description": "Durable provenance for sessions created by a higher-level AHP workflow."
     },
     "SessionLifecycle": {
       "enum": [
@@ -9351,6 +10340,7 @@
         "user",
         "agent",
         "tool",
+        "automation",
         "systemNotification"
       ],
       "type": "string",
@@ -9499,6 +10489,65 @@
       ],
       "type": "string",
       "description": "Discriminant for {@link ResourceChange.type}."
+    },
+    "AutomationMisfirePolicy": {
+      "enum": [
+        "skip",
+        "runOnce"
+      ],
+      "type": "string",
+      "description": "How a host handles schedule occurrences missed while automatic execution was\nunavailable."
+    },
+    "AutomationTrigger": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationScheduleTrigger"
+        },
+        {
+          "$ref": "#/$defs/AutomationEventTrigger"
+        }
+      ],
+      "description": "An automatic trigger that can create runs for an enabled automation.\n\nManual execution is not represented as a trigger. An empty trigger list\ntherefore means the automation is manual-only."
+    },
+    "AutomationOperation": {
+      "enum": [
+        "update",
+        "remove",
+        "run"
+      ],
+      "type": "string",
+      "description": "Operations the host currently permits for an automation.\n\nThe list on {@link AutomationState.operations} is authoritative and may\nchange over time. Clients MUST NOT infer permission from capabilities alone:\ncapabilities describe what the host implementation can support, while\noperations describe what is allowed for this particular automation now."
+    },
+    "AutomationRunOrigin": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationManualRunOrigin"
+        },
+        {
+          "$ref": "#/$defs/AutomationTriggeredRunOrigin"
+        }
+      ],
+      "description": "Immutable provenance describing why a run was created."
+    },
+    "AutomationRunLifecycle": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AutomationPendingRunLifecycle"
+        },
+        {
+          "$ref": "#/$defs/AutomationRunningRunLifecycle"
+        },
+        {
+          "$ref": "#/$defs/AutomationCompletedRunLifecycle"
+        },
+        {
+          "$ref": "#/$defs/AutomationFailedRunLifecycle"
+        },
+        {
+          "$ref": "#/$defs/AutomationCancelledRunLifecycle"
+        }
+      ],
+      "description": "Discriminated lifecycle of an automation run."
     },
     "PendingMessageKind": {
       "enum": [

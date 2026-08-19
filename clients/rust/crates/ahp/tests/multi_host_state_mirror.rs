@@ -50,6 +50,7 @@ fn session_state(title: &str, _resource: &str) -> SessionState {
         title: title.into(),
         status: SessionStatus::Idle.bits(),
         activity: None,
+        origin: None,
         project: None,
         working_directories: None,
         annotations: None,
@@ -73,6 +74,48 @@ fn session_snapshot(title: &str, resource: &str) -> Snapshot {
         state: SnapshotState::Session(Box::new(session_state(title, resource))),
         from_seq: 0,
     }
+}
+
+fn automation_snapshot() -> Snapshot {
+    serde_json::from_value(serde_json::json!({
+        "resource": "ahp-automations://",
+        "state": {
+            "automations": [{
+                "resource": "ahp-automation:/a1",
+                "definition": {
+                    "title": "Old",
+                    "message": { "text": "triage", "origin": { "kind": "automation" } },
+                    "session": {},
+                    "enabled": true,
+                    "triggers": []
+                },
+                "runs": [],
+                "operations": ["update", "run"],
+                "createdAt": "2026-08-01T00:00:00Z",
+                "modifiedAt": "2026-08-01T00:00:00Z"
+            }]
+        },
+        "fromSeq": 1
+    }))
+    .expect("automation snapshot")
+}
+
+fn automation_run_snapshot() -> Snapshot {
+    serde_json::from_value(serde_json::json!({
+        "resource": "ahp-automation-run:/r1",
+        "state": {
+            "resource": "ahp-automation-run:/r1",
+            "automation": "ahp-automation:/a1",
+            "origin": { "kind": "manual" },
+            "lifecycle": {
+                "status": "pending",
+                "createdAt": "2026-08-05T12:00:00Z"
+            },
+            "sessions": []
+        },
+        "fromSeq": 2
+    }))
+    .expect("automation-run snapshot")
 }
 
 fn root_agents_changed_envelope(agents: Vec<AgentInfo>, server_seq: u64) -> ActionEnvelope {
@@ -216,6 +259,81 @@ fn apply_session_action_updates_only_the_target_session() {
 }
 
 #[test]
+fn automation_snapshots_and_actions_are_mirrored() {
+    let host = HostId::new("alpha");
+    let mut mirror = MultiHostStateMirror::new();
+    mirror.apply_snapshot(&host, &automation_snapshot());
+    mirror.apply_snapshot(&host, &automation_run_snapshot());
+
+    let automation_set = serde_json::from_value(serde_json::json!({
+        "type": "automation/set",
+        "automation": {
+            "resource": "ahp-automation:/a1",
+            "definition": {
+                "title": "New",
+                "message": { "text": "triage", "origin": { "kind": "automation" } },
+                "session": {},
+                "enabled": false,
+                "triggers": []
+            },
+            "runs": [],
+            "operations": ["update", "run"],
+            "createdAt": "2026-08-01T00:00:00Z",
+            "modifiedAt": "2026-08-05T13:00:00Z"
+        }
+    }))
+    .expect("automation/set action");
+    mirror.apply_envelope(
+        &host,
+        &ActionEnvelope {
+            channel: "ahp-automations://".into(),
+            action: automation_set,
+            server_seq: 3,
+            origin: None,
+            rejection_reason: None,
+        },
+    );
+
+    let session_set = serde_json::from_value(serde_json::json!({
+        "type": "automationRun/sessionSet",
+        "session": "ahp-session:/s1"
+    }))
+    .expect("sessionSet action");
+    mirror.apply_envelope(
+        &host,
+        &ActionEnvelope {
+            channel: "ahp-automation-run:/r1".into(),
+            action: session_set,
+            server_seq: 4,
+            origin: None,
+            rejection_reason: None,
+        },
+    );
+
+    let automation_key = HostedResourceKey::new(host.clone(), "ahp-automation:/a1");
+    let run_key = HostedResourceKey::new(host.clone(), "ahp-automation-run:/r1");
+    assert_eq!(
+        mirror
+            .automations()
+            .get(&automation_key)
+            .map(|state| state.definition.title.as_str()),
+        Some("New")
+    );
+    assert_eq!(
+        mirror
+            .automation_runs()
+            .get(&run_key)
+            .map(|state| state.sessions.clone()),
+        Some(vec!["ahp-session:/s1".to_string()])
+    );
+
+    mirror.reset_host(&host);
+    assert!(mirror.automation_catalogs().is_empty());
+    assert!(mirror.automations().is_empty());
+    assert!(mirror.automation_runs().is_empty());
+}
+
+#[test]
 fn apply_host_subscription_event_forwards_to_per_host_apply() {
     let mut mirror = MultiHostStateMirror::new();
     mirror.apply_snapshot(&HostId::new("alpha"), &root_snapshot(vec![]));
@@ -351,6 +469,7 @@ fn non_action_event_is_ignored() {
                 title: "new".into(),
                 status: SessionStatus::Idle.bits(),
                 activity: None,
+                origin: None,
                 created_at: "1970-01-01T00:00:00.000Z".into(),
                 modified_at: "1970-01-01T00:00:00.000Z".into(),
                 project: None,

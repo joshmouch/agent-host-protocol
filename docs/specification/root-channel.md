@@ -69,6 +69,7 @@ target channel instead.
 | `authenticate` | request | Bearer-token push for protected resources is connection-level. |
 | `resolveSessionConfig` | request | Pre-creation config resolution happens before any session channel exists. |
 | `sessionConfigCompletions` | request | Completes dynamic fields in pre-creation session config. |
+| `listAutomationTriggerDefinitions` | request | Describes host-defined event triggers. |
 
 ### Notifications (`params.channel = "ahp-root://"`)
 

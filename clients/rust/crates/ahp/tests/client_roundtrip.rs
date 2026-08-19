@@ -157,6 +157,88 @@ async fn request_response_and_action_fanout() {
 }
 
 #[tokio::test]
+async fn automation_catalogue_actions_fan_out() {
+    let (client_side, mut server_side) = pair();
+    let client = Client::connect(client_side, ClientConfig::default())
+        .await
+        .expect("connect");
+    let mut subscription = client
+        .attach_subscription("ahp-automations://".into())
+        .await;
+
+    for (server_seq, action) in [
+        (
+            1,
+            serde_json::json!({
+                "type": "automation/set",
+                "automation": {
+                    "resource": "ahp-automation:/a1",
+                    "definition": {
+                        "title": "Nightly triage",
+                        "message": {
+                            "text": "Triage issues",
+                            "origin": { "kind": "automation" }
+                        },
+                        "session": {},
+                        "enabled": true,
+                        "triggers": []
+                    },
+                    "runs": [],
+                    "operations": ["update", "remove", "run"],
+                    "createdAt": "2026-08-01T00:00:00Z",
+                    "modifiedAt": "2026-08-05T12:00:00Z"
+                }
+            }),
+        ),
+        (
+            2,
+            serde_json::json!({
+                "type": "automation/removed",
+                "resource": "ahp-automation:/a1"
+            }),
+        ),
+    ] {
+        let notification = JsonRpcMessage::Notification(JsonRpcNotification {
+            jsonrpc: JsonRpcVersion::V2,
+            method: "action".into(),
+            params: Some(ahp_types::common::AnyValue::from(serde_json::json!({
+                "channel": "ahp-automations://",
+                "serverSeq": server_seq,
+                "action": action,
+                "origin": null
+            }))),
+        });
+        server_side
+            .send(TransportMessage::encode(&notification).unwrap())
+            .await
+            .unwrap();
+    }
+
+    let set = tokio::time::timeout(std::time::Duration::from_secs(2), subscription.recv())
+        .await
+        .expect("timed out")
+        .expect("channel closed");
+    let SubscriptionEvent::Action(set) = set else {
+        panic!("expected automation/set action")
+    };
+    let StateAction::AutomationSet(set) = set.action else {
+        panic!("expected AutomationSet")
+    };
+    assert_eq!(set.automation.resource, "ahp-automation:/a1");
+
+    let removed = subscription.recv().await.expect("channel closed");
+    let SubscriptionEvent::Action(removed) = removed else {
+        panic!("expected automation/removed action")
+    };
+    let StateAction::AutomationRemoved(removed) = removed.action else {
+        panic!("expected AutomationRemoved")
+    };
+    assert_eq!(removed.resource, "ahp-automation:/a1");
+
+    client.shutdown().await;
+}
+
+#[tokio::test]
 async fn resource_read_send_wrapper_targets_root_channel() {
     use ahp_types::commands::{ContentEncoding, ResourceReadParams};
 

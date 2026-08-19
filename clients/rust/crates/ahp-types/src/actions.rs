@@ -13,10 +13,11 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
 use crate::state::{
-    AgentInfo, AgentSelection, Annotation, AnnotationEntry, Changeset, ChangesetFile,
-    ChangesetOperation, ChangesetOperationStatus, ChangesetStatus, ChatInputAnswer,
-    ChatInputRequest, ChatInputResponseKind, ChatInteractivity, ChatOrigin, ChatSummary,
-    ConfirmationOption, ContentRef, Customization, CustomizationEnablement, ErrorInfo,
+    AgentInfo, AgentSelection, Annotation, AnnotationEntry, AutomationDefinition,
+    AutomationDefinitionPatch, AutomationRunLifecycle, AutomationRunSummary, AutomationState,
+    Changeset, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, ChangesetStatus,
+    ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ChatInteractivity, ChatOrigin,
+    ChatSummary, ConfirmationOption, ContentRef, Customization, CustomizationEnablement, ErrorInfo,
     McpAuthRequirement, McpServerState, Message, ModelSelection, PendingMessageKind, ResponsePart,
     SessionActiveClient, SessionInputRequest, SideChatSelection, TerminalClaim, TerminalInfo,
     TextRange, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributor,
@@ -201,6 +202,24 @@ pub enum ActionType {
     TerminalCommandFinished,
     #[serde(rename = "resourceWatch/changed")]
     ResourceWatchChanged,
+    #[serde(rename = "automation/createRequested")]
+    AutomationCreateRequested,
+    #[serde(rename = "automation/updateRequested")]
+    AutomationUpdateRequested,
+    #[serde(rename = "automation/set")]
+    AutomationSet,
+    #[serde(rename = "automation/removed")]
+    AutomationRemoved,
+    #[serde(rename = "automationRun/lifecycleChanged")]
+    AutomationRunLifecycleChanged,
+    #[serde(rename = "automationRun/sessionSet")]
+    AutomationRunSessionSet,
+    #[serde(rename = "automationRun/sessionRemoved")]
+    AutomationRunSessionRemoved,
+    #[serde(rename = "automationRun/primarySessionChanged")]
+    AutomationRunPrimarySessionChanged,
+    #[serde(rename = "automationRun/cancelRequested")]
+    AutomationRunCancelRequested,
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────
@@ -1772,6 +1791,131 @@ pub struct ResourceWatchChangedAction {
     pub changes: AnyValue,
 }
 
+/// Ask the host to create a durable automation at a client-chosen resource.
+///
+/// Clients may dispatch this action only when the host advertises its `create`
+/// automation capability. {@link AutomationCreateRequestedAction.resource |
+/// `resource`} MUST use the `ahp-automation:` scheme and MUST NOT already
+/// identify an unrelated automation.
+///
+/// This side-effect request leaves optimistic catalogue state unchanged. The
+/// host validates trigger ids and configuration, normalizes event-trigger
+/// titles and descriptions, persists the definition, then publishes the
+/// authoritative result with {@link AutomationSetAction | `automation/set`}.
+/// Rejections leave the catalogue unchanged.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCreateRequestedAction {
+    /// Client-chosen `ahp-automation:` URI that becomes {@link AutomationState.resource}.
+    pub resource: Uri,
+    /// Complete initial {@link AutomationState.definition}.
+    pub definition: AutomationDefinition,
+}
+
+/// Ask the host to update editable fields of an existing automation.
+///
+/// Clients may dispatch this action only while the target advertises
+/// {@link AutomationOperation.Update}. The host revalidates that operation and
+/// the client's authorization.
+///
+/// This side-effect request leaves optimistic catalogue state unchanged. The
+/// host applies accepted patches to its current authoritative definition in
+/// action order, revalidates and normalizes affected event triggers, then
+/// publishes the result with
+/// {@link AutomationSetAction | `automation/set`}. Omitted fields remain
+/// unchanged; when accepted actions replace the same field, the later action in
+/// server order wins.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationUpdateRequestedAction {
+    /// Target {@link AutomationState.resource}.
+    pub resource: Uri,
+    /// Editable {@link AutomationDefinition} fields to replace.
+    pub changes: AutomationDefinitionPatch,
+}
+
+/// Add or replace one full automation state in
+/// {@link AutomationCatalogState.automations}.
+///
+/// Existing entries are matched by {@link AutomationState.resource} and
+/// replaced in place. A previously unseen resource is appended.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationSetAction {
+    /// Full new or replacement automation state.
+    pub automation: AutomationState,
+}
+
+/// Remove one automation from {@link AutomationCatalogState.automations}.
+///
+/// Clients may dispatch this action only while the target advertises
+/// {@link AutomationOperation.Remove}. The host revalidates that operation
+/// before permanently deleting the automation. A rejected action leaves the
+/// authoritative catalogue and durable definition unchanged.
+///
+/// Removing an unknown resource is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRemovedAction {
+    /// {@link AutomationState.resource} to remove.
+    pub resource: Uri,
+}
+
+/// Replace the run lifecycle.
+///
+/// The host dispatches this action for every lifecycle transition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunLifecycleChangedAction {
+    /// Complete replacement {@link AutomationRunState.lifecycle}.
+    pub lifecycle: AutomationRunLifecycle,
+}
+
+/// Add a session to {@link AutomationRunState.sessions}.
+///
+/// Session URIs are unique. Setting an existing URI is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunSessionSetAction {
+    /// Session URI to append to {@link AutomationRunState.sessions} when not already linked.
+    pub session: Uri,
+}
+
+/// Remove a linked session from the run.
+///
+/// Removing the current primary session also clears
+/// {@link AutomationRunState.primarySession}. An unknown URI is a no-op.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunSessionRemovedAction {
+    /// Entry in {@link AutomationRunState.sessions} to remove.
+    pub session: Uri,
+}
+
+/// Select or clear the session clients should open first for this run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunPrimarySessionChangedAction {
+    /// New {@link AutomationRunState.primarySession}, or omitted to clear the selection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_session: Option<Uri>,
+}
+
+/// Ask the host to cancel this run.
+///
+/// This is the only client-dispatchable automation-run action. It is a
+/// side-effect request and deliberately leaves optimistic state unchanged. The
+/// client may dispatch it only when the host advertises its `runCancellation`
+/// capability and the current lifecycle is `pending` or `running`. The host
+/// revalidates that the run is non-terminal. The authoritative outcome arrives
+/// later through
+/// {@link AutomationRunLifecycleChangedAction}: cancellation may transition to
+/// `cancelled`, or the run may complete or fail before cancellation takes
+/// effect.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunCancelRequestedAction {}
+
 // ─── Partial Summaries ────────────────────────────────────────────────
 
 /// Partial equivalent of ChatSummary — every field is optional for delta updates.
@@ -1987,6 +2131,24 @@ pub enum StateAction {
     TerminalCommandFinished(TerminalCommandFinishedAction),
     #[serde(rename = "resourceWatch/changed")]
     ResourceWatchChanged(ResourceWatchChangedAction),
+    #[serde(rename = "automation/createRequested")]
+    AutomationCreateRequested(Box<AutomationCreateRequestedAction>),
+    #[serde(rename = "automation/updateRequested")]
+    AutomationUpdateRequested(Box<AutomationUpdateRequestedAction>),
+    #[serde(rename = "automation/set")]
+    AutomationSet(Box<AutomationSetAction>),
+    #[serde(rename = "automation/removed")]
+    AutomationRemoved(AutomationRemovedAction),
+    #[serde(rename = "automationRun/lifecycleChanged")]
+    AutomationRunLifecycleChanged(Box<AutomationRunLifecycleChangedAction>),
+    #[serde(rename = "automationRun/sessionSet")]
+    AutomationRunSessionSet(AutomationRunSessionSetAction),
+    #[serde(rename = "automationRun/sessionRemoved")]
+    AutomationRunSessionRemoved(AutomationRunSessionRemovedAction),
+    #[serde(rename = "automationRun/primarySessionChanged")]
+    AutomationRunPrimarySessionChanged(AutomationRunPrimarySessionChangedAction),
+    #[serde(rename = "automationRun/cancelRequested")]
+    AutomationRunCancelRequested(AutomationRunCancelRequestedAction),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]

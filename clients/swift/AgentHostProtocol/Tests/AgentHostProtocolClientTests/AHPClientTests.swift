@@ -188,6 +188,54 @@ final class AHPClientTests: XCTestCase {
         await client.shutdown()
     }
 
+    func testAutomationCatalogueActionsDispatchToSubscriptionsAndEvents() async throws {
+        let (clientSide, serverSide) = InMemoryTransport.pair()
+        let client = AHPClient(transport: clientSide)
+        let events = await client.events
+        let subscription = await client.attachSubscription("ahp-automations://")
+        try await client.connect()
+
+        let resource = "ahp-automation:/a1"
+
+        let serverTask = Task {
+            try await pushNotification(
+                method: "action",
+                params: ActionEnvelope(
+                    channel: "ahp-automations://",
+                    action: .automationRemoved(AutomationRemovedAction(
+                        type: .automationRemoved,
+                        resource: resource
+                    )),
+                    serverSeq: 1
+                ),
+                on: serverSide
+            )
+        }
+
+        var subscriptionIter = subscription.makeAsyncIterator()
+        let event = try await nextWithTimeout(&subscriptionIter)
+        guard case .action(let envelope) = event,
+              case .automationRemoved(let removed) = envelope.action else {
+            XCTFail("expected automation/removed action, got \(String(describing: event))")
+            return
+        }
+        XCTAssertEqual(removed.resource, resource)
+
+        var eventIter = events.makeAsyncIterator()
+        let nextEvent = try await nextWithTimeout(&eventIter)
+        let clientEvent = try XCTUnwrap(nextEvent)
+        XCTAssertEqual(clientEvent.resource, "ahp-automations://")
+        guard case .action(let envelope) = clientEvent.event,
+              case .automationRemoved(let removed) = envelope.action else {
+            XCTFail("expected automation/removed client event")
+            return
+        }
+        XCTAssertEqual(removed.resource, resource)
+
+        try await serverTask.value
+        await client.shutdown()
+    }
+
     // MARK: - unexpected_close_fails_pending_requests
 
     func testUnexpectedCloseFailsPendingRequests() async throws {

@@ -85,9 +85,9 @@ impl Default for ClientConfig {
 /// Inbound event fanned out to a [`SessionSubscription`].
 ///
 /// `Action` envelopes carry the write-ahead mutation stream; the
-/// remaining variants carry per-channel protocol notifications the
-/// server emits as top-level JSON-RPC methods (session catalogue events
-/// on the root channel, auth-required signals scoped to a channel).
+/// remaining variants carry per-channel protocol notifications the server emits
+/// as top-level JSON-RPC methods (session catalogue events on the root channel
+/// and auth-required signals scoped to a channel).
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SubscriptionEvent {

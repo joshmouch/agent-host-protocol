@@ -159,6 +159,7 @@ function mapType(tsType: string, propName?: string, containerName?: string): str
     || tsType === 'RootState | SessionState | TerminalState | ChangesetState | AnnotationsState'
     || tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState'
     || tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState'
+    || tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationCatalogState | AutomationRunState'
     || tsType === 'RootState | SessionState | ChatState'
     || tsType === 'RootState | SessionState | ChatState | TerminalState'
     || tsType === 'RootState | SessionState | ChatState | TerminalState | ChangesetState'
@@ -660,6 +661,9 @@ const STATE_ENUMS = [
   'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus', 'TerminalClaimKind',
   'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
+  'SessionOriginKind',
+  'AutomationOperation', 'AutomationMisfirePolicy', 'AutomationTriggerKind',
+  'AutomationRunStatus', 'AutomationRunOriginKind',
 ];
 
 /**
@@ -812,6 +816,26 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: str
   { name: 'TelemetryCapabilities' },
   { name: 'ResourceWatchState' },
   { name: 'ResourceChange' },
+  { name: 'AutomationSessionOrigin', omitDiscriminants: true },
+  { name: 'AutomationSchedule' },
+  { name: 'AutomationScheduleTrigger', omitDiscriminants: true },
+  { name: 'AutomationEventTrigger', omitDiscriminants: true },
+  { name: 'AutomationTriggerEventDefinition' },
+  { name: 'AutomationTriggerDefinition' },
+  { name: 'AutomationSessionTemplate' },
+  { name: 'AutomationDefinition' },
+  { name: 'AutomationDefinitionPatch' },
+  { name: 'AutomationState' },
+  { name: 'AutomationCatalogState' },
+  { name: 'AutomationManualRunOrigin', omitDiscriminants: true },
+  { name: 'AutomationTriggeredRunOrigin', omitDiscriminants: true },
+  { name: 'AutomationPendingRunLifecycle', omitDiscriminants: true },
+  { name: 'AutomationRunningRunLifecycle', omitDiscriminants: true },
+  { name: 'AutomationCompletedRunLifecycle', omitDiscriminants: true },
+  { name: 'AutomationFailedRunLifecycle', omitDiscriminants: true },
+  { name: 'AutomationCancelledRunLifecycle', omitDiscriminants: true },
+  { name: 'AutomationRunSummary' },
+  { name: 'AutomationRunState' },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -1042,6 +1066,48 @@ const SESSION_INPUT_REQUEST_UNION: UnionConfig = {
   unknown: true,
 };
 
+const SESSION_ORIGIN_UNION: UnionConfig = {
+  name: 'SessionOrigin',
+  discriminantField: 'kind',
+  doc: 'Durable origin of a session.',
+  variants: [
+    { variantName: 'Automation', innerType: 'AutomationSessionOrigin', wireValue: 'automation' },
+  ],
+};
+
+const AUTOMATION_TRIGGER_UNION: UnionConfig = {
+  name: 'AutomationTrigger',
+  discriminantField: 'kind',
+  doc: 'Automatic trigger for an automation.',
+  variants: [
+    { variantName: 'Schedule', innerType: 'AutomationScheduleTrigger', wireValue: 'schedule' },
+    { variantName: 'Event', innerType: 'AutomationEventTrigger', wireValue: 'event' },
+  ],
+};
+
+const AUTOMATION_RUN_ORIGIN_UNION: UnionConfig = {
+  name: 'AutomationRunOrigin',
+  discriminantField: 'kind',
+  doc: 'Provenance describing how an automation run was created.',
+  variants: [
+    { variantName: 'Manual', innerType: 'AutomationManualRunOrigin', wireValue: 'manual' },
+    { variantName: 'Trigger', innerType: 'AutomationTriggeredRunOrigin', wireValue: 'trigger' },
+  ],
+};
+
+const AUTOMATION_RUN_LIFECYCLE_UNION: UnionConfig = {
+  name: 'AutomationRunLifecycle',
+  discriminantField: 'status',
+  doc: 'Lifecycle of an automation run.',
+  variants: [
+    { variantName: 'Pending', innerType: 'AutomationPendingRunLifecycle', wireValue: 'pending' },
+    { variantName: 'Running', innerType: 'AutomationRunningRunLifecycle', wireValue: 'running' },
+    { variantName: 'Completed', innerType: 'AutomationCompletedRunLifecycle', wireValue: 'completed' },
+    { variantName: 'Failed', innerType: 'AutomationFailedRunLifecycle', wireValue: 'failed' },
+    { variantName: 'Cancelled', innerType: 'AutomationCancelledRunLifecycle', wireValue: 'cancelled' },
+  ],
+};
+
 function generateChatOrigin(): string {
   return `/// How a chat came into existence.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1088,14 +1154,14 @@ pub enum ChatOrigin {
 }
 
 function generateSnapshotState(): string {
-  return `/// The state payload of a snapshot — root, session, chat, terminal,
-/// changeset, resource-watch, annotations, or content state.
+  return `/// The state payload of a snapshot.
 ///
 /// Deserialized by trying session first (has required \`lifecycle\`), then
 /// chat (has required \`turns\`), then terminal (has required \`content\`),
 /// then changeset (has required \`status\` and \`files\`), then resource-watch
 /// (has required \`root\` and \`recursive\`), then annotations (has required
-/// \`annotations\`), then root.
+/// \`annotations\`), then the automation catalogue (has required
+/// \`automations\`), then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
@@ -1105,6 +1171,8 @@ pub enum SnapshotState {
     Changeset(Box<ChangesetState>),
     ResourceWatch(Box<ResourceWatchState>),
     Annotations(Box<AnnotationsState>),
+    Automations(Box<AutomationCatalogState>),
+    AutomationRun(Box<AutomationRunState>),
     Root(Box<RootState>),
 }`;
 }
@@ -1194,6 +1262,14 @@ function generateStateFile(project: Project): string {
   lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
   lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
@@ -1297,6 +1373,15 @@ const ACTION_VARIANTS: {
   { type: 'terminal/commandExecuted', variantName: 'TerminalCommandExecuted', tsInterface: 'TerminalCommandExecutedAction' },
   { type: 'terminal/commandFinished', variantName: 'TerminalCommandFinished', tsInterface: 'TerminalCommandFinishedAction' },
   { type: 'resourceWatch/changed', variantName: 'ResourceWatchChanged', tsInterface: 'ResourceWatchChangedAction' },
+  { type: 'automation/createRequested', variantName: 'AutomationCreateRequested', tsInterface: 'AutomationCreateRequestedAction', boxed: true },
+  { type: 'automation/updateRequested', variantName: 'AutomationUpdateRequested', tsInterface: 'AutomationUpdateRequestedAction', boxed: true },
+  { type: 'automation/set', variantName: 'AutomationSet', tsInterface: 'AutomationSetAction', boxed: true },
+  { type: 'automation/removed', variantName: 'AutomationRemoved', tsInterface: 'AutomationRemovedAction' },
+  { type: 'automationRun/lifecycleChanged', variantName: 'AutomationRunLifecycleChanged', tsInterface: 'AutomationRunLifecycleChangedAction', boxed: true },
+  { type: 'automationRun/sessionSet', variantName: 'AutomationRunSessionSet', tsInterface: 'AutomationRunSessionSetAction' },
+  { type: 'automationRun/sessionRemoved', variantName: 'AutomationRunSessionRemoved', tsInterface: 'AutomationRunSessionRemovedAction' },
+  { type: 'automationRun/primarySessionChanged', variantName: 'AutomationRunPrimarySessionChanged', tsInterface: 'AutomationRunPrimarySessionChangedAction' },
+  { type: 'automationRun/cancelRequested', variantName: 'AutomationRunCancelRequested', tsInterface: 'AutomationRunCancelRequestedAction' },
 ];
 
 function generateMergedToolCallConfirmedStruct(scope: 'Session' | 'Chat' = 'Session'): string {
@@ -1335,7 +1420,7 @@ pub struct ${scope}ToolCallConfirmedAction {
 function generateActionsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentInfo, AgentSelection, Annotation, AnnotationEntry, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ChatInteractivity, ChatOrigin, ConfirmationOption, ContentRef, Customization, CustomizationEnablement, ErrorInfo, McpAuthRequirement, McpServerState, ModelSelection, ResponsePart, SessionActiveClient, SessionInputRequest, SideChatSelection, TerminalClaim, TerminalInfo, TextRange, ToolCallContributor, ToolCallResult, ToolCallRiskAssessment, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolInput, ToolResultContent, UsageInfo, Message, PendingMessageKind, Turn, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset, ChatSummary};');
+  lines.push('use crate::state::{AgentInfo, AgentSelection, Annotation, AnnotationEntry, AutomationDefinition, AutomationDefinitionPatch, AutomationRunLifecycle, AutomationRunSummary, AutomationState, ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ChatInteractivity, ChatOrigin, ConfirmationOption, ContentRef, Customization, CustomizationEnablement, ErrorInfo, McpAuthRequirement, McpServerState, ModelSelection, ResponsePart, SessionActiveClient, SessionInputRequest, SideChatSelection, TerminalClaim, TerminalInfo, TextRange, ToolCallContributor, ToolCallResult, ToolCallRiskAssessment, ToolCallConfirmationReason, ToolCallCancellationReason, ToolDefinition, ToolInput, ToolResultContent, UsageInfo, Message, PendingMessageKind, Turn, ChangesetStatus, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, Changeset, ChatSummary};');
   lines.push('');
 
   // ActionType enum
@@ -1438,7 +1523,11 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ChatSourceKind', 'ContentEncoding
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
-  { name: 'ClientCapabilities' }, { name: 'Implementation' },
+  { name: 'ClientCapabilities' }, { name: 'AutomationCapabilities' },
+  { name: 'AutomationCreateCapability' },
+  { name: 'AutomationScheduleCapabilities' },
+  { name: 'AutomationRunCancellationCapability' },
+  { name: 'Implementation' },
   { name: 'ReconnectParams' },
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
   { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
@@ -1469,6 +1558,9 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: s
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
   { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
   { name: 'ChangesetOperationFollowUp' },
+  { name: 'ListAutomationTriggerDefinitionsParams' }, { name: 'ListAutomationTriggerDefinitionsResult' },
+  { name: 'RunAutomationParams' }, { name: 'RunAutomationResult' },
+  { name: 'FetchAutomationRunsParams' }, { name: 'FetchAutomationRunsResult' },
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -1496,7 +1588,7 @@ function generateCommandsFile(project: Project): string {
   lines.push('#[allow(unused_imports)]');
   lines.push('use crate::actions::{ActionEnvelope, StateAction};');
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, ContentRef, Message, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, SideChatSelection, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, TextRange, Turn};');
+  lines.push('use crate::state::{AgentSelection, AutomationDefinition, AutomationSchedule, AutomationSessionTemplate, AutomationTrigger, AutomationTriggerDefinition, ContentRef, Message, MessageAttachment, ModelSelection, SessionActiveClient, SessionConfigSchema, SessionSummary, SideChatSelection, Snapshot, SnapshotState, TelemetryCapabilities, TerminalClaim, TextRange, Turn};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1637,7 +1729,7 @@ const NOTIFICATION_STRUCTS = [
 function generateNotificationsFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
   lines.push('#[allow(unused_imports)]');
-  lines.push('use crate::state::{AgentSelection, AnnotationsSummary, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo, ProtectedResourceMetadata, SessionStatus, SessionSummary};');
+  lines.push('use crate::state::{AgentSelection, AnnotationsSummary, ChangesSummary, Changeset, FileEdit, ModelSelection, ProjectInfo, ProtectedResourceMetadata, SessionOrigin, SessionStatus, SessionSummary};');
   lines.push('');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
@@ -1944,6 +2036,10 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputRequest',          // SESSION_INPUT_REQUEST_UNION discriminated union
     'ToolCallConfirmationState',    // TOOL_CALL_CONFIRMATION_STATE_UNION discriminated union
     'ReconnectResult',
+    'SessionOrigin',
+    'AutomationTrigger',
+    'AutomationRunOrigin',
+    'AutomationRunLifecycle',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',
     'UnsupportedProtocolVersionErrorData',

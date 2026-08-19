@@ -277,6 +277,9 @@ pub enum MessageKind {
     /// worker chat whose first message carries a seed prompt.
     #[serde(rename = "tool")]
     Tool,
+    /// Emitted automatically when an automation run starts a session.
+    #[serde(rename = "automation")]
+    Automation,
     /// A system-generated notification rather than a direct user message.
     #[serde(rename = "systemNotification")]
     SystemNotification,
@@ -596,6 +599,92 @@ pub enum ResourceChangeType {
     Updated,
     #[serde(rename = "deleted")]
     Deleted,
+}
+
+/// Discriminant describing the durable provenance of a session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SessionOriginKind {
+    /// The session was created as part of an automation run.
+    #[serde(rename = "automation")]
+    Automation,
+}
+
+/// Operations the host currently permits for an automation.
+///
+/// The list on {@link AutomationState.operations} is authoritative and may
+/// change over time. Clients MUST NOT infer permission from capabilities alone:
+/// capabilities describe what the host implementation can support, while
+/// operations describe what is allowed for this particular automation now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationOperation {
+    /// Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}.
+    #[serde(rename = "update")]
+    Update,
+    /// Permanently remove the automation using {@link AutomationRemovedAction | `automation/removed`}.
+    #[serde(rename = "remove")]
+    Remove,
+    /// Start a manual run using {@link RunAutomationParams | runAutomation}.
+    #[serde(rename = "run")]
+    Run,
+}
+
+/// How a host handles schedule occurrences missed while automatic execution was
+/// unavailable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationMisfirePolicy {
+    /// Discard missed occurrences and wait for the next future occurrence.
+    #[serde(rename = "skip")]
+    Skip,
+    /// Start at most one catch-up run when execution becomes available, regardless
+    /// of how many occurrences were missed.
+    #[serde(rename = "runOnce")]
+    RunOnce,
+}
+
+/// Discriminant for automatic trigger definitions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationTriggerKind {
+    /// A portable recurring {@link AutomationSchedule}.
+    #[serde(rename = "schedule")]
+    Schedule,
+    /// A host-defined external event discovered from trigger definitions.
+    #[serde(rename = "event")]
+    Event,
+}
+
+/// Lifecycle status of one automation run.
+///
+/// `completed`, `failed`, and `cancelled` are terminal. A run remains `running`
+/// while any linked session awaits input or client-side work; linked session
+/// state is authoritative for those interactions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationRunStatus {
+    /// The durable run record exists but execution has not started.
+    #[serde(rename = "pending")]
+    Pending,
+    /// One or more linked sessions are executing or awaiting interaction.
+    #[serde(rename = "running")]
+    Running,
+    /// Execution finished successfully.
+    #[serde(rename = "completed")]
+    Completed,
+    /// Execution ended with an error.
+    #[serde(rename = "failed")]
+    Failed,
+    /// Execution ended because cancellation was accepted.
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+
+/// Discriminant describing what created an automation run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AutomationRunOriginKind {
+    /// A client explicitly invoked {@link RunAutomationParams | runAutomation}.
+    #[serde(rename = "manual")]
+    Manual,
+    /// An automatic schedule or event trigger fired.
+    #[serde(rename = "trigger")]
+    Trigger,
 }
 
 // ─── Structs ──────────────────────────────────────────────────────────
@@ -1178,6 +1267,9 @@ pub struct SessionState {
     /// Human-readable description of what the session is currently doing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<String>,
+    /// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<SessionOrigin>,
     /// Server-owned project for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<ProjectInfo>,
@@ -1475,6 +1567,9 @@ pub struct SessionSummary {
     /// Human-readable description of what the session is currently doing
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub activity: Option<String>,
+    /// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<SessionOrigin>,
     /// Server-owned project for this session
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project: Option<ProjectInfo>,
@@ -1671,7 +1766,8 @@ pub struct ActiveTurn {
 }
 
 /// A message that initiates or steers a turn. Messages can originate from the
-/// user, the agent, a tool, or be system-generated (see {@link MessageOrigin}).
+/// user, the agent, a tool, an automation, or be system-generated (see
+/// {@link MessageOrigin}).
 ///
 /// Attachments MAY be referenced inside {@link Message.text} via their
 /// {@link MessageAttachmentBase.range} field. Attachments without a range are
@@ -4320,6 +4416,425 @@ pub struct ResourceChange {
     pub r#type: ResourceChangeType,
 }
 
+/// Provenance recorded on a session created for an automation run.
+///
+/// The links let clients navigate from an ordinary session to the task-level
+/// run and its durable definition. The session channel remains authoritative
+/// for this session's transcript, tools, confirmations, and changes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationSessionOrigin {
+    /// Owning {@link AutomationState.resource}.
+    pub automation: Uri,
+    /// Owning {@link AutomationRunState.resource}.
+    pub run: Uri,
+}
+
+/// A portable recurring schedule evaluated in a named time zone.
+///
+/// The expression uses exactly five whitespace-separated fields, in this
+/// order:
+///
+/// | Field | Values |
+/// | --- | --- |
+/// | minute | `0`–`59` |
+/// | hour | `0`–`23` |
+/// | day of month | `1`–`31` |
+/// | month | `1`–`12` or `JAN`–`DEC` |
+/// | day of week | `0`–`7` or `SUN`–`SAT`; both `0` and `7` mean Sunday |
+///
+/// Month and weekday names are ASCII and case-insensitive. Each field accepts
+/// `*`, a single value, an inclusive range (`1-5`), a comma-separated list of
+/// values or ranges (`1,3,8-10`), or a step applied to `*` or a range (for
+/// example, &#42;/15 or `1-30/2`). A step MUST be a positive integer. AHP does
+/// not support seconds, years, macros such as `@daily`, or Quartz extensions
+/// such as `?`, `L`, `W`, and `#`.
+///
+/// Minute, hour, and month must all match. When both day-of-month and
+/// day-of-week are restricted (not `*`), an occurrence matches when either day
+/// field matches, following Unix cron semantics.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationSchedule {
+    /// Five-field AHP cron expression described by {@link AutomationSchedule}.
+    pub expression: String,
+    /// IANA Time Zone Database identifier used to interpret the expression, for
+    /// example `"UTC"` or `"Europe/Berlin"`.
+    pub time_zone: String,
+}
+
+/// Starts runs from a recurring cron schedule evaluated by the host.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationScheduleTrigger {
+    /// Identifier unique and stable within this automation definition. Recorded in
+    /// {@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a
+    /// run.
+    pub id: String,
+    /// Recurrence and time zone evaluated by the host.
+    pub schedule: AutomationSchedule,
+    /// Policy for missed occurrences. Omission is equivalent to
+    /// {@link AutomationMisfirePolicy.RunOnce}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub misfire_policy: Option<AutomationMisfirePolicy>,
+}
+
+/// Starts runs from events understood by the owning host.
+///
+/// Event trigger types, events, and configuration are discovered through
+/// {@link ListAutomationTriggerDefinitionsParams |
+/// listAutomationTriggerDefinitions}. The saved trigger includes the matching
+/// human-readable metadata so it remains displayable without repeating
+/// discovery.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationEventTrigger {
+    /// Identifier unique and stable within this automation definition. Recorded in
+    /// {@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a
+    /// run.
+    pub id: String,
+    /// Matches {@link AutomationTriggerDefinition.type}.
+    pub r#type: String,
+    /// Host-normalized human-readable trigger type name.
+    pub title: String,
+    /// Optional host-normalized explanation of the trigger source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Selected events for this trigger type.
+    ///
+    /// Event ids carry the trigger semantics. Titles and descriptions are
+    /// last-known display metadata and do not indicate current availability.
+    pub events: Vec<AutomationTriggerEventDefinition>,
+    /// Values described by {@link AutomationTriggerDefinition.configSchema}.
+    /// Clients MUST preserve unknown entries when editing other fields.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<JsonObject>,
+}
+
+/// Describes one host-defined trigger event.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationTriggerEventDefinition {
+    /// Stable event id.
+    pub id: String,
+    /// Human-readable event name.
+    pub title: String,
+    /// Optional longer explanation of when this event fires.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Describes one host-defined event trigger type available for a prospective
+/// automation session template.
+///
+/// Trigger definitions are discovery metadata, not durable automation state.
+/// Hosts may return different definitions for different providers, working
+/// directories, or session configuration.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationTriggerDefinition {
+    /// Stable type id stored in {@link AutomationEventTrigger.type}.
+    pub r#type: String,
+    /// Human-readable trigger type name.
+    pub title: String,
+    /// Optional longer explanation of the trigger source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Events available for selection. Saved triggers retain their selected event descriptors.
+    pub events: Vec<AutomationTriggerEventDefinition>,
+    /// Optional schema for {@link AutomationEventTrigger.config}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_schema: Option<ConfigSchema>,
+}
+
+/// Template from which the host creates a fresh session for each automation run.
+///
+/// The host revalidates every selection when the run starts. Definitions never
+/// carry credentials, confirmation decisions, or durable permission grants.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationSessionTemplate {
+    /// Provider id matching {@link AgentInfo.provider}. Omit to use the host's default provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// Optional model selection resolved when a run starts. Its
+    /// {@link ModelSelection.id} matches a {@link SessionModelInfo.id} advertised
+    /// by the selected provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+    /// Optional custom agent selection identified by {@link AgentSelection.uri}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<AgentSelection>,
+    /// Ordered working-directory URIs for each created session, equivalent to
+    /// {@link CreateSessionParams.workingDirectories}. Absence means a
+    /// workspace-less session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub working_directories: Option<Vec<Uri>>,
+    /// Session configuration values equivalent to
+    /// {@link CreateSessionParams.config}, normally obtained from
+    /// {@link ResolveSessionConfigResult.values}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<JsonObject>,
+}
+
+/// Durable, client-editable definition of an automation.
+///
+/// A definition combines the initial automation message, the session template
+/// used for each run, and zero or more automatic triggers. Run history,
+/// timestamps, and currently allowed operations live on
+/// {@link AutomationState} rather than in the definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationDefinition {
+    /// Human-readable automation name.
+    pub title: String,
+    /// Initial message sent to every newly created run session. Its
+    /// {@link Message.origin} kind MUST be {@link MessageKind.Automation}.
+    pub message: Message,
+    /// Template used to create fresh sessions for each run.
+    pub session: AutomationSessionTemplate,
+    /// Whether automatic triggers may create runs. Manual runs remain available
+    /// whenever {@link AutomationOperation.Run} is advertised.
+    pub enabled: bool,
+    /// Automatic triggers. An empty list means manual-only.
+    pub triggers: Vec<AutomationTrigger>,
+    /// Opaque implementation-defined metadata. Clients MUST preserve unknown
+    /// entries when updating the definition.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Partial replacement of editable {@link AutomationDefinition} fields.
+///
+/// Omitted fields are unchanged. Supplied arrays and objects replace their
+/// corresponding values in full; they are not merged recursively.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationDefinitionPatch {
+    /// Replacement {@link AutomationDefinition.title}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Replacement {@link AutomationDefinition.message}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<Message>,
+    /// Replacement {@link AutomationDefinition.session}. The host revalidates
+    /// affected event triggers when their discovery context changes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session: Option<AutomationSessionTemplate>,
+    /// Replacement {@link AutomationDefinition.enabled}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    /// Complete replacement {@link AutomationDefinition.triggers}. The host
+    /// validates event ids and normalizes event-trigger titles and descriptions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub triggers: Option<Vec<AutomationTrigger>>,
+    /// Complete replacement {@link AutomationDefinition._meta}.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Authoritative state of one automation in the
+/// {@link AutomationCatalogState.automations} catalogue.
+///
+/// The host owns trigger evaluation, run claims, run retention, and operation
+/// availability. Clients render this state and submit actions or commands; they
+/// never run a fallback scheduler for a host-owned definition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationState {
+    /// Stable `ahp-automation:/<id>` resource identifier.
+    pub resource: Uri,
+    /// Current durable definition.
+    pub definition: AutomationDefinition,
+    /// Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_run_at: Option<String>,
+    /// Newest-first retained run summaries. This is a bounded window; use
+    /// {@link FetchAutomationRunsParams | fetchAutomationRuns} when
+    /// {@link AutomationState.runsNextCursor} is present.
+    pub runs: Vec<AutomationRunSummary>,
+    /// Opaque cursor passed as {@link FetchAutomationRunsParams.cursor} for the next older run-history page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runs_next_cursor: Option<String>,
+    /// Operations currently permitted for this automation.
+    pub operations: Vec<AutomationOperation>,
+    /// Creation timestamp in ISO 8601 format.
+    pub created_at: String,
+    /// Last definition modification timestamp in ISO 8601 format.
+    pub modified_at: String,
+    /// Opaque host-defined state metadata.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Authoritative automation catalogue exposed on the `ahp-automations://`
+/// channel.
+///
+/// A subscription snapshot contains every automation visible to the client.
+/// Subsequent {@link AutomationSetAction | `automation/set`} and
+/// {@link AutomationRemovedAction | `automation/removed`} actions keep the
+/// catalogue synchronized and participate in normal reconnect replay.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCatalogState {
+    /// Full automation states keyed by {@link AutomationState.resource}.
+    pub automations: Vec<AutomationState>,
+    /// Opaque host-defined catalogue metadata.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Origin recorded for a client-requested manual run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationManualRunOrigin {}
+
+/// Origin recorded for a run created by one of the automation's triggers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationTriggeredRunOrigin {
+    /// Matches the stable {@link AutomationScheduleTrigger.id} or
+    /// {@link AutomationEventTrigger.id} in the definition.
+    pub trigger_id: String,
+    /// Intended schedule occurrence as an ISO 8601 timestamp. Present for
+    /// schedule triggers and normally absent for event triggers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scheduled_for: Option<String>,
+    /// `true` when this is a catch-up run created by
+    /// {@link AutomationMisfirePolicy.RunOnce}.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catch_up: Option<bool>,
+    /// Host-defined, non-secret event provenance suitable for display or audit.
+    /// This is descriptive context, not an input that clients replay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub event: Option<JsonObject>,
+}
+
+/// A durable run exists but has not begun external execution.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationPendingRunLifecycle {
+    /// Run creation timestamp in ISO 8601 format.
+    pub created_at: String,
+}
+
+/// The run is executing linked sessions or awaiting interaction on them.
+///
+/// Linked {@link SessionState.status} and {@link SessionState.inputNeeded}
+/// remain authoritative for whether user attention or client-side work is
+/// required.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunningRunLifecycle {
+    /// Run creation timestamp in ISO 8601 format.
+    pub created_at: String,
+    /// First execution start timestamp in ISO 8601 format.
+    pub started_at: String,
+}
+
+/// Terminal lifecycle for a successfully completed run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCompletedRunLifecycle {
+    /// Run creation timestamp in ISO 8601 format.
+    pub created_at: String,
+    /// First execution start timestamp in ISO 8601 format.
+    pub started_at: String,
+    /// Completion timestamp in ISO 8601 format.
+    pub completed_at: String,
+    /// Optional aggregate model usage across all linked sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<UsageInfo>,
+}
+
+/// Terminal lifecycle for a run that ended with an error.
+///
+/// `startedAt` is absent when failure occurred before execution began, such as
+/// session-template validation or workspace preparation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationFailedRunLifecycle {
+    /// Run creation timestamp in ISO 8601 format.
+    pub created_at: String,
+    /// First execution start timestamp in ISO 8601 format, when execution began.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    /// Failure timestamp in ISO 8601 format.
+    pub completed_at: String,
+    /// Stable machine-readable and human-readable failure information.
+    pub error: ErrorInfo,
+}
+
+/// Terminal lifecycle for a cancelled run.
+///
+/// `startedAt` is absent when cancellation completed while the run was still
+/// pending.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationCancelledRunLifecycle {
+    /// Run creation timestamp in ISO 8601 format.
+    pub created_at: String,
+    /// First execution start timestamp in ISO 8601 format, when execution began.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    /// Cancellation completion timestamp in ISO 8601 format.
+    pub completed_at: String,
+}
+
+/// Lightweight projection of a run retained in its automation's history.
+///
+/// A summary contains enough information to render run history without
+/// subscribing to every `ahp-automation-run:` resource.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunSummary {
+    /// Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.
+    pub resource: Uri,
+    /// Owning `ahp-automation:` URI matching {@link AutomationRunState.automation}.
+    pub automation: Uri,
+    /// Immutable provenance matching {@link AutomationRunState.origin}.
+    pub origin: AutomationRunOrigin,
+    /// Current or terminal lifecycle snapshot matching {@link AutomationRunState.lifecycle}.
+    pub lifecycle: AutomationRunLifecycle,
+    /// Session matching {@link AutomationRunState.primarySession}, when selected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_session: Option<Uri>,
+    /// Number of entries in {@link AutomationRunState.sessions}.
+    pub session_count: i64,
+    /// Opaque host-defined summary metadata.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
+/// Authoritative state of one subscribed `ahp-automation-run:` resource.
+///
+/// The run channel owns task-level lifecycle, provenance, and linked-session
+/// membership. Linked session and chat channels remain authoritative for
+/// transcripts, tools, interaction requirements, changesets, and per-session
+/// lifecycle.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutomationRunState {
+    /// URI of this automation-run channel.
+    pub resource: Uri,
+    /// Owning `ahp-automation:` URI matching {@link AutomationState.resource}.
+    pub automation: Uri,
+    /// Immutable provenance describing how this run was created.
+    pub origin: AutomationRunOrigin,
+    /// Current or terminal lifecycle.
+    pub lifecycle: AutomationRunLifecycle,
+    /// Ordered, unique session URIs belonging to this run, each matching
+    /// {@link SessionState.resource}. Entries may represent retries, parallel
+    /// workers, or delegated attempts.
+    pub sessions: Vec<Uri>,
+    /// Member of {@link AutomationRunState.sessions} that the host recommends opening first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub primary_session: Option<Uri>,
+    /// Opaque host-defined run metadata.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<JsonObject>,
+}
+
 // ─── Customization Enablement Union ───────────────────────────────────────
 
 /// A single explicit customization enablement decision.
@@ -4697,14 +5212,58 @@ pub enum SessionInputRequest {
     Unknown(serde_json::Value),
 }
 
-/// The state payload of a snapshot — root, session, chat, terminal,
-/// changeset, resource-watch, annotations, or content state.
+/// Durable origin of a session.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum SessionOrigin {
+    #[serde(rename = "automation")]
+    Automation(AutomationSessionOrigin),
+}
+
+/// Automatic trigger for an automation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum AutomationTrigger {
+    #[serde(rename = "schedule")]
+    Schedule(AutomationScheduleTrigger),
+    #[serde(rename = "event")]
+    Event(AutomationEventTrigger),
+}
+
+/// Provenance describing how an automation run was created.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum AutomationRunOrigin {
+    #[serde(rename = "manual")]
+    Manual(AutomationManualRunOrigin),
+    #[serde(rename = "trigger")]
+    Trigger(AutomationTriggeredRunOrigin),
+}
+
+/// Lifecycle of an automation run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status")]
+pub enum AutomationRunLifecycle {
+    #[serde(rename = "pending")]
+    Pending(AutomationPendingRunLifecycle),
+    #[serde(rename = "running")]
+    Running(AutomationRunningRunLifecycle),
+    #[serde(rename = "completed")]
+    Completed(AutomationCompletedRunLifecycle),
+    #[serde(rename = "failed")]
+    Failed(AutomationFailedRunLifecycle),
+    #[serde(rename = "cancelled")]
+    Cancelled(AutomationCancelledRunLifecycle),
+}
+
+/// The state payload of a snapshot.
 ///
 /// Deserialized by trying session first (has required `lifecycle`), then
 /// chat (has required `turns`), then terminal (has required `content`),
 /// then changeset (has required `status` and `files`), then resource-watch
 /// (has required `root` and `recursive`), then annotations (has required
-/// `annotations`), then root.
+/// `annotations`), then the automation catalogue (has required
+/// `automations`), then root.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum SnapshotState {
@@ -4714,5 +5273,7 @@ pub enum SnapshotState {
     Changeset(Box<ChangesetState>),
     ResourceWatch(Box<ResourceWatchState>),
     Annotations(Box<AnnotationsState>),
+    Automations(Box<AutomationCatalogState>),
+    AutomationRun(Box<AutomationRunState>),
     Root(Box<RootState>),
 }

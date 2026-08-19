@@ -167,6 +167,10 @@ type InitializeResult struct {
 	// defines a template variable, `{level}`, for subscriber-side severity
 	// filtering). Clients MAY ignore signals they cannot process.
 	Telemetry *TelemetryCapabilities `json:"telemetry,omitempty"`
+	// Host-owned automation support. Presence means clients may subscribe to
+	// `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+	// host does not expose an automation catalogue or automation commands.
+	Automations *AutomationCapabilities `json:"automations,omitempty"`
 }
 
 // Optional capabilities a client declares during `initialize`.
@@ -187,6 +191,56 @@ type ClientCapabilities struct {
 	// capability is declared. Clients that omit it MUST treat
 	// App-bearing tool calls as ordinary MCP tool calls.
 	McpApps map[string]json.RawMessage `json:"mcpApps,omitempty"`
+}
+
+// Automation features supported by this host authority.
+//
+// The presence of this object advertises the baseline `ahp-automations://`
+// catalogue. Optional fields describe additional host features and
+// restrictions.
+//
+// Capabilities describe implementation support.
+// {@link AutomationState.operations} remains authoritative for which
+// definition mutations are currently allowed on a particular automation.
+type AutomationCapabilities struct {
+	// Present when clients may dispatch {@link AutomationCreateRequestedAction}.
+	Create *AutomationCreateCapability `json:"create,omitempty"`
+	// Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}.
+	Schedules *AutomationScheduleCapabilities `json:"schedules,omitempty"`
+	// Present when clients may request cancellation of `pending` or `running`
+	// automation runs.
+	RunCancellation *AutomationRunCancellationCapability `json:"runCancellation,omitempty"`
+	// Maximum terminal entries retained in {@link AutomationState.runs}. Active
+	// runs are not counted toward the limit. Absence means the retention limit is
+	// implementation-defined.
+	RunHistoryLimit *int64 `json:"runHistoryLimit,omitempty"`
+}
+
+// Presence capability for {@link AutomationCreateRequestedAction |
+// `automation/createRequested`}.
+//
+// The empty object means "supported"; fields are reserved for future
+// create-specific options.
+type AutomationCreateCapability struct {
+}
+
+// Host restrictions on portable {@link AutomationSchedule} triggers.
+//
+// The cron grammar itself is fixed by AHP. Hosts MUST accept every expression
+// in that grammar unless it violates an advertised interval restriction.
+type AutomationScheduleCapabilities struct {
+	// Smallest permitted interval between consecutive occurrences produced by
+	// {@link AutomationSchedule.expression}. Omission means no restriction beyond
+	// the cron format's one-minute resolution.
+	MinIntervalMinutes *int64 `json:"minIntervalMinutes,omitempty"`
+}
+
+// Presence capability for {@link AutomationRunCancelRequestedAction |
+// `automationRun/cancelRequested`}.
+//
+// The empty object means "supported." Clients may dispatch the action for
+// `pending` or `running` runs; terminal runs cannot be cancelled.
+type AutomationRunCancellationCapability struct {
 }
 
 // Identifies a protocol implementation — the software (and build) on one end
@@ -1176,6 +1230,80 @@ type ChangesetOperationFollowUp struct {
 	Content ContentRef `json:"content"`
 	// When `true`, open in an external handler rather than inline.
 	External *bool `json:"external,omitempty"`
+}
+
+// Discover event-trigger types available for a prospective session template.
+//
+// Hosts may vary definitions by provider, workspace, and session
+// configuration. Schedule triggers are protocol-defined and therefore do not
+// appear in this result. The result describes current authoring and validation
+// choices. Saved {@link AutomationEventTrigger} values retain their selected
+// event descriptors for display but do not establish current availability.
+type ListAutomationTriggerDefinitionsParams struct {
+	// Channel URI this command targets.
+	Channel URI `json:"channel"`
+	// Optional JSON-serializable metadata associated with this request.
+	// Receivers MUST ignore keys they do not understand.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+	// Prospective provider id matching {@link AgentInfo.provider}, or omitted for the host default.
+	Provider *string `json:"provider,omitempty"`
+	// Prospective {@link AutomationSessionTemplate.workingDirectories}.
+	WorkingDirectories []URI `json:"workingDirectories,omitempty"`
+	// Prospective resolved {@link AutomationSessionTemplate.config}.
+	SessionConfig map[string]json.RawMessage `json:"sessionConfig,omitempty"`
+}
+
+// Host-defined event trigger types available for the supplied context.
+type ListAutomationTriggerDefinitionsResult struct {
+	// Available event trigger definitions.
+	Items []AutomationTriggerDefinition `json:"items"`
+}
+
+// Start a manual run of an automation.
+//
+// Manual execution is independent of {@link AutomationDefinition.enabled}.
+// The host persists the run before beginning session side effects.
+type RunAutomationParams struct {
+	// Channel URI this command targets.
+	Channel URI `json:"channel"`
+	// Optional JSON-serializable metadata associated with this request.
+	// Receivers MUST ignore keys they do not understand.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+	// Target {@link AutomationState.resource}.
+	Automation URI `json:"automation"`
+	// Durable client-generated idempotency key. Retrying with the same key and
+	// automation MUST return the original run URI rather than create another
+	// run.
+	RequestId string `json:"requestId"`
+}
+
+// Result identifying the existing or newly created run.
+type RunAutomationResult struct {
+	// Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.
+	Resource URI `json:"resource"`
+}
+
+// Load one older page into a catalogued automation's run-history state.
+//
+// The response only acknowledges the request. The updated full state arrives
+// through {@link AutomationSetAction | `automation/set`} on the
+// `ahp-automations://` channel, keeping all catalogue subscribers synchronized
+// through the normal action stream.
+type FetchAutomationRunsParams struct {
+	// Channel URI this command targets.
+	Channel URI `json:"channel"`
+	// Optional JSON-serializable metadata associated with this request.
+	// Receivers MUST ignore keys they do not understand.
+	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
+	// Target {@link AutomationState.resource}.
+	Automation URI `json:"automation"`
+	// Cursor previously received as {@link AutomationState.runsNextCursor}.
+	// Omit to request the first page not already included by the snapshot.
+	Cursor *string `json:"cursor,omitempty"`
+}
+
+// Empty acknowledgement; the updated automation state is delivered by action.
+type FetchAutomationRunsResult struct {
 }
 
 func (v *ForkChatSource) UnmarshalJSON(data []byte) error {

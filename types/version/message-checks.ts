@@ -76,7 +76,10 @@ type _ExpectedCommands =
   | 'resolveSessionConfig'
   | 'sessionConfigCompletions'
   | 'completions'
-  | 'invokeChangesetOperation';
+  | 'invokeChangesetOperation'
+  | 'listAutomationTriggerDefinitions'
+  | 'runAutomation'
+  | 'fetchAutomationRuns';
 
 /** All methods annotated `@messageType Notification` (client → server). */
 type _ExpectedClientNotifications =

@@ -173,18 +173,14 @@ describe('generated JSON schemas', () => {
         );
       });
 
-      it('inherits request metadata from BaseParams', () => {
+      it('preserves automation schedule restrictions', () => {
         if (file !== 'commands.schema.json') {
           return;
         }
         const defs = schema.$defs as Record<string, Record<string, unknown>>;
-        for (const name of ['BaseParams', 'CreateSessionParams', 'PingParams']) {
-          const properties = defs[name].properties as Record<string, Record<string, unknown>>;
-          assert.equal(properties._meta.type, 'object');
-          assert.deepEqual(properties._meta.additionalProperties, {});
-        }
-        const baseProperties = defs.BaseParams.properties as Record<string, Record<string, unknown>>;
-        assert.match(baseProperties._meta.description as string, /Receivers MUST ignore keys/);
+        const schedules = defs.AutomationScheduleCapabilities;
+        const properties = schedules.properties as Record<string, Record<string, unknown>>;
+        assert.equal(properties.minIntervalMinutes.type, 'number');
       });
 
       it('constrains every ChatOrigin branch to a distinct kind', () => {

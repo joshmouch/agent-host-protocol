@@ -8,8 +8,8 @@
 import Foundation
 import AgentHostProtocol
 
-/// In-memory mirror of root/session/terminal state, fed by `ActionEnvelope`
-/// and `Snapshot` values from `AHPClient`.
+/// In-memory mirror of stateful AHP channels, fed by `ActionEnvelope` and
+/// `Snapshot` values from `AHPClient`.
 public actor AHPStateMirror {
     public private(set) var rootState: RootState = RootState(agents: [])
     public private(set) var sessions: [String: SessionState] = [:]
@@ -18,6 +18,9 @@ public actor AHPStateMirror {
     public private(set) var changesets: [String: ChangesetState] = [:]
     public private(set) var annotations: [String: AnnotationsState] = [:]
     public private(set) var resourceWatches: [String: ResourceWatchState] = [:]
+    public private(set) var automationCatalog = AutomationCatalogState(automations: [])
+    public private(set) var automations: [String: AutomationState] = [:]
+    public private(set) var automationRuns: [String: AutomationRunState] = [:]
 
     public init() {}
 
@@ -65,11 +68,19 @@ public actor AHPStateMirror {
             // a reducer input. The slot is seeded by `applySnapshot`.
             return
         }
+        if channel == "ahp-automations://" {
+            automationCatalog = automationReducer(state: automationCatalog, action: action)
+            rebuildAutomationIndex()
+            return
+        }
+        if var run = automationRuns[channel] {
+            run = automationRunReducer(state: run, action: action)
+            automationRuns[channel] = run
+            return
+        }
     }
 
-    /// Seed the mirror from a `Snapshot` — root, session, terminal,
-    /// changeset, resource-watch, or annotations as the snapshot's
-    /// `state` discriminator dictates.
+    /// Seed the mirror from a `Snapshot`, routing by its `state` discriminator.
     public func applySnapshot(_ snapshot: Snapshot) {
         switch snapshot.state {
         case .root(let state):
@@ -86,7 +97,20 @@ public actor AHPStateMirror {
             resourceWatches[snapshot.resource] = state
         case .annotations(let state):
             annotations[snapshot.resource] = state
+        case .automations(let state):
+            automationCatalog = state
+            rebuildAutomationIndex()
+        case .automationRun(let state):
+            automationRuns[snapshot.resource] = state
         }
+    }
+
+    private func rebuildAutomationIndex() {
+        var indexed: [String: AutomationState] = [:]
+        for automation in automationCatalog.automations {
+            indexed[automation.resource] = automation
+        }
+        automations = indexed
     }
 
     /// Reset the mirror to its initial empty state.
@@ -98,5 +122,8 @@ public actor AHPStateMirror {
         changesets.removeAll()
         annotations.removeAll()
         resourceWatches.removeAll()
+        automationCatalog = AutomationCatalogState(automations: [])
+        automations.removeAll()
+        automationRuns.removeAll()
     }
 }

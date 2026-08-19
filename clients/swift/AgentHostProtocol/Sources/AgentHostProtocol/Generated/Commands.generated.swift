@@ -266,6 +266,10 @@ public struct InitializeResult: Codable, Sendable {
     /// defines a template variable, `{level}`, for subscriber-side severity
     /// filtering). Clients MAY ignore signals they cannot process.
     public var telemetry: TelemetryCapabilities?
+    /// Host-owned automation support. Presence means clients may subscribe to
+    /// `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+    /// host does not expose an automation catalogue or automation commands.
+    public var automations: AutomationCapabilities?
 
     public init(
         protocolVersion: String,
@@ -275,7 +279,8 @@ public struct InitializeResult: Codable, Sendable {
         defaultDirectory: String? = nil,
         completionTriggerCharacters: [String]? = nil,
         terminalCommandPrefix: String? = nil,
-        telemetry: TelemetryCapabilities? = nil
+        telemetry: TelemetryCapabilities? = nil,
+        automations: AutomationCapabilities? = nil
     ) {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
@@ -285,6 +290,7 @@ public struct InitializeResult: Codable, Sendable {
         self.completionTriggerCharacters = completionTriggerCharacters
         self.terminalCommandPrefix = terminalCommandPrefix
         self.telemetry = telemetry
+        self.automations = automations
     }
 }
 
@@ -306,6 +312,61 @@ public struct ClientCapabilities: Codable, Sendable {
         mcpApps: [String: AnyCodable]? = nil
     ) {
         self.mcpApps = mcpApps
+    }
+}
+
+public struct AutomationCapabilities: Codable, Sendable {
+    /// Present when clients may dispatch {@link AutomationCreateRequestedAction}.
+    public var create: AutomationCreateCapability?
+    /// Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}.
+    public var schedules: AutomationScheduleCapabilities?
+    /// Present when clients may request cancellation of `pending` or `running`
+    /// automation runs.
+    public var runCancellation: AutomationRunCancellationCapability?
+    /// Maximum terminal entries retained in {@link AutomationState.runs}. Active
+    /// runs are not counted toward the limit. Absence means the retention limit is
+    /// implementation-defined.
+    public var runHistoryLimit: Int?
+
+    public init(
+        create: AutomationCreateCapability? = nil,
+        schedules: AutomationScheduleCapabilities? = nil,
+        runCancellation: AutomationRunCancellationCapability? = nil,
+        runHistoryLimit: Int? = nil
+    ) {
+        self.create = create
+        self.schedules = schedules
+        self.runCancellation = runCancellation
+        self.runHistoryLimit = runHistoryLimit
+    }
+}
+
+public struct AutomationCreateCapability: Codable, Sendable {
+
+    public init(
+
+    ) {
+    }
+}
+
+public struct AutomationScheduleCapabilities: Codable, Sendable {
+    /// Smallest permitted interval between consecutive occurrences produced by
+    /// {@link AutomationSchedule.expression}. Omission means no restriction beyond
+    /// the cron format's one-minute resolution.
+    public var minIntervalMinutes: Int?
+
+    public init(
+        minIntervalMinutes: Int? = nil
+    ) {
+        self.minIntervalMinutes = minIntervalMinutes
+    }
+}
+
+public struct AutomationRunCancellationCapability: Codable, Sendable {
+
+    public init(
+
+    ) {
     }
 }
 
@@ -1818,6 +1879,137 @@ public struct ChangesetOperationFollowUp: Codable, Sendable {
     ) {
         self.content = content
         self.external = external
+    }
+}
+
+public struct ListAutomationTriggerDefinitionsParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.
+    public var meta: [String: AnyCodable]?
+    /// Prospective provider id matching {@link AgentInfo.provider}, or omitted for the host default.
+    public var provider: String?
+    /// Prospective {@link AutomationSessionTemplate.workingDirectories}.
+    public var workingDirectories: [String]?
+    /// Prospective resolved {@link AutomationSessionTemplate.config}.
+    public var sessionConfig: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case meta = "_meta"
+        case provider
+        case workingDirectories
+        case sessionConfig
+    }
+
+    public init(
+        channel: String,
+        meta: [String: AnyCodable]? = nil,
+        provider: String? = nil,
+        workingDirectories: [String]? = nil,
+        sessionConfig: [String: AnyCodable]? = nil
+    ) {
+        self.channel = channel
+        self.meta = meta
+        self.provider = provider
+        self.workingDirectories = workingDirectories
+        self.sessionConfig = sessionConfig
+    }
+}
+
+public struct ListAutomationTriggerDefinitionsResult: Codable, Sendable {
+    /// Available event trigger definitions.
+    public var items: [AutomationTriggerDefinition]
+
+    public init(
+        items: [AutomationTriggerDefinition]
+    ) {
+        self.items = items
+    }
+}
+
+public struct RunAutomationParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.
+    public var meta: [String: AnyCodable]?
+    /// Target {@link AutomationState.resource}.
+    public var automation: String
+    /// Durable client-generated idempotency key. Retrying with the same key and
+    /// automation MUST return the original run URI rather than create another
+    /// run.
+    public var requestId: String
+
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case meta = "_meta"
+        case automation
+        case requestId
+    }
+
+    public init(
+        channel: String,
+        meta: [String: AnyCodable]? = nil,
+        automation: String,
+        requestId: String
+    ) {
+        self.channel = channel
+        self.meta = meta
+        self.automation = automation
+        self.requestId = requestId
+    }
+}
+
+public struct RunAutomationResult: Codable, Sendable {
+    /// Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.
+    public var resource: String
+
+    public init(
+        resource: String
+    ) {
+        self.resource = resource
+    }
+}
+
+public struct FetchAutomationRunsParams: Codable, Sendable {
+    /// Channel URI this command targets.
+    public var channel: String
+    /// Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.
+    public var meta: [String: AnyCodable]?
+    /// Target {@link AutomationState.resource}.
+    public var automation: String
+    /// Cursor previously received as {@link AutomationState.runsNextCursor}.
+    /// Omit to request the first page not already included by the snapshot.
+    public var cursor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case meta = "_meta"
+        case automation
+        case cursor
+    }
+
+    public init(
+        channel: String,
+        meta: [String: AnyCodable]? = nil,
+        automation: String,
+        cursor: String? = nil
+    ) {
+        self.channel = channel
+        self.meta = meta
+        self.automation = automation
+        self.cursor = cursor
+    }
+}
+
+public struct FetchAutomationRunsResult: Codable, Sendable {
+
+    public init(
+
+    ) {
     }
 }
 

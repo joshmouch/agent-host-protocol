@@ -119,6 +119,88 @@ final class MultiHostStateMirrorTests: XCTestCase {
                        "session-scoped action on alpha must not touch beta's identically-named session")
     }
 
+    func testAutomationAndRunActionsUpdateMirroredSnapshots() async {
+        let mirror = MultiHostStateMirror()
+        let automationResource = "ahp-automation:/a1"
+        let runResource = "ahp-automation-run:/r1"
+        let initialDefinition = makeAutomationDefinition(title: "Old")
+        let initialLifecycle = AutomationRunLifecycle.pending(AutomationPendingRunLifecycle(
+            status: .pending,
+            createdAt: "2026-08-05T12:00:00Z"
+        ))
+
+        await mirror.applySnapshot(
+            host: "alpha",
+            snapshot: Snapshot(
+                resource: "ahp-automations://",
+                state: .automations(AutomationCatalogState(automations: [
+                    AutomationState(
+                        resource: automationResource,
+                        definition: initialDefinition,
+                        nextRunAt: "2026-08-06T12:00:00Z",
+                        runs: [],
+                        operations: [.update, .run],
+                        createdAt: "2026-08-05T12:00:00Z",
+                        modifiedAt: "2026-08-05T12:00:00Z"
+                    )
+                ])),
+                fromSeq: 0
+            )
+        )
+        await mirror.applySnapshot(
+            host: "alpha",
+            snapshot: Snapshot(
+                resource: runResource,
+                state: .automationRun(AutomationRunState(
+                    resource: runResource,
+                    automation: automationResource,
+                    origin: .manual(AutomationManualRunOrigin(kind: .manual)),
+                    lifecycle: initialLifecycle,
+                    sessions: []
+                )),
+                fromSeq: 0
+            )
+        )
+
+        await mirror.apply(
+            host: "alpha",
+            envelope: ActionEnvelope(
+                channel: "ahp-automations://",
+                action: .automationSet(AutomationSetAction(
+                    type: .automationSet,
+                    automation: AutomationState(
+                        resource: automationResource,
+                        definition: makeAutomationDefinition(title: "New"),
+                        runs: [],
+                        operations: [.update, .run],
+                        createdAt: "2026-08-05T12:00:00Z",
+                        modifiedAt: "2026-08-05T13:00:00Z"
+                    )
+                )),
+                serverSeq: 1
+            )
+        )
+        await mirror.apply(
+            host: "alpha",
+            envelope: ActionEnvelope(
+                channel: runResource,
+                action: .automationRunSessionSet(AutomationRunSessionSetAction(
+                    type: .automationRunSessionSet,
+                    session: "ahp-session:/s1"
+                )),
+                serverSeq: 2
+            )
+        )
+
+        let key = HostedResourceKey(hostId: "alpha", uri: automationResource)
+        let runKey = HostedResourceKey(hostId: "alpha", uri: runResource)
+        let automations = await mirror.automations
+        let runs = await mirror.automationRuns
+        XCTAssertEqual(automations[key]?.definition.title, "New")
+        XCTAssertNil(automations[key]?.nextRunAt)
+        XCTAssertEqual(runs[runKey]?.sessions, ["ahp-session:/s1"])
+    }
+
     // MARK: - apply_host_subscription_event_forwards_to_per_host_apply
 
     func testApplyHostSubscriptionEventForwardsToPerHostApply() async {
@@ -165,4 +247,14 @@ final class MultiHostStateMirrorTests: XCTestCase {
         XCTAssertNil(roots["alpha"])
         XCTAssertNotNil(roots["beta"])
     }
+}
+
+private func makeAutomationDefinition(title: String) -> AutomationDefinition {
+    AutomationDefinition(
+        title: title,
+        message: Message(text: "Run", origin: MessageOrigin(kind: .user)),
+        session: AutomationSessionTemplate(),
+        enabled: true,
+        triggers: []
+    )
 }

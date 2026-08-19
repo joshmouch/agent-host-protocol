@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.contentOrNull
 
 // ─── Command Enums ──────────────────────────────────────────────────────────
@@ -339,7 +340,13 @@ data class InitializeResult(
      * defines a template variable, `{level}`, for subscriber-side severity
      * filtering). Clients MAY ignore signals they cannot process.
      */
-    val telemetry: TelemetryCapabilities? = null
+    val telemetry: TelemetryCapabilities? = null,
+    /**
+     * Host-owned automation support. Presence means clients may subscribe to
+     * `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+     * host does not expose an automation catalogue or automation commands.
+     */
+    val automations: AutomationCapabilities? = null
 )
 
 @Serializable
@@ -359,6 +366,45 @@ data class ClientCapabilities(
      */
     val mcpApps: Map<String, JsonElement>? = null
 )
+
+@Serializable
+data class AutomationCapabilities(
+    /**
+     * Present when clients may dispatch {@link AutomationCreateRequestedAction}.
+     */
+    val create: AutomationCreateCapability? = null,
+    /**
+     * Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}.
+     */
+    val schedules: AutomationScheduleCapabilities? = null,
+    /**
+     * Present when clients may request cancellation of `pending` or `running`
+     * automation runs.
+     */
+    val runCancellation: AutomationRunCancellationCapability? = null,
+    /**
+     * Maximum terminal entries retained in {@link AutomationState.runs}. Active
+     * runs are not counted toward the limit. Absence means the retention limit is
+     * implementation-defined.
+     */
+    val runHistoryLimit: Long? = null
+)
+
+@Serializable
+class AutomationCreateCapability
+
+@Serializable
+data class AutomationScheduleCapabilities(
+    /**
+     * Smallest permitted interval between consecutive occurrences produced by
+     * {@link AutomationSchedule.expression}. Omission means no restriction beyond
+     * the cron format's one-minute resolution.
+     */
+    val minIntervalMinutes: Long? = null
+)
+
+@Serializable
+class AutomationRunCancellationCapability
 
 @Serializable
 data class Implementation(
@@ -1497,6 +1543,98 @@ data class ChangesetOperationFollowUp(
      */
     val external: Boolean? = null
 )
+
+@Serializable
+data class ListAutomationTriggerDefinitionsParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Optional JSON-serializable metadata associated with this request.
+     * Receivers MUST ignore keys they do not understand.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    /**
+     * Prospective provider id matching {@link AgentInfo.provider}, or omitted for the host default.
+     */
+    val provider: String? = null,
+    /**
+     * Prospective {@link AutomationSessionTemplate.workingDirectories}.
+     */
+    val workingDirectories: List<String>? = null,
+    /**
+     * Prospective resolved {@link AutomationSessionTemplate.config}.
+     */
+    val sessionConfig: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class ListAutomationTriggerDefinitionsResult(
+    /**
+     * Available event trigger definitions.
+     */
+    val items: List<AutomationTriggerDefinition>
+)
+
+@Serializable
+data class RunAutomationParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Optional JSON-serializable metadata associated with this request.
+     * Receivers MUST ignore keys they do not understand.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    /**
+     * Target {@link AutomationState.resource}.
+     */
+    val automation: String,
+    /**
+     * Durable client-generated idempotency key. Retrying with the same key and
+     * automation MUST return the original run URI rather than create another
+     * run.
+     */
+    val requestId: String
+)
+
+@Serializable
+data class RunAutomationResult(
+    /**
+     * Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.
+     */
+    val resource: String
+)
+
+@Serializable
+data class FetchAutomationRunsParams(
+    /**
+     * Channel URI this command targets.
+     */
+    val channel: String,
+    /**
+     * Optional JSON-serializable metadata associated with this request.
+     * Receivers MUST ignore keys they do not understand.
+     */
+    @SerialName("_meta")
+    val meta: Map<String, JsonElement>? = null,
+    /**
+     * Target {@link AutomationState.resource}.
+     */
+    val automation: String,
+    /**
+     * Cursor previously received as {@link AutomationState.runsNextCursor}.
+     * Omit to request the first page not already included by the snapshot.
+     */
+    val cursor: String? = null
+)
+
+@Serializable
+class FetchAutomationRunsResult
 
 // ─── ChatSource Union ───────────────────────────────────────────────────────
 

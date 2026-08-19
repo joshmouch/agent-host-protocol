@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.contentOrNull
 
 // ─── ActionType ─────────────────────────────────────────────────────────────
@@ -197,7 +198,25 @@ enum class ActionType {
     @SerialName("terminal/commandFinished")
     TERMINAL_COMMAND_FINISHED,
     @SerialName("resourceWatch/changed")
-    RESOURCE_WATCH_CHANGED
+    RESOURCE_WATCH_CHANGED,
+    @SerialName("automation/createRequested")
+    AUTOMATION_CREATE_REQUESTED,
+    @SerialName("automation/updateRequested")
+    AUTOMATION_UPDATE_REQUESTED,
+    @SerialName("automation/set")
+    AUTOMATION_SET,
+    @SerialName("automation/removed")
+    AUTOMATION_REMOVED,
+    @SerialName("automationRun/lifecycleChanged")
+    AUTOMATION_RUN_LIFECYCLE_CHANGED,
+    @SerialName("automationRun/sessionSet")
+    AUTOMATION_RUN_SESSION_SET,
+    @SerialName("automationRun/sessionRemoved")
+    AUTOMATION_RUN_SESSION_REMOVED,
+    @SerialName("automationRun/primarySessionChanged")
+    AUTOMATION_RUN_PRIMARY_SESSION_CHANGED,
+    @SerialName("automationRun/cancelRequested")
+    AUTOMATION_RUN_CANCEL_REQUESTED
 }
 
 // ─── Action Infrastructure ──────────────────────────────────────────────────
@@ -1495,6 +1514,91 @@ data class ResourceWatchChangedAction(
     val changes: JsonElement
 )
 
+@Serializable
+data class AutomationCreateRequestedAction(
+    val type: ActionType,
+    /**
+     * Client-chosen `ahp-automation:` URI that becomes {@link AutomationState.resource}.
+     */
+    val resource: String,
+    /**
+     * Complete initial {@link AutomationState.definition}.
+     */
+    val definition: AutomationDefinition
+)
+
+@Serializable
+data class AutomationUpdateRequestedAction(
+    val type: ActionType,
+    /**
+     * Target {@link AutomationState.resource}.
+     */
+    val resource: String,
+    /**
+     * Editable {@link AutomationDefinition} fields to replace.
+     */
+    val changes: AutomationDefinitionPatch
+)
+
+@Serializable
+data class AutomationSetAction(
+    val type: ActionType,
+    /**
+     * Full new or replacement automation state.
+     */
+    val automation: AutomationState
+)
+
+@Serializable
+data class AutomationRemovedAction(
+    val type: ActionType,
+    /**
+     * {@link AutomationState.resource} to remove.
+     */
+    val resource: String
+)
+
+@Serializable
+data class AutomationRunLifecycleChangedAction(
+    val type: ActionType,
+    /**
+     * Complete replacement {@link AutomationRunState.lifecycle}.
+     */
+    val lifecycle: AutomationRunLifecycle
+)
+
+@Serializable
+data class AutomationRunSessionSetAction(
+    val type: ActionType,
+    /**
+     * Session URI to append to {@link AutomationRunState.sessions} when not already linked.
+     */
+    val session: String
+)
+
+@Serializable
+data class AutomationRunSessionRemovedAction(
+    val type: ActionType,
+    /**
+     * Entry in {@link AutomationRunState.sessions} to remove.
+     */
+    val session: String
+)
+
+@Serializable
+data class AutomationRunPrimarySessionChangedAction(
+    val type: ActionType,
+    /**
+     * New {@link AutomationRunState.primarySession}, or omitted to clear the selection.
+     */
+    val primarySession: String? = null
+)
+
+@Serializable
+data class AutomationRunCancelRequestedAction(
+    val type: ActionType
+)
+
 // ─── Partial Summary Types ──────────────────────────────────────────────────
 
 @Serializable
@@ -1638,6 +1742,15 @@ sealed interface StateAction
 @JvmInline value class StateActionTerminalCommandExecuted(val value: TerminalCommandExecutedAction) : StateAction
 @JvmInline value class StateActionTerminalCommandFinished(val value: TerminalCommandFinishedAction) : StateAction
 @JvmInline value class StateActionResourceWatchChanged(val value: ResourceWatchChangedAction) : StateAction
+@JvmInline value class StateActionAutomationCreateRequested(val value: AutomationCreateRequestedAction) : StateAction
+@JvmInline value class StateActionAutomationUpdateRequested(val value: AutomationUpdateRequestedAction) : StateAction
+@JvmInline value class StateActionAutomationSet(val value: AutomationSetAction) : StateAction
+@JvmInline value class StateActionAutomationRemoved(val value: AutomationRemovedAction) : StateAction
+@JvmInline value class StateActionAutomationRunLifecycleChanged(val value: AutomationRunLifecycleChangedAction) : StateAction
+@JvmInline value class StateActionAutomationRunSessionSet(val value: AutomationRunSessionSetAction) : StateAction
+@JvmInline value class StateActionAutomationRunSessionRemoved(val value: AutomationRunSessionRemovedAction) : StateAction
+@JvmInline value class StateActionAutomationRunPrimarySessionChanged(val value: AutomationRunPrimarySessionChangedAction) : StateAction
+@JvmInline value class StateActionAutomationRunCancelRequested(val value: AutomationRunCancelRequestedAction) : StateAction
 @JvmInline value class StateActionUnknown(val raw: JsonObject) : StateAction
 
 internal object StateActionSerializer : KSerializer<StateAction> {
@@ -1739,6 +1852,15 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "terminal/commandExecuted" -> StateActionTerminalCommandExecuted(input.json.decodeFromJsonElement(TerminalCommandExecutedAction.serializer(), element))
             "terminal/commandFinished" -> StateActionTerminalCommandFinished(input.json.decodeFromJsonElement(TerminalCommandFinishedAction.serializer(), element))
             "resourceWatch/changed" -> StateActionResourceWatchChanged(input.json.decodeFromJsonElement(ResourceWatchChangedAction.serializer(), element))
+            "automation/createRequested" -> StateActionAutomationCreateRequested(input.json.decodeFromJsonElement(AutomationCreateRequestedAction.serializer(), element))
+            "automation/updateRequested" -> StateActionAutomationUpdateRequested(input.json.decodeFromJsonElement(AutomationUpdateRequestedAction.serializer(), element))
+            "automation/set" -> StateActionAutomationSet(input.json.decodeFromJsonElement(AutomationSetAction.serializer(), element))
+            "automation/removed" -> StateActionAutomationRemoved(input.json.decodeFromJsonElement(AutomationRemovedAction.serializer(), element))
+            "automationRun/lifecycleChanged" -> StateActionAutomationRunLifecycleChanged(input.json.decodeFromJsonElement(AutomationRunLifecycleChangedAction.serializer(), element))
+            "automationRun/sessionSet" -> StateActionAutomationRunSessionSet(input.json.decodeFromJsonElement(AutomationRunSessionSetAction.serializer(), element))
+            "automationRun/sessionRemoved" -> StateActionAutomationRunSessionRemoved(input.json.decodeFromJsonElement(AutomationRunSessionRemovedAction.serializer(), element))
+            "automationRun/primarySessionChanged" -> StateActionAutomationRunPrimarySessionChanged(input.json.decodeFromJsonElement(AutomationRunPrimarySessionChangedAction.serializer(), element))
+            "automationRun/cancelRequested" -> StateActionAutomationRunCancelRequested(input.json.decodeFromJsonElement(AutomationRunCancelRequestedAction.serializer(), element))
             else -> StateActionUnknown(obj)
         }
     }
@@ -1833,6 +1955,15 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionTerminalCommandExecuted -> output.json.encodeToJsonElement(TerminalCommandExecutedAction.serializer(), value.value)
             is StateActionTerminalCommandFinished -> output.json.encodeToJsonElement(TerminalCommandFinishedAction.serializer(), value.value)
             is StateActionResourceWatchChanged -> output.json.encodeToJsonElement(ResourceWatchChangedAction.serializer(), value.value)
+            is StateActionAutomationCreateRequested -> output.json.encodeToJsonElement(AutomationCreateRequestedAction.serializer(), value.value)
+            is StateActionAutomationUpdateRequested -> output.json.encodeToJsonElement(AutomationUpdateRequestedAction.serializer(), value.value)
+            is StateActionAutomationSet -> output.json.encodeToJsonElement(AutomationSetAction.serializer(), value.value)
+            is StateActionAutomationRemoved -> output.json.encodeToJsonElement(AutomationRemovedAction.serializer(), value.value)
+            is StateActionAutomationRunLifecycleChanged -> output.json.encodeToJsonElement(AutomationRunLifecycleChangedAction.serializer(), value.value)
+            is StateActionAutomationRunSessionSet -> output.json.encodeToJsonElement(AutomationRunSessionSetAction.serializer(), value.value)
+            is StateActionAutomationRunSessionRemoved -> output.json.encodeToJsonElement(AutomationRunSessionRemovedAction.serializer(), value.value)
+            is StateActionAutomationRunPrimarySessionChanged -> output.json.encodeToJsonElement(AutomationRunPrimarySessionChangedAction.serializer(), value.value)
+            is StateActionAutomationRunCancelRequested -> output.json.encodeToJsonElement(AutomationRunCancelRequestedAction.serializer(), value.value)
             is StateActionUnknown -> value.raw
         }
         output.encodeJsonElement(element)

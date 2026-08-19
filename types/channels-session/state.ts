@@ -13,6 +13,8 @@ import type {
   ToolCallState,
   ToolCallAuthRequiredState,
 } from '../channels-chat/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { AutomationState } from '../channels-automation/state.js';
 import type {
   ConfigPropertySchema,
   ErrorInfo,
@@ -60,6 +62,40 @@ export const enum SessionStatus {
 }
 
 /**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ */
+export const enum SessionOriginKind {
+  /** The session was created as part of an automation run. */
+  Automation = 'automation',
+}
+
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
+export interface AutomationSessionOrigin {
+  kind: SessionOriginKind.Automation;
+  /** Owning {@link AutomationState.resource}. */
+  automation: URI;
+  /** Owning {@link AutomationRunState.resource}. */
+  run: URI;
+}
+
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
+export type SessionOrigin = AutomationSessionOrigin;
+
+/**
  * Metadata shared between the full {@link SessionState} (delivered when a
  * client subscribes to a session's URI) and the lightweight
  * {@link SessionSummary} (carried in the root-channel session catalog).
@@ -81,6 +117,8 @@ export interface SessionMetadata {
   status: SessionStatus;
   /** Human-readable description of what the session is currently doing */
   activity?: string;
+  /** Durable {@link AutomationSessionOrigin}, when an automation run created this session. */
+  origin?: SessionOrigin;
   /** Server-owned project for this session */
   project?: ProjectInfo;
   /**

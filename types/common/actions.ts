@@ -114,6 +114,19 @@ import type {
 import type {
   ResourceWatchChangedAction,
 } from '../channels-resource-watch/actions.js';
+import type {
+  AutomationCreateRequestedAction,
+  AutomationRemovedAction,
+  AutomationSetAction,
+  AutomationUpdateRequestedAction,
+} from '../channels-automation/actions.js';
+import type {
+  AutomationRunLifecycleChangedAction,
+  AutomationRunSessionSetAction,
+  AutomationRunSessionRemovedAction,
+  AutomationRunPrimarySessionChangedAction,
+  AutomationRunCancelRequestedAction,
+} from '../channels-automation-run/actions.js';
 
 // ─── Action Type Enum ────────────────────────────────────────────────────────
 
@@ -209,6 +222,15 @@ export const enum ActionType {
   TerminalCommandExecuted = 'terminal/commandExecuted',
   TerminalCommandFinished = 'terminal/commandFinished',
   ResourceWatchChanged = 'resourceWatch/changed',
+  AutomationCreateRequested = 'automation/createRequested',
+  AutomationUpdateRequested = 'automation/updateRequested',
+  AutomationSet = 'automation/set',
+  AutomationRemoved = 'automation/removed',
+  AutomationRunLifecycleChanged = 'automationRun/lifecycleChanged',
+  AutomationRunSessionSet = 'automationRun/sessionSet',
+  AutomationRunSessionRemoved = 'automationRun/sessionRemoved',
+  AutomationRunPrimarySessionChanged = 'automationRun/primarySessionChanged',
+  AutomationRunCancelRequested = 'automationRun/cancelRequested',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -330,4 +352,13 @@ export type StateAction =
   | TerminalCommandDetectionAvailableAction
   | TerminalCommandExecutedAction
   | TerminalCommandFinishedAction
-  | ResourceWatchChangedAction;
+  | ResourceWatchChangedAction
+  | AutomationCreateRequestedAction
+  | AutomationUpdateRequestedAction
+  | AutomationSetAction
+  | AutomationRemovedAction
+  | AutomationRunLifecycleChangedAction
+  | AutomationRunSessionSetAction
+  | AutomationRunSessionRemovedAction
+  | AutomationRunPrimarySessionChangedAction
+  | AutomationRunCancelRequestedAction;

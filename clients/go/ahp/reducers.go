@@ -1842,3 +1842,64 @@ func ApplyActionToResourceWatch(state *ahptypes.ResourceWatchState, action ahpty
 	}
 	return ReduceOutcomeOutOfScope
 }
+
+// ApplyActionToAutomation applies an action to automation catalogue state.
+func ApplyActionToAutomation(state *ahptypes.AutomationCatalogState, action ahptypes.StateAction) ReduceOutcome {
+	switch a := action.Value.(type) {
+	case *ahptypes.AutomationCreateRequestedAction, *ahptypes.AutomationUpdateRequestedAction:
+		return ReduceOutcomeNoOp
+	case *ahptypes.AutomationSetAction:
+		for i := range state.Automations {
+			if state.Automations[i].Resource == a.Automation.Resource {
+				state.Automations[i] = a.Automation
+				return ReduceOutcomeApplied
+			}
+		}
+		state.Automations = append(state.Automations, a.Automation)
+		return ReduceOutcomeApplied
+	case *ahptypes.AutomationRemovedAction:
+		for i := range state.Automations {
+			if state.Automations[i].Resource == a.Resource {
+				state.Automations = append(state.Automations[:i], state.Automations[i+1:]...)
+				return ReduceOutcomeApplied
+			}
+		}
+		return ReduceOutcomeNoOp
+	}
+	return ReduceOutcomeOutOfScope
+}
+
+// ApplyActionToAutomationRun applies an action to automation-run state.
+func ApplyActionToAutomationRun(state *ahptypes.AutomationRunState, action ahptypes.StateAction) ReduceOutcome {
+	switch a := action.Value.(type) {
+	case *ahptypes.AutomationRunLifecycleChangedAction:
+		state.Lifecycle = a.Lifecycle
+		return ReduceOutcomeApplied
+	case *ahptypes.AutomationRunSessionSetAction:
+		for _, session := range state.Sessions {
+			if session == a.Session {
+				return ReduceOutcomeNoOp
+			}
+		}
+		state.Sessions = append(state.Sessions, a.Session)
+		return ReduceOutcomeApplied
+	case *ahptypes.AutomationRunSessionRemovedAction:
+		for i, session := range state.Sessions {
+			if session != a.Session {
+				continue
+			}
+			state.Sessions = append(state.Sessions[:i], state.Sessions[i+1:]...)
+			if state.PrimarySession != nil && *state.PrimarySession == a.Session {
+				state.PrimarySession = nil
+			}
+			return ReduceOutcomeApplied
+		}
+		return ReduceOutcomeNoOp
+	case *ahptypes.AutomationRunPrimarySessionChangedAction:
+		state.PrimarySession = a.PrimarySession
+		return ReduceOutcomeApplied
+	case *ahptypes.AutomationRunCancelRequestedAction:
+		return ReduceOutcomeNoOp
+	}
+	return ReduceOutcomeOutOfScope
+}

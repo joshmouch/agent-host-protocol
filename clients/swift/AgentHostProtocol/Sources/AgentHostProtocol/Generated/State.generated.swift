@@ -182,6 +182,8 @@ public enum MessageKind: String, Codable, Sendable {
     /// Produced by a tool rather than the user — for example, a tool that spawns a
     /// worker chat whose first message carries a seed prompt.
     case tool = "tool"
+    /// Emitted automatically when an automation run starts a session.
+    case automation = "automation"
     /// A system-generated notification rather than a direct user message.
     case systemNotification = "systemNotification"
 }
@@ -405,6 +407,71 @@ public enum ResourceChangeType: String, Codable, Sendable {
     case added = "added"
     case updated = "updated"
     case deleted = "deleted"
+}
+
+/// Discriminant describing the durable provenance of a session.
+public enum SessionOriginKind: String, Codable, Sendable {
+    /// The session was created as part of an automation run.
+    case automation = "automation"
+}
+
+/// Operations the host currently permits for an automation.
+///
+/// The list on {@link AutomationState.operations} is authoritative and may
+/// change over time. Clients MUST NOT infer permission from capabilities alone:
+/// capabilities describe what the host implementation can support, while
+/// operations describe what is allowed for this particular automation now.
+public enum AutomationOperation: String, Codable, Sendable {
+    /// Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}.
+    case update = "update"
+    /// Permanently remove the automation using {@link AutomationRemovedAction | `automation/removed`}.
+    case remove = "remove"
+    /// Start a manual run using {@link RunAutomationParams | runAutomation}.
+    case run = "run"
+}
+
+/// How a host handles schedule occurrences missed while automatic execution was
+/// unavailable.
+public enum AutomationMisfirePolicy: String, Codable, Sendable {
+    /// Discard missed occurrences and wait for the next future occurrence.
+    case skip = "skip"
+    /// Start at most one catch-up run when execution becomes available, regardless
+    /// of how many occurrences were missed.
+    case runOnce = "runOnce"
+}
+
+/// Discriminant for automatic trigger definitions.
+public enum AutomationTriggerKind: String, Codable, Sendable {
+    /// A portable recurring {@link AutomationSchedule}.
+    case schedule = "schedule"
+    /// A host-defined external event discovered from trigger definitions.
+    case event = "event"
+}
+
+/// Lifecycle status of one automation run.
+///
+/// `completed`, `failed`, and `cancelled` are terminal. A run remains `running`
+/// while any linked session awaits input or client-side work; linked session
+/// state is authoritative for those interactions.
+public enum AutomationRunStatus: String, Codable, Sendable {
+    /// The durable run record exists but execution has not started.
+    case pending = "pending"
+    /// One or more linked sessions are executing or awaiting interaction.
+    case running = "running"
+    /// Execution finished successfully.
+    case completed = "completed"
+    /// Execution ended with an error.
+    case failed = "failed"
+    /// Execution ended because cancellation was accepted.
+    case cancelled = "cancelled"
+}
+
+/// Discriminant describing what created an automation run.
+public enum AutomationRunOriginKind: String, Codable, Sendable {
+    /// A client explicitly invoked {@link RunAutomationParams | runAutomation}.
+    case manual = "manual"
+    /// An automatic schedule or event trigger fired.
+    case trigger = "trigger"
 }
 
 // MARK: - State Types
@@ -1102,6 +1169,8 @@ public struct SessionState: Codable, Sendable {
     public var status: SessionStatus
     /// Human-readable description of what the session is currently doing
     public var activity: String?
+    /// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+    public var origin: SessionOrigin?
     /// Server-owned project for this session
     public var project: ProjectInfo?
     /// The working directories the session's agent has tool access to, as
@@ -1201,6 +1270,7 @@ public struct SessionState: Codable, Sendable {
         case title
         case status
         case activity
+        case origin
         case project
         case workingDirectories
         case annotations
@@ -1222,6 +1292,7 @@ public struct SessionState: Codable, Sendable {
         title: String,
         status: SessionStatus,
         activity: String? = nil,
+        origin: SessionOrigin? = nil,
         project: ProjectInfo? = nil,
         workingDirectories: [String]? = nil,
         annotations: AnnotationsSummary? = nil,
@@ -1241,6 +1312,7 @@ public struct SessionState: Codable, Sendable {
         self.title = title
         self.status = status
         self.activity = activity
+        self.origin = origin
         self.project = project
         self.workingDirectories = workingDirectories
         self.annotations = annotations
@@ -1426,6 +1498,8 @@ public struct SessionSummary: Codable, Sendable {
     public var status: SessionStatus
     /// Human-readable description of what the session is currently doing
     public var activity: String?
+    /// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+    public var origin: SessionOrigin?
     /// Server-owned project for this session
     public var project: ProjectInfo?
     /// The working directories the session's agent has tool access to, as
@@ -1466,6 +1540,7 @@ public struct SessionSummary: Codable, Sendable {
         case title
         case status
         case activity
+        case origin
         case project
         case workingDirectories
         case annotations
@@ -1481,6 +1556,7 @@ public struct SessionSummary: Codable, Sendable {
         title: String,
         status: SessionStatus,
         activity: String? = nil,
+        origin: SessionOrigin? = nil,
         project: ProjectInfo? = nil,
         workingDirectories: [String]? = nil,
         annotations: AnnotationsSummary? = nil,
@@ -1494,6 +1570,7 @@ public struct SessionSummary: Codable, Sendable {
         self.title = title
         self.status = status
         self.activity = activity
+        self.origin = origin
         self.project = project
         self.workingDirectories = workingDirectories
         self.annotations = annotations
@@ -5285,6 +5362,584 @@ public struct ResourceChange: Codable, Sendable {
     }
 }
 
+public struct AutomationSessionOrigin: Codable, Sendable {
+    public var kind: SessionOriginKind
+    /// Owning {@link AutomationState.resource}.
+    public var automation: String
+    /// Owning {@link AutomationRunState.resource}.
+    public var run: String
+
+    public init(
+        kind: SessionOriginKind,
+        automation: String,
+        run: String
+    ) {
+        self.kind = kind
+        self.automation = automation
+        self.run = run
+    }
+}
+
+public struct AutomationSchedule: Codable, Sendable {
+    /// Five-field AHP cron expression described by {@link AutomationSchedule}.
+    public var expression: String
+    /// IANA Time Zone Database identifier used to interpret the expression, for
+    /// example `"UTC"` or `"Europe/Berlin"`.
+    public var timeZone: String
+
+    public init(
+        expression: String,
+        timeZone: String
+    ) {
+        self.expression = expression
+        self.timeZone = timeZone
+    }
+}
+
+public struct AutomationScheduleTrigger: Codable, Sendable {
+    /// Identifier unique and stable within this automation definition. Recorded in
+    /// {@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a
+    /// run.
+    public var id: String
+    public var kind: AutomationTriggerKind
+    /// Recurrence and time zone evaluated by the host.
+    public var schedule: AutomationSchedule
+    /// Policy for missed occurrences. Omission is equivalent to
+    /// {@link AutomationMisfirePolicy.RunOnce}.
+    public var misfirePolicy: AutomationMisfirePolicy?
+
+    public init(
+        id: String,
+        kind: AutomationTriggerKind,
+        schedule: AutomationSchedule,
+        misfirePolicy: AutomationMisfirePolicy? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.schedule = schedule
+        self.misfirePolicy = misfirePolicy
+    }
+}
+
+public struct AutomationEventTrigger: Codable, Sendable {
+    /// Identifier unique and stable within this automation definition. Recorded in
+    /// {@link AutomationTriggeredRunOrigin.triggerId} when this trigger creates a
+    /// run.
+    public var id: String
+    public var kind: AutomationTriggerKind
+    /// Matches {@link AutomationTriggerDefinition.type}.
+    public var type: String
+    /// Host-normalized human-readable trigger type name.
+    public var title: String
+    /// Optional host-normalized explanation of the trigger source.
+    public var description: String?
+    /// Selected events for this trigger type.
+    ///
+    /// Event ids carry the trigger semantics. Titles and descriptions are
+    /// last-known display metadata and do not indicate current availability.
+    public var events: [AutomationTriggerEventDefinition]
+    /// Values described by {@link AutomationTriggerDefinition.configSchema}.
+    /// Clients MUST preserve unknown entries when editing other fields.
+    public var config: [String: AnyCodable]?
+
+    public init(
+        id: String,
+        kind: AutomationTriggerKind,
+        type: String,
+        title: String,
+        description: String? = nil,
+        events: [AutomationTriggerEventDefinition],
+        config: [String: AnyCodable]? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.type = type
+        self.title = title
+        self.description = description
+        self.events = events
+        self.config = config
+    }
+}
+
+public struct AutomationTriggerEventDefinition: Codable, Sendable {
+    /// Stable event id.
+    public var id: String
+    /// Human-readable event name.
+    public var title: String
+    /// Optional longer explanation of when this event fires.
+    public var description: String?
+
+    public init(
+        id: String,
+        title: String,
+        description: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+    }
+}
+
+public struct AutomationTriggerDefinition: Codable, Sendable {
+    /// Stable type id stored in {@link AutomationEventTrigger.type}.
+    public var type: String
+    /// Human-readable trigger type name.
+    public var title: String
+    /// Optional longer explanation of the trigger source.
+    public var description: String?
+    /// Events available for selection. Saved triggers retain their selected event descriptors.
+    public var events: [AutomationTriggerEventDefinition]
+    /// Optional schema for {@link AutomationEventTrigger.config}.
+    public var configSchema: ConfigSchema?
+
+    public init(
+        type: String,
+        title: String,
+        description: String? = nil,
+        events: [AutomationTriggerEventDefinition],
+        configSchema: ConfigSchema? = nil
+    ) {
+        self.type = type
+        self.title = title
+        self.description = description
+        self.events = events
+        self.configSchema = configSchema
+    }
+}
+
+public struct AutomationSessionTemplate: Codable, Sendable {
+    /// Provider id matching {@link AgentInfo.provider}. Omit to use the host's default provider.
+    public var provider: String?
+    /// Optional model selection resolved when a run starts. Its
+    /// {@link ModelSelection.id} matches a {@link SessionModelInfo.id} advertised
+    /// by the selected provider.
+    public var model: ModelSelection?
+    /// Optional custom agent selection identified by {@link AgentSelection.uri}.
+    public var agent: AgentSelection?
+    /// Ordered working-directory URIs for each created session, equivalent to
+    /// {@link CreateSessionParams.workingDirectories}. Absence means a
+    /// workspace-less session.
+    public var workingDirectories: [String]?
+    /// Session configuration values equivalent to
+    /// {@link CreateSessionParams.config}, normally obtained from
+    /// {@link ResolveSessionConfigResult.values}.
+    public var config: [String: AnyCodable]?
+
+    public init(
+        provider: String? = nil,
+        model: ModelSelection? = nil,
+        agent: AgentSelection? = nil,
+        workingDirectories: [String]? = nil,
+        config: [String: AnyCodable]? = nil
+    ) {
+        self.provider = provider
+        self.model = model
+        self.agent = agent
+        self.workingDirectories = workingDirectories
+        self.config = config
+    }
+}
+
+public struct AutomationDefinition: Codable, Sendable {
+    /// Human-readable automation name.
+    public var title: String
+    /// Initial message sent to every newly created run session. Its
+    /// {@link Message.origin} kind MUST be {@link MessageKind.Automation}.
+    public var message: Message
+    /// Template used to create fresh sessions for each run.
+    public var session: AutomationSessionTemplate
+    /// Whether automatic triggers may create runs. Manual runs remain available
+    /// whenever {@link AutomationOperation.Run} is advertised.
+    public var enabled: Bool
+    /// Automatic triggers. An empty list means manual-only.
+    public var triggers: [AutomationTrigger]
+    /// Opaque implementation-defined metadata. Clients MUST preserve unknown
+    /// entries when updating the definition.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case message
+        case session
+        case enabled
+        case triggers
+        case meta = "_meta"
+    }
+
+    public init(
+        title: String,
+        message: Message,
+        session: AutomationSessionTemplate,
+        enabled: Bool,
+        triggers: [AutomationTrigger],
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.title = title
+        self.message = message
+        self.session = session
+        self.enabled = enabled
+        self.triggers = triggers
+        self.meta = meta
+    }
+}
+
+public struct AutomationDefinitionPatch: Codable, Sendable {
+    /// Replacement {@link AutomationDefinition.title}.
+    public var title: String?
+    /// Replacement {@link AutomationDefinition.message}.
+    public var message: Message?
+    /// Replacement {@link AutomationDefinition.session}. The host revalidates
+    /// affected event triggers when their discovery context changes.
+    public var session: AutomationSessionTemplate?
+    /// Replacement {@link AutomationDefinition.enabled}.
+    public var enabled: Bool?
+    /// Complete replacement {@link AutomationDefinition.triggers}. The host
+    /// validates event ids and normalizes event-trigger titles and descriptions.
+    public var triggers: [AutomationTrigger]?
+    /// Complete replacement {@link AutomationDefinition._meta}.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case message
+        case session
+        case enabled
+        case triggers
+        case meta = "_meta"
+    }
+
+    public init(
+        title: String? = nil,
+        message: Message? = nil,
+        session: AutomationSessionTemplate? = nil,
+        enabled: Bool? = nil,
+        triggers: [AutomationTrigger]? = nil,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.title = title
+        self.message = message
+        self.session = session
+        self.enabled = enabled
+        self.triggers = triggers
+        self.meta = meta
+    }
+}
+
+public struct AutomationState: Codable, Sendable {
+    /// Stable `ahp-automation:/<id>` resource identifier.
+    public var resource: String
+    /// Current durable definition.
+    public var definition: AutomationDefinition
+    /// Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending.
+    public var nextRunAt: String?
+    /// Newest-first retained run summaries. This is a bounded window; use
+    /// {@link FetchAutomationRunsParams | fetchAutomationRuns} when
+    /// {@link AutomationState.runsNextCursor} is present.
+    public var runs: [AutomationRunSummary]
+    /// Opaque cursor passed as {@link FetchAutomationRunsParams.cursor} for the next older run-history page.
+    public var runsNextCursor: String?
+    /// Operations currently permitted for this automation.
+    public var operations: [AutomationOperation]
+    /// Creation timestamp in ISO 8601 format.
+    public var createdAt: String
+    /// Last definition modification timestamp in ISO 8601 format.
+    public var modifiedAt: String
+    /// Opaque host-defined state metadata.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case resource
+        case definition
+        case nextRunAt
+        case runs
+        case runsNextCursor
+        case operations
+        case createdAt
+        case modifiedAt
+        case meta = "_meta"
+    }
+
+    public init(
+        resource: String,
+        definition: AutomationDefinition,
+        nextRunAt: String? = nil,
+        runs: [AutomationRunSummary],
+        runsNextCursor: String? = nil,
+        operations: [AutomationOperation],
+        createdAt: String,
+        modifiedAt: String,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.resource = resource
+        self.definition = definition
+        self.nextRunAt = nextRunAt
+        self.runs = runs
+        self.runsNextCursor = runsNextCursor
+        self.operations = operations
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
+        self.meta = meta
+    }
+}
+
+public struct AutomationCatalogState: Codable, Sendable {
+    /// Full automation states keyed by {@link AutomationState.resource}.
+    public var automations: [AutomationState]
+    /// Opaque host-defined catalogue metadata.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case automations
+        case meta = "_meta"
+    }
+
+    public init(
+        automations: [AutomationState],
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.automations = automations
+        self.meta = meta
+    }
+}
+
+public struct AutomationManualRunOrigin: Codable, Sendable {
+    public var kind: AutomationRunOriginKind
+
+    public init(
+        kind: AutomationRunOriginKind
+    ) {
+        self.kind = kind
+    }
+}
+
+public struct AutomationTriggeredRunOrigin: Codable, Sendable {
+    public var kind: AutomationRunOriginKind
+    /// Matches the stable {@link AutomationScheduleTrigger.id} or
+    /// {@link AutomationEventTrigger.id} in the definition.
+    public var triggerId: String
+    /// Intended schedule occurrence as an ISO 8601 timestamp. Present for
+    /// schedule triggers and normally absent for event triggers.
+    public var scheduledFor: String?
+    /// `true` when this is a catch-up run created by
+    /// {@link AutomationMisfirePolicy.RunOnce}.
+    public var catchUp: Bool?
+    /// Host-defined, non-secret event provenance suitable for display or audit.
+    /// This is descriptive context, not an input that clients replay.
+    public var event: [String: AnyCodable]?
+
+    public init(
+        kind: AutomationRunOriginKind,
+        triggerId: String,
+        scheduledFor: String? = nil,
+        catchUp: Bool? = nil,
+        event: [String: AnyCodable]? = nil
+    ) {
+        self.kind = kind
+        self.triggerId = triggerId
+        self.scheduledFor = scheduledFor
+        self.catchUp = catchUp
+        self.event = event
+    }
+}
+
+public struct AutomationPendingRunLifecycle: Codable, Sendable {
+    public var status: AutomationRunStatus
+    /// Run creation timestamp in ISO 8601 format.
+    public var createdAt: String
+
+    public init(
+        status: AutomationRunStatus,
+        createdAt: String
+    ) {
+        self.status = status
+        self.createdAt = createdAt
+    }
+}
+
+public struct AutomationRunningRunLifecycle: Codable, Sendable {
+    public var status: AutomationRunStatus
+    /// Run creation timestamp in ISO 8601 format.
+    public var createdAt: String
+    /// First execution start timestamp in ISO 8601 format.
+    public var startedAt: String
+
+    public init(
+        status: AutomationRunStatus,
+        createdAt: String,
+        startedAt: String
+    ) {
+        self.status = status
+        self.createdAt = createdAt
+        self.startedAt = startedAt
+    }
+}
+
+public struct AutomationCompletedRunLifecycle: Codable, Sendable {
+    public var status: AutomationRunStatus
+    /// Run creation timestamp in ISO 8601 format.
+    public var createdAt: String
+    /// First execution start timestamp in ISO 8601 format.
+    public var startedAt: String
+    /// Completion timestamp in ISO 8601 format.
+    public var completedAt: String
+    /// Optional aggregate model usage across all linked sessions.
+    public var usage: UsageInfo?
+
+    public init(
+        status: AutomationRunStatus,
+        createdAt: String,
+        startedAt: String,
+        completedAt: String,
+        usage: UsageInfo? = nil
+    ) {
+        self.status = status
+        self.createdAt = createdAt
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.usage = usage
+    }
+}
+
+public struct AutomationFailedRunLifecycle: Codable, Sendable {
+    public var status: AutomationRunStatus
+    /// Run creation timestamp in ISO 8601 format.
+    public var createdAt: String
+    /// First execution start timestamp in ISO 8601 format, when execution began.
+    public var startedAt: String?
+    /// Failure timestamp in ISO 8601 format.
+    public var completedAt: String
+    /// Stable machine-readable and human-readable failure information.
+    public var error: ErrorInfo
+
+    public init(
+        status: AutomationRunStatus,
+        createdAt: String,
+        startedAt: String? = nil,
+        completedAt: String,
+        error: ErrorInfo
+    ) {
+        self.status = status
+        self.createdAt = createdAt
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+        self.error = error
+    }
+}
+
+public struct AutomationCancelledRunLifecycle: Codable, Sendable {
+    public var status: AutomationRunStatus
+    /// Run creation timestamp in ISO 8601 format.
+    public var createdAt: String
+    /// First execution start timestamp in ISO 8601 format, when execution began.
+    public var startedAt: String?
+    /// Cancellation completion timestamp in ISO 8601 format.
+    public var completedAt: String
+
+    public init(
+        status: AutomationRunStatus,
+        createdAt: String,
+        startedAt: String? = nil,
+        completedAt: String
+    ) {
+        self.status = status
+        self.createdAt = createdAt
+        self.startedAt = startedAt
+        self.completedAt = completedAt
+    }
+}
+
+public struct AutomationRunSummary: Codable, Sendable {
+    /// Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.
+    public var resource: String
+    /// Owning `ahp-automation:` URI matching {@link AutomationRunState.automation}.
+    public var automation: String
+    /// Immutable provenance matching {@link AutomationRunState.origin}.
+    public var origin: AutomationRunOrigin
+    /// Current or terminal lifecycle snapshot matching {@link AutomationRunState.lifecycle}.
+    public var lifecycle: AutomationRunLifecycle
+    /// Session matching {@link AutomationRunState.primarySession}, when selected.
+    public var primarySession: String?
+    /// Number of entries in {@link AutomationRunState.sessions}.
+    public var sessionCount: Int
+    /// Opaque host-defined summary metadata.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case resource
+        case automation
+        case origin
+        case lifecycle
+        case primarySession
+        case sessionCount
+        case meta = "_meta"
+    }
+
+    public init(
+        resource: String,
+        automation: String,
+        origin: AutomationRunOrigin,
+        lifecycle: AutomationRunLifecycle,
+        primarySession: String? = nil,
+        sessionCount: Int,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.resource = resource
+        self.automation = automation
+        self.origin = origin
+        self.lifecycle = lifecycle
+        self.primarySession = primarySession
+        self.sessionCount = sessionCount
+        self.meta = meta
+    }
+}
+
+public struct AutomationRunState: Codable, Sendable {
+    /// URI of this automation-run channel.
+    public var resource: String
+    /// Owning `ahp-automation:` URI matching {@link AutomationState.resource}.
+    public var automation: String
+    /// Immutable provenance describing how this run was created.
+    public var origin: AutomationRunOrigin
+    /// Current or terminal lifecycle.
+    public var lifecycle: AutomationRunLifecycle
+    /// Ordered, unique session URIs belonging to this run, each matching
+    /// {@link SessionState.resource}. Entries may represent retries, parallel
+    /// workers, or delegated attempts.
+    public var sessions: [String]
+    /// Member of {@link AutomationRunState.sessions} that the host recommends opening first.
+    public var primarySession: String?
+    /// Opaque host-defined run metadata.
+    public var meta: [String: AnyCodable]?
+
+    enum CodingKeys: String, CodingKey {
+        case resource
+        case automation
+        case origin
+        case lifecycle
+        case sessions
+        case primarySession
+        case meta = "_meta"
+    }
+
+    public init(
+        resource: String,
+        automation: String,
+        origin: AutomationRunOrigin,
+        lifecycle: AutomationRunLifecycle,
+        sessions: [String],
+        primarySession: String? = nil,
+        meta: [String: AnyCodable]? = nil
+    ) {
+        self.resource = resource
+        self.automation = automation
+        self.origin = origin
+        self.lifecycle = lifecycle
+        self.sessions = sessions
+        self.primarySession = primarySession
+        self.meta = meta
+    }
+}
+
 // MARK: - Customization Enablement Union
 
 /// A single explicit customization enablement decision.
@@ -6101,6 +6756,150 @@ public enum SessionInputRequest: Codable, Sendable {
     }
 }
 
+public enum SessionOrigin: Codable, Sendable {
+    case automation(AutomationSessionOrigin)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "automation":
+            self = .automation(try AutomationSessionOrigin(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown SessionOrigin discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .automation(var value):
+            value.kind = .automation
+            try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum AutomationTrigger: Codable, Sendable {
+    case schedule(AutomationScheduleTrigger)
+    case event(AutomationEventTrigger)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "schedule":
+            self = .schedule(try AutomationScheduleTrigger(from: decoder))
+        case "event":
+            self = .event(try AutomationEventTrigger(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown AutomationTrigger discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .schedule(var value):
+            value.kind = .schedule
+            try value.encode(to: encoder)
+        case .event(var value):
+            value.kind = .event
+            try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum AutomationRunOrigin: Codable, Sendable {
+    case manual(AutomationManualRunOrigin)
+    case trigger(AutomationTriggeredRunOrigin)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "kind"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "manual":
+            self = .manual(try AutomationManualRunOrigin(from: decoder))
+        case "trigger":
+            self = .trigger(try AutomationTriggeredRunOrigin(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown AutomationRunOrigin discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .manual(var value):
+            value.kind = .manual
+            try value.encode(to: encoder)
+        case .trigger(var value):
+            value.kind = .trigger
+            try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum AutomationRunLifecycle: Codable, Sendable {
+    case pending(AutomationPendingRunLifecycle)
+    case running(AutomationRunningRunLifecycle)
+    case completed(AutomationCompletedRunLifecycle)
+    case failed(AutomationFailedRunLifecycle)
+    case cancelled(AutomationCancelledRunLifecycle)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "status"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "pending":
+            self = .pending(try AutomationPendingRunLifecycle(from: decoder))
+        case "running":
+            self = .running(try AutomationRunningRunLifecycle(from: decoder))
+        case "completed":
+            self = .completed(try AutomationCompletedRunLifecycle(from: decoder))
+        case "failed":
+            self = .failed(try AutomationFailedRunLifecycle(from: decoder))
+        case "cancelled":
+            self = .cancelled(try AutomationCancelledRunLifecycle(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown AutomationRunLifecycle discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .pending(var value):
+            value.status = .pending
+            try value.encode(to: encoder)
+        case .running(var value):
+            value.status = .running
+            try value.encode(to: encoder)
+        case .completed(var value):
+            value.status = .completed
+            try value.encode(to: encoder)
+        case .failed(var value):
+            value.status = .failed
+            try value.encode(to: encoder)
+        case .cancelled(var value):
+            value.status = .cancelled
+            try value.encode(to: encoder)
+        }
+    }
+}
+
 public enum ToolResultContent: Codable, Sendable {
     case text(ToolResultTextContent)
     case embeddedResource(ToolResultEmbeddedResourceContent)
@@ -6156,7 +6955,7 @@ public enum ToolResultContent: Codable, Sendable {
     }
 }
 
-/// The state payload of a snapshot — root, session, chat, terminal, changeset, resource-watch, annotations, or content state.
+/// The state payload of a snapshot.
 public enum SnapshotState: Codable, Sendable {
     case root(RootState)
     case session(SessionState)
@@ -6165,6 +6964,8 @@ public enum SnapshotState: Codable, Sendable {
     case changeset(ChangesetState)
     case resourceWatch(ResourceWatchState)
     case annotations(AnnotationsState)
+    case automations(AutomationCatalogState)
+    case automationRun(AutomationRunState)
 
     public init(from decoder: Decoder) throws {
         // Try the most distinctive shapes first. SessionState has required
@@ -6183,6 +6984,10 @@ public enum SnapshotState: Codable, Sendable {
             self = .resourceWatch(resourceWatch)
         } else if let annotations = try? AnnotationsState(from: decoder) {
             self = .annotations(annotations)
+        } else if let automations = try? AutomationCatalogState(from: decoder) {
+            self = .automations(automations)
+        } else if let automationRun = try? AutomationRunState(from: decoder) {
+            self = .automationRun(automationRun)
         } else {
             self = .root(try RootState(from: decoder))
         }
@@ -6197,6 +7002,8 @@ public enum SnapshotState: Codable, Sendable {
         case .changeset(let state): try state.encode(to: encoder)
         case .resourceWatch(let state): try state.encode(to: encoder)
         case .annotations(let state): try state.encode(to: encoder)
+        case .automations(let state): try state.encode(to: encoder)
+        case .automationRun(let state): try state.encode(to: encoder)
         }
     }
 }

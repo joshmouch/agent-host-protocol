@@ -607,6 +607,79 @@ func TestClientSubscriptionFanOut(t *testing.T) {
 	}
 }
 
+func TestClientAutomationCatalogueAction(t *testing.T) {
+	clientSide, serverSide := newMemTransportPair()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client, err := Connect(ctx, clientSide, DefaultConfig())
+	if err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	defer client.Shutdown(context.Background())
+
+	const automationsURI = "ahp-automations://"
+	sub := client.AttachSubscription(automationsURI)
+	stream := client.Events()
+	automationURI := ahptypes.URI("ahp-automation:/nightly")
+
+	params, err := json.Marshal(ahptypes.ActionEnvelope{
+		Channel:   automationsURI,
+		ServerSeq: 1,
+		Action: ahptypes.StateAction{
+			Value: &ahptypes.AutomationRemovedAction{
+				Type:     ahptypes.ActionTypeAutomationRemoved,
+				Resource: automationURI,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal action: %v", err)
+	}
+	wire, err := EncodeMessage(ahptypes.JsonRpcMessage{Notification: &ahptypes.JsonRpcNotification{
+		JsonRpc: ahptypes.JsonRpcV2,
+		Method:  "action",
+		Params:  params,
+	}})
+	if err != nil {
+		t.Fatalf("encode notification: %v", err)
+	}
+	if err := serverSide.Send(ctx, wire); err != nil {
+		t.Fatalf("send notification: %v", err)
+	}
+
+	check := func(t *testing.T, event SubscriptionEvent) {
+		t.Helper()
+		action, ok := event.(SubscriptionEventAction)
+		if !ok {
+			t.Fatalf("got %T, want SubscriptionEventAction", event)
+		}
+		removed, ok := action.Envelope.Action.Value.(*ahptypes.AutomationRemovedAction)
+		if !ok {
+			t.Fatalf("got %T, want AutomationRemovedAction", action.Envelope.Action.Value)
+		}
+		if removed.Resource != automationURI {
+			t.Errorf("resource = %q, want %q", removed.Resource, automationURI)
+		}
+	}
+
+	select {
+	case event := <-sub.Events():
+		check(t, event)
+	case <-ctx.Done():
+		t.Fatal("subscription did not receive event")
+	}
+
+	select {
+	case event := <-stream.Events():
+		if event.Channel != automationsURI {
+			t.Errorf("channel = %q, want %q", event.Channel, automationsURI)
+		}
+		check(t, event.Event)
+	case <-ctx.Done():
+		t.Fatal("top-level stream did not receive event")
+	}
+}
+
 // TestClientShutdownFailsInFlightRequest confirms a Shutdown unblocks
 // any pending request with ErrShutdown.
 func TestClientShutdownFailsInFlightRequest(t *testing.T) {

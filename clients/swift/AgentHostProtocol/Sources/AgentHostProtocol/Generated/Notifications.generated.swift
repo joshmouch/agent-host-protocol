@@ -180,6 +180,8 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var status: SessionStatus?
     /// Human-readable description of what the session is currently doing
     public var activity: String?
+    /// Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+    public var origin: SessionOrigin?
     /// Server-owned project for this session
     public var project: ProjectInfo?
     /// The working directories the session's agent has tool access to, as
@@ -220,6 +222,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         case title
         case status
         case activity
+        case origin
         case project
         case workingDirectories
         case annotations
@@ -235,6 +238,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         title: String? = nil,
         status: SessionStatus? = nil,
         activity: String? = nil,
+        origin: SessionOrigin? = nil,
         project: ProjectInfo? = nil,
         workingDirectories: [String]? = nil,
         annotations: AnnotationsSummary? = nil,
@@ -248,6 +252,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.title = title
         self.status = status
         self.activity = activity
+        self.origin = origin
         self.project = project
         self.workingDirectories = workingDirectories
         self.annotations = annotations

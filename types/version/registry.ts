@@ -166,6 +166,15 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.TerminalCommandExecuted]: '0.1.0',
   [ActionType.TerminalCommandFinished]: '0.1.0',
   [ActionType.ResourceWatchChanged]: '0.2.0',
+  [ActionType.AutomationCreateRequested]: '0.8.0',
+  [ActionType.AutomationUpdateRequested]: '0.8.0',
+  [ActionType.AutomationSet]: '0.8.0',
+  [ActionType.AutomationRemoved]: '0.8.0',
+  [ActionType.AutomationRunLifecycleChanged]: '0.8.0',
+  [ActionType.AutomationRunSessionSet]: '0.8.0',
+  [ActionType.AutomationRunSessionRemoved]: '0.8.0',
+  [ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
+  [ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
 /**

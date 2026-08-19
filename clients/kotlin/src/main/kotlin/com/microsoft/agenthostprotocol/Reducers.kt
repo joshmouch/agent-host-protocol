@@ -1,5 +1,4 @@
-// Reducers.kt — Pure state reducers for AHP root, session, terminal, and
-// changeset state.
+// Reducers.kt — Pure state reducers for AHP protocol channels.
 //
 // Hand-written Kotlin port of the per-channel reducers in
 // `types/channels-*/reducer.ts`. Behaviour parity with the TypeScript
@@ -18,11 +17,13 @@ import kotlinx.serialization.json.JsonElement
  * A pure state reducer: `reduce(state, action)` returns the next state, with
  * no mutation of [state] and no side effects.
  *
- * The companion top-level functions ([rootReducer], [sessionReducer],
- * [terminalReducer], [changesetReducer], [annotationsReducer], [resourceWatchReducer]) are the canonical implementations.
- * The object instances on this interface ([RootReducer], [SessionReducer],
- * [TerminalReducer], [ChangesetReducer], [AnnotationsReducer]) wrap them for use as values where
- * an instance is needed.
+ * The companion top-level functions ([rootReducer], [sessionReducer], [chatReducer],
+ * [terminalReducer], [changesetReducer], [annotationsReducer], [resourceWatchReducer],
+ * [automationReducer], and [automationRunReducer]) are the canonical implementations.
+ * The object instances on this interface ([RootReducer], [SessionReducer], [ChatReducer],
+ * [TerminalReducer], [ChangesetReducer], [AnnotationsReducer], [ResourceWatchReducer],
+ * [AutomationReducer], and [AutomationRunReducer]) wrap them for use as values where an
+ * instance is needed.
  */
 public fun interface Reducer<S, A> {
     public fun reduce(state: S, action: A): S
@@ -70,6 +71,17 @@ public object ResourceWatchReducer : Reducer<ResourceWatchState, StateAction> {
         resourceWatchReducer(state, action)
 }
 
+/** Pure automation reducer as a [Reducer] instance. Delegates to [automationReducer]. */
+public object AutomationReducer : Reducer<AutomationCatalogState, StateAction> {
+    override fun reduce(state: AutomationCatalogState, action: StateAction): AutomationCatalogState =
+        automationReducer(state, action)
+}
+
+/** Pure automation-run reducer as a [Reducer] instance. Delegates to [automationRunReducer]. */
+public object AutomationRunReducer : Reducer<AutomationRunState, StateAction> {
+    override fun reduce(state: AutomationRunState, action: StateAction): AutomationRunState =
+        automationRunReducer(state, action)
+}
 
 // ─── Timestamp Provider ─────────────────────────────────────────────────────
 
@@ -1798,5 +1810,76 @@ public fun annotationsReducer(state: AnnotationsState, action: StateAction): Ann
  */
 public fun resourceWatchReducer(state: ResourceWatchState, action: StateAction): ResourceWatchState = when (action) {
     is StateActionResourceWatchChanged -> state
+    else -> state
+}
+
+// ─── Automation Reducer ─────────────────────────────────────────────────────
+
+/** Pure reducer for [AutomationCatalogState]. Handles automation-channel action variants. */
+public fun automationReducer(state: AutomationCatalogState, action: StateAction): AutomationCatalogState = when (action) {
+    is StateActionAutomationCreateRequested,
+    is StateActionAutomationUpdateRequested,
+    -> state
+
+    is StateActionAutomationSet -> {
+        val automation = action.value.automation
+        val index = state.automations.indexOfFirst { it.resource == automation.resource }
+        if (index < 0) {
+            state.copy(automations = state.automations + automation)
+        } else {
+            val automations = state.automations.toMutableList()
+            automations[index] = automation
+            state.copy(automations = automations)
+        }
+    }
+
+    is StateActionAutomationRemoved -> {
+        val index = state.automations.indexOfFirst { it.resource == action.value.resource }
+        if (index < 0) {
+            state
+        } else {
+            val automations = state.automations.toMutableList()
+            automations.removeAt(index)
+            state.copy(automations = automations)
+        }
+    }
+
+    else -> state
+}
+
+// ─── Automation Run Reducer ─────────────────────────────────────────────────
+
+/** Pure reducer for [AutomationRunState]. Handles automation-run-channel action variants. */
+public fun automationRunReducer(state: AutomationRunState, action: StateAction): AutomationRunState = when (action) {
+    is StateActionAutomationRunLifecycleChanged ->
+        state.copy(lifecycle = action.value.lifecycle)
+
+    is StateActionAutomationRunSessionSet ->
+        if (action.value.session in state.sessions) {
+            state
+        } else {
+            state.copy(sessions = state.sessions + action.value.session)
+        }
+
+    is StateActionAutomationRunSessionRemoved -> {
+        val session = action.value.session
+        val index = state.sessions.indexOf(session)
+        if (index < 0) {
+            state
+        } else {
+            val sessions = state.sessions.toMutableList()
+            sessions.removeAt(index)
+            state.copy(
+                sessions = sessions,
+                primarySession = if (state.primarySession == session) null else state.primarySession,
+            )
+        }
+    }
+
+    is StateActionAutomationRunPrimarySessionChanged ->
+        state.copy(primarySession = action.value.primarySession)
+
+    is StateActionAutomationRunCancelRequested -> state
+
     else -> state
 }

@@ -58,17 +58,17 @@ use ahp_types::actions::{
     ChatTurnStartedAction, StateAction,
 };
 use ahp_types::state::{
-    ActiveTurn, AnnotationsState, ChangesetOperationStatus, ChangesetState, ChangesetStatus,
-    ChatInputRequest, ChatState, ChildCustomization, ConfirmationOption, Customization,
-    CustomizationEnablement, ErrorInfo, InputRequestResponsePart, McpServerStartingState,
-    McpServerState, McpServerStoppedState, PendingMessage, PendingMessageKind, ResourceWatchState,
-    ResponsePart, RootState, SessionInputRequest, SessionLifecycle, SessionState, SessionStatus,
-    TerminalCommandPart, TerminalContentPart, TerminalState, TerminalUnclassifiedPart,
-    ToolCallAuthRequiredState, ToolCallCancellationReason, ToolCallCancelledState,
-    ToolCallCompletedState, ToolCallConfirmationReason, ToolCallContributor,
-    ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState, ToolCallResponsePart,
-    ToolCallRunningState, ToolCallState, ToolCallStatus, ToolCallStreamingState, ToolInput, Turn,
-    TurnState,
+    ActiveTurn, AnnotationsState, AutomationCatalogState, AutomationRunState,
+    ChangesetOperationStatus, ChangesetState, ChangesetStatus, ChatInputRequest, ChatState,
+    ChildCustomization, ConfirmationOption, Customization, CustomizationEnablement, ErrorInfo,
+    InputRequestResponsePart, McpServerStartingState, McpServerState, McpServerStoppedState,
+    PendingMessage, PendingMessageKind, ResourceWatchState, ResponsePart, RootState,
+    SessionInputRequest, SessionLifecycle, SessionState, SessionStatus, TerminalCommandPart,
+    TerminalContentPart, TerminalState, TerminalUnclassifiedPart, ToolCallAuthRequiredState,
+    ToolCallCancellationReason, ToolCallCancelledState, ToolCallCompletedState,
+    ToolCallConfirmationReason, ToolCallContributor, ToolCallPendingConfirmationState,
+    ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
+    ToolCallState, ToolCallStatus, ToolCallStreamingState, ToolInput, Turn, TurnState,
 };
 
 /// What happened when an action was applied.
@@ -2022,6 +2022,82 @@ pub fn apply_action_to_resource_watch(
     }
 }
 
+/// Apply a [`StateAction`] to an [`AutomationCatalogState`] in place.
+pub fn apply_action_to_automation(
+    state: &mut AutomationCatalogState,
+    action: &StateAction,
+) -> ReduceOutcome {
+    match action {
+        StateAction::AutomationCreateRequested(_) | StateAction::AutomationUpdateRequested(_) => {
+            ReduceOutcome::NoOp
+        }
+        StateAction::AutomationSet(a) => {
+            if let Some(index) = state
+                .automations
+                .iter()
+                .position(|automation| automation.resource == a.automation.resource)
+            {
+                state.automations[index] = a.automation.clone();
+            } else {
+                state.automations.push(a.automation.clone());
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::AutomationRemoved(a) => {
+            let Some(index) = state
+                .automations
+                .iter()
+                .position(|automation| automation.resource == a.resource)
+            else {
+                return ReduceOutcome::NoOp;
+            };
+            state.automations.remove(index);
+            ReduceOutcome::Applied
+        }
+        _ => ReduceOutcome::OutOfScope,
+    }
+}
+
+/// Apply a [`StateAction`] to an [`AutomationRunState`] in place.
+pub fn apply_action_to_automation_run(
+    state: &mut AutomationRunState,
+    action: &StateAction,
+) -> ReduceOutcome {
+    match action {
+        StateAction::AutomationRunLifecycleChanged(a) => {
+            state.lifecycle = a.lifecycle.clone();
+            ReduceOutcome::Applied
+        }
+        StateAction::AutomationRunSessionSet(a) => {
+            if state.sessions.contains(&a.session) {
+                return ReduceOutcome::NoOp;
+            }
+            state.sessions.push(a.session.clone());
+            ReduceOutcome::Applied
+        }
+        StateAction::AutomationRunSessionRemoved(a) => {
+            let Some(index) = state
+                .sessions
+                .iter()
+                .position(|session| session == &a.session)
+            else {
+                return ReduceOutcome::NoOp;
+            };
+            state.sessions.remove(index);
+            if state.primary_session.as_ref() == Some(&a.session) {
+                state.primary_session = None;
+            }
+            ReduceOutcome::Applied
+        }
+        StateAction::AutomationRunPrimarySessionChanged(a) => {
+            state.primary_session = a.primary_session.clone();
+            ReduceOutcome::Applied
+        }
+        StateAction::AutomationRunCancelRequested(_) => ReduceOutcome::NoOp,
+        _ => ReduceOutcome::OutOfScope,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2048,6 +2124,7 @@ mod tests {
             title: String::new(),
             status: SessionStatus::Idle.bits(),
             activity: None,
+            origin: None,
             project: None,
             working_directories: None,
             annotations: None,
@@ -2469,6 +2546,22 @@ mod tests {
                     expected,
                     &parsed_actions,
                     apply_action_to_resource_watch,
+                    &file_name,
+                    description,
+                ),
+                "automation" => run_fixture::<AutomationCatalogState>(
+                    initial,
+                    expected,
+                    &parsed_actions,
+                    apply_action_to_automation,
+                    &file_name,
+                    description,
+                ),
+                "automationRun" => run_fixture::<AutomationRunState>(
+                    initial,
+                    expected,
+                    &parsed_actions,
+                    apply_action_to_automation_run,
                     &file_name,
                     description,
                 ),

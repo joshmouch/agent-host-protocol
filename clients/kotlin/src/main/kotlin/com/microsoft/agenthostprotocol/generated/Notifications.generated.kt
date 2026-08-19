@@ -17,6 +17,7 @@ import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.contentOrNull
 
 // ─── Notification Enums ─────────────────────────────────────────────────────
@@ -191,6 +192,10 @@ data class PartialSessionSummary(
      * Human-readable description of what the session is currently doing
      */
     val activity: String? = null,
+    /**
+     * Durable {@link AutomationSessionOrigin}, when an automation run created this session.
+     */
+    val origin: SessionOrigin? = null,
     /**
      * Server-owned project for this session
      */

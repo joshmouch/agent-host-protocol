@@ -172,6 +172,7 @@ function mapType(tsType: string): string {
     tsType === 'RootState | SessionState | TerminalState | ChangesetState | AnnotationsState' ||
     tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState' ||
     tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState' ||
+    tsType === 'RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationCatalogState | AutomationRunState' ||
     tsType === 'RootState | SessionState | ChatState | TerminalState | ChangesetState' ||
     tsType === 'RootState | SessionState | ChatState | TerminalState | ChangesetState | AnnotationsState'
   ) {
@@ -356,7 +357,9 @@ function extractProps(iface: InterfaceDeclaration, project: Project): GoProp[] {
     // token: optional null-able stays a single pointer (avoid `**T`).
     const alreadyPointer = goType.startsWith('*');
     const optional = hasQuestionToken || hasUnionUndefined || alreadyPointer;
-    if (optional && !alreadyPointer && !goType.startsWith('[]') && !goType.startsWith('map[')) {
+    const presenceSensitiveCollection = iface.getName() === 'AutomationDefinitionPatch'
+      && (tsName === 'triggers' || tsName === '_meta');
+    if (optional && !alreadyPointer && (presenceSensitiveCollection || (!goType.startsWith('[]') && !goType.startsWith('map[')))) {
       goType = `*${goType}`;
     }
 
@@ -679,7 +682,20 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
   lines.push('\tif u.Value == nil {');
   lines.push('\t\treturn []byte("null"), nil');
   lines.push('\t}');
-  lines.push('\treturn json.Marshal(u.Value)');
+  if (cfg.injectDiscriminantOnMarshal) {
+    lines.push('\tdata, err := json.Marshal(u.Value)');
+    lines.push('\tif err != nil { return nil, err }');
+    lines.push('\tvar object map[string]json.RawMessage');
+    lines.push('\tif err := json.Unmarshal(data, &object); err != nil { return nil, err }');
+    lines.push('\tswitch u.Value.(type) {');
+    for (const v of cfg.variants) {
+      lines.push(`\tcase *${v.innerType}: object[${JSON.stringify(cfg.discriminantField)}] = json.RawMessage(${JSON.stringify(JSON.stringify(v.wireValue))})`);
+    }
+    lines.push('\t}');
+    lines.push('\treturn json.Marshal(object)');
+  } else {
+    lines.push('\treturn json.Marshal(u.Value)');
+  }
   lines.push('}');
   return lines.join('\n');
 }
@@ -698,6 +714,9 @@ const STATE_ENUMS = [
   'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus', 'TerminalClaimKind',
   'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
+  'SessionOriginKind',
+  'AutomationOperation', 'AutomationMisfirePolicy', 'AutomationTriggerKind',
+  'AutomationRunStatus', 'AutomationRunOriginKind',
 ];
 
 const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: string }[] = [
@@ -829,6 +848,26 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'TelemetryCapabilities' },
   { name: 'ResourceWatchState' },
   { name: 'ResourceChange' },
+  { name: 'AutomationSessionOrigin' },
+  { name: 'AutomationSchedule' },
+  { name: 'AutomationScheduleTrigger' },
+  { name: 'AutomationEventTrigger' },
+  { name: 'AutomationTriggerEventDefinition' },
+  { name: 'AutomationTriggerDefinition' },
+  { name: 'AutomationSessionTemplate' },
+  { name: 'AutomationDefinition' },
+  { name: 'AutomationDefinitionPatch' },
+  { name: 'AutomationState' },
+  { name: 'AutomationCatalogState' },
+  { name: 'AutomationManualRunOrigin' },
+  { name: 'AutomationTriggeredRunOrigin' },
+  { name: 'AutomationPendingRunLifecycle' },
+  { name: 'AutomationRunningRunLifecycle' },
+  { name: 'AutomationCompletedRunLifecycle' },
+  { name: 'AutomationFailedRunLifecycle' },
+  { name: 'AutomationCancelledRunLifecycle' },
+  { name: 'AutomationRunSummary' },
+  { name: 'AutomationRunState' },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -1054,6 +1093,52 @@ const SESSION_INPUT_REQUEST_UNION: UnionConfig = {
   unknown: true,
 };
 
+const SESSION_ORIGIN_UNION: UnionConfig = {
+  name: 'SessionOrigin',
+  discriminantField: 'kind',
+  doc: 'SessionOrigin is the durable origin of a session.',
+  variants: [
+    { variantName: 'Automation', innerType: 'AutomationSessionOrigin', wireValue: 'automation' },
+  ],
+  injectDiscriminantOnMarshal: true,
+};
+
+const AUTOMATION_TRIGGER_UNION: UnionConfig = {
+  name: 'AutomationTrigger',
+  discriminantField: 'kind',
+  doc: 'AutomationTrigger is an automatic trigger for an automation.',
+  variants: [
+    { variantName: 'Schedule', innerType: 'AutomationScheduleTrigger', wireValue: 'schedule' },
+    { variantName: 'Event', innerType: 'AutomationEventTrigger', wireValue: 'event' },
+  ],
+  injectDiscriminantOnMarshal: true,
+};
+
+const AUTOMATION_RUN_ORIGIN_UNION: UnionConfig = {
+  name: 'AutomationRunOrigin',
+  discriminantField: 'kind',
+  doc: 'AutomationRunOrigin describes how an automation run was created.',
+  variants: [
+    { variantName: 'Manual', innerType: 'AutomationManualRunOrigin', wireValue: 'manual' },
+    { variantName: 'Trigger', innerType: 'AutomationTriggeredRunOrigin', wireValue: 'trigger' },
+  ],
+  injectDiscriminantOnMarshal: true,
+};
+
+const AUTOMATION_RUN_LIFECYCLE_UNION: UnionConfig = {
+  name: 'AutomationRunLifecycle',
+  discriminantField: 'status',
+  doc: 'AutomationRunLifecycle is the lifecycle of an automation run.',
+  variants: [
+    { variantName: 'Pending', innerType: 'AutomationPendingRunLifecycle', wireValue: 'pending' },
+    { variantName: 'Running', innerType: 'AutomationRunningRunLifecycle', wireValue: 'running' },
+    { variantName: 'Completed', innerType: 'AutomationCompletedRunLifecycle', wireValue: 'completed' },
+    { variantName: 'Failed', innerType: 'AutomationFailedRunLifecycle', wireValue: 'failed' },
+    { variantName: 'Cancelled', innerType: 'AutomationCancelledRunLifecycle', wireValue: 'cancelled' },
+  ],
+  injectDiscriminantOnMarshal: true,
+};
+
 function generateChatOriginGo(): string {
   return `// ChatOrigin describes how a chat came into existence.
 type ChatOrigin struct {
@@ -1154,10 +1239,12 @@ func (o ChatOrigin) MarshalJSON() ([]byte, error) {
 
 function generateSnapshotState(): string {
   return `// SnapshotState is the state payload of a snapshot — root, session,
-// chat, terminal, changeset, resource-watch, annotations, or content state. The active
+// chat, terminal, changeset, resource-watch, annotations, automation catalogue,
+// or automation-run state. The active
 // variant is chosen by which pointer field is non-nil; UnmarshalJSON probes
 // for required fields in the canonical order
-// (session → chat → terminal → changeset → resourceWatch → annotations → root).
+// (automationRun → automations → session → chat → terminal → changeset →
+// resourceWatch → annotations → root).
 type SnapshotState struct {
 \tRoot          *RootState          \`json:"-"\`
 \tSession       *SessionState       \`json:"-"\`
@@ -1166,11 +1253,17 @@ type SnapshotState struct {
 \tChangeset     *ChangesetState     \`json:"-"\`
 \tResourceWatch *ResourceWatchState \`json:"-"\`
 \tAnnotations   *AnnotationsState   \`json:"-"\`
+\tAutomations   *AutomationCatalogState \`json:"-"\`
+\tAutomationRun *AutomationRunState \`json:"-"\`
 }
 
 // MarshalJSON encodes whichever variant is currently populated.
 func (s SnapshotState) MarshalJSON() ([]byte, error) {
 \tswitch {
+\tcase s.AutomationRun != nil:
+\t\treturn json.Marshal(s.AutomationRun)
+\tcase s.Automations != nil:
+\t\treturn json.Marshal(s.Automations)
 \tcase s.Session != nil:
 \t\treturn json.Marshal(s.Session)
 \tcase s.Chat != nil:
@@ -1199,6 +1292,18 @@ func (s *SnapshotState) UnmarshalJSON(data []byte) error {
 \t\treturn err
 \t}
 \tswitch {
+\tcase containsAll(probe, "automation", "origin", "sessions"):
+\t\tvar v AutomationRunState
+\t\tif err := json.Unmarshal(data, &v); err != nil {
+\t\t\treturn err
+\t\t}
+\t\ts.AutomationRun = &v
+\tcase containsAll(probe, "automations"):
+\t\tvar v AutomationCatalogState
+\t\tif err := json.Unmarshal(data, &v); err != nil {
+\t\t\treturn err
+\t\t}
+\t\ts.Automations = &v
 \tcase containsAll(probe, "lifecycle"):
 \t\tvar v SessionState
 \t\tif err := json.Unmarshal(data, &v); err != nil {
@@ -1358,6 +1463,14 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push('');
+  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
+  lines.push('');
   lines.push(generateChatOriginGo());
   lines.push('');
   lines.push(generateSnapshotState());
@@ -1459,6 +1572,15 @@ const ACTION_VARIANTS: {
   { type: 'terminal/commandExecuted', variantName: 'TerminalCommandExecuted', tsInterface: 'TerminalCommandExecutedAction' },
   { type: 'terminal/commandFinished', variantName: 'TerminalCommandFinished', tsInterface: 'TerminalCommandFinishedAction' },
   { type: 'resourceWatch/changed', variantName: 'ResourceWatchChanged', tsInterface: 'ResourceWatchChangedAction' },
+  { type: 'automation/createRequested', variantName: 'AutomationCreateRequested', tsInterface: 'AutomationCreateRequestedAction' },
+  { type: 'automation/updateRequested', variantName: 'AutomationUpdateRequested', tsInterface: 'AutomationUpdateRequestedAction' },
+  { type: 'automation/set', variantName: 'AutomationSet', tsInterface: 'AutomationSetAction' },
+  { type: 'automation/removed', variantName: 'AutomationRemoved', tsInterface: 'AutomationRemovedAction' },
+  { type: 'automationRun/lifecycleChanged', variantName: 'AutomationRunLifecycleChanged', tsInterface: 'AutomationRunLifecycleChangedAction' },
+  { type: 'automationRun/sessionSet', variantName: 'AutomationRunSessionSet', tsInterface: 'AutomationRunSessionSetAction' },
+  { type: 'automationRun/sessionRemoved', variantName: 'AutomationRunSessionRemoved', tsInterface: 'AutomationRunSessionRemovedAction' },
+  { type: 'automationRun/primarySessionChanged', variantName: 'AutomationRunPrimarySessionChanged', tsInterface: 'AutomationRunPrimarySessionChangedAction' },
+  { type: 'automationRun/cancelRequested', variantName: 'AutomationRunCancelRequested', tsInterface: 'AutomationRunCancelRequestedAction' },
 ];
 
 function generateMergedChatToolCallConfirmedStruct(): string {
@@ -1564,7 +1686,11 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ChatSourceKind', 'ContentEncoding
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
-  { name: 'ClientCapabilities' }, { name: 'Implementation' },
+  { name: 'ClientCapabilities' }, { name: 'AutomationCapabilities' },
+  { name: 'AutomationCreateCapability' },
+  { name: 'AutomationScheduleCapabilities' },
+  { name: 'AutomationRunCancellationCapability' },
+  { name: 'Implementation' },
   { name: 'ReconnectParams' },
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
   { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
@@ -1594,6 +1720,9 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: str
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
   { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
   { name: 'ChangesetOperationFollowUp' },
+  { name: 'ListAutomationTriggerDefinitionsParams' }, { name: 'ListAutomationTriggerDefinitionsResult' },
+  { name: 'RunAutomationParams' }, { name: 'RunAutomationResult' },
+  { name: 'FetchAutomationRunsParams' }, { name: 'FetchAutomationRunsResult' },
 ];
 
 const RECONNECT_RESULT_UNION: UnionConfig = {
@@ -2160,6 +2289,10 @@ function checkExhaustiveness(project: Project): void {
     'SessionInputRequest',
     'ToolCallConfirmationState',
     'ReconnectResult',
+    'SessionOrigin',
+    'AutomationTrigger',
+    'AutomationRunOrigin',
+    'AutomationRunLifecycle',
     'AuthRequiredErrorData',
     'PermissionDeniedErrorData',
     'UnsupportedProtocolVersionErrorData',
