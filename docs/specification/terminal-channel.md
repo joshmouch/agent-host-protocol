@@ -23,7 +23,7 @@ TerminalState {
   cols?: number
   rows?: number
   content: TerminalContentPart[]
-  exitCode?: number
+  lifecycle: TerminalLifecycleState
   claim: TerminalClaim
   supportsCommandDetection?: boolean
 }
@@ -31,7 +31,7 @@ TerminalState {
 
 `content` is an ordered array of typed parts. Each part is either `unclassified` (raw VT output) or a structured `command` part carrying the command line, accumulated output, exit code, and duration. See the [Terminals guide](/guide/terminals#full-terminal-state) for the part shapes.
 
-A terminal is **always owned** — the [`claim`](/guide/terminals#claims-and-ownership) field records whether it belongs to a client or a session.
+A terminal is **always owned** — the [`claim`](/guide/terminals#claims-and-ownership) field records whether it belongs to a client or a session. Its `lifecycle` is `{ status: "running" }` while active and `{ status: "exited", exitCode?: number }` after exit.
 
 ## Lifecycle
 
@@ -119,7 +119,7 @@ The server MUST NOT include shell integration escape sequences in `terminal/data
 | `terminal/claimed` | Yes | Sets `claim` |
 | `terminal/titleChanged` | Yes | Sets `title` |
 | `terminal/cwdChanged` | No | Sets `cwd` |
-| `terminal/exited` | No | Sets `exitCode` |
+| `terminal/exited` | No | Sets `lifecycle` to `exited` with the optional `exitCode` |
 | `terminal/cleared` | Yes | Resets `content` to `[]` |
 
 ## Commands

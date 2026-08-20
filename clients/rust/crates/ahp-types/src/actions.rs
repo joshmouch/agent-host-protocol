@@ -13,7 +13,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[allow(unused_imports)]
 use crate::state::{
-    AgentInfo, AgentSelection, Annotation, AnnotationEntry, AutomationDefinition,
+    AgentInfo, AgentSelection, Annotation, AnnotationEntry, AnnotationOrigin, AutomationDefinition,
     AutomationDefinitionPatch, AutomationRunLifecycle, AutomationRunSummary, AutomationState,
     Changeset, ChangesetFile, ChangesetOperation, ChangesetOperationStatus, ChangesetStatus,
     ChatInputAnswer, ChatInputRequest, ChatInputResponseKind, ChatInteractivity, ChatOrigin,
@@ -1473,9 +1473,6 @@ pub struct ChangesetContentChangedAction {
     /// Full replacement operation list. Omit when operations are unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operations: Option<Vec<ChangesetOperation>>,
-    /// Error information, if the changeset content change failed.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error: Option<ErrorInfo>,
 }
 
 /// The set of operations available on this changeset changed. Full
@@ -1569,11 +1566,9 @@ pub struct AnnotationsSetAction {
 pub struct AnnotationsUpdatedAction {
     /// The {@link Annotation.id} of the annotation to update.
     pub annotation_id: String,
-    /// Re-anchors the annotation to the file versions this turn produced.
-    /// Matches a {@link Turn.id} on the owning session. Omit to leave the
-    /// current {@link Annotation.turnId} unchanged.
+    /// Replaces the annotation's provenance. Omit to leave it unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub turn_id: Option<String>,
+    pub origin: Option<AnnotationOrigin>,
     /// Re-anchors the annotation to this file. Omit to leave the current
     /// {@link Annotation.resource} unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]

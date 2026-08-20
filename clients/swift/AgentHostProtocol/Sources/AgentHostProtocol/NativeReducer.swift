@@ -150,12 +150,6 @@ extension Reducer {
     }
 }
 
-// MARK: - Timestamp Helper
-
-private func currentTimestamp() -> Int {
-    currentTimestampProvider()
-}
-
 // MARK: - Customization Helpers
 
 func customizationId(_ c: Customization) -> String {

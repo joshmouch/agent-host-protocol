@@ -111,8 +111,8 @@ enum class SessionLifecycle {
     CREATING,
     @SerialName("ready")
     READY,
-    @SerialName("creationFailed")
-    CREATION_FAILED
+    @SerialName("failed")
+    FAILED
 }
 
 /**
@@ -600,6 +600,17 @@ enum class TerminalClaimKind {
     CLIENT,
     @SerialName("session")
     SESSION
+}
+
+/**
+ * Lifecycle status of a terminal process.
+ */
+@Serializable
+enum class TerminalLifecycleStatus {
+    @SerialName("running")
+    RUNNING,
+    @SerialName("exited")
+    EXITED
 }
 
 /**
@@ -4316,9 +4327,9 @@ data class TerminalInfo(
      */
     val claim: TerminalClaim,
     /**
-     * Process exit code, if the terminal process has exited
+     * Current terminal process lifecycle.
      */
-    val exitCode: Long? = null
+    val lifecycle: TerminalLifecycleState
 )
 
 @Serializable
@@ -4344,13 +4355,31 @@ data class TerminalSessionClaim(
      */
     val session: String,
     /**
-     * Optional turn identifier within the session
+     * Chat URI that claimed the terminal.
+     */
+    val chat: String,
+    /**
+     * Optional turn identifier within the chat.
      */
     val turnId: String? = null,
     /**
      * Optional tool call identifier within the turn
      */
     val toolCallId: String? = null
+)
+
+@Serializable
+data class TerminalRunningLifecycleState(
+    val status: TerminalLifecycleStatus
+)
+
+@Serializable
+data class TerminalExitedLifecycleState(
+    val status: TerminalLifecycleStatus,
+    /**
+     * Process exit code, if the runtime reported one.
+     */
+    val exitCode: Long? = null
 )
 
 @Serializable
@@ -4381,9 +4410,9 @@ data class TerminalState(
      */
     val content: List<TerminalContentPart>,
     /**
-     * Process exit code, set when the terminal process exits
+     * Current terminal process lifecycle.
      */
-    val exitCode: Long? = null,
+    val lifecycle: TerminalLifecycleState,
     /**
      * Who currently holds this terminal
      */
@@ -4729,6 +4758,22 @@ data class AnnotationsState(
 )
 
 @Serializable
+data class AnnotationOrigin(
+    /**
+     * Owning session URI.
+     */
+    val session: String,
+    /**
+     * Owning chat URI, when the annotation is scoped to a chat.
+     */
+    val chat: String? = null,
+    /**
+     * Turn identifier within {@link chat}, when the annotation is scoped to a turn.
+     */
+    val turnId: String? = null
+)
+
+@Serializable
 data class Annotation(
     /**
      * Stable identifier within the annotations channel. Assigned by the client
@@ -4736,10 +4781,9 @@ data class Annotation(
      */
     val id: String,
     /**
-     * Turn that produced the file versions this annotation is anchored to.
-     * Matches a {@link Turn.id} on the owning session.
+     * Provenance of the content this annotation is anchored to.
      */
-    val turnId: String,
+    val origin: AnnotationOrigin,
     /**
      * The file the annotation is anchored to.
      */
@@ -6338,6 +6382,44 @@ internal object ToolCallRiskAssessmentSerializer : KSerializer<ToolCallRiskAsses
             is ToolCallRiskAssessmentLoading -> output.json.encodeToJsonElement(ToolCallRiskAssessmentLoadingState.serializer(), value.value)
             is ToolCallRiskAssessmentComplete -> output.json.encodeToJsonElement(ToolCallRiskAssessmentCompleteState.serializer(), value.value)
             is ToolCallRiskAssessmentUnknown -> value.raw
+        }
+        output.encodeJsonElement(element)
+    }
+}
+
+@Serializable(with = TerminalLifecycleStateSerializer::class)
+sealed interface TerminalLifecycleState
+
+@JvmInline
+value class TerminalLifecycleStateRunning(val value: TerminalRunningLifecycleState) : TerminalLifecycleState
+@JvmInline
+value class TerminalLifecycleStateExited(val value: TerminalExitedLifecycleState) : TerminalLifecycleState
+
+internal object TerminalLifecycleStateSerializer : KSerializer<TerminalLifecycleState> {
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("TerminalLifecycleState")
+
+    override fun deserialize(decoder: Decoder): TerminalLifecycleState {
+        val input = decoder as? JsonDecoder
+            ?: error("TerminalLifecycleState can only be deserialized from JSON")
+        val element = input.decodeJsonElement()
+        val obj = element as? JsonObject
+            ?: error("Expected JsonObject for TerminalLifecycleState")
+        val discriminant = (obj["status"] as? JsonPrimitive)?.content
+            ?: error("Missing status discriminator on TerminalLifecycleState")
+        return when (discriminant) {
+            "running" -> TerminalLifecycleStateRunning(input.json.decodeFromJsonElement(TerminalRunningLifecycleState.serializer(), element))
+            "exited" -> TerminalLifecycleStateExited(input.json.decodeFromJsonElement(TerminalExitedLifecycleState.serializer(), element))
+            else -> error("Unknown TerminalLifecycleState discriminator: $discriminant")
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: TerminalLifecycleState) {
+        val output = encoder as? JsonEncoder
+            ?: error("TerminalLifecycleState can only be serialized to JSON")
+        val element: JsonElement = when (value) {
+            is TerminalLifecycleStateRunning -> output.json.encodeToJsonElement(TerminalRunningLifecycleState.serializer(), value.value)
+            is TerminalLifecycleStateExited -> output.json.encodeToJsonElement(TerminalExitedLifecycleState.serializer(), value.value)
         }
         output.encodeJsonElement(element)
     }

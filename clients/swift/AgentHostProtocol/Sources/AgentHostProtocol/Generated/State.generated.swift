@@ -59,7 +59,7 @@ public enum PendingMessageKind: String, Codable, Sendable {
 public enum SessionLifecycle: String, Codable, Sendable {
     case creating = "creating"
     case ready = "ready"
-    case creationFailed = "creationFailed"
+    case failed = "failed"
 }
 
 /// Bitset of summary-level session status flags.
@@ -315,6 +315,12 @@ public enum CustomizationLoadStatus: String, Codable, Sendable {
 public enum TerminalClaimKind: String, Codable, Sendable {
     case client = "client"
     case session = "session"
+}
+
+/// Lifecycle status of a terminal process.
+public enum TerminalLifecycleStatus: String, Codable, Sendable {
+    case running = "running"
+    case exited = "exited"
 }
 
 /// Discriminant for the {@link McpServerState} union.
@@ -4703,19 +4709,19 @@ public struct TerminalInfo: Codable, Sendable {
     public var title: String
     /// Who currently holds this terminal
     public var claim: TerminalClaim
-    /// Process exit code, if the terminal process has exited
-    public var exitCode: Int?
+    /// Current terminal process lifecycle.
+    public var lifecycle: TerminalLifecycleState
 
     public init(
         resource: String,
         title: String,
         claim: TerminalClaim,
-        exitCode: Int? = nil
+        lifecycle: TerminalLifecycleState
     ) {
         self.resource = resource
         self.title = title
         self.claim = claim
-        self.exitCode = exitCode
+        self.lifecycle = lifecycle
     }
 }
 
@@ -4739,7 +4745,9 @@ public struct TerminalSessionClaim: Codable, Sendable {
     public var kind: TerminalClaimKind
     /// Session URI that claimed the terminal
     public var session: String
-    /// Optional turn identifier within the session
+    /// Chat URI that claimed the terminal.
+    public var chat: String
+    /// Optional turn identifier within the chat.
     public var turnId: String?
     /// Optional tool call identifier within the turn
     public var toolCallId: String?
@@ -4747,13 +4755,39 @@ public struct TerminalSessionClaim: Codable, Sendable {
     public init(
         kind: TerminalClaimKind,
         session: String,
+        chat: String,
         turnId: String? = nil,
         toolCallId: String? = nil
     ) {
         self.kind = kind
         self.session = session
+        self.chat = chat
         self.turnId = turnId
         self.toolCallId = toolCallId
+    }
+}
+
+public struct TerminalRunningLifecycleState: Codable, Sendable {
+    public var status: TerminalLifecycleStatus
+
+    public init(
+        status: TerminalLifecycleStatus
+    ) {
+        self.status = status
+    }
+}
+
+public struct TerminalExitedLifecycleState: Codable, Sendable {
+    public var status: TerminalLifecycleStatus
+    /// Process exit code, if the runtime reported one.
+    public var exitCode: Int?
+
+    public init(
+        status: TerminalLifecycleStatus,
+        exitCode: Int? = nil
+    ) {
+        self.status = status
+        self.exitCode = exitCode
     }
 }
 
@@ -4773,8 +4807,8 @@ public struct TerminalState: Codable, Sendable {
     ///
     /// Consumers that need command boundaries can filter by part type.
     public var content: [TerminalContentPart]
-    /// Process exit code, set when the terminal process exits
-    public var exitCode: Int?
+    /// Current terminal process lifecycle.
+    public var lifecycle: TerminalLifecycleState
     /// Who currently holds this terminal
     public var claim: TerminalClaim
     /// Whether this terminal emits `terminal/commandExecuted` and
@@ -4795,7 +4829,7 @@ public struct TerminalState: Codable, Sendable {
         cols: Int? = nil,
         rows: Int? = nil,
         content: [TerminalContentPart],
-        exitCode: Int? = nil,
+        lifecycle: TerminalLifecycleState,
         claim: TerminalClaim,
         supportsCommandDetection: Bool? = nil,
         isPty: Bool? = nil
@@ -4805,7 +4839,7 @@ public struct TerminalState: Codable, Sendable {
         self.cols = cols
         self.rows = rows
         self.content = content
-        self.exitCode = exitCode
+        self.lifecycle = lifecycle
         self.claim = claim
         self.supportsCommandDetection = supportsCommandDetection
         self.isPty = isPty
@@ -5194,13 +5228,31 @@ public struct AnnotationsState: Codable, Sendable {
     }
 }
 
+public struct AnnotationOrigin: Codable, Sendable {
+    /// Owning session URI.
+    public var session: String
+    /// Owning chat URI, when the annotation is scoped to a chat.
+    public var chat: String?
+    /// Turn identifier within {@link chat}, when the annotation is scoped to a turn.
+    public var turnId: String?
+
+    public init(
+        session: String,
+        chat: String? = nil,
+        turnId: String? = nil
+    ) {
+        self.session = session
+        self.chat = chat
+        self.turnId = turnId
+    }
+}
+
 public struct Annotation: Codable, Sendable {
     /// Stable identifier within the annotations channel. Assigned by the client
     /// that dispatches the creating {@link AnnotationsSetAction}.
     public var id: String
-    /// Turn that produced the file versions this annotation is anchored to.
-    /// Matches a {@link Turn.id} on the owning session.
-    public var turnId: String
+    /// Provenance of the content this annotation is anchored to.
+    public var origin: AnnotationOrigin
     /// The file the annotation is anchored to.
     public var resource: String
     /// Range within {@link resource} the annotation is anchored to. When
@@ -5221,7 +5273,7 @@ public struct Annotation: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case turnId
+        case origin
         case resource
         case range
         case resolved
@@ -5231,7 +5283,7 @@ public struct Annotation: Codable, Sendable {
 
     public init(
         id: String,
-        turnId: String,
+        origin: AnnotationOrigin,
         resource: String,
         range: TextRange? = nil,
         resolved: Bool,
@@ -5239,7 +5291,7 @@ public struct Annotation: Codable, Sendable {
         meta: [String: AnyCodable]? = nil
     ) {
         self.id = id
-        self.turnId = turnId
+        self.origin = origin
         self.resource = resource
         self.range = range
         self.resolved = resolved
@@ -6711,6 +6763,35 @@ public enum ToolCallRiskAssessment: Codable, Sendable {
         case .loading(let value): try value.encode(to: encoder)
         case .complete(let value): try value.encode(to: encoder)
         case .unknown(let value): try value.encode(to: encoder)
+        }
+    }
+}
+
+public enum TerminalLifecycleState: Codable, Sendable {
+    case running(TerminalRunningLifecycleState)
+    case exited(TerminalExitedLifecycleState)
+
+    private enum DiscriminantKey: String, CodingKey {
+        case discriminant = "status"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DiscriminantKey.self)
+        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        switch discriminant {
+        case "running":
+            self = .running(try TerminalRunningLifecycleState(from: decoder))
+        case "exited":
+            self = .exited(try TerminalExitedLifecycleState(from: decoder))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown TerminalLifecycleState discriminant: \(discriminant)")
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .running(let value): try value.encode(to: encoder)
+        case .exited(let value): try value.encode(to: encoder)
         }
     }
 }

@@ -544,21 +544,6 @@ public struct SubscribeResult: Codable, Sendable {
     }
 }
 
-public struct SessionForkSource: Codable, Sendable {
-    /// URI of the existing session to fork from
-    public var session: String
-    /// Turn ID in the source session; content up to and including this turn's response is copied
-    public var turnId: String
-
-    public init(
-        session: String,
-        turnId: String
-    ) {
-        self.session = session
-        self.turnId = turnId
-    }
-}
-
 public struct CreateSessionParams: Codable, Sendable {
     /// Channel URI this command targets.
     public var channel: String
@@ -580,13 +565,7 @@ public struct CreateSessionParams: Codable, Sendable {
     /// capability treats only the first entry as the session's working directory
     /// and ignores the rest. Dispatch working-directory actions to change the set
     /// after the session has started.
-    ///
-    /// Ignored for forked sessions — a fork inherits its working directories
-    /// from the source session identified by `fork`.
     public var workingDirectories: [String]?
-    /// Fork from an existing session. The new session is populated with content
-    /// from the source session up to and including the specified turn's response.
-    public var fork: SessionForkSource?
     /// Agent-specific configuration values collected via `resolveSessionConfig`.
     /// Keys and values correspond to the schema returned by the server.
     public var config: [String: AnyCodable]?
@@ -614,7 +593,6 @@ public struct CreateSessionParams: Codable, Sendable {
         case meta = "_meta"
         case provider
         case workingDirectories
-        case fork
         case config
         case activeClient
         case progressToken
@@ -625,7 +603,6 @@ public struct CreateSessionParams: Codable, Sendable {
         meta: [String: AnyCodable]? = nil,
         provider: String? = nil,
         workingDirectories: [String]? = nil,
-        fork: SessionForkSource? = nil,
         config: [String: AnyCodable]? = nil,
         activeClient: SessionActiveClient? = nil,
         progressToken: String? = nil
@@ -634,7 +611,6 @@ public struct CreateSessionParams: Codable, Sendable {
         self.meta = meta
         self.provider = provider
         self.workingDirectories = workingDirectories
-        self.fork = fork
         self.config = config
         self.activeClient = activeClient
         self.progressToken = progressToken

@@ -1255,11 +1255,7 @@ data class ChangesetContentChangedAction(
     /**
      * Full replacement operation list. Omit when operations are unchanged.
      */
-    val operations: List<ChangesetOperation>? = null,
-    /**
-     * Error information, if the changeset content change failed.
-     */
-    val error: ErrorInfo? = null
+    val operations: List<ChangesetOperation>? = null
 )
 
 @Serializable
@@ -1310,11 +1306,9 @@ data class AnnotationsUpdatedAction(
      */
     val annotationId: String,
     /**
-     * Re-anchors the annotation to the file versions this turn produced.
-     * Matches a {@link Turn.id} on the owning session. Omit to leave the
-     * current {@link Annotation.turnId} unchanged.
+     * Replaces the annotation's provenance. Omit to leave it unchanged.
      */
-    val turnId: String? = null,
+    val origin: AnnotationOrigin? = null,
     /**
      * Re-anchors the annotation to this file. Omit to leave the current
      * {@link Annotation.resource} unchanged.

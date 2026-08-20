@@ -20,24 +20,6 @@ final class FixtureDrivenReducerTests: XCTestCase {
         let expected: AnyCodable
     }
 
-    // MARK: - Mock Timestamp
-
-    /// Match the TypeScript test mock: Date.now = () => 9999
-    private static let MOCK_NOW = 9999
-
-    private var originalTimestampProvider: (() -> Int)!
-
-    override func setUp() {
-        super.setUp()
-        originalTimestampProvider = currentTimestampProvider
-        currentTimestampProvider = { Self.MOCK_NOW }
-    }
-
-    override func tearDown() {
-        currentTimestampProvider = originalTimestampProvider
-        super.tearDown()
-    }
-
     // MARK: - Fixture Loading
 
     private static let fixtureDir: URL = {

@@ -5,8 +5,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -17,25 +15,11 @@ import kotlin.test.assertTrue
 /**
  * Focused unit tests covering the reducer module's public surface, the
  * `Reducer<S, A>` fun-interface wrapper, and a handful of tricky behaviors
- * (queued message reorder algorithm, timestamp provider override). Broad
+ * (queued message reorder algorithm, deterministic turn timestamps). Broad
  * behavior parity is verified by [FixtureDrivenReducerTest] against the
  * shared cross-language fixtures.
  */
 class ReducersTest {
-
-    private var originalProvider: (() -> Long)? = null
-
-    @BeforeEach
-    fun mockTimestamp() {
-        originalProvider = currentTimestampProvider
-        currentTimestampProvider = { MOCK_NOW }
-    }
-
-    @AfterEach
-    fun restoreTimestamp() {
-        originalProvider?.let { currentTimestampProvider = it }
-        originalProvider = null
-    }
 
     @Test
     fun `Reducer object wrappers delegate to free functions`() {
@@ -86,6 +70,9 @@ class ReducersTest {
         val term = TerminalState(
             title = "term",
             content = emptyList(),
+            lifecycle = TerminalLifecycleStateRunning(
+                TerminalRunningLifecycleState(status = TerminalLifecycleStatus.RUNNING),
+            ),
             claim = TerminalClaimClient(
                 TerminalClientClaim(kind = TerminalClaimKind.CLIENT, clientId = "c-1"),
             ),
@@ -112,6 +99,9 @@ class ReducersTest {
                         value = "before",
                     ),
                 ),
+            ),
+            lifecycle = TerminalLifecycleStateRunning(
+                TerminalRunningLifecycleState(status = TerminalLifecycleStatus.RUNNING),
             ),
             claim = TerminalClaimClient(
                 TerminalClientClaim(kind = TerminalClaimKind.CLIENT, clientId = "c-1"),
@@ -209,7 +199,7 @@ class ReducersTest {
     }
 
     @Test
-    fun `turn start stores producer timestamp while modifiedAt uses local clock`() {
+    fun `turn start uses producer timestamp for modifiedAt`() {
         val chatResult = chatReducer(
             newChat(),
             StateActionChatTurnStarted(
@@ -221,7 +211,7 @@ class ReducersTest {
                 ),
             ),
         )
-        assertEquals("1970-01-01T00:00:09.999Z", chatResult.modifiedAt)
+        assertEquals("1970-01-01T00:00:12.345Z", chatResult.modifiedAt)
         assertEquals("1970-01-01T00:00:12.345Z", chatResult.activeTurn?.startedAt)
     }
 
@@ -323,7 +313,6 @@ class ReducersTest {
     }
 
     private companion object {
-        private const val MOCK_NOW: Long = 9999L
 
         private fun userMessage(text: String): Message =
             Message(text = text, origin = MessageOrigin(kind = MessageKind.USER))
