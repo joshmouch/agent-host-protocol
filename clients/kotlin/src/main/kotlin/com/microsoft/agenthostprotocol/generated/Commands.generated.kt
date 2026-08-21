@@ -36,18 +36,29 @@ enum class ReconnectResultType {
 /**
  * How a new chat uses its source chat and turn.
  */
-@Serializable
-enum class ChatSourceKind {
-    /**
-     * Copy source history through the referenced turn into the new chat.
-     */
-    @SerialName("fork")
-    FORK,
-    /**
-     * Supply source context without copying it into the new chat's visible history.
-     */
-    @SerialName("sideChat")
-    SIDE_CHAT
+@Serializable(with = ChatSourceKindSerializer::class)
+@JvmInline
+value class ChatSourceKind(val rawValue: String) {
+    companion object {
+        /**
+         * Copy source history through the referenced turn into the new chat.
+         */
+        val FORK: ChatSourceKind = ChatSourceKind("fork")
+        /**
+         * Supply source context without copying it into the new chat's visible history.
+         */
+        val SIDE_CHAT: ChatSourceKind = ChatSourceKind("sideChat")
+    }
+}
+
+internal object ChatSourceKindSerializer : KSerializer<ChatSourceKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChatSourceKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChatSourceKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChatSourceKind =
+        ChatSourceKind(decoder.decodeString())
 }
 
 /**
@@ -64,28 +75,50 @@ enum class ContentEncoding {
 /**
  * The kind of completion items being requested.
  */
-@Serializable
-enum class CompletionItemKind {
-    /**
-     * Completions for the text of a {@link Message} the user is composing.
-     * Each returned item carries an attachment that gets associated with the
-     * message when accepted.
-     */
-    @SerialName("userMessage")
-    USER_MESSAGE
+@Serializable(with = CompletionItemKindSerializer::class)
+@JvmInline
+value class CompletionItemKind(val rawValue: String) {
+    companion object {
+        /**
+         * Completions for the text of a {@link Message} the user is composing.
+         * Each returned item carries an attachment that gets associated with the
+         * message when accepted.
+         */
+        val USER_MESSAGE: CompletionItemKind = CompletionItemKind("userMessage")
+    }
+}
+
+internal object CompletionItemKindSerializer : KSerializer<CompletionItemKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("CompletionItemKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: CompletionItemKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): CompletionItemKind =
+        CompletionItemKind(decoder.decodeString())
 }
 
 /**
  * Discriminant for {@link ResourceResolveResult.type}.
  */
-@Serializable
-enum class ResourceType {
-    @SerialName("file")
-    FILE,
-    @SerialName("directory")
-    DIRECTORY,
-    @SerialName("symlink")
-    SYMLINK
+@Serializable(with = ResourceTypeSerializer::class)
+@JvmInline
+value class ResourceType(val rawValue: String) {
+    companion object {
+        val FILE: ResourceType = ResourceType("file")
+        val DIRECTORY: ResourceType = ResourceType("directory")
+        val SYMLINK: ResourceType = ResourceType("symlink")
+    }
+}
+
+internal object ResourceTypeSerializer : KSerializer<ResourceType> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ResourceType", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ResourceType) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ResourceType =
+        ResourceType(decoder.decodeString())
 }
 
 /**
@@ -256,7 +289,8 @@ data class InitializeParams(
      *
      * The server selects one entry and returns it as `InitializeResult.protocolVersion`.
      * If the server cannot speak any of the offered versions, it MUST return
-     * error code `-32005` (`UnsupportedProtocolVersion`).
+     * error code `-32005` (`UnsupportedProtocolVersion`) with required
+     * `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
      */
     val protocolVersions: List<String>,
     /**
@@ -1625,6 +1659,16 @@ sealed interface ChatSource
 value class ChatSourceFork(val value: ForkChatSource) : ChatSource
 @JvmInline
 value class ChatSourceSideChat(val value: SideChatSource) : ChatSource
+/**
+ * Forward-compat catch-all for unknown ChatSource discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class ChatSourceUnknown(val raw: JsonObject) : ChatSource
 
 internal object ChatSourceSerializer : KSerializer<ChatSource> {
     override val descriptor: SerialDescriptor =
@@ -1637,11 +1681,11 @@ internal object ChatSourceSerializer : KSerializer<ChatSource> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ChatSource")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on ChatSource")
+            ?: return ChatSourceUnknown(obj)
         return when (discriminant) {
             "fork" -> ChatSourceFork(input.json.decodeFromJsonElement(ForkChatSource.serializer(), element))
             "sideChat" -> ChatSourceSideChat(input.json.decodeFromJsonElement(SideChatSource.serializer(), element))
-            else -> error("Unknown ChatSource discriminator: $discriminant")
+            else -> ChatSourceUnknown(obj)
         }
     }
 
@@ -1651,6 +1695,7 @@ internal object ChatSourceSerializer : KSerializer<ChatSource> {
         val element: JsonElement = when (value) {
             is ChatSourceFork -> output.json.encodeToJsonElement(ForkChatSource.serializer(), value.value)
             is ChatSourceSideChat -> output.json.encodeToJsonElement(SideChatSource.serializer(), value.value)
+            is ChatSourceUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }

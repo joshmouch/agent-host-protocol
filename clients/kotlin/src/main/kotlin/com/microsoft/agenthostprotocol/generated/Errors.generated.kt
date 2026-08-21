@@ -48,8 +48,7 @@ object AhpErrorCodes {
     const val TURN_IN_PROGRESS: Int = -32004
     /** The server cannot speak any of the protocol versions offered by the client */
     const val UNSUPPORTED_PROTOCOL_VERSION: Int = -32005
-    /** The requested content URI does not exist */
-    const val CONTENT_NOT_FOUND: Int = -32006
+    // -32006 is intentionally reserved and unassigned.
     /** Authentication required for a protected resource */
     const val AUTH_REQUIRED: Int = -32007
     /** The requested file, folder, or URI does not exist */

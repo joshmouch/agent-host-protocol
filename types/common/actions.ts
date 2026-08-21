@@ -134,6 +134,7 @@ import type {
  * Discriminant values for all state actions.
  *
  * @category Actions
+ * @nonexhaustive
  */
 export const enum ActionType {
   RootAgentsChanged = 'root/agentsChanged',

@@ -34,21 +34,25 @@ final class ChatSourceTests: XCTestCase {
         }
     }
 
-    func testChatSourceRejectsMissingOrUnknownKind() {
+    func testChatSourcePreservesMissingOrUnknownKind() throws {
         let decoder = JSONDecoder()
+        let encoder = JSONEncoder()
+        let payloads = [
+            #"{"chat":"ahp-chat:/main","turnId":"turn-12"}"#,
+            #"{"kind":"future","chat":"ahp-chat:/main","turnId":"turn-12"}"#,
+        ]
 
-        XCTAssertThrowsError(
-            try decoder.decode(
-                ChatSource.self,
-                from: Data(#"{"chat":"ahp-chat:/main","turnId":"turn-12"}"#.utf8)
+        for payload in payloads {
+            let source = try decoder.decode(ChatSource.self, from: Data(payload.utf8))
+            guard case .unknown = source else {
+                return XCTFail("Expected unknown ChatSource for \(payload)")
+            }
+            let encoded = try encoder.encode(source)
+            XCTAssertEqual(
+                try JSONSerialization.jsonObject(with: encoded) as? NSDictionary,
+                try JSONSerialization.jsonObject(with: Data(payload.utf8)) as? NSDictionary
             )
-        )
-        XCTAssertThrowsError(
-            try decoder.decode(
-                ChatSource.self,
-                from: Data(#"{"kind":"future","chat":"ahp-chat:/main","turnId":"turn-12"}"#.utf8)
-            )
-        )
+        }
     }
 
     func testChatSourceBranchesEncodeFixedKinds() throws {

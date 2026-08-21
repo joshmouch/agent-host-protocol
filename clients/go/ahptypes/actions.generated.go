@@ -247,7 +247,7 @@ type ChatTurnStartedAction struct {
 // Streaming text chunk from the assistant, appended to a specific response part.
 //
 // The server MUST first emit a `chat/responsePart` to create the target
-// part (markdown or reasoning), then use this action to append text to it.
+// markdown part, then use this action to append text to it.
 type ChatDeltaAction struct {
 	Type ActionType `json:"type"`
 	// Turn identifier

@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::unwrap_used)]
+
 //! Tests for [`ahp::hosts::FileClientIdStore`].
 //!
 //! Cover round-trips, restart simulation (fresh instances see prior

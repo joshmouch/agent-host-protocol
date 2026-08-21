@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::unwrap_used)]
+
 //! Tests for [`ahp::MultiHostStateMirror`] — the host-aware reducer
 //! façade.
 //!

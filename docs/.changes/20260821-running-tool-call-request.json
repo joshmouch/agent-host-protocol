@@ -1,0 +1,4 @@
+{
+  "type": "changed",
+  "message": "`SessionToolClientExecutionRequest.toolCall` is narrowed to a running tool-call state."
+}

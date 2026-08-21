@@ -22,6 +22,10 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import {
+  discriminatedUnionAllowsUnknown,
+  getEnumCompatibility,
+} from './enum-compatibility.js';
 
 const GENERATED_HEADER = '// Generated from types/*.ts — do not edit\n\nimport Foundation\n';
 
@@ -301,6 +305,7 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
   const desc = enumDecl.getJsDocs()[0]?.getDescription().trim();
   const values = enumDecl.getMembers().map(member => member.getValue());
   const rawType = values.every(value => typeof value === 'number') ? 'Int' : 'String';
+  const isNonexhaustive = getEnumCompatibility(enumDecl) === 'nonexhaustive';
 
   // Bitset enums (detected via JSDoc convention "Bitset of …") are emitted
   // as Swift `OptionSet` structs so OR'd combinations are representable and
@@ -330,6 +335,45 @@ function generateSwiftEnum(enumDecl: EnumDeclaration): string {
       }
       lines.push(`    public static let ${memberName} = ${name}(rawValue: ${value})`);
     }
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  if (isNonexhaustive) {
+    lines.push(`public enum ${name}: Codable, Sendable, Equatable {`);
+    for (const member of enumDecl.getMembers()) {
+      const memberName = swiftIdentifier(toCamelCase(member.getName()));
+      const memberDoc = member.getJsDocs()[0]?.getDescription().trim();
+      if (memberDoc) {
+        for (const docLine of memberDoc.split('\n')) {
+          lines.push(emitSwiftDocLine(docLine, '    '));
+        }
+      }
+      lines.push(`    case ${memberName}`);
+    }
+    lines.push(`    /// Unknown raw value from a newer protocol version, preserved verbatim.`);
+    lines.push(`    case unknown(${rawType})`);
+    lines.push('');
+    lines.push('    public init(from decoder: Decoder) throws {');
+    lines.push('        let container = try decoder.singleValueContainer()');
+    lines.push(`        let raw = try container.decode(${rawType}.self)`);
+    lines.push('        switch raw {');
+    for (const member of enumDecl.getMembers()) {
+      lines.push(`        case ${JSON.stringify(member.getValue())}: self = .${swiftIdentifier(toCamelCase(member.getName()))}`);
+    }
+    lines.push('        default: self = .unknown(raw)');
+    lines.push('        }');
+    lines.push('    }');
+    lines.push('');
+    lines.push('    public func encode(to encoder: Encoder) throws {');
+    lines.push('        var container = encoder.singleValueContainer()');
+    lines.push('        switch self {');
+    for (const member of enumDecl.getMembers()) {
+      lines.push(`        case .${swiftIdentifier(toCamelCase(member.getName()))}: try container.encode(${JSON.stringify(member.getValue())})`);
+    }
+    lines.push('        case .unknown(let raw): try container.encode(raw)');
+    lines.push('        }');
+    lines.push('    }');
     lines.push('}');
     return lines.join('\n');
   }
@@ -447,18 +491,27 @@ interface UnionConfig {
    * ChangesetOperationTarget, ReconnectResult).
    */
   allowUnknown?: boolean;
+  /** Discriminator enum when a generated wrapper lacks the field itself. */
+  discriminatorEnum?: string;
   /** Force the enum case's discriminator when encoding its payload. */
   injectDiscriminantOnEncode?: boolean;
 }
 
-function generateDiscriminatedUnion(config: UnionConfig): string {
+function generateDiscriminatedUnion(project: Project, config: UnionConfig): string {
+  const allowUnknown = discriminatedUnionAllowsUnknown(
+    project,
+    config.discriminantField,
+    config.variants.map(variant => variant.structName),
+    config.allowUnknown,
+    config.discriminatorEnum,
+  );
   const lines: string[] = [];
   lines.push(`public enum ${config.name}: Codable, Sendable {`);
 
   for (const v of config.variants) {
     lines.push(`    case ${v.caseName}(${v.structName})`);
   }
-  if (config.allowUnknown) {
+  if (allowUnknown) {
     lines.push('    /// Unknown or future discriminant; the raw payload is preserved');
     lines.push('    /// and re-encoded verbatim for forward-compatibility.');
     lines.push('    case unknown(AnyCodable)');
@@ -473,14 +526,21 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   lines.push('');
   lines.push('    public init(from decoder: Decoder) throws {');
   lines.push('        let container = try decoder.container(keyedBy: DiscriminantKey.self)');
-  lines.push('        let discriminant = try container.decode(String.self, forKey: .discriminant)');
+  if (allowUnknown) {
+    lines.push('        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {');
+    lines.push('            self = .unknown(try AnyCodable(from: decoder))');
+    lines.push('            return');
+    lines.push('        }');
+  } else {
+    lines.push('        let discriminant = try container.decode(String.self, forKey: .discriminant)');
+  }
   lines.push('        switch discriminant {');
   for (const v of config.variants) {
     lines.push(`        case ${JSON.stringify(v.discriminantValue)}:`);
     lines.push(`            self = .${v.caseName}(try ${v.structName}(from: decoder))`);
   }
   lines.push('        default:');
-  if (config.allowUnknown) {
+  if (allowUnknown) {
     lines.push('            self = .unknown(try AnyCodable(from: decoder))');
   } else {
     lines.push(`            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ${config.name} discriminant: \\(discriminant)")`);
@@ -501,7 +561,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
       lines.push(`        case .${v.caseName}(let value): try value.encode(to: encoder)`);
     }
   }
-  if (config.allowUnknown) {
+  if (allowUnknown) {
     lines.push('        case .unknown(let value): try value.encode(to: encoder)');
   }
   lines.push('        }');
@@ -1246,47 +1306,47 @@ function generateStateFile(project: Project): string {
   lines.push('// MARK: - Discriminated Unions\n');
   lines.push(generateChatOriginSwift());
   lines.push('');
-  lines.push(generateDiscriminatedUnion(RESPONSE_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, RESPONSE_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONFIRMATION_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONFIRMATION_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CLAIM_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CLAIM_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CONTENT_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CONTENT_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_QUESTION_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_QUESTION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_VALUE_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_ANSWER_VALUE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_ANSWER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, MESSAGE_ATTACHMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHILD_CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push(generateDiscriminatedUnion(project, MCP_SERVER_STATUS_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONTRIBUTOR_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_LIFECYCLE_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_REQUEST_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_TRIGGER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_LIFECYCLE_UNION));
   lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
@@ -1660,11 +1720,11 @@ function generateCommandsFile(project: Project): string {
   }
 
   lines.push('// MARK: - Command Unions\n');
-  lines.push(generateDiscriminatedUnion(CHAT_SOURCE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_SOURCE_UNION));
   lines.push('');
 
   lines.push('// MARK: - ReconnectResult Union\n');
-  lines.push(generateDiscriminatedUnion(RECONNECT_RESULT_UNION));
+  lines.push(generateDiscriminatedUnion(project, RECONNECT_RESULT_UNION));
   lines.push('');
 
   lines.push('// MARK: - Changeset Operation Unions\n');
@@ -1909,8 +1969,7 @@ function generateErrorsFile(project: Project): string {
   lines.push('    public static let turnInProgress = -32004');
   lines.push('    /// The server cannot speak any of the protocol versions offered by the client in `InitializeParams.protocolVersions`');
   lines.push('    public static let unsupportedProtocolVersion = -32005');
-  lines.push('    /// The requested content URI does not exist');
-  lines.push('    public static let contentNotFound = -32006');
+  lines.push('    // -32006 is intentionally reserved and unassigned.');
   lines.push('    /// Authentication required for a protected resource');
   lines.push('    public static let authRequired = -32007');
   lines.push('    /// The requested file, folder, or URI does not exist');

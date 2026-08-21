@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::unwrap_used, clippy::useless_conversion)]
+
 //! Integration test: round-trip a JSON-RPC request and a broadcast
 //! action through an in-memory transport pair.
 //!

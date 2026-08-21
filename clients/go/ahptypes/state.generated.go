@@ -281,6 +281,7 @@ const (
 	ConfirmationOptionKindDeny    ConfirmationOptionKind = "deny"
 )
 
+// Identifies the source of a tool call's implementation.
 type ToolCallContributorKind string
 
 const (
@@ -1061,9 +1062,8 @@ type SessionToolClientExecutionRequest struct {
 	// tool call's client {@link ToolCallContributor}.
 	ClientId string `json:"clientId"`
 	// The running tool call the session wants the owning client to execute. The
-	// host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-	// {@link ToolCallState} in `running` status).
-	ToolCall ToolCallState `json:"toolCall"`
+	// host only ever populates this with a {@link ToolCallRunningState}.
+	ToolCall ToolCallRunningState `json:"toolCall"`
 }
 
 // A tool call blocked on MCP authentication mid-execution, surfaced at the
@@ -4439,18 +4439,14 @@ type isTerminalClaim interface{ isTerminalClaim() }
 func (*TerminalClientClaim) isTerminalClaim()  {}
 func (*TerminalSessionClaim) isTerminalClaim() {}
 
-// TerminalClaimUnknown carries an unrecognized TerminalClaim variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
-type TerminalClaimUnknown struct {
-	Raw json.RawMessage
-}
-
-func (*TerminalClaimUnknown) isTerminalClaim() {}
-
 // UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
 func (u *TerminalClaim) UnmarshalJSON(data []byte) error {
-	disc, _, err := readDiscriminator(data, "kind")
+	disc, ok, err := readDiscriminator(data, "kind")
 	if err != nil {
 		return err
+	}
+	if !ok {
+		return missingDiscriminatorError("TerminalClaim", "kind")
 	}
 	switch disc {
 	case "client":
@@ -4466,21 +4462,13 @@ func (u *TerminalClaim) UnmarshalJSON(data []byte) error {
 		}
 		u.Value = &value
 	default:
-		raw := make(json.RawMessage, len(data))
-		copy(raw, data)
-		u.Value = &TerminalClaimUnknown{Raw: raw}
+		return unknownDiscriminatorError("TerminalClaim", "kind", disc)
 	}
 	return nil
 }
 
 // MarshalJSON encodes the active variant back to JSON.
 func (u TerminalClaim) MarshalJSON() ([]byte, error) {
-	if unk, ok := u.Value.(*TerminalClaimUnknown); ok {
-		if len(unk.Raw) == 0 {
-			return []byte("null"), nil
-		}
-		return unk.Raw, nil
-	}
 	if u.Value == nil {
 		return []byte("null"), nil
 	}
@@ -4727,18 +4715,14 @@ type isChatInputAnswer interface{ isChatInputAnswer() }
 func (*ChatInputAnswered) isChatInputAnswer() {}
 func (*ChatInputSkipped) isChatInputAnswer()  {}
 
-// ChatInputAnswerUnknown carries an unrecognized ChatInputAnswer variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
-type ChatInputAnswerUnknown struct {
-	Raw json.RawMessage
-}
-
-func (*ChatInputAnswerUnknown) isChatInputAnswer() {}
-
 // UnmarshalJSON decodes the variant indicated by the "state" discriminator.
 func (u *ChatInputAnswer) UnmarshalJSON(data []byte) error {
-	disc, _, err := readDiscriminator(data, "state")
+	disc, ok, err := readDiscriminator(data, "state")
 	if err != nil {
 		return err
+	}
+	if !ok {
+		return missingDiscriminatorError("ChatInputAnswer", "state")
 	}
 	switch disc {
 	case "draft":
@@ -4760,21 +4744,13 @@ func (u *ChatInputAnswer) UnmarshalJSON(data []byte) error {
 		}
 		u.Value = &value
 	default:
-		raw := make(json.RawMessage, len(data))
-		copy(raw, data)
-		u.Value = &ChatInputAnswerUnknown{Raw: raw}
+		return unknownDiscriminatorError("ChatInputAnswer", "state", disc)
 	}
 	return nil
 }
 
 // MarshalJSON encodes the active variant back to JSON.
 func (u ChatInputAnswer) MarshalJSON() ([]byte, error) {
-	if unk, ok := u.Value.(*ChatInputAnswerUnknown); ok {
-		if len(unk.Raw) == 0 {
-			return []byte("null"), nil
-		}
-		return unk.Raw, nil
-	}
 	if u.Value == nil {
 		return []byte("null"), nil
 	}
@@ -5119,18 +5095,14 @@ func (*CustomizationLoadedState) isCustomizationLoadState()   {}
 func (*CustomizationDegradedState) isCustomizationLoadState() {}
 func (*CustomizationErrorState) isCustomizationLoadState()    {}
 
-// CustomizationLoadStateUnknown carries an unrecognized CustomizationLoadState variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
-type CustomizationLoadStateUnknown struct {
-	Raw json.RawMessage
-}
-
-func (*CustomizationLoadStateUnknown) isCustomizationLoadState() {}
-
 // UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
 func (u *CustomizationLoadState) UnmarshalJSON(data []byte) error {
-	disc, _, err := readDiscriminator(data, "kind")
+	disc, ok, err := readDiscriminator(data, "kind")
 	if err != nil {
 		return err
+	}
+	if !ok {
+		return missingDiscriminatorError("CustomizationLoadState", "kind")
 	}
 	switch disc {
 	case "loading":
@@ -5158,21 +5130,13 @@ func (u *CustomizationLoadState) UnmarshalJSON(data []byte) error {
 		}
 		u.Value = &value
 	default:
-		raw := make(json.RawMessage, len(data))
-		copy(raw, data)
-		u.Value = &CustomizationLoadStateUnknown{Raw: raw}
+		return unknownDiscriminatorError("CustomizationLoadState", "kind", disc)
 	}
 	return nil
 }
 
 // MarshalJSON encodes the active variant back to JSON.
 func (u CustomizationLoadState) MarshalJSON() ([]byte, error) {
-	if unk, ok := u.Value.(*CustomizationLoadStateUnknown); ok {
-		if len(unk.Raw) == 0 {
-			return []byte("null"), nil
-		}
-		return unk.Raw, nil
-	}
 	if u.Value == nil {
 		return []byte("null"), nil
 	}
@@ -5513,14 +5477,18 @@ type isSessionOrigin interface{ isSessionOrigin() }
 
 func (*AutomationSessionOrigin) isSessionOrigin() {}
 
+// SessionOriginUnknown carries an unrecognized SessionOrigin variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
+type SessionOriginUnknown struct {
+	Raw json.RawMessage
+}
+
+func (*SessionOriginUnknown) isSessionOrigin() {}
+
 // UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
 func (u *SessionOrigin) UnmarshalJSON(data []byte) error {
-	disc, ok, err := readDiscriminator(data, "kind")
+	disc, _, err := readDiscriminator(data, "kind")
 	if err != nil {
 		return err
-	}
-	if !ok {
-		return missingDiscriminatorError("SessionOrigin", "kind")
 	}
 	switch disc {
 	case "automation":
@@ -5530,13 +5498,21 @@ func (u *SessionOrigin) UnmarshalJSON(data []byte) error {
 		}
 		u.Value = &value
 	default:
-		return unknownDiscriminatorError("SessionOrigin", "kind", disc)
+		raw := make(json.RawMessage, len(data))
+		copy(raw, data)
+		u.Value = &SessionOriginUnknown{Raw: raw}
 	}
 	return nil
 }
 
 // MarshalJSON encodes the active variant back to JSON.
 func (u SessionOrigin) MarshalJSON() ([]byte, error) {
+	if unk, ok := u.Value.(*SessionOriginUnknown); ok {
+		if len(unk.Raw) == 0 {
+			return []byte("null"), nil
+		}
+		return unk.Raw, nil
+	}
 	if u.Value == nil {
 		return []byte("null"), nil
 	}

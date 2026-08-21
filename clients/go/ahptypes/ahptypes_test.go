@@ -72,6 +72,7 @@ func TestStateActionUnknownVariant(t *testing.T) {
 	if err := json.Unmarshal([]byte(wire), &a); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
+
 	unk, ok := a.Value.(*StateActionUnknown)
 	if !ok {
 		t.Fatalf("variant = %T, want *StateActionUnknown", a.Value)
@@ -82,6 +83,42 @@ func TestStateActionUnknownVariant(t *testing.T) {
 	}
 	if string(out) != string(unk.Raw) {
 		t.Errorf("round-trip mismatch:\nwant %s\ngot  %s", wire, out)
+	}
+}
+
+// TestNonexhaustiveEnumAndUnionRoundTrip verifies that both an open raw enum
+// and the union it discriminates preserve newer wire values.
+func TestNonexhaustiveEnumAndUnionRoundTrip(t *testing.T) {
+	const rawEnum = `"futurePart"`
+	var kind ResponsePartKind
+	if err := json.Unmarshal([]byte(rawEnum), &kind); err != nil {
+		t.Fatalf("unmarshal enum: %v", err)
+	}
+	if kind != ResponsePartKind("futurePart") {
+		t.Fatalf("enum = %q, want futurePart", kind)
+	}
+	enumOut, err := json.Marshal(kind)
+	if err != nil {
+		t.Fatalf("marshal enum: %v", err)
+	}
+	if string(enumOut) != rawEnum {
+		t.Errorf("enum round-trip: want %s got %s", rawEnum, enumOut)
+	}
+
+	const rawUnion = `{"kind":"futurePart","payload":{"preserve":true}}`
+	var part ResponsePart
+	if err := json.Unmarshal([]byte(rawUnion), &part); err != nil {
+		t.Fatalf("unmarshal union: %v", err)
+	}
+	if _, ok := part.Value.(*ResponsePartUnknown); !ok {
+		t.Fatalf("union variant = %T, want *ResponsePartUnknown", part.Value)
+	}
+	unionOut, err := json.Marshal(part)
+	if err != nil {
+		t.Fatalf("marshal union: %v", err)
+	}
+	if string(unionOut) != rawUnion {
+		t.Errorf("union round-trip: want %s got %s", rawUnion, unionOut)
 	}
 }
 

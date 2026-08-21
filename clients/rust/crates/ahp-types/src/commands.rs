@@ -33,14 +33,41 @@ pub enum ReconnectResultType {
 }
 
 /// How a new chat uses its source chat and turn.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChatSourceKind {
     /// Copy source history through the referenced turn into the new chat.
-    #[serde(rename = "fork")]
     Fork,
     /// Supply source context without copying it into the new chat's visible history.
-    #[serde(rename = "sideChat")]
     SideChat,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChatSourceKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Fork => serializer.serialize_str("fork"),
+            Self::SideChat => serializer.serialize_str("sideChat"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatSourceKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "fork" => Self::Fork,
+            "sideChat" => Self::SideChat,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Encoding of fetched content data.
@@ -53,24 +80,78 @@ pub enum ContentEncoding {
 }
 
 /// The kind of completion items being requested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CompletionItemKind {
     /// Completions for the text of a {@link Message} the user is composing.
     /// Each returned item carries an attachment that gets associated with the
     /// message when accepted.
-    #[serde(rename = "userMessage")]
     UserMessage,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for CompletionItemKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::UserMessage => serializer.serialize_str("userMessage"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CompletionItemKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "userMessage" => Self::UserMessage,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for {@link ResourceResolveResult.type}.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ResourceType {
-    #[serde(rename = "file")]
     File,
-    #[serde(rename = "directory")]
     Directory,
-    #[serde(rename = "symlink")]
     Symlink,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ResourceType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::File => serializer.serialize_str("file"),
+            Self::Directory => serializer.serialize_str("directory"),
+            Self::Symlink => serializer.serialize_str("symlink"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ResourceType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "file" => Self::File,
+            "directory" => Self::Directory,
+            "symlink" => Self::Symlink,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How {@link ResourceWriteParams.data} is placed within the target file.
@@ -121,7 +202,8 @@ pub struct InitializeParams {
     ///
     /// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
     /// If the server cannot speak any of the offered versions, it MUST return
-    /// error code `-32005` (`UnsupportedProtocolVersion`).
+    /// error code `-32005` (`UnsupportedProtocolVersion`) with required
+    /// `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
     pub protocol_versions: Vec<String>,
     /// Unique client identifier
     pub client_id: String,
@@ -155,7 +237,8 @@ pub struct InitializeParams {
 /// `protocolVersions` list. The client and server MUST use this version for
 /// the rest of the connection. If the server cannot speak any of the offered
 /// versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
-/// instead of a result.
+/// with required `UnsupportedProtocolVersionErrorData` containing
+/// `supportedVersions`, instead of a result.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InitializeResult {
@@ -1582,6 +1665,10 @@ pub enum ChatSource {
     Fork(ForkChatSource),
     #[serde(rename = "sideChat")]
     SideChat(SideChatSource),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
 }
 
 // ─── ReconnectResult Union ────────────────────────────────────────────
@@ -1615,4 +1702,6 @@ pub enum ChangesetOperationTarget {
         side: Option<String>,
         range: TextRange,
     },
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
 }

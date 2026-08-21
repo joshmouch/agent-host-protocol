@@ -968,8 +968,8 @@
           "description": "The `clientId` expected to execute the tool. Matches the `clientId` of the\ntool call's client {@link ToolCallContributor}."
         },
         "toolCall": {
-          "$ref": "#/$defs/ToolCallState",
-          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState} (i.e. a\n{@link ToolCallState} in `running` status)."
+          "$ref": "#/$defs/ToolCallRunningState",
+          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState}."
         }
       },
       "required": [

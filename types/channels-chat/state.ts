@@ -149,6 +149,7 @@ export interface ChatSummary {
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.
  *
  * @category Chat State
+ * @nonexhaustive
  */
 export const enum ChatOriginKind {
   /** User created the chat explicitly (e.g. via the host UI). */
@@ -232,6 +233,7 @@ export type ChatOrigin =
  * the UI uses it to show appropriate controls.
  *
  * @category Chat State
+ * @exhaustive
  */
 export const enum ChatInteractivity {
   /** User can send messages and watch (default when absent) */
@@ -248,6 +250,7 @@ export const enum ChatInteractivity {
  * Discriminant for pending message kinds.
  *
  * @category Pending Message Types
+ * @exhaustive
  */
 export const enum PendingMessageKind {
   /** Injected into the current turn at a convenient point */
@@ -279,6 +282,7 @@ export interface PendingMessage {
  * How a client completed an input request.
  *
  * @category Chat Input Types
+ * @exhaustive
  */
 export const enum ChatInputResponseKind {
   Accept = 'accept',
@@ -290,6 +294,7 @@ export const enum ChatInputResponseKind {
  * Question/input control kind.
  *
  * @category Chat Input Types
+ * @nonexhaustive
  */
 export const enum ChatInputQuestionKind {
   Text = 'text',
@@ -426,6 +431,7 @@ export interface ChatInputRequest {
  * Answer value kind.
  *
  * @category Chat Input Types
+ * @nonexhaustive
  */
 export const enum ChatInputAnswerValueKind {
   Text = 'text',
@@ -494,6 +500,7 @@ export interface ChatInputSkipped {
  * Answer lifecycle state.
  *
  * @category Chat Input Types
+ * @exhaustive
  */
 export const enum ChatInputAnswerState {
   Draft = 'draft',
@@ -515,6 +522,7 @@ export type ChatInputAnswer = ChatInputAnswered | ChatInputSkipped;
  * How a turn ended.
  *
  * @category Turn Types
+ * @exhaustive
  */
 export const enum TurnState {
   Complete = 'complete',
@@ -526,6 +534,7 @@ export const enum TurnState {
  * Discriminant for {@link MessageAttachment} variants.
  *
  * @category Turn Types
+ * @nonexhaustive
  */
 export const enum MessageAttachmentKind {
   /** A simple, opaque attachment whose representation is described by the producer. */
@@ -595,6 +604,7 @@ export interface ActiveTurn {
  * Discriminant for {@link MessageOrigin} — identifies who produced a message.
  *
  * @category Turn Types
+ * @nonexhaustive
  */
 export enum MessageKind {
   /** Sent directly by the user. */
@@ -857,6 +867,7 @@ export type MessageAttachment =
  * Discriminant for response part types.
  *
  * @category Response Parts
+ * @nonexhaustive
  */
 export const enum ResponsePartKind {
   Markdown = 'markdown',
@@ -993,6 +1004,7 @@ export interface SystemNotificationResponsePart {
  * Status of a tool call in the lifecycle state machine.
  *
  * @category Tool Call Types
+ * @nonexhaustive
  */
 export const enum ToolCallStatus {
   Streaming = 'streaming',
@@ -1017,6 +1029,7 @@ export const enum ToolCallStatus {
  * - `Setting` — Approved by a persistent user setting
  *
  * @category Tool Call Types
+ * @nonexhaustive
  */
 export const enum ToolCallConfirmationReason {
   NotNeeded = 'not-needed',
@@ -1028,6 +1041,7 @@ export const enum ToolCallConfirmationReason {
  * Identifies a model judge as the source of a confirmation requirement.
  *
  * @category Tool Call Types
+ * @nonexhaustive
  */
 export const enum ToolCallRiskAssessmentKind {
   Judge = 'judge',
@@ -1037,6 +1051,7 @@ export const enum ToolCallRiskAssessmentKind {
  * Lifecycle status of an asynchronous model-judge confirmation decision.
  *
  * @category Tool Call Types
+ * @nonexhaustive
  */
 export const enum ToolCallRiskAssessmentStatus {
   Loading = 'loading',
@@ -1079,6 +1094,7 @@ export type ToolCallRiskAssessment =
  * Why a tool call was cancelled.
  *
  * @category Tool Call Types
+ * @exhaustive
  */
 export const enum ToolCallCancellationReason {
   Denied = 'denied',
@@ -1090,6 +1106,7 @@ export const enum ToolCallCancellationReason {
  * Whether a confirmation option represents an approval or denial action.
  *
  * @category Tool Call Types
+ * @nonexhaustive
  */
 export const enum ConfirmationOptionKind {
   Approve = 'approve',
@@ -1120,6 +1137,12 @@ export interface ConfirmationOption {
   group?: number;
 }
 
+/**
+ * Identifies the source of a tool call's implementation.
+ *
+ * @category Tool Call Types
+ * @nonexhaustive
+ */
 export const enum ToolCallContributorKind {
   Client = 'client',
   MCP = 'mcp',
@@ -1424,6 +1447,7 @@ export type ToolCallConfirmationState =
  * Discriminant for tool result content types.
  *
  * @category Tool Result Content
+ * @nonexhaustive
  */
 export const enum ToolResultContentType {
   Text = 'text',

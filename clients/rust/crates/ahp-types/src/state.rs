@@ -36,14 +36,42 @@ pub enum PendingMessageKind {
 }
 
 /// Session initialization state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SessionLifecycle {
-    #[serde(rename = "creating")]
     Creating,
-    #[serde(rename = "ready")]
     Ready,
-    #[serde(rename = "failed")]
     Failed,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for SessionLifecycle {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Creating => serializer.serialize_str("creating"),
+            Self::Ready => serializer.serialize_str("ready"),
+            Self::Failed => serializer.serialize_str("failed"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SessionLifecycle {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "creating" => Self::Creating,
+            "ready" => Self::Ready,
+            "failed" => Self::Failed,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Bitset of summary-level session status flags.
@@ -138,20 +166,49 @@ impl std::ops::Not for SessionStatus {
 }
 
 /// Discriminant for {@link ChatOrigin} — how a chat came into existence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChatOriginKind {
     /// User created the chat explicitly (e.g. via the host UI).
-    #[serde(rename = "user")]
     User,
     /// Forked from an existing chat at a specific turn.
-    #[serde(rename = "fork")]
     Fork,
     /// Created as an independent side conversation from a specific turn.
-    #[serde(rename = "sideChat")]
     SideChat,
     /// Spawned by a tool call running in another chat (e.g. a sub-agent delegation).
-    #[serde(rename = "tool")]
     Tool,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChatOriginKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::User => serializer.serialize_str("user"),
+            Self::Fork => serializer.serialize_str("fork"),
+            Self::SideChat => serializer.serialize_str("sideChat"),
+            Self::Tool => serializer.serialize_str("tool"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatOriginKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "user" => Self::User,
+            "fork" => Self::Fork,
+            "sideChat" => Self::SideChat,
+            "tool" => Self::Tool,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How a user can interact with a chat.
@@ -189,35 +246,96 @@ pub enum ChatInputAnswerState {
 }
 
 /// Answer value kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChatInputAnswerValueKind {
-    #[serde(rename = "text")]
     Text,
-    #[serde(rename = "number")]
     Number,
-    #[serde(rename = "boolean")]
     Boolean,
-    #[serde(rename = "selected")]
     Selected,
-    #[serde(rename = "selected-many")]
     SelectedMany,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChatInputAnswerValueKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Text => serializer.serialize_str("text"),
+            Self::Number => serializer.serialize_str("number"),
+            Self::Boolean => serializer.serialize_str("boolean"),
+            Self::Selected => serializer.serialize_str("selected"),
+            Self::SelectedMany => serializer.serialize_str("selected-many"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatInputAnswerValueKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "text" => Self::Text,
+            "number" => Self::Number,
+            "boolean" => Self::Boolean,
+            "selected" => Self::Selected,
+            "selected-many" => Self::SelectedMany,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Question/input control kind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChatInputQuestionKind {
-    #[serde(rename = "text")]
     Text,
-    #[serde(rename = "number")]
     Number,
-    #[serde(rename = "integer")]
     Integer,
-    #[serde(rename = "boolean")]
     Boolean,
-    #[serde(rename = "single-select")]
     SingleSelect,
-    #[serde(rename = "multi-select")]
     MultiSelect,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChatInputQuestionKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Text => serializer.serialize_str("text"),
+            Self::Number => serializer.serialize_str("number"),
+            Self::Integer => serializer.serialize_str("integer"),
+            Self::Boolean => serializer.serialize_str("boolean"),
+            Self::SingleSelect => serializer.serialize_str("single-select"),
+            Self::MultiSelect => serializer.serialize_str("multi-select"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChatInputQuestionKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "text" => Self::Text,
+            "number" => Self::Number,
+            "integer" => Self::Integer,
+            "boolean" => Self::Boolean,
+            "single-select" => Self::SingleSelect,
+            "multi-select" => Self::MultiSelect,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How a client completed an input request.
@@ -236,20 +354,49 @@ pub enum ChatInputResponseKind {
 ///
 /// This is a general/typological union (not a lifecycle), so the discriminant is
 /// a `*Kind`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SessionInputRequestKind {
     /// A user-facing elicitation mirrored from an unresolved chat response part.
-    #[serde(rename = "chatInput")]
     ChatInput,
     /// A tool call awaiting parameter- or result-confirmation.
-    #[serde(rename = "toolConfirmation")]
     ToolConfirmation,
     /// A running tool the session wants an active client to execute.
-    #[serde(rename = "toolClientExecution")]
     ToolClientExecution,
     /// A tool call blocked on MCP authentication mid-execution.
-    #[serde(rename = "toolAuthentication")]
     ToolAuthentication,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for SessionInputRequestKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::ChatInput => serializer.serialize_str("chatInput"),
+            Self::ToolConfirmation => serializer.serialize_str("toolConfirmation"),
+            Self::ToolClientExecution => serializer.serialize_str("toolClientExecution"),
+            Self::ToolAuthentication => serializer.serialize_str("toolAuthentication"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SessionInputRequestKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "chatInput" => Self::ChatInput,
+            "toolConfirmation" => Self::ToolConfirmation,
+            "toolClientExecution" => Self::ToolClientExecution,
+            "toolAuthentication" => Self::ToolAuthentication,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How a turn ended.
@@ -264,84 +411,209 @@ pub enum TurnState {
 }
 
 /// Discriminant for {@link MessageOrigin} — identifies who produced a message.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MessageKind {
     /// Sent directly by the user.
-    #[serde(rename = "user")]
     User,
     /// Produced by the agent itself rather than the user — for example, an agent
     /// that seeds the first message of a chat it spawned.
-    #[serde(rename = "agent")]
     Agent,
     /// Produced by a tool rather than the user — for example, a tool that spawns a
     /// worker chat whose first message carries a seed prompt.
-    #[serde(rename = "tool")]
     Tool,
     /// Emitted automatically when an automation run starts a session.
-    #[serde(rename = "automation")]
     Automation,
     /// A system-generated notification rather than a direct user message.
-    #[serde(rename = "systemNotification")]
     SystemNotification,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for MessageKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::User => serializer.serialize_str("user"),
+            Self::Agent => serializer.serialize_str("agent"),
+            Self::Tool => serializer.serialize_str("tool"),
+            Self::Automation => serializer.serialize_str("automation"),
+            Self::SystemNotification => serializer.serialize_str("systemNotification"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MessageKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "user" => Self::User,
+            "agent" => Self::Agent,
+            "tool" => Self::Tool,
+            "automation" => Self::Automation,
+            "systemNotification" => Self::SystemNotification,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for {@link MessageAttachment} variants.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MessageAttachmentKind {
     /// A simple, opaque attachment whose representation is described by the producer.
-    #[serde(rename = "simple")]
     Simple,
     /// An attachment whose data is embedded inline as a base64 string.
-    #[serde(rename = "embeddedResource")]
     EmbeddedResource,
     /// An attachment that references a resource by URI.
-    #[serde(rename = "resource")]
     Resource,
     /// An attachment that references annotations on an annotations channel.
-    #[serde(rename = "annotations")]
     Annotations,
     /// An attachment that references a bounded transcript from another chat.
-    #[serde(rename = "chat")]
     Chat,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for MessageAttachmentKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Simple => serializer.serialize_str("simple"),
+            Self::EmbeddedResource => serializer.serialize_str("embeddedResource"),
+            Self::Resource => serializer.serialize_str("resource"),
+            Self::Annotations => serializer.serialize_str("annotations"),
+            Self::Chat => serializer.serialize_str("chat"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MessageAttachmentKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "simple" => Self::Simple,
+            "embeddedResource" => Self::EmbeddedResource,
+            "resource" => Self::Resource,
+            "annotations" => Self::Annotations,
+            "chat" => Self::Chat,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for response part types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ResponsePartKind {
-    #[serde(rename = "markdown")]
     Markdown,
-    #[serde(rename = "contentRef")]
     ContentRef,
-    #[serde(rename = "toolCall")]
     ToolCall,
-    #[serde(rename = "reasoning")]
     Reasoning,
-    #[serde(rename = "systemNotification")]
     SystemNotification,
-    #[serde(rename = "inputRequest")]
     InputRequest,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ResponsePartKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Markdown => serializer.serialize_str("markdown"),
+            Self::ContentRef => serializer.serialize_str("contentRef"),
+            Self::ToolCall => serializer.serialize_str("toolCall"),
+            Self::Reasoning => serializer.serialize_str("reasoning"),
+            Self::SystemNotification => serializer.serialize_str("systemNotification"),
+            Self::InputRequest => serializer.serialize_str("inputRequest"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ResponsePartKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "markdown" => Self::Markdown,
+            "contentRef" => Self::ContentRef,
+            "toolCall" => Self::ToolCall,
+            "reasoning" => Self::Reasoning,
+            "systemNotification" => Self::SystemNotification,
+            "inputRequest" => Self::InputRequest,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Status of a tool call in the lifecycle state machine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolCallStatus {
-    #[serde(rename = "streaming")]
     Streaming,
-    #[serde(rename = "pending-confirmation")]
     PendingConfirmation,
-    #[serde(rename = "running")]
     Running,
     /// Running paused because the MCP server backing this call needs
     /// authentication (typically step-up auth for insufficient scope,
     /// surfacing mid-execution). See {@link ToolCallAuthRequiredState}.
-    #[serde(rename = "auth-required")]
     AuthRequired,
-    #[serde(rename = "pending-result-confirmation")]
     PendingResultConfirmation,
-    #[serde(rename = "completed")]
     Completed,
-    #[serde(rename = "cancelled")]
     Cancelled,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolCallStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Streaming => serializer.serialize_str("streaming"),
+            Self::PendingConfirmation => serializer.serialize_str("pending-confirmation"),
+            Self::Running => serializer.serialize_str("running"),
+            Self::AuthRequired => serializer.serialize_str("auth-required"),
+            Self::PendingResultConfirmation => {
+                serializer.serialize_str("pending-result-confirmation")
+            }
+            Self::Completed => serializer.serialize_str("completed"),
+            Self::Cancelled => serializer.serialize_str("cancelled"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolCallStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "streaming" => Self::Streaming,
+            "pending-confirmation" => Self::PendingConfirmation,
+            "running" => Self::Running,
+            "auth-required" => Self::AuthRequired,
+            "pending-result-confirmation" => Self::PendingResultConfirmation,
+            "completed" => Self::Completed,
+            "cancelled" => Self::Cancelled,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How a tool call was confirmed for execution.
@@ -349,30 +621,111 @@ pub enum ToolCallStatus {
 /// - `NotNeeded` — No confirmation required (auto-approved)
 /// - `UserAction` — User explicitly approved
 /// - `Setting` — Approved by a persistent user setting
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolCallConfirmationReason {
-    #[serde(rename = "not-needed")]
     NotNeeded,
-    #[serde(rename = "user-action")]
     UserAction,
-    #[serde(rename = "setting")]
     Setting,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolCallConfirmationReason {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::NotNeeded => serializer.serialize_str("not-needed"),
+            Self::UserAction => serializer.serialize_str("user-action"),
+            Self::Setting => serializer.serialize_str("setting"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolCallConfirmationReason {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "not-needed" => Self::NotNeeded,
+            "user-action" => Self::UserAction,
+            "setting" => Self::Setting,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Identifies a model judge as the source of a confirmation requirement.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolCallRiskAssessmentKind {
-    #[serde(rename = "judge")]
     Judge,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolCallRiskAssessmentKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Judge => serializer.serialize_str("judge"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolCallRiskAssessmentKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "judge" => Self::Judge,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Lifecycle status of an asynchronous model-judge confirmation decision.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolCallRiskAssessmentStatus {
-    #[serde(rename = "loading")]
     Loading,
-    #[serde(rename = "complete")]
     Complete,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolCallRiskAssessmentStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Loading => serializer.serialize_str("loading"),
+            Self::Complete => serializer.serialize_str("complete"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolCallRiskAssessmentStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "loading" => Self::Loading,
+            "complete" => Self::Complete,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Why a tool call was cancelled.
@@ -387,37 +740,123 @@ pub enum ToolCallCancellationReason {
 }
 
 /// Whether a confirmation option represents an approval or denial action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ConfirmationOptionKind {
-    #[serde(rename = "approve")]
     Approve,
-    #[serde(rename = "deny")]
     Deny,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+impl serde::Serialize for ConfirmationOptionKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Approve => serializer.serialize_str("approve"),
+            Self::Deny => serializer.serialize_str("deny"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ConfirmationOptionKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "approve" => Self::Approve,
+            "deny" => Self::Deny,
+            _ => Self::Unknown(raw),
+        })
+    }
+}
+
+/// Identifies the source of a tool call's implementation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolCallContributorKind {
-    #[serde(rename = "client")]
     Client,
-    #[serde(rename = "mcp")]
     MCP,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolCallContributorKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Client => serializer.serialize_str("client"),
+            Self::MCP => serializer.serialize_str("mcp"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolCallContributorKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "client" => Self::Client,
+            "mcp" => Self::MCP,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for tool result content types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolResultContentType {
-    #[serde(rename = "text")]
     Text,
-    #[serde(rename = "embeddedResource")]
     EmbeddedResource,
-    #[serde(rename = "resource")]
     Resource,
-    #[serde(rename = "fileEdit")]
     FileEdit,
-    #[serde(rename = "terminal")]
     Terminal,
-    #[serde(rename = "subagent")]
     Subagent,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ToolResultContentType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Text => serializer.serialize_str("text"),
+            Self::EmbeddedResource => serializer.serialize_str("embeddedResource"),
+            Self::Resource => serializer.serialize_str("resource"),
+            Self::FileEdit => serializer.serialize_str("fileEdit"),
+            Self::Terminal => serializer.serialize_str("terminal"),
+            Self::Subagent => serializer.serialize_str("subagent"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ToolResultContentType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "text" => Self::Text,
+            "embeddedResource" => Self::EmbeddedResource,
+            "resource" => Self::Resource,
+            "fileEdit" => Self::FileEdit,
+            "terminal" => Self::Terminal,
+            "subagent" => Self::Subagent,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for the kind of customization.
@@ -429,35 +868,96 @@ pub enum ToolResultContentType {
 /// {@link CustomizationType.McpServer | `McpServer`} entries surfaced
 /// directly by the host. The remaining types appear only as children of
 /// a container.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CustomizationType {
-    #[serde(rename = "plugin")]
     Plugin,
-    #[serde(rename = "directory")]
     Directory,
-    #[serde(rename = "agent")]
     Agent,
-    #[serde(rename = "skill")]
     Skill,
-    #[serde(rename = "prompt")]
     Prompt,
-    #[serde(rename = "rule")]
     Rule,
-    #[serde(rename = "hook")]
     Hook,
-    #[serde(rename = "mcpServer")]
     McpServer,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for CustomizationType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Plugin => serializer.serialize_str("plugin"),
+            Self::Directory => serializer.serialize_str("directory"),
+            Self::Agent => serializer.serialize_str("agent"),
+            Self::Skill => serializer.serialize_str("skill"),
+            Self::Prompt => serializer.serialize_str("prompt"),
+            Self::Rule => serializer.serialize_str("rule"),
+            Self::Hook => serializer.serialize_str("hook"),
+            Self::McpServer => serializer.serialize_str("mcpServer"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CustomizationType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "plugin" => Self::Plugin,
+            "directory" => Self::Directory,
+            "agent" => Self::Agent,
+            "skill" => Self::Skill,
+            "prompt" => Self::Prompt,
+            "rule" => Self::Rule,
+            "hook" => Self::Hook,
+            "mcpServer" => Self::McpServer,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Scope at which customization enablement is decided.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CustomizationEnablementKind {
-    #[serde(rename = "global")]
     Global,
-    #[serde(rename = "workspace")]
     Workspace,
-    #[serde(rename = "session")]
     Session,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for CustomizationEnablementKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Global => serializer.serialize_str("global"),
+            Self::Workspace => serializer.serialize_str("workspace"),
+            Self::Session => serializer.serialize_str("session"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for CustomizationEnablementKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "global" => Self::Global,
+            "workspace" => Self::Workspace,
+            "session" => Self::Session,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant values for {@link CustomizationLoadState}.
@@ -492,39 +992,67 @@ pub enum TerminalLifecycleStatus {
 }
 
 /// Discriminant for the {@link McpServerState} union.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum McpServerStatus {
     /// Server has been registered but is not yet running.
-    #[serde(rename = "starting")]
     Starting,
     /// Server is running and serving requests.
-    #[serde(rename = "ready")]
     Ready,
     /// Server is reachable but requires additional authentication before it
     /// can start, or before it can serve a particular request. Carries the
     /// RFC 9728 Protected Resource Metadata the client needs to obtain a
     /// token; the client then pushes the token via the existing
     /// `authenticate` command.
-    #[serde(rename = "authRequired")]
     AuthRequired,
     /// Server failed to start, crashed, or otherwise transitioned to a fatal error.
-    #[serde(rename = "error")]
     Error,
     /// Server has been shut down.
-    #[serde(rename = "stopped")]
     Stopped,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for McpServerStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Starting => serializer.serialize_str("starting"),
+            Self::Ready => serializer.serialize_str("ready"),
+            Self::AuthRequired => serializer.serialize_str("authRequired"),
+            Self::Error => serializer.serialize_str("error"),
+            Self::Stopped => serializer.serialize_str("stopped"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for McpServerStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "starting" => Self::Starting,
+            "ready" => Self::Ready,
+            "authRequired" => Self::AuthRequired,
+            "error" => Self::Error,
+            "stopped" => Self::Stopped,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Why an MCP server is currently in the {@link McpServerStatus.AuthRequired}
 /// state. Mirrors the three failure modes defined by the
 /// [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum McpAuthRequiredReason {
     /// No token has been provided yet (HTTP 401, no prior token).
-    #[serde(rename = "required")]
     Required,
     /// A previously valid token expired or was revoked (HTTP 401).
-    #[serde(rename = "expired")]
     Expired,
     /// Step-up auth: a token is present but its scopes are insufficient for
     /// the requested operation (HTTP 403 with
@@ -542,23 +1070,81 @@ pub enum McpAuthRequiredReason {
     /// {@link McpServerCustomization | MCP server} backing a running tool
     /// call so they can present an explicit "grant more access" affordance
     /// tied to the blocked tool call.
-    #[serde(rename = "insufficientScope")]
     InsufficientScope,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for McpAuthRequiredReason {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Required => serializer.serialize_str("required"),
+            Self::Expired => serializer.serialize_str("expired"),
+            Self::InsufficientScope => serializer.serialize_str("insufficientScope"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for McpAuthRequiredReason {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "required" => Self::Required,
+            "expired" => Self::Expired,
+            "insufficientScope" => Self::InsufficientScope,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Computation lifecycle of a {@link ChangesetState}.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChangesetStatus {
     /// The server is still computing the contents of this changeset.
-    #[serde(rename = "computing")]
     Computing,
     /// The changeset has been fully computed and is up-to-date.
-    #[serde(rename = "ready")]
     Ready,
     /// Computation failed. The cause is described by
     /// {@link ChangesetState.error}.
-    #[serde(rename = "error")]
     Error,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChangesetStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Computing => serializer.serialize_str("computing"),
+            Self::Ready => serializer.serialize_str("ready"),
+            Self::Error => serializer.serialize_str("error"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChangesetStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "computing" => Self::Computing,
+            "ready" => Self::Ready,
+            "error" => Self::Error,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Execution lifecycle of a {@link ChangesetOperation}.
@@ -567,36 +1153,93 @@ pub enum ChangesetStatus {
 /// its progress and outcome are reflected back into changeset state so that
 /// every subscriber observes a consistent view (e.g. a spinner on a "Create
 /// Pull Request" button, or an inline error after a failed "revert").
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChangesetOperationStatus {
     /// The operation is ready to be invoked. This is the default when
     /// {@link ChangesetOperation.status} is omitted.
-    #[serde(rename = "idle")]
     Idle,
     /// An invocation of this operation is currently in flight.
-    #[serde(rename = "running")]
     Running,
     /// The most recent invocation failed. The cause is described by
     /// {@link ChangesetOperation.error}.
-    #[serde(rename = "error")]
     Error,
     /// The operation is currently disabled and cannot be invoked.
-    #[serde(rename = "disabled")]
     Disabled,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChangesetOperationStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Idle => serializer.serialize_str("idle"),
+            Self::Running => serializer.serialize_str("running"),
+            Self::Error => serializer.serialize_str("error"),
+            Self::Disabled => serializer.serialize_str("disabled"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChangesetOperationStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "idle" => Self::Idle,
+            "running" => Self::Running,
+            "error" => Self::Error,
+            "disabled" => Self::Disabled,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Where a {@link ChangesetOperation} can be invoked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ChangesetOperationScope {
     /// Applies to the whole changeset.
-    #[serde(rename = "changeset")]
     Changeset,
     /// Applies to a single file within the changeset.
-    #[serde(rename = "resource")]
     Resource,
     /// Applies to a line range within a single file.
-    #[serde(rename = "range")]
     Range,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ChangesetOperationScope {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Changeset => serializer.serialize_str("changeset"),
+            Self::Resource => serializer.serialize_str("resource"),
+            Self::Range => serializer.serialize_str("range"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ChangesetOperationScope {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "changeset" => Self::Changeset,
+            "resource" => Self::Resource,
+            "range" => Self::Range,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for {@link ResourceChange.type}.
@@ -611,11 +1254,37 @@ pub enum ResourceChangeType {
 }
 
 /// Discriminant describing the durable provenance of a session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SessionOriginKind {
     /// The session was created as part of an automation run.
-    #[serde(rename = "automation")]
     Automation,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for SessionOriginKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Automation => serializer.serialize_str("automation"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SessionOriginKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "automation" => Self::Automation,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Operations the host currently permits for an automation.
@@ -624,30 +1293,85 @@ pub enum SessionOriginKind {
 /// change over time. Clients MUST NOT infer permission from capabilities alone:
 /// capabilities describe what the host implementation can support, while
 /// operations describe what is allowed for this particular automation now.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AutomationOperation {
     /// Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}.
-    #[serde(rename = "update")]
     Update,
     /// Permanently remove the automation using {@link AutomationRemovedAction | `automation/removed`}.
-    #[serde(rename = "remove")]
     Remove,
     /// Start a manual run using {@link RunAutomationParams | runAutomation}.
-    #[serde(rename = "run")]
     Run,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for AutomationOperation {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Update => serializer.serialize_str("update"),
+            Self::Remove => serializer.serialize_str("remove"),
+            Self::Run => serializer.serialize_str("run"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for AutomationOperation {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "update" => Self::Update,
+            "remove" => Self::Remove,
+            "run" => Self::Run,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// How a host handles schedule occurrences missed while automatic execution was
 /// unavailable.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AutomationMisfirePolicy {
     /// Discard missed occurrences and wait for the next future occurrence.
-    #[serde(rename = "skip")]
     Skip,
     /// Start at most one catch-up run when execution becomes available, regardless
     /// of how many occurrences were missed.
-    #[serde(rename = "runOnce")]
     RunOnce,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for AutomationMisfirePolicy {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Skip => serializer.serialize_str("skip"),
+            Self::RunOnce => serializer.serialize_str("runOnce"),
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for AutomationMisfirePolicy {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "skip" => Self::Skip,
+            "runOnce" => Self::RunOnce,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 /// Discriminant for automatic trigger definitions.
@@ -1496,9 +2220,45 @@ pub struct SessionToolClientExecutionRequest {
     /// tool call's client {@link ToolCallContributor}.
     pub client_id: String,
     /// The running tool call the session wants the owning client to execute. The
-    /// host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-    /// {@link ToolCallState} in `running` status).
-    pub tool_call: ToolCallState,
+    /// host only ever populates this with a {@link ToolCallRunningState}.
+    #[serde(
+        serialize_with = "serialize_running_tool_call",
+        deserialize_with = "deserialize_running_tool_call"
+    )]
+    pub tool_call: ToolCallRunningState,
+}
+
+fn serialize_running_tool_call<S>(
+    value: &ToolCallRunningState,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut raw = serde_json::to_value(value).map_err(serde::ser::Error::custom)?;
+    let serde_json::Value::Object(object) = &mut raw else {
+        return Err(serde::ser::Error::custom(
+            "running tool call must serialize to an object",
+        ));
+    };
+    object.insert(
+        "status".to_owned(),
+        serde_json::Value::String("running".to_owned()),
+    );
+    serde::Serialize::serialize(&raw, serializer)
+}
+
+fn deserialize_running_tool_call<'de, D>(deserializer: D) -> Result<ToolCallRunningState, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = serde_json::Value::deserialize(deserializer)?;
+    if raw.get("status").and_then(serde_json::Value::as_str) != Some("running") {
+        return Err(serde::de::Error::custom(
+            "expected running tool-call status",
+        ));
+    }
+    serde_json::from_value(raw).map_err(serde::de::Error::custom)
 }
 
 /// A tool call blocked on MCP authentication mid-execution, surfaced at the
@@ -4881,6 +5641,8 @@ pub enum CustomizationEnablement {
     Workspace { uri: Uri, enabled: bool },
     #[serde(rename = "session")]
     Session { enabled: bool },
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
 }
 
 /// Raw tool input represented inline or by content reference.
@@ -5004,10 +5766,6 @@ pub enum TerminalClaim {
     Client(TerminalClientClaim),
     #[serde(rename = "session")]
     Session(TerminalSessionClaim),
-    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
-    /// Reducers treat this as a no-op.
-    #[serde(untagged)]
-    Unknown(serde_json::Value),
 }
 
 /// A content part within terminal output.
@@ -5076,10 +5834,6 @@ pub enum ChatInputAnswer {
     Submitted(ChatInputAnswered),
     #[serde(rename = "skipped")]
     Skipped(ChatInputSkipped),
-    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
-    /// Reducers treat this as a no-op.
-    #[serde(untagged)]
-    Unknown(serde_json::Value),
 }
 
 /// Content block in a tool result.
@@ -5174,10 +5928,6 @@ pub enum CustomizationLoadState {
     Degraded(CustomizationDegradedState),
     #[serde(rename = "error")]
     Error(CustomizationErrorState),
-    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
-    /// Reducers treat this as a no-op.
-    #[serde(untagged)]
-    Unknown(serde_json::Value),
 }
 
 /// Discriminated lifecycle status of an MCP server customization.
@@ -5249,7 +5999,7 @@ pub enum SessionInputRequest {
     #[serde(rename = "toolClientExecution")]
     ToolClientExecution(SessionToolClientExecutionRequest),
     #[serde(rename = "toolAuthentication")]
-    ToolAuthentication(SessionToolAuthenticationRequest),
+    ToolAuthentication(Box<SessionToolAuthenticationRequest>),
     /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
@@ -5262,6 +6012,10 @@ pub enum SessionInputRequest {
 pub enum SessionOrigin {
     #[serde(rename = "automation")]
     Automation(AutomationSessionOrigin),
+    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
 }
 
 /// Automatic trigger for an automation.

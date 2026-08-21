@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::unwrap_used)]
+
 // roundtrip_corpus.rs — data-driven wire round-trip parity for the Rust client.
 //
 // Loads the SHARED, language-agnostic round-trip corpus under

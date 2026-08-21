@@ -41,6 +41,7 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import { discriminatedUnionAllowsUnknown } from './enum-compatibility.js';
 
 const GENERATED_BANNER =
   '// Generated from types/*.ts — do not edit.\n' +
@@ -590,6 +591,8 @@ interface UnionConfig {
   variants: UnionVariant[];
   /** Emit an `XUnknown` variant for forward-compat. */
   unknown?: boolean;
+  /** Discriminator enum when a generated wrapper lacks the field itself. */
+  discriminatorEnum?: string;
   /**
    * For action-like unions where the inner-struct's own discriminator
    * type would not match the wrapper's wireValue (e.g. unique inner
@@ -599,7 +602,14 @@ interface UnionConfig {
   injectDiscriminantOnMarshal?: boolean;
 }
 
-function generateDiscriminatedUnion(cfg: UnionConfig): string {
+function generateDiscriminatedUnion(project: Project, cfg: UnionConfig): string {
+  const unknown = discriminatedUnionAllowsUnknown(
+    project,
+    cfg.discriminantField,
+    cfg.variants.map(variant => variant.innerType),
+    cfg.unknown,
+    cfg.discriminatorEnum,
+  );
   const lines: string[] = [];
   emitDocComment('', cfg.doc, lines);
   lines.push(`type ${cfg.name} struct {`);
@@ -617,7 +627,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
     seenInner.add(v.innerType);
     lines.push(`func (*${v.innerType}) is${cfg.name}() {}`);
   }
-  if (cfg.unknown) {
+  if (unknown) {
     lines.push('');
     emitDocComment('', `${cfg.name}Unknown carries an unrecognized ${cfg.name} variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.`, lines);
     lines.push(`type ${cfg.name}Unknown struct {`);
@@ -632,12 +642,12 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
   lines.push(`// UnmarshalJSON decodes the variant indicated by the ${JSON.stringify(cfg.discriminantField)} discriminator.`);
   lines.push(`func (u *${cfg.name}) UnmarshalJSON(data []byte) error {`);
   lines.push(
-    `\tdisc, ${cfg.unknown ? '_' : 'ok'}, err := readDiscriminator(data, ${JSON.stringify(cfg.discriminantField)})`,
+    `\tdisc, ${unknown ? '_' : 'ok'}, err := readDiscriminator(data, ${JSON.stringify(cfg.discriminantField)})`,
   );
   lines.push('\tif err != nil {');
   lines.push('\t\treturn err');
   lines.push('\t}');
-  if (!cfg.unknown) {
+  if (!unknown) {
     lines.push('\tif !ok {');
     lines.push(
       `\t\treturn missingDiscriminatorError(${JSON.stringify(cfg.name)}, ${JSON.stringify(cfg.discriminantField)})`,
@@ -654,7 +664,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
     lines.push('\t\tu.Value = &value');
   }
   lines.push('\tdefault:');
-  if (cfg.unknown) {
+  if (unknown) {
     lines.push('\t\traw := make(json.RawMessage, len(data))');
     lines.push('\t\tcopy(raw, data)');
     lines.push(`\t\tu.Value = &${cfg.name}Unknown{Raw: raw}`);
@@ -671,7 +681,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
   // MarshalJSON
   lines.push(`// MarshalJSON encodes the active variant back to JSON.`);
   lines.push(`func (u ${cfg.name}) MarshalJSON() ([]byte, error) {`);
-  if (cfg.unknown) {
+  if (unknown) {
     lines.push(`\tif unk, ok := u.Value.(*${cfg.name}Unknown); ok {`);
     lines.push('\t\tif len(unk.Raw) == 0 {');
     lines.push('\t\t\treturn []byte("null"), nil');
@@ -1443,49 +1453,49 @@ function generateStateFile(project: Project): string {
   lines.push('');
 
   lines.push('// ─── Discriminated Unions ─────────────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(RESPONSE_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, RESPONSE_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONFIRMATION_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONFIRMATION_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CLAIM_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CLAIM_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CONTENT_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CONTENT_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_QUESTION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_QUESTION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_ANSWER_VALUE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_ANSWER_VALUE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_ANSWER_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_ANSWER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_RESULT_CONTENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_RESULT_CONTENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, MESSAGE_ATTACHMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHILD_CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push(generateDiscriminatedUnion(project, MCP_SERVER_STATUS_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONTRIBUTOR_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_LIFECYCLE_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_REQUEST_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_TRIGGER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_LIFECYCLE_UNION));
   lines.push('');
   lines.push(generateChatOriginGo());
   lines.push('');
@@ -1638,7 +1648,7 @@ function generateActionTypeEnum(project: Project): string {
   return generateEnum(decl);
 }
 
-function generateActionsUnion(): string {
+function generateActionsUnion(project: Project): string {
   const cfg: UnionConfig = {
     name: 'StateAction',
     discriminantField: 'type',
@@ -1651,9 +1661,9 @@ function generateActionsUnion(): string {
           : stripIPrefix(v.tsInterface),
       wireValue: v.type,
     })),
-    unknown: true,
+    discriminatorEnum: 'ActionType',
   };
-  return generateDiscriminatedUnion(cfg);
+  return generateDiscriminatedUnion(project, cfg);
 }
 
 function generateActionsFile(project: Project): string {
@@ -1690,7 +1700,7 @@ function generateActionsFile(project: Project): string {
   }
 
   lines.push('// ─── StateAction Union ───────────────────────────────────────────────\n');
-  lines.push(generateActionsUnion());
+  lines.push(generateActionsUnion(project));
   lines.push('');
 
   return lines.join('\n');
@@ -1928,11 +1938,11 @@ function generateCommandsFile(project: Project): string {
   lines.push('');
 
   lines.push('// ─── ChatSource Union ─────────────────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(CHAT_SOURCE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_SOURCE_UNION));
   lines.push('');
 
   lines.push('// ─── ReconnectResult Union ────────────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(RECONNECT_RESULT_UNION));
+  lines.push(generateDiscriminatedUnion(project, RECONNECT_RESULT_UNION));
   lines.push('');
 
   lines.push('// ─── Changeset Operation Unions ───────────────────────────────────────\n');
@@ -2034,7 +2044,7 @@ const (
 \tErrorCodeSessionAlreadyExists        int32 = -32003
 \tErrorCodeTurnInProgress              int32 = -32004
 \tErrorCodeUnsupportedProtocolVersion  int32 = -32005
-\tErrorCodeContentNotFound             int32 = -32006
+\t// -32006 is intentionally reserved and unassigned.
 \tErrorCodeAuthRequired                int32 = -32007
 \tErrorCodeNotFound                    int32 = -32008
 \tErrorCodePermissionDenied            int32 = -32009

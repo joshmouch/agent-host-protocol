@@ -325,6 +325,7 @@ fn atomic_write(final_path: &Path, content: &[u8]) -> io::Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used)]
 mod tests {
     use super::*;
 

@@ -12,7 +12,7 @@ Version selection happens once, during the [`initialize`](/specification/lifecyc
 
 1. The client sends `InitializeParams.protocolVersions`: an array of every protocol version it is willing to speak, ordered from most preferred to least preferred.
 2. The server picks one entry it can speak and returns it as `InitializeResult.protocolVersion`. Servers SHOULD honor the client's preference order when multiple offered versions are acceptable.
-3. If the server cannot speak any of the offered versions, it MUST respond with [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) instead of a result, and close the connection.
+3. If the server cannot speak any of the offered versions, it MUST respond with [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) and required `data.supportedVersions` instead of a result, and close the connection.
 
 Both peers MUST use the selected version for the rest of the connection. There is no per-message renegotiation.
 
@@ -41,7 +41,7 @@ As a result:
 
 - **Clients SHOULD offer a wide range of protocol versions** when feasible so that older hosts can still pick a version they understand. Clients then degrade features gracefully when the negotiated version lacks a capability they would otherwise use.
 - **Hosts SHOULD pick the highest offered version they implement.** Lower entries in the client's array are fallbacks for older hosts.
-- **Hosts MUST refuse incompatible clients** by returning [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) when no offered version is acceptable.
+- **Hosts MUST refuse incompatible clients** by returning [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) with required `data.supportedVersions` when no offered version is acceptable.
 
 ## Forward Compatibility
 
@@ -58,7 +58,7 @@ When a newer client connects to an older host:
 When an older client connects to a newer host:
 
 1. The client offers only the versions it knows.
-2. The host picks one of those (typically the newest the client offered) or returns `UnsupportedProtocolVersion` if it can no longer speak any of them.
+2. The host picks one of those (typically the newest the client offered) or returns `UnsupportedProtocolVersion` with required `data.supportedVersions` if it can no longer speak any of them.
 3. On a successful negotiation the host MUST NOT use newer-version-only behaviors on that connection unless gated behind a capability the client has acknowledged.
 
 ## Release Model

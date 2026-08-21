@@ -103,7 +103,8 @@ type InitializeParams struct {
 	//
 	// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
 	// If the server cannot speak any of the offered versions, it MUST return
-	// error code `-32005` (`UnsupportedProtocolVersion`).
+	// error code `-32005` (`UnsupportedProtocolVersion`) with required
+	// `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
 	ProtocolVersions []string `json:"protocolVersions"`
 	// Unique client identifier
 	ClientId string `json:"clientId"`
@@ -133,7 +134,8 @@ type InitializeParams struct {
 // `protocolVersions` list. The client and server MUST use this version for
 // the rest of the connection. If the server cannot speak any of the offered
 // versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
-// instead of a result.
+// with required `UnsupportedProtocolVersionErrorData` containing
+// `supportedVersions`, instead of a result.
 type InitializeResult struct {
 	// Protocol version selected by the server. MUST be one of the entries in
 	// `InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)
@@ -1363,14 +1365,18 @@ type isChatSource interface{ isChatSource() }
 func (*ForkChatSource) isChatSource() {}
 func (*SideChatSource) isChatSource() {}
 
+// ChatSourceUnknown carries an unrecognized ChatSource variant — typically a discriminator value introduced by a newer protocol version. The original JSON object is preserved verbatim so that re-encoding round-trips faithfully.
+type ChatSourceUnknown struct {
+	Raw json.RawMessage
+}
+
+func (*ChatSourceUnknown) isChatSource() {}
+
 // UnmarshalJSON decodes the variant indicated by the "kind" discriminator.
 func (u *ChatSource) UnmarshalJSON(data []byte) error {
-	disc, ok, err := readDiscriminator(data, "kind")
+	disc, _, err := readDiscriminator(data, "kind")
 	if err != nil {
 		return err
-	}
-	if !ok {
-		return missingDiscriminatorError("ChatSource", "kind")
 	}
 	switch disc {
 	case "fork":
@@ -1386,13 +1392,21 @@ func (u *ChatSource) UnmarshalJSON(data []byte) error {
 		}
 		u.Value = &value
 	default:
-		return unknownDiscriminatorError("ChatSource", "kind", disc)
+		raw := make(json.RawMessage, len(data))
+		copy(raw, data)
+		u.Value = &ChatSourceUnknown{Raw: raw}
 	}
 	return nil
 }
 
 // MarshalJSON encodes the active variant back to JSON.
 func (u ChatSource) MarshalJSON() ([]byte, error) {
+	if unk, ok := u.Value.(*ChatSourceUnknown); ok {
+		if len(unk.Raw) == 0 {
+			return []byte("null"), nil
+		}
+		return unk.Raw, nil
+	}
 	if u.Value == nil {
 		return []byte("null"), nil
 	}

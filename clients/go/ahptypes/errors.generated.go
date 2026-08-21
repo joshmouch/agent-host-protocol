@@ -31,11 +31,11 @@ const (
 	ErrorCodeSessionAlreadyExists       int32 = -32003
 	ErrorCodeTurnInProgress             int32 = -32004
 	ErrorCodeUnsupportedProtocolVersion int32 = -32005
-	ErrorCodeContentNotFound            int32 = -32006
-	ErrorCodeAuthRequired               int32 = -32007
-	ErrorCodeNotFound                   int32 = -32008
-	ErrorCodePermissionDenied           int32 = -32009
-	ErrorCodeAlreadyExists              int32 = -32010
+	// -32006 is intentionally reserved and unassigned.
+	ErrorCodeAuthRequired     int32 = -32007
+	ErrorCodeNotFound         int32 = -32008
+	ErrorCodePermissionDenied int32 = -32009
+	ErrorCodeAlreadyExists    int32 = -32010
 )
 
 // AhpErrorCode is the type alias used by AHP application error codes.

@@ -22,6 +22,7 @@ import com.microsoft.agenthostprotocol.generated.ChatSource
 import com.microsoft.agenthostprotocol.generated.ChatSourceFork
 import com.microsoft.agenthostprotocol.generated.ChatSourceKind
 import com.microsoft.agenthostprotocol.generated.ChatSourceSideChat
+import com.microsoft.agenthostprotocol.generated.ChatSourceUnknown
 import com.microsoft.agenthostprotocol.generated.ForkChatSource
 import com.microsoft.agenthostprotocol.generated.SideChatSource
 import com.microsoft.agenthostprotocol.generated.SideChatSelection
@@ -80,6 +81,21 @@ class DiscriminatedUnionTest {
 
         val decoded = json.decodeFromString(ResponsePart.serializer(), encoded)
         assertIs<ResponsePartReasoning>(decoded)
+    }
+
+    @Test
+    fun `nonexhaustive enum and union preserve future values`() {
+        val kind = json.decodeFromString(ResponsePartKind.serializer(), "\"futurePart\"")
+        assertEquals("futurePart", kind.rawValue)
+        assertEquals("\"futurePart\"", json.encodeToString(ResponsePartKind.serializer(), kind))
+
+        val raw = """{"kind":"futurePart","payload":{"preserve":true}}"""
+        val part = json.decodeFromString(ResponsePart.serializer(), raw)
+        assertIs<ResponsePartUnknown>(part)
+        assertEquals(
+            json.parseToJsonElement(raw),
+            json.parseToJsonElement(json.encodeToString(ResponsePart.serializer(), part)),
+        )
     }
 
     @Test
@@ -191,16 +207,21 @@ class DiscriminatedUnionTest {
     }
 
     @Test
-    fun `ChatSource rejects missing or unknown kind`() {
+    fun `ChatSource preserves missing or unknown kind`() {
         val missingKind = """{"chat":"ahp-chat:/main","turnId":"turn-12"}"""
         val unknownKind = """{"kind":"future","chat":"ahp-chat:/main","turnId":"turn-12"}"""
 
-        assertFailsWith<IllegalStateException> {
-            json.decodeFromString(ChatSource.serializer(), missingKind)
-        }
-        assertFailsWith<IllegalStateException> {
-            json.decodeFromString(ChatSource.serializer(), unknownKind)
-        }
+        val missing = assertIs<ChatSourceUnknown>(
+            json.decodeFromString(ChatSource.serializer(), missingKind),
+        )
+        val unknown = assertIs<ChatSourceUnknown>(
+            json.decodeFromString(ChatSource.serializer(), unknownKind),
+        )
+
+        assertEquals(json.parseToJsonElement(missingKind), missing.raw)
+        assertEquals(json.parseToJsonElement(unknownKind), unknown.raw)
+        assertEquals(missingKind, json.encodeToString(ChatSource.serializer(), missing))
+        assertEquals(unknownKind, json.encodeToString(ChatSource.serializer(), unknown))
     }
 
     @Test

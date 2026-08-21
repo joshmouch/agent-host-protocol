@@ -1,8 +1,8 @@
 package ahptypes
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
 	"testing"
 )
 
@@ -39,19 +39,25 @@ func TestChatSourceRoutesByKind(t *testing.T) {
 	})
 }
 
-func TestChatSourceRejectsMissingOrUnknownKind(t *testing.T) {
+func TestChatSourcePreservesMissingOrUnknownKind(t *testing.T) {
 	for name, raw := range map[string]string{
 		"missing kind": `{"chat":"ahp-chat:/main","turnId":"turn-12"}`,
 		"unknown kind": `{"kind":"future","chat":"ahp-chat:/main","turnId":"turn-12"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			var value ChatSource
-			err := json.Unmarshal([]byte(raw), &value)
-			if err == nil {
-				t.Fatalf("expected decode failure for %s", name)
+			if err := json.Unmarshal([]byte(raw), &value); err != nil {
+				t.Fatalf("decode %s: %v", name, err)
 			}
-			if got := fmt.Sprint(err); got == "" {
-				t.Fatalf("expected printable error for %s", name)
+			if _, ok := value.Value.(*ChatSourceUnknown); !ok {
+				t.Fatalf("expected unknown variant for %s, got %T", name, value.Value)
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				t.Fatalf("encode %s: %v", name, err)
+			}
+			if !bytes.Equal(encoded, []byte(raw)) {
+				t.Fatalf("round trip %s: got %s, want %s", name, encoded, raw)
 			}
 		})
 	}

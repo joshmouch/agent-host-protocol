@@ -16,6 +16,9 @@ categories = ["api-bindings", "encoding", "data-structures"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lints]
+workspace = true
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
