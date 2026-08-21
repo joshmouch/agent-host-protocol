@@ -62,7 +62,7 @@ each with its own `CHANGELOG.md` in [Keep a Changelog](https://keepachangelog.co
 format. The publish workflows refuse to release a tag whose matching
 `## [X.Y.Z]` heading is missing. Normal PRs should not edit those shared
 changelog files directly; add a JSON changelog fragment under `docs/.changes/`
-instead. Release PRs collapse those fragments into the six changelogs.
+instead. Release PRs collapse those fragments into the seven changelogs.
 
 **Add a one-line fragment** when your change is
 user-visible: a new / removed / renamed / behaviourally-changed action,

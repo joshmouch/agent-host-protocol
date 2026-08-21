@@ -27,8 +27,8 @@ public readonly struct HostedResourceKey : IEquatable<HostedResourceKey>
     /// <summary>Creates a key from a host and a resource URI.</summary>
     public HostedResourceKey(HostId hostId, string uri)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(uri);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(uri, nameof(uri));
         HostId = hostId;
         Uri = uri;
     }
@@ -49,7 +49,7 @@ public readonly struct HostedResourceKey : IEquatable<HostedResourceKey>
     /// </summary>
     public static string PercentEscape(string value)
     {
-        ArgumentNullException.ThrowIfNull(value);
+        Guard.ThrowIfNull(value, nameof(value));
         var sb = new StringBuilder(value.Length);
         foreach (byte b in Encoding.UTF8.GetBytes(value))
         {
@@ -76,7 +76,14 @@ public readonly struct HostedResourceKey : IEquatable<HostedResourceKey>
     public override bool Equals(object? obj) => obj is HostedResourceKey k && Equals(k);
 
     /// <inheritdoc />
-    public override int GetHashCode() => HashCode.Combine(HostId, Uri);
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            return ((HostId?.GetHashCode() ?? 0) * 397) ^
+                StringComparer.Ordinal.GetHashCode(Uri ?? string.Empty);
+        }
+    }
 
     /// <summary>Returns <c>true</c> if two keys refer to the same host and resource URI.</summary>
     public static bool operator ==(HostedResourceKey left, HostedResourceKey right) => left.Equals(right);

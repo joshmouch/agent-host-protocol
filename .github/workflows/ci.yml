@@ -261,17 +261,17 @@ jobs:
       run:
         working-directory: clients/dotnet
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: npm
 
-      # The .NET 10 SDK builds the net8.0 target and understands the .slnx
-      # solution format; the 8.0.x entry provides the net8.0 runtime so the
-      # net8.0 tests run natively.
-      - uses: actions/setup-dotnet@v4
+      # The .NET 10 SDK builds the netstandard2.0 and net8.0 targets and
+      # understands the .slnx solution format; the 8.0.x entry provides the
+      # runtime used by the tests.
+      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
         with:
           dotnet-version: |
             8.0.x
@@ -311,4 +311,3 @@ jobs:
 
       - name: Pack .NET solution
         run: dotnet pack --no-build --configuration Release
-

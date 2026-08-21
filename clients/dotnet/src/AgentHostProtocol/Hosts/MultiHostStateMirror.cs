@@ -27,8 +27,8 @@ public sealed class MultiHostStateMirror
     /// <summary>Stores <paramref name="root"/> for <paramref name="hostId"/>.</summary>
     public void PutRoot(string hostId, RootState root)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(root);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(root, nameof(root));
         _roots[hostId] = root;
     }
 
@@ -39,9 +39,9 @@ public sealed class MultiHostStateMirror
     /// <summary>Stores a session snapshot under (hostId, uri).</summary>
     public void PutSession(string hostId, string uri, SessionState state)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(uri);
-        ArgumentNullException.ThrowIfNull(state);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(uri, nameof(uri));
+        Guard.ThrowIfNull(state, nameof(state));
         _sessions[new HostedResourceKey(hostId, uri)] = state;
     }
 
@@ -52,9 +52,9 @@ public sealed class MultiHostStateMirror
     /// <summary>Stores a chat snapshot under (hostId, uri).</summary>
     public void PutChat(string hostId, string uri, ChatState state)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(uri);
-        ArgumentNullException.ThrowIfNull(state);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(uri, nameof(uri));
+        Guard.ThrowIfNull(state, nameof(state));
         _chats[new HostedResourceKey(hostId, uri)] = state;
     }
 
@@ -65,9 +65,9 @@ public sealed class MultiHostStateMirror
     /// <summary>Stores a terminal snapshot under (hostId, uri).</summary>
     public void PutTerminal(string hostId, string uri, TerminalState state)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(uri);
-        ArgumentNullException.ThrowIfNull(state);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(uri, nameof(uri));
+        Guard.ThrowIfNull(state, nameof(state));
         _terminals[new HostedResourceKey(hostId, uri)] = state;
     }
 
@@ -78,9 +78,9 @@ public sealed class MultiHostStateMirror
     /// <summary>Stores a changeset snapshot under (hostId, uri).</summary>
     public void PutChangeset(string hostId, string uri, ChangesetState state)
     {
-        ArgumentNullException.ThrowIfNull(hostId);
-        ArgumentNullException.ThrowIfNull(uri);
-        ArgumentNullException.ThrowIfNull(state);
+        Guard.ThrowIfNull(hostId, nameof(hostId));
+        Guard.ThrowIfNull(uri, nameof(uri));
+        Guard.ThrowIfNull(state, nameof(state));
         _changesets[new HostedResourceKey(hostId, uri)] = state;
     }
 

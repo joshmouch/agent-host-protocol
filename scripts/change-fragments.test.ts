@@ -16,7 +16,7 @@ describe('change fragments', () => {
     );
 
     assert.deepEqual(result.errors, []);
-    assert.deepEqual(result.fragment?.targets, ['spec', 'rust', 'kotlin', 'typescript', 'swift', 'go']);
+    assert.deepEqual(result.fragment?.targets, ['spec', 'rust', 'kotlin', 'typescript', 'swift', 'go', 'dotnet']);
   });
 
   it('validates scoped targets and issue numbers', () => {
@@ -35,7 +35,7 @@ describe('change fragments', () => {
       [
         '`message` must not include the leading Markdown bullet',
         'duplicate target typescript',
-        'invalid target "python"; expected one of spec, rust, kotlin, typescript, swift, go',
+        'invalid target "python"; expected one of spec, rust, kotlin, typescript, swift, go, dotnet',
         'invalid issue number 0; expected a positive integer',
         'duplicate issue number 12',
       ],
@@ -48,7 +48,7 @@ describe('change fragments', () => {
         filePath: 'docs/.changes/all.json',
         type: 'added',
         message: 'Shared entry.',
-        targets: ['spec', 'rust', 'kotlin', 'typescript', 'swift', 'go'],
+        targets: ['spec', 'rust', 'kotlin', 'typescript', 'swift', 'go', 'dotnet'],
         issues: [123],
       },
       {

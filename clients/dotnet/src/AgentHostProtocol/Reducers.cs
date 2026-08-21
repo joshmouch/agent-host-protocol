@@ -5,7 +5,6 @@
 
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -272,8 +271,16 @@ public static class Reducers
     private static void RefreshChatStatus(ChatState state) =>
         state.Status = ChatSummaryStatus(state, null);
 
-    private static void TouchModifiedChat(ChatState state) =>
-        state.ModifiedAt = NowIso();
+    private static string AddMillisecondsToTimestamp(string timestamp, long milliseconds) =>
+        DateTimeOffset.Parse(
+                timestamp,
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal)
+            .AddMilliseconds(milliseconds)
+            .UtcDateTime
+            .ToString(
+                "yyyy-MM-ddTHH:mm:ss.fffZ",
+                System.Globalization.CultureInfo.InvariantCulture);
 
     // ─── Active-turn helpers ───────────────────────────────────────────────
 
@@ -345,7 +352,7 @@ public static class Reducers
         };
 
         state.Turns.Add(turn);
-        TouchModifiedChat(state);
+        state.ModifiedAt = AddMillisecondsToTimestamp(active.StartedAt, turn.Duration ?? 0);
         state.Status = ChatSummaryStatus(state, terminalStatus);
         return ReduceOutcome.Applied;
     }
@@ -406,7 +413,6 @@ public static class Reducers
         }
 
         state.Status = ChatSummaryStatus(state, null);
-        TouchModifiedChat(state);
         state.Status = WithStatusFlag(state.Status, SessionStatus.IsRead, false);
         return ReduceOutcome.Applied;
     }
@@ -450,58 +456,70 @@ public static class Reducers
         _ => null,
     };
 
-    private static void SetContainerEnabled(Customization c, bool enabled)
+    private static bool EffectiveEnabled(List<CustomizationEnablement> enablement)
     {
-        switch (c.Value)
+        if (enablement.Count == 0)
         {
-            case PluginCustomization v: v.Enabled = enabled; break;
-            case DirectoryCustomization v: v.Enabled = enabled; break;
+            return true;
         }
+
+        return enablement[0].Value switch
+        {
+            CustomizationEnablementGlobal value => value.Enabled,
+            CustomizationEnablementWorkspace value => value.Enabled,
+            CustomizationEnablementSession value => value.Enabled,
+            _ => true,
+        };
     }
 
-    private static ChildCustomization WithChildEnabled(ChildCustomization child, bool enabled)
+    private static ChildCustomization WithChildEnablement(
+        ChildCustomization child,
+        List<CustomizationEnablement> enablement)
     {
+        bool enabled = EffectiveEnabled(enablement);
         switch (child.Value)
         {
-            // The leaf child records are immutable, so rebuild them with the new flag.
             case AgentCustomization v: return new ChildCustomization(v with { Enabled = enabled });
             case SkillCustomization v: return new ChildCustomization(v with { Enabled = enabled });
             case PromptCustomization v: return new ChildCustomization(v with { Enabled = enabled });
             case RuleCustomization v: return new ChildCustomization(v with { Enabled = enabled });
             case HookCustomization v: return new ChildCustomization(v with { Enabled = enabled });
-            // McpServerCustomization is a mutable class (not a record), so set in place.
-            case McpServerCustomization v: v.Enabled = enabled; return child;
+            case McpServerCustomization v:
+                v.Enablement = enablement.Count == 0 ? null : CopyList(enablement);
+                return child;
             default: return child;
         }
     }
 
-    private static bool ApplyToggle(List<Customization> list, string id, bool enabled)
+    private static bool ApplyToggle(
+        List<Customization> list,
+        string id,
+        List<CustomizationEnablement> enablement)
     {
-        // Match a top-level customization by id first. McpServerCustomization is a
-        // valid top-level variant but is intentionally absent from TryCustomizationId
-        // (which only knows the Plugin / Directory containers), so match it directly
-        // here — mirroring ApplyMcpServerStateChanged and the canonical TypeScript
-        // reducer, whose top-level match sets `enabled` on ANY matching top-level
-        // customization (a bare MCP server included).
         foreach (Customization c in list)
         {
             if (c.Value is McpServerCustomization top && top.Id == id)
             {
-                top.Enabled = enabled;
+                top.Enablement = enablement.Count == 0 ? null : CopyList(enablement);
                 return true;
             }
 
             if (TryCustomizationId(c, out string got) && got == id)
             {
-                SetContainerEnabled(c, enabled);
+                switch (c.Value)
+                {
+                    case PluginCustomization plugin:
+                        plugin.Enablement = enablement.Count == 0 ? null : CopyList(enablement);
+                        break;
+                    case DirectoryCustomization directory:
+                        directory.Enabled = EffectiveEnabled(enablement);
+                        break;
+                }
                 return true;
             }
         }
 
         // Otherwise descend into container children and toggle the matched child.
-        // Mirrors the canonical TypeScript reducer: session/customizationToggled
-        // matches a child by id when no top-level container carries the id, and
-        // sets that child's own enabled flag.
         foreach (Customization c in list)
         {
             List<ChildCustomization>? children = ContainerChildren(c);
@@ -514,7 +532,7 @@ public static class Reducers
             {
                 if (TryChildCustomizationId(children[i], out string childGot) && childGot == id)
                 {
-                    children[i] = WithChildEnabled(children[i], enabled);
+                    children[i] = WithChildEnablement(children[i], enablement);
                     return true;
                 }
             }
@@ -594,8 +612,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToRoot(RootState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case RootAgentsChangedAction a:
@@ -649,15 +667,15 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToSession(SessionState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case SessionReadyAction:
                 state.Lifecycle = SessionLifecycle.Ready;
                 return ReduceOutcome.Applied;
             case SessionCreationFailedAction a:
-                state.Lifecycle = SessionLifecycle.CreationFailed;
+                state.Lifecycle = SessionLifecycle.Failed;
                 state.CreationError = a.Error;
                 return ReduceOutcome.Applied;
             case SessionTitleChangedAction a:
@@ -690,111 +708,142 @@ public static class Reducers
                 state.ServerTools = CopyList(a.Tools)!;
                 return ReduceOutcome.Applied;
             case SessionActiveClientSetAction a:
-            {
-                // Upsert keyed by clientId: replace the existing entry with the
-                // same clientId, otherwise append. Mirrors the TS reducer.
-                int idx = state.ActiveClients.FindIndex(c => c.ClientId == a.ActiveClient.ClientId);
-                if (idx < 0)
                 {
-                    state.ActiveClients.Add(a.ActiveClient);
-                }
-                else
-                {
-                    state.ActiveClients[idx] = a.ActiveClient;
-                }
+                    // Upsert keyed by clientId: replace the existing entry with the
+                    // same clientId, otherwise append. Mirrors the TS reducer.
+                    int idx = state.ActiveClients.FindIndex(c => c.ClientId == a.ActiveClient.ClientId);
+                    if (idx < 0)
+                    {
+                        state.ActiveClients.Add(a.ActiveClient);
+                    }
+                    else
+                    {
+                        state.ActiveClients[idx] = a.ActiveClient;
+                    }
 
-                return ReduceOutcome.Applied;
-            }
+                    return ReduceOutcome.Applied;
+                }
             case SessionActiveClientRemovedAction a:
-            {
-                // Remove the entry matching clientId; no-op when none matches.
-                int idx = state.ActiveClients.FindIndex(c => c.ClientId == a.ClientId);
-                if (idx < 0)
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Remove the entry matching clientId; no-op when none matches.
+                    int idx = state.ActiveClients.FindIndex(c => c.ClientId == a.ClientId);
+                    if (idx < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.ActiveClients.RemoveAt(idx);
-                return ReduceOutcome.Applied;
-            }
+                    state.ActiveClients.RemoveAt(idx);
+                    return ReduceOutcome.Applied;
+                }
             case SessionWorkingDirectorySetAction a:
-            {
-                // Membership keyed by the directory URI: append when the set does
-                // not already contain it (creating the set if absent), no-op when
-                // it is already present. Mirrors the TS reducer.
-                if (state.WorkingDirectories is not null && state.WorkingDirectories.Contains(a.Directory))
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Membership keyed by the directory URI: append when the set does
+                    // not already contain it (creating the set if absent), no-op when
+                    // it is already present. Mirrors the TS reducer.
+                    if (state.WorkingDirectories is not null && state.WorkingDirectories.Contains(a.Directory))
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.WorkingDirectories ??= new List<string>();
-                state.WorkingDirectories.Add(a.Directory);
-                return ReduceOutcome.Applied;
-            }
+                    state.WorkingDirectories ??= new List<string>();
+                    state.WorkingDirectories.Add(a.Directory);
+                    return ReduceOutcome.Applied;
+                }
             case SessionWorkingDirectoryRemovedAction a:
-            {
-                // Removes the directory from the set; no-op when the set is absent
-                // or does not contain it. Idempotent, mirroring the TS reducer —
-                // an emptied set stays present as an empty list.
-                if (state.WorkingDirectories is null)
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Removes the directory from the set; no-op when the set is absent
+                    // or does not contain it. Idempotent, mirroring the TS reducer —
+                    // an emptied set stays present as an empty list.
+                    if (state.WorkingDirectories is null)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                int wdIdx = state.WorkingDirectories.IndexOf(a.Directory);
-                if (wdIdx < 0)
+                    int wdIdx = state.WorkingDirectories.IndexOf(a.Directory);
+                    if (wdIdx < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
+
+                    state.WorkingDirectories.RemoveAt(wdIdx);
+                    return ReduceOutcome.Applied;
+                }
+            case SessionWorkingDirectoryReplacedAction a:
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    if (state.WorkingDirectories is null)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.WorkingDirectories.RemoveAt(wdIdx);
-                return ReduceOutcome.Applied;
-            }
+                    int index = state.WorkingDirectories.IndexOf(a.Directory);
+                    if (index < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
+
+                    int replacementIndex = state.WorkingDirectories.IndexOf(a.Replacement);
+                    if (replacementIndex >= 0 && replacementIndex < index)
+                    {
+                        state.WorkingDirectories.RemoveAt(index);
+                        return ReduceOutcome.Applied;
+                    }
+
+                    state.WorkingDirectories[index] = a.Replacement;
+                    for (int i = state.WorkingDirectories.Count - 1; i >= 0; i--)
+                    {
+                        if (i != index && state.WorkingDirectories[i] == a.Replacement)
+                        {
+                            state.WorkingDirectories.RemoveAt(i);
+                        }
+                    }
+
+                    return ReduceOutcome.Applied;
+                }
             case SessionInputNeededSetAction a:
-            {
-                // Upsert keyed by request id: replace the entry with the same id,
-                // otherwise append. A non-empty queue promotes the session
-                // activity to InputNeeded. Mirrors the TS reducer.
-                string reqId = SessionInputRequestId(a.Request);
-                state.InputNeeded ??= new List<SessionInputRequest>();
-                int idx = state.InputNeeded.FindIndex(r => SessionInputRequestId(r) == reqId);
-                if (idx < 0)
                 {
-                    state.InputNeeded.Add(a.Request);
-                }
-                else
-                {
-                    state.InputNeeded[idx] = a.Request;
-                }
+                    // Upsert keyed by request id: replace the entry with the same id,
+                    // otherwise append. A non-empty queue promotes the session
+                    // activity to InputNeeded. Mirrors the TS reducer.
+                    string reqId = SessionInputRequestId(a.Request);
+                    state.InputNeeded ??= new List<SessionInputRequest>();
+                    int idx = state.InputNeeded.FindIndex(r => SessionInputRequestId(r) == reqId);
+                    if (idx < 0)
+                    {
+                        state.InputNeeded.Add(a.Request);
+                    }
+                    else
+                    {
+                        state.InputNeeded[idx] = a.Request;
+                    }
 
-                state.Status = WithInputNeededStatus(state.Status, state.InputNeeded);
-                return ReduceOutcome.Applied;
-            }
+                    state.Status = WithInputNeededStatus(state.Status, state.InputNeeded);
+                    return ReduceOutcome.Applied;
+                }
             case SessionInputNeededRemovedAction a:
-            {
-                // Remove the entry matching id; no-op when the queue is absent or
-                // no entry matches. Clears the input-needed activity bit once the
-                // queue empties, and drops the list to absent. Mirrors the TS reducer.
-                if (state.InputNeeded is null)
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Remove the entry matching id; no-op when the queue is absent or
+                    // no entry matches. Clears the input-needed activity bit once the
+                    // queue empties, and drops the list to absent. Mirrors the TS reducer.
+                    if (state.InputNeeded is null)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                int idx = state.InputNeeded.FindIndex(r => SessionInputRequestId(r) == a.Id);
-                if (idx < 0)
-                {
-                    return ReduceOutcome.NoOp;
-                }
+                    int idx = state.InputNeeded.FindIndex(r => SessionInputRequestId(r) == a.Id);
+                    if (idx < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.InputNeeded.RemoveAt(idx);
-                state.Status = WithInputNeededStatus(state.Status, state.InputNeeded);
-                if (state.InputNeeded.Count == 0)
-                {
-                    state.InputNeeded = null;
-                }
+                    state.InputNeeded.RemoveAt(idx);
+                    state.Status = WithInputNeededStatus(state.Status, state.InputNeeded);
+                    if (state.InputNeeded.Count == 0)
+                    {
+                        state.InputNeeded = null;
+                    }
 
-                return ReduceOutcome.Applied;
-            }
+                    return ReduceOutcome.Applied;
+                }
             case SessionCustomizationsChangedAction a:
                 state.Customizations = CopyList(a.Customizations);
                 return ReduceOutcome.Applied;
@@ -804,7 +853,7 @@ public static class Reducers
                     return ReduceOutcome.NoOp;
                 }
 
-                return ApplyToggle(state.Customizations, a.Id, a.Enabled)
+                return ApplyToggle(state.Customizations, a.Id, a.Enablement)
                     ? ReduceOutcome.Applied
                     : ReduceOutcome.NoOp;
             case SessionCustomizationUpdatedAction a:
@@ -848,8 +897,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToChat(ChatState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case ChatTurnStartedAction a:
@@ -880,38 +929,38 @@ public static class Reducers
                 state.Activity = a.Activity;
                 return ReduceOutcome.Applied;
             case ChatWorkingDirectorySetAction a:
-            {
-                // Membership keyed by the directory URI, over this chat's subset of
-                // the session's set: append when absent (creating the subset if
-                // needed), no-op when already present. Mirrors the TS reducer.
-                if (state.WorkingDirectories is not null && state.WorkingDirectories.Contains(a.Directory))
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Membership keyed by the directory URI, over this chat's subset of
+                    // the session's set: append when absent (creating the subset if
+                    // needed), no-op when already present. Mirrors the TS reducer.
+                    if (state.WorkingDirectories is not null && state.WorkingDirectories.Contains(a.Directory))
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.WorkingDirectories ??= new List<string>();
-                state.WorkingDirectories.Add(a.Directory);
-                return ReduceOutcome.Applied;
-            }
+                    state.WorkingDirectories ??= new List<string>();
+                    state.WorkingDirectories.Add(a.Directory);
+                    return ReduceOutcome.Applied;
+                }
             case ChatWorkingDirectoryRemovedAction a:
-            {
-                // Removes the directory from this chat's subset only — the session's
-                // set is unaffected. No-op when the subset is absent or does not
-                // contain it. Idempotent, mirroring the TS reducer.
-                if (state.WorkingDirectories is null)
                 {
-                    return ReduceOutcome.NoOp;
-                }
+                    // Removes the directory from this chat's subset only — the session's
+                    // set is unaffected. No-op when the subset is absent or does not
+                    // contain it. Idempotent, mirroring the TS reducer.
+                    if (state.WorkingDirectories is null)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                int wdIdx = state.WorkingDirectories.IndexOf(a.Directory);
-                if (wdIdx < 0)
-                {
-                    return ReduceOutcome.NoOp;
-                }
+                    int wdIdx = state.WorkingDirectories.IndexOf(a.Directory);
+                    if (wdIdx < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
 
-                state.WorkingDirectories.RemoveAt(wdIdx);
-                return ReduceOutcome.Applied;
-            }
+                    state.WorkingDirectories.RemoveAt(wdIdx);
+                    return ReduceOutcome.Applied;
+                }
             case ChatToolCallStartAction a:
                 if (state.ActiveTurn is null || state.ActiveTurn.Id != a.TurnId)
                 {
@@ -1022,7 +1071,7 @@ public static class Reducers
             ResponseParts = new List<ResponsePart>(),
         };
         state.Status = ChatSummaryStatus(state, null);
-        TouchModifiedChat(state);
+        state.ModifiedAt = a.StartedAt;
         state.Status = WithStatusFlag(state.Status, SessionStatus.IsRead, false);
 
         if (a.QueuedMessageId is { } qmid)
@@ -1487,7 +1536,6 @@ public static class Reducers
         }
 
         state.ActiveTurn = null;
-        TouchModifiedChat(state);
         state.Status = ChatSummaryStatus(state, null);
         return ReduceOutcome.Applied;
     }
@@ -1499,7 +1547,7 @@ public static class Reducers
         // turns; any that duplicate an already-loaded turn id are dropped.
         // `turnsNextCursor` replaces the state's cursor (absent when all
         // retained turns are now loaded).
-        var existingIds = new HashSet<string>(state.Turns.Count);
+        var existingIds = new HashSet<string>();
         foreach (Turn turn in state.Turns)
         {
             existingIds.Add(turn.Id);
@@ -1553,7 +1601,6 @@ public static class Reducers
             req.Answers = null;
         }
 
-        TouchModifiedChat(state);
         return ReduceOutcome.Applied;
     }
 
@@ -1593,7 +1640,6 @@ public static class Reducers
         activeTurn.ResponseParts[idx] = new ResponsePart(part with { Response = a.Response });
 
         RefreshChatStatus(state);
-        TouchModifiedChat(state);
         return ReduceOutcome.Applied;
     }
 
@@ -1920,8 +1966,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToTerminal(TerminalState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case TerminalDataAction a:
@@ -1943,7 +1989,11 @@ public static class Reducers
                 state.Cwd = a.Cwd;
                 return ReduceOutcome.Applied;
             case TerminalExitedAction a:
-                state.ExitCode = a.ExitCode;
+                state.Lifecycle = new TerminalLifecycleState(new TerminalExitedLifecycleState
+                {
+                    Status = TerminalLifecycleStatus.Exited,
+                    ExitCode = a.ExitCode,
+                });
                 return ReduceOutcome.Applied;
             case TerminalClearedAction:
                 state.Content = new List<TerminalContentPart>();
@@ -2019,8 +2069,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToChangeset(ChangesetState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case ChangesetStatusChangedAction a:
@@ -2085,15 +2135,12 @@ public static class Reducers
                 // always replaces the previous file list. `operations` replaces
                 // the previous list only when present; when omitted (wire
                 // `operations` absent) the operation list is left unchanged.
-                // `error` is set when present and cleared otherwise, mirroring
-                // the canonical TypeScript reducer.
                 state.Files = CopyList(a.Files)!;
                 if (a.Operations is not null)
                 {
                     state.Operations = CopyList(a.Operations);
                 }
 
-                state.Error = a.Error;
                 return ReduceOutcome.Applied;
 
             case ChangesetOperationsChangedAction a:
@@ -2153,8 +2200,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToResourceWatch(ResourceWatchState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         return action.Value is ResourceWatchChangedAction
             ? ReduceOutcome.NoOp
             : ReduceOutcome.OutOfScope;
@@ -2176,8 +2223,8 @@ public static class Reducers
     /// </summary>
     public static ReduceOutcome ApplyToAnnotations(AnnotationsState state, StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(state);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
         switch (action.Value)
         {
             case AnnotationsSetAction a:
@@ -2259,7 +2306,7 @@ public static class Reducers
                     Annotation ann = state.Annotations[idx];
                     state.Annotations[idx] = ann with
                     {
-                        TurnId = a.TurnId ?? ann.TurnId,
+                        Origin = a.Origin ?? ann.Origin,
                         Resource = a.Resource ?? ann.Resource,
                         Range = a.Range ?? ann.Range,
                         Resolved = a.Resolved ?? ann.Resolved,
@@ -2271,21 +2318,105 @@ public static class Reducers
         return ReduceOutcome.OutOfScope;
     }
 
+    /// <summary>Applies an action to the automation catalogue in place.</summary>
+    public static ReduceOutcome ApplyToAutomation(
+        AutomationCatalogState state,
+        StateAction action)
+    {
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
+
+        switch (action.Value)
+        {
+            case AutomationCreateRequestedAction:
+            case AutomationUpdateRequestedAction:
+                return ReduceOutcome.NoOp;
+            case AutomationSetAction set:
+                {
+                    int index = state.Automations.FindIndex(
+                        automation => automation.Resource == set.Automation.Resource);
+                    if (index < 0)
+                    {
+                        state.Automations.Add(set.Automation);
+                    }
+                    else
+                    {
+                        state.Automations[index] = set.Automation;
+                    }
+
+                    return ReduceOutcome.Applied;
+                }
+            case AutomationRemovedAction removed:
+                {
+                    int index = state.Automations.FindIndex(
+                        automation => automation.Resource == removed.Resource);
+                    if (index < 0)
+                    {
+                        return ReduceOutcome.NoOp;
+                    }
+
+                    state.Automations.RemoveAt(index);
+                    return ReduceOutcome.Applied;
+                }
+            default:
+                return ReduceOutcome.OutOfScope;
+        }
+    }
+
+    /// <summary>Applies an action to an automation run in place.</summary>
+    public static ReduceOutcome ApplyToAutomationRun(
+        AutomationRunState state,
+        StateAction action)
+    {
+        Guard.ThrowIfNull(state, nameof(state));
+        Guard.ThrowIfNull(action, nameof(action));
+
+        switch (action.Value)
+        {
+            case AutomationRunLifecycleChangedAction changed:
+                state.Lifecycle = changed.Lifecycle;
+                return ReduceOutcome.Applied;
+            case AutomationRunSessionSetAction set:
+                if (state.Sessions.Contains(set.Session))
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                state.Sessions.Add(set.Session);
+                return ReduceOutcome.Applied;
+            case AutomationRunSessionRemovedAction removed:
+                if (!state.Sessions.Remove(removed.Session))
+                {
+                    return ReduceOutcome.NoOp;
+                }
+
+                if (state.PrimarySession == removed.Session)
+                {
+                    state.PrimarySession = null;
+                }
+
+                return ReduceOutcome.Applied;
+            case AutomationRunPrimarySessionChangedAction changed:
+                state.PrimarySession = changed.PrimarySession;
+                return ReduceOutcome.Applied;
+            case AutomationRunCancelRequestedAction:
+                return ReduceOutcome.NoOp;
+            default:
+                return ReduceOutcome.OutOfScope;
+        }
+    }
+
     // ─── Client Dispatchable ───────────────────────────────────────────────
 
-    /// <summary>
-    /// The set of action wire-<c>type</c> strings a client is allowed to
-    /// dispatch. Mirrors the Swift client's <c>clientDispatchableActions</c>
-    /// — the cross-language contract for which actions originate on the client
-    /// channel rather than host-only.
-    /// </summary>
-    public static readonly IReadOnlySet<string> ClientDispatchableActions = new HashSet<string>
+    private static readonly string[] s_clientDispatchableActionNames =
     {
+        "root/configChanged",
         // Chat-channel actions (post-#213)
         "chat/turnStarted",
         "chat/toolCallConfirmed",
         "chat/toolCallComplete",
         "chat/toolCallResultConfirmed",
+        "chat/toolCallContentChanged",
         "chat/turnCancelled",
         "chat/pendingMessageSet",
         "chat/pendingMessageRemoved",
@@ -2293,22 +2424,50 @@ public static class Reducers
         "chat/draftChanged",
         "chat/inputAnswerChanged",
         "chat/inputCompleted",
+        "chat/truncated",
         // Session-level actions that remain on the session channel
         "session/activeClientSet",
         "session/activeClientRemoved",
+        "session/titleChanged",
         "session/customizationToggled",
         "session/mcpServerStartRequested",
         "session/mcpServerStopRequested",
         "session/isReadChanged",
         "session/isArchivedChanged",
+        "session/configChanged",
         // Working-directory actions (post-#337), all four @clientDispatchable
         "session/workingDirectorySet",
         "session/workingDirectoryRemoved",
+        "session/workingDirectoryReplaced",
         "chat/workingDirectorySet",
         "chat/workingDirectoryRemoved",
         // Changeset-channel actions a reviewer dispatches directly (post-#328)
         "changeset/filesReviewChanged",
-    }.ToFrozenSet(StringComparer.Ordinal);
+        "annotations/set",
+        "annotations/updated",
+        "annotations/removed",
+        "annotations/entrySet",
+        "annotations/entryRemoved",
+        "terminal/input",
+        "terminal/resized",
+        "terminal/claimed",
+        "terminal/titleChanged",
+        "terminal/cleared",
+        "automation/createRequested",
+        "automation/updateRequested",
+        "automation/removed",
+        "automationRun/cancelRequested",
+    };
+
+    private static readonly HashSet<string> s_clientDispatchableActions =
+        new(s_clientDispatchableActionNames, StringComparer.Ordinal);
+
+    /// <summary>
+    /// The read-only set of action wire-<c>type</c> strings a client is allowed
+    /// to dispatch.
+    /// </summary>
+    public static IReadOnlyCollection<string> ClientDispatchableActions { get; } =
+        Array.AsReadOnly(s_clientDispatchableActionNames);
 
     /// <summary>
     /// Checks whether <paramref name="action"/> may be dispatched by a client.
@@ -2327,7 +2486,7 @@ public static class Reducers
     [RequiresDynamicCode("Reflects over the action variant's Type property and ActionType's [WireValue] members.")]
     public static bool IsClientDispatchable(StateAction action)
     {
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(action, nameof(action));
 
         var inner = action.Value;
         switch (inner)
@@ -2340,14 +2499,14 @@ public static class Reducers
                     && el.TryGetProperty("type", out var t)
                     && t.ValueKind == JsonValueKind.String
                     && t.GetString() is { } raw
-                    && ClientDispatchableActions.Contains(raw);
+                    && s_clientDispatchableActions.Contains(raw);
             default:
                 // Known variant record: read its ActionType discriminator and map it
                 // to the wire string the serializer would have emitted.
                 if (TryReadActionType(inner, out var actionType)
                     && s_actionTypeWire.TryGetValue(actionType, out var wire))
                 {
-                    return ClientDispatchableActions.Contains(wire);
+                    return s_clientDispatchableActions.Contains(wire);
                 }
                 return false;
         }

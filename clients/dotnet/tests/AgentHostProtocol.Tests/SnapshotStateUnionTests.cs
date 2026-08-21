@@ -66,7 +66,11 @@ public sealed class SnapshotStateUnionTests
                     new Annotation
                     {
                         Id = "ann-1",
-                        TurnId = "turn-1",
+                        Origin = new AnnotationOrigin
+                        {
+                            Session = "ahp-session:/00000000-0000-0000-0000-000000000000",
+                            TurnId = "turn-1",
+                        },
                         Resource = "ahp-session:/00000000-0000-0000-0000-000000000000/file.cs",
                         Resolved = false,
                         Entries = new List<AnnotationEntry>

@@ -114,7 +114,8 @@ public sealed record InitializeParams
     ///
     /// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
     /// If the server cannot speak any of the offered versions, it MUST return
-    /// error code `-32005` (`UnsupportedProtocolVersion`).</summary>
+    /// error code `-32005` (`UnsupportedProtocolVersion`) with required
+    /// `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.</summary>
     public required List<string> ProtocolVersions { get; init; }
 
     /// <summary>Unique client identifier</summary>
@@ -153,7 +154,8 @@ public sealed record InitializeParams
 /// `protocolVersions` list. The client and server MUST use this version for
 /// the rest of the connection. If the server cannot speak any of the offered
 /// versions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)
-/// instead of a result.</summary>
+/// with required `UnsupportedProtocolVersionErrorData` containing
+/// `supportedVersions`, instead of a result.</summary>
 public sealed record InitializeResult
 {
     /// <summary>Protocol version selected by the server. MUST be one of the entries in
@@ -200,6 +202,12 @@ public sealed record InitializeResult
     /// filtering). Clients MAY ignore signals they cannot process.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public TelemetryCapabilities? Telemetry { get; init; }
+
+    /// <summary>Host-owned automation support. Presence means clients may subscribe to
+    /// `ahp-automations://` for {@link AutomationCatalogState}; absence means the
+    /// host does not expose an automation catalogue or automation commands.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutomationCapabilities? Automations { get; init; }
 }
 
 /// <summary>Identifies a protocol implementation — the software (and build) on one end
@@ -251,6 +259,68 @@ public sealed record ClientCapabilities
     /// App-bearing tool calls as ordinary MCP tool calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, JsonElement>? McpApps { get; init; }
+}
+
+/// <summary>Automation features supported by this host authority.
+///
+/// The presence of this object advertises the baseline `ahp-automations://`
+/// catalogue. Optional fields describe additional host features and
+/// restrictions.
+///
+/// Capabilities describe implementation support.
+/// {@link AutomationState.operations} remains authoritative for which
+/// definition mutations are currently allowed on a particular automation.</summary>
+public sealed record AutomationCapabilities
+{
+    /// <summary>Present when clients may dispatch {@link AutomationCreateRequestedAction}.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutomationCreateCapability? Create { get; init; }
+
+    /// <summary>Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutomationScheduleCapabilities? Schedules { get; init; }
+
+    /// <summary>Present when clients may request cancellation of `pending` or `running`
+    /// automation runs.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AutomationRunCancellationCapability? RunCancellation { get; init; }
+
+    /// <summary>Maximum terminal entries retained in {@link AutomationState.runs}. Active
+    /// runs are not counted toward the limit. Absence means the retention limit is
+    /// implementation-defined.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? RunHistoryLimit { get; init; }
+}
+
+/// <summary>Presence capability for {@link AutomationCreateRequestedAction |
+/// `automation/createRequested`}.
+///
+/// The empty object means "supported"; fields are reserved for future
+/// create-specific options.</summary>
+public sealed record AutomationCreateCapability
+{
+}
+
+/// <summary>Host restrictions on portable {@link AutomationSchedule} triggers.
+///
+/// The cron grammar itself is fixed by AHP. Hosts MUST accept every expression
+/// in that grammar unless it violates an advertised interval restriction.</summary>
+public sealed record AutomationScheduleCapabilities
+{
+    /// <summary>Smallest permitted interval between consecutive occurrences produced by
+    /// {@link AutomationSchedule.expression}. Omission means no restriction beyond
+    /// the cron format's one-minute resolution.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MinIntervalMinutes { get; init; }
+}
+
+/// <summary>Presence capability for {@link AutomationRunCancelRequestedAction |
+/// `automationRun/cancelRequested`}.
+///
+/// The empty object means "supported." Clients may dispatch the action for
+/// `pending` or `running` runs; terminal runs cannot be cancelled.</summary>
+public sealed record AutomationRunCancellationCapability
+{
 }
 
 /// <summary>Re-establishes a dropped connection. The server replays missed actions or
@@ -373,6 +443,8 @@ public sealed record SubscribeResult
     public Snapshot? Snapshot { get; init; }
 }
 
+// TODO: could not generate SessionForkSource: Error: Interface SessionForkSource not found
+
 /// <summary>Creates a new session with the specified agent provider.
 ///
 /// If the session URI already exists, the server MUST return an error with code
@@ -381,15 +453,6 @@ public sealed record SubscribeResult
 /// After creation, the client should subscribe to the session URI to receive state
 /// updates. The server also broadcasts a `root/sessionAdded` notification to all
 /// clients.</summary>
-public sealed record SessionForkSource
-{
-    /// <summary>URI of the existing session to fork from</summary>
-    public required string Session { get; init; }
-
-    /// <summary>Turn ID in the source session; content up to and including this turn's response is copied</summary>
-    public required string TurnId { get; init; }
-}
-
 public sealed record CreateSessionParams
 {
     /// <summary>Session URI (client-chosen, e.g. `ahp-session:/&lt;uuid&gt;`)</summary>
@@ -407,26 +470,19 @@ public sealed record CreateSessionParams
 
     /// <summary>The working directories the session's agent is granted tool access to.
     /// A session may span multiple directories; they are equal peers except when
-    /// the agent advertises
-    /// {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (in which case
-    /// the first entry is a fixed process root).
+    /// the agent advertises a protected-primary capability. An
+    /// {@link MultipleWorkingDirectoriesCapability.immutablePrimary | immutable
+    /// primary} is fixed, while a
+    /// {@link MultipleWorkingDirectoriesCapability.primaryReplacement | replaceable
+    /// primary} is changed only with `session/workingDirectoryReplaced`.
     ///
     /// A client MUST NOT supply more than one entry unless the agent advertises
     /// {@link AgentCapabilities.multipleWorkingDirectories}; a server without that
     /// capability treats only the first entry as the session's working directory
-    /// and ignores the rest. Dispatch `session/workingDirectorySet` /
-    /// `session/workingDirectoryRemoved` to change the set after the session has
-    /// started.
-    ///
-    /// Ignored for forked sessions — a fork inherits its working directories
-    /// from the source session identified by `fork`.</summary>
+    /// and ignores the rest. Dispatch working-directory actions to change the set
+    /// after the session has started.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? WorkingDirectories { get; init; }
-
-    /// <summary>Fork from an existing session. The new session is populated with content
-    /// from the source session up to and including the specified turn's response.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SessionForkSource? Fork { get; init; }
 
     /// <summary>Agent-specific configuration values collected via `resolveSessionConfig`.
     /// Keys and values correspond to the schema returned by the server.</summary>
@@ -1043,7 +1099,7 @@ public sealed record ResourceRequestResult
 ///
 /// The receiver allocates an `ahp-resource-watch:/&lt;id&gt;` channel URI and
 /// returns it on {@link CreateResourceWatchResult.channel}. The caller then
-/// [`subscribe`](./subscriptions)s to that channel to receive
+/// [`subscribe`](/specification/subscriptions#subscribe-request)s to that channel to receive
 /// `resourceWatch/changed` actions over the standard action envelope.
 ///
 /// The watch lifecycle is tied to subscription: when every subscriber has
@@ -1491,6 +1547,106 @@ public sealed record ChangesetOperationFollowUp
     /// <summary>When `true`, open in an external handler rather than inline.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? External { get; init; }
+}
+
+/// <summary>Discover event-trigger types available for a prospective session template.
+///
+/// Hosts may vary definitions by provider, workspace, and session
+/// configuration. Schedule triggers are protocol-defined and therefore do not
+/// appear in this result. The result describes current authoring and validation
+/// choices. Saved {@link AutomationEventTrigger} values retain their selected
+/// event descriptors for display but do not establish current availability.</summary>
+public sealed record ListAutomationTriggerDefinitionsParams
+{
+    /// <summary>Trigger definitions are discovered from the root channel.</summary>
+    public required string Channel { get; init; }
+
+    /// <summary>Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.</summary>
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Meta { get; init; }
+
+    /// <summary>Prospective provider id matching {@link AgentInfo.provider}, or omitted for the host default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Provider { get; init; }
+
+    /// <summary>Prospective {@link AutomationSessionTemplate.workingDirectories}.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? WorkingDirectories { get; init; }
+
+    /// <summary>Prospective resolved {@link AutomationSessionTemplate.config}.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? SessionConfig { get; init; }
+}
+
+/// <summary>Host-defined event trigger types available for the supplied context.</summary>
+public sealed record ListAutomationTriggerDefinitionsResult
+{
+    /// <summary>Available event trigger definitions.</summary>
+    public required List<AutomationTriggerDefinition> Items { get; init; }
+}
+
+/// <summary>Start a manual run of an automation.
+///
+/// Manual execution is independent of {@link AutomationDefinition.enabled}.
+/// The host persists the run before beginning session side effects.</summary>
+public sealed record RunAutomationParams
+{
+    /// <summary>Manual runs are scoped to the catalogue channel.</summary>
+    public required string Channel { get; init; }
+
+    /// <summary>Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.</summary>
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Meta { get; init; }
+
+    /// <summary>Target {@link AutomationState.resource}.</summary>
+    public required string Automation { get; init; }
+
+    /// <summary>Durable client-generated idempotency key. Retrying with the same key and
+    /// automation MUST return the original run URI rather than create another
+    /// run.</summary>
+    public required string RequestId { get; init; }
+}
+
+/// <summary>Result identifying the existing or newly created run.</summary>
+public sealed record RunAutomationResult
+{
+    /// <summary>Subscribable `ahp-automation-run:` URI matching {@link AutomationRunState.resource}.</summary>
+    public required string Resource { get; init; }
+}
+
+/// <summary>Load one older page into a catalogued automation's run-history state.
+///
+/// The response only acknowledges the request. The updated full state arrives
+/// through {@link AutomationSetAction | `automation/set`} on the
+/// `ahp-automations://` channel, keeping all catalogue subscribers synchronized
+/// through the normal action stream.</summary>
+public sealed record FetchAutomationRunsParams
+{
+    /// <summary>Run-history loading is scoped to the catalogue channel.</summary>
+    public required string Channel { get; init; }
+
+    /// <summary>Optional JSON-serializable metadata associated with this request.
+    /// Receivers MUST ignore keys they do not understand.</summary>
+    [JsonPropertyName("_meta")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Meta { get; init; }
+
+    /// <summary>Target {@link AutomationState.resource}.</summary>
+    public required string Automation { get; init; }
+
+    /// <summary>Cursor previously received as {@link AutomationState.runsNextCursor}.
+    /// Omit to request the first page not already included by the snapshot.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Cursor { get; init; }
+}
+
+/// <summary>Empty acknowledgement; the updated automation state is delivered by action.</summary>
+public sealed record FetchAutomationRunsResult
+{
 }
 
 // ─── ReconnectResult Union ────────────────────────────────────────────

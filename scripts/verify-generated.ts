@@ -64,7 +64,12 @@ function runGenerate(script: string): void {
   // `--allow-missing-formatter` keeps the Rust/Go generators from failing when
   // rustfmt/gofmt is absent; the committed holders are already formatted, so a
   // missing formatter must not turn this freshness gate into a false negative.
-  execFileSync('npm', ['run', script, '--', '--allow-missing-formatter'], {
+  const npmCli = process.env.npm_execpath;
+  const executable = npmCli ? process.execPath : 'npm';
+  const args = npmCli
+    ? [npmCli, 'run', script, '--', '--allow-missing-formatter']
+    : ['run', script, '--', '--allow-missing-formatter'];
+  execFileSync(executable, args, {
     cwd: ROOT,
     stdio: 'pipe',
   });

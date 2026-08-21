@@ -27,7 +27,7 @@ public sealed class HostId : IEquatable<HostId>
     public override bool Equals(object? obj) => obj is HostId h && Equals(h);
 
     /// <inheritdoc />
-    public override int GetHashCode() => _value.GetHashCode(StringComparison.Ordinal);
+    public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(_value);
 
     /// <summary>Implicit conversion from string.</summary>
     public static implicit operator HostId(string s) => new(s);

@@ -13,6 +13,8 @@ public delegate Task<ITransport> HostTransportFactory(HostId hostId, Cancellatio
 /// <summary>Controls reconnect behaviour after an unexpected transport drop.</summary>
 public sealed class ReconnectPolicy
 {
+    private static readonly Random RandomSource = new();
+
     /// <summary>
     /// Caps consecutive retry attempts. Zero means unlimited.
     /// </summary>
@@ -67,16 +69,29 @@ public sealed class ReconnectPolicy
         if (IsDisabled) return TimeSpan.Zero;
         var b = (double)InitialBackoff.Ticks;
         var mult = BackoffMultiplier <= 0 ? 1.0 : BackoffMultiplier;
-        for (uint i = 1; i < attempt; i++) b *= mult;
+        for (uint i = 1; i < attempt; i++)
+        {
+            b *= mult;
+            if (MaxBackoff > TimeSpan.Zero && b >= MaxBackoff.Ticks)
+            {
+                b = MaxBackoff.Ticks;
+                break;
+            }
+        }
         var result = TimeSpan.FromTicks((long)b);
         if (MaxBackoff > TimeSpan.Zero && result > MaxBackoff) result = MaxBackoff;
 
         if (Jitter > 0)
         {
             // Symmetric jitter: result * (1 ± Jitter), never negative and never
-            // above MaxBackoff. Random.Shared is thread-safe.
-            var j = Math.Clamp(Jitter, 0.0, 1.0);
-            var factor = 1.0 + (Random.Shared.NextDouble() * 2.0 - 1.0) * j;
+            // above MaxBackoff.
+            var j = Compatibility.Clamp(Jitter, 0.0, 1.0);
+            double sample;
+            lock (RandomSource)
+            {
+                sample = RandomSource.NextDouble();
+            }
+            var factor = 1.0 + (sample * 2.0 - 1.0) * j;
             var ticks = Math.Max(0L, (long)(result.Ticks * factor));
             result = TimeSpan.FromTicks(ticks);
             if (MaxBackoff > TimeSpan.Zero && result > MaxBackoff) result = MaxBackoff;

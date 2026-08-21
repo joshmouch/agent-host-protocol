@@ -29,7 +29,7 @@ internal sealed class AhpClientFactory(IAhpSerializer serializer, IOptions<Clien
 {
     public IAhpClient Connect(ITransport transport)
     {
-        ArgumentNullException.ThrowIfNull(transport);
+        Guard.ThrowIfNull(transport, nameof(transport));
         return AhpClient.Connect(transport, options.Value, serializer);
     }
 }

@@ -148,8 +148,8 @@ public sealed record ProgressParams
 /// This notification MAY be associated with any channel — for example, an
 /// agent advertised on the root channel, or a per-session resource. The
 /// `channel` field identifies the subscription the auth requirement belongs
-/// to; the `resource` field carries the OAuth-protected resource identifier
-/// (per RFC 9728).
+/// to; the `resource` field carries the complete OAuth protected resource
+/// metadata (per RFC 9728).
 ///
 /// Clients should obtain a fresh token and push it via the `authenticate`
 /// command.</summary>
@@ -158,8 +158,8 @@ public sealed record AuthRequiredParams
     /// <summary>Channel URI this notification belongs to</summary>
     public required string Channel { get; init; }
 
-    /// <summary>The protected resource identifier that requires authentication</summary>
-    public required string Resource { get; init; }
+    /// <summary>Complete RFC 9728 metadata for the protected resource that requires authentication</summary>
+    public required ProtectedResourceMetadata Resource { get; init; }
 
     /// <summary>Why authentication is required</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -244,19 +244,24 @@ public sealed record PartialSessionSummary
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Activity { get; init; }
 
+    /// <summary>Durable {@link AutomationSessionOrigin}, when an automation run created this session.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionOrigin? Origin { get; init; }
+
     /// <summary>Server-owned project for this session</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ProjectInfo? Project { get; init; }
 
     /// <summary>The working directories the session's agent has tool access to, as
-    /// maintained by the `session/workingDirectorySet` /
-    /// `session/workingDirectoryRemoved` actions. Directories are equal peers
-    /// except when the agent advertises
-    /// {@link MultipleWorkingDirectoriesCapability.immutablePrimary} (the first
-    /// entry is then a fixed process root). Individual chats MAY restrict to a
-    /// subset via {@link ChatSummary.workingDirectories | their own
-    /// `workingDirectories`}; a chat that sets none operates against this full
-    /// set.</summary>
+    /// maintained by working-directory actions. Directories are equal peers except
+    /// when the agent advertises
+    /// {@link MultipleWorkingDirectoriesCapability.immutablePrimary} without
+    /// {@link MultipleWorkingDirectoriesCapability.primaryReplacement} (the first
+    /// entry is then a fixed process root), or advertises `primaryReplacement`
+    /// (the first entry is a protected, replaceable primary slot). Individual chats
+    /// MAY restrict to a subset via
+    /// {@link ChatSummary.workingDirectories | their own `workingDirectories`}; a
+    /// chat that sets none operates against this full set.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? WorkingDirectories { get; init; }
 

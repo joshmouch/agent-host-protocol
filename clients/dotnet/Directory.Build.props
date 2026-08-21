@@ -7,8 +7,8 @@
     and metadata settings.
   -->
   <PropertyGroup>
-    <!-- Every project targets net8.0; the libraries run on any .NET 8+ runtime
-         via forward compatibility. -->
+    <!-- Shipping libraries target netstandard2.0 and net8.0. Tests and examples
+         target net8.0 only. -->
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <!-- Warnings are build errors: the C# analog of the Rust client's
@@ -44,6 +44,16 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Include="$(MSBuildThisFileDirectory)Compatibility\NetStandardPolyfills.cs"
+             Link="Compatibility\NetStandardPolyfills.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Compatibility\Guard.cs"
+             Link="Compatibility\Guard.cs" />
+  </ItemGroup>
 
   <!-- Async / threading discipline. The NET analyzers above do not cover the
        async anti-patterns (sync-over-async, fake-async wrappers, async void,

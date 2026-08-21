@@ -33,10 +33,8 @@ public static class AhpErrorCodes
     public const int SessionAlreadyExists = -32003;
     /// <summary>The operation requires no active turn, but one is in progress</summary>
     public const int TurnInProgress = -32004;
-    /// <summary>The server cannot speak any of the protocol versions offered by the client in `InitializeParams.protocolVersions`. The `data` field of the JSON-RPC error MAY be an `UnsupportedProtocolVersionErrorData` advertising the protocol versions the server is willing to speak.</summary>
+    /// <summary>The server cannot speak any of the protocol versions offered by the client in `InitializeParams.protocolVersions`. The `data` field of the JSON-RPC error MUST carry an `UnsupportedProtocolVersionErrorData` advertising the protocol versions the server is willing to speak.</summary>
     public const int UnsupportedProtocolVersion = -32005;
-    /// <summary>The requested content URI does not exist</summary>
-    public const int ContentNotFound = -32006;
     /// <summary>A command failed because the client has not authenticated for a required protected resource. The `data` field of the JSON-RPC error MUST be an `AuthRequiredErrorData` describing the resources that require authentication. @see {@link /specification/authentication | Authentication}</summary>
     public const int AuthRequired = -32007;
     /// <summary>The requested file, folder, or URI does not exist</summary>

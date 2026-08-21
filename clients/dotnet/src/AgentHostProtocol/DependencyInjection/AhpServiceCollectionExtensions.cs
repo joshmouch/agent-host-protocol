@@ -35,7 +35,7 @@ public static class AhpServiceCollectionExtensions
         this IServiceCollection services,
         Action<ClientConfig>? configureClient = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        Guard.ThrowIfNull(services, nameof(services));
 
         services.TryAddSingleton<IAhpSerializer>(SystemTextJsonAhpSerializer.Default);
         services.TryAddSingleton<IClientIdStore, InMemoryClientIdStore>();

@@ -147,7 +147,10 @@ public sealed class ResourceCommandsTests
                 Method = "resourceWrite",
                 Params = Ser.SerializeToElement(new ResourceWriteParams
                 {
-                    Channel = "ahp-root://", Uri = "file:///w.txt", Data = "eA==", Encoding = ContentEncoding.Base64,
+                    Channel = "ahp-root://",
+                    Uri = "file:///w.txt",
+                    Data = "eA==",
+                    Encoding = ContentEncoding.Base64,
                 }),
             },
         };

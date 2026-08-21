@@ -169,7 +169,7 @@ public sealed class AhpClient : IAhpClient
     private readonly Task? _keepAliveTask;
 
     // Monotonically incrementing counters (no lock needed — Interlocked).
-    private ulong _nextId = 1;
+    private long _nextId = 1;
     private long _nextClientSeq = 1;
 
     // ── Test-only accessors (InternalsVisibleTo the test assembly) ─────────
@@ -205,14 +205,14 @@ public sealed class AhpClient : IAhpClient
     /// parity test prove a pre-cancelled request did NOT mint an id (the counter
     /// is unchanged).
     /// </summary>
-    internal ulong NextRequestId => Volatile.Read(ref _nextId);
+    internal ulong NextRequestId => (ulong)Volatile.Read(ref _nextId);
 
     // Optional handler for server-initiated requests. Published reference, read
     // lock-free; `volatile` supplies the visibility a lock would otherwise give.
     private volatile ServerRequestHandler? _serverRequestHandler;
 
     // Lifecycle
-    private readonly TaskCompletionSource _doneTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _doneTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _shutdownStarted;  // 0 = running, 1 = shut down
     private Exception? _closeErr;
 
@@ -267,7 +267,7 @@ public sealed class AhpClient : IAhpClient
         ClientConfig? config = null,
         IAhpSerializer? serializer = null)
     {
-        ArgumentNullException.ThrowIfNull(transport);
+        Guard.ThrowIfNull(transport, nameof(transport));
         var cfg = config ?? ClientConfig.Default;
         if (cfg.SubscriptionBufferCapacity <= 0) cfg.SubscriptionBufferCapacity = 256;
         return new AhpClient(transport, cfg, serializer ?? SystemTextJsonAhpSerializer.Default);
@@ -327,7 +327,7 @@ public sealed class AhpClient : IAhpClient
         Volatile.Write(ref _closeErr, cause);
 
         // Signal the done task so Done-waiters unblock.
-        _doneTcs.TrySetResult();
+        _doneTcs.TrySetResult(true);
 
         // Stop the keep-alive loop (no more pings once we're tearing down). Mirrors
         // the Swift `keepAliveTask?.cancel()` in both shutdown and failure paths.
@@ -816,7 +816,7 @@ public sealed class AhpClient : IAhpClient
         TParams parameters,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(method);
+        Guard.ThrowIfNull(method, nameof(method));
 
         if (Volatile.Read(ref _shutdownStarted) == 1)
             throw new AhpClientClosedException();
@@ -839,7 +839,7 @@ public sealed class AhpClient : IAhpClient
         var startTimestamp = Stopwatch.GetTimestamp();
         string outcome = AhpTelemetryNames.OutcomeError;
 
-        var id = Interlocked.Increment(ref _nextId) - 1;
+        ulong id = (ulong)(Interlocked.Increment(ref _nextId) - 1);
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = tcs;
         activity?.SetTag(AhpTelemetryNames.AttrRequestId, id);
@@ -919,7 +919,7 @@ public sealed class AhpClient : IAhpClient
         {
             AhpTelemetry.InflightRequests.Add(-1);
             AhpTelemetry.RequestDuration.Record(
-                Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                Compatibility.GetElapsedTime(startTimestamp).TotalMilliseconds,
                 new KeyValuePair<string, object?>(AhpTelemetryNames.AttrRpcMethod, method),
                 new KeyValuePair<string, object?>(AhpTelemetryNames.AttrOutcome, outcome));
         }
@@ -939,7 +939,7 @@ public sealed class AhpClient : IAhpClient
         TParams parameters,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(method);
+        Guard.ThrowIfNull(method, nameof(method));
 
         if (Volatile.Read(ref _shutdownStarted) == 1)
             throw new AhpClientClosedException();
@@ -1121,7 +1121,7 @@ public sealed class AhpClient : IAhpClient
     /// </summary>
     public Subscription AttachSubscription(string uri)
     {
-        ArgumentNullException.ThrowIfNull(uri);
+        Guard.ThrowIfNull(uri, nameof(uri));
         var sub = new Subscription(uri, _cfg.SubscriptionBufferCapacity);
         lock (_subsLock)
         {
@@ -1156,7 +1156,7 @@ public sealed class AhpClient : IAhpClient
     /// </summary>
     public async Task UnsubscribeAsync(string uri, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(uri);
+        Guard.ThrowIfNull(uri, nameof(uri));
         List<Subscription> subs;
         lock (_subsLock)
         {
@@ -1190,8 +1190,8 @@ public sealed class AhpClient : IAhpClient
         long? clientSeq = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(channel);
-        ArgumentNullException.ThrowIfNull(action);
+        Guard.ThrowIfNull(channel, nameof(channel));
+        Guard.ThrowIfNull(action, nameof(action));
         long seq;
         if (clientSeq is { } explicitSeq)
         {
@@ -1304,7 +1304,7 @@ public sealed class AhpClient : IAhpClient
     private async Task<TResult> SendRootedResourceAsync<TParams, TResult>(
         string method, TParams parameters, Func<TParams, TParams> root, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(parameters);
+        Guard.ThrowIfNull(parameters, nameof(parameters));
         return await RequestAsync<TParams, TResult>(method, root(parameters), cancellationToken).ConfigureAwait(false)
             ?? throw new AhpRpcException(JsonRpcErrorCodes.InternalError, $"ahp: {method} returned no result");
     }

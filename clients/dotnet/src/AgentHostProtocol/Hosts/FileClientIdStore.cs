@@ -11,6 +11,7 @@
 
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,14 +50,14 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
     /// </summary>
     public FileClientIdStore(string directory)
     {
-        ArgumentNullException.ThrowIfNull(directory);
+        Guard.ThrowIfNull(directory, nameof(directory));
         Directory = directory;
     }
 
     /// <inheritdoc />
     public async Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(host);
+        Guard.ThrowIfNull(host, nameof(host));
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -67,7 +68,19 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
                 // Read the bytes ourselves + decode UTF-8 to mirror Swift's
                 // Data(contentsOf:) + String(data:encoding:.utf8). A missing
                 // file (never stored) yields null, not an error.
-                var bytes = await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(false);
+                byte[] bytes;
+                using (var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read,
+                    bufferSize: 4096,
+                    useAsync: true))
+                using (var buffer = new MemoryStream())
+                {
+                    await stream.CopyToAsync(buffer, 81920, cancellationToken).ConfigureAwait(false);
+                    bytes = buffer.ToArray();
+                }
                 text = Encoding.UTF8.GetString(bytes);
             }
             catch (FileNotFoundException) { return null; }
@@ -85,8 +98,8 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
     /// <inheritdoc />
     public async Task StoreAsync(HostId host, string clientId, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(clientId);
+        Guard.ThrowIfNull(host, nameof(host));
+        Guard.ThrowIfNull(clientId, nameof(clientId));
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -101,11 +114,35 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
             var tempPath = Path.Combine(Directory, "." + Guid.NewGuid().ToString("N") + ".tmp");
             try
             {
-                await File.WriteAllBytesAsync(tempPath, bytes, cancellationToken).ConfigureAwait(false);
+                using (var stream = new FileStream(
+                    tempPath,
+                    FileMode.CreateNew,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 4096,
+                    useAsync: true))
+                {
+#if NETSTANDARD2_0
+                    await stream.WriteAsync(bytes, 0, bytes.Length, cancellationToken).ConfigureAwait(false);
+#else
+                    await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+#endif
+                }
                 // Set owner-only perms on the temp file BEFORE the move so the
                 // destination is never momentarily world-readable.
                 TrySetOwnerOnlyFile(tempPath);
+#if NETSTANDARD2_0
+                if (File.Exists(path))
+                {
+                    File.Replace(tempPath, path, null);
+                }
+                else
+                {
+                    File.Move(tempPath, path);
+                }
+#else
                 File.Move(tempPath, path, overwrite: true);
+#endif
             }
             catch
             {
@@ -153,15 +190,24 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
 
     private static void TrySetOwnerOnlyFile(string path)
     {
+#if NET8_0_OR_GREATER
         if (!OperatingSystem.IsWindows())
         {
             try { File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
             catch { /* best-effort: ignore on platforms/filesystems that reject it */ }
         }
+#else
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            try { ChmodUtf8(path, Convert.ToUInt32("600", 8)); }
+            catch { /* best-effort */ }
+        }
+#endif
     }
 
     private static void TrySetOwnerOnlyDirectory(string path)
     {
+#if NET8_0_OR_GREATER
         if (!OperatingSystem.IsWindows())
         {
             try
@@ -172,7 +218,34 @@ public sealed class FileClientIdStore : IClientIdStore, IDisposable
             }
             catch { /* best-effort */ }
         }
+#else
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            try { ChmodUtf8(path, Convert.ToUInt32("700", 8)); }
+            catch { /* best-effort */ }
+        }
+#endif
     }
+
+#if NETSTANDARD2_0
+    [DllImport("libc", EntryPoint = "chmod", ExactSpelling = true, SetLastError = true)]
+    private static extern int Chmod(IntPtr path, uint mode);
+
+    private static void ChmodUtf8(string path, uint mode)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(path + "\0");
+        IntPtr nativePath = Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            Marshal.Copy(bytes, 0, nativePath, bytes.Length);
+            _ = Chmod(nativePath, mode);
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(nativePath);
+        }
+    }
+#endif
 
     private static void TryDelete(string path)
     {

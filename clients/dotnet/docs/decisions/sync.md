@@ -87,15 +87,13 @@ one-size-fits-all lock.
 | Request-id / client-seq counters | single-value increment | **`Interlocked`**. |
 | Client-id-store reference swap | single-field publish | **`volatile`**. |
 
-### Target framework: net8.0 only
+### Target frameworks: netstandard2.0 and net8.0
 
-The packages target `net8.0` (the current LTS) and run on any .NET 8+ runtime
-(net9, net10, …) via forward compatibility. We considered multi-targeting net9
-so the `lock` fields could alias to `System.Threading.Lock` (~25% faster than
-`Monitor` under contention), but rejected it: the lock sites here are
-near-zero-contention small in-memory sections, so that optimization buys nothing
-in practice, and net9 is now out of support. `Monitor` (`lock (object)`)
-everywhere is simpler and identical for this workload.
+The shipping packages target `netstandard2.0` for broad runtime compatibility
+and `net8.0` for current .NET consumers. Tests and examples target `net8.0`.
+Both library targets use `Monitor` (`lock (object)`); the lock sites are
+near-zero-contention small in-memory sections, so newer lock primitives would
+not justify dropping older runtime support.
 
 ## Consequences
 
@@ -104,8 +102,8 @@ everywhere is simpler and identical for this workload.
   (connect/initialize/send/receive/shutdown).
 - One small `lock` remains where it is genuinely correct (`HostEntry`), and one
   `SemaphoreSlim` remains where it is genuinely correct (WebSocket send).
-- The single `net8.0` build runs on any .NET 8+ runtime; the `lock` fields use
-  the standard `Monitor`.
+- The `netstandard2.0` build supports older .NET implementations while the
+  `net8.0` build uses current BCL APIs where available.
 
 ## References
 

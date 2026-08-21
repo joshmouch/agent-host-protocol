@@ -17,7 +17,7 @@ refuse to release a tag whose matching `## [X.Y.Z]` heading is
 missing. To avoid merge conflicts in shared `CHANGELOG.md` files,
 normal PRs add JSON changelog fragments under `docs/.changes/` instead
 of editing the changelogs directly. Release PRs collapse those fragments
-into the six changelogs with `npm run changelog:release`.
+into the seven changelogs with `npm run changelog:release`.
 
 ### When to add an entry
 

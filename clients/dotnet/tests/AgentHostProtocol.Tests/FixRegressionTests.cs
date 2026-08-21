@@ -443,7 +443,6 @@ public sealed class FixRegressionTests
             Id = id,
             Uri = "file:///workspace/.mcp/servers.json",
             Name = "Filesystem",
-            Enabled = true,
             State = new McpServerState(new McpServerReadyState { Kind = McpServerStatus.Ready }),
             Channel = "mcp://filesystem",
         };

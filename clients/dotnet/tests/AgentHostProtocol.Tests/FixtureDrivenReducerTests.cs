@@ -78,6 +78,20 @@ public sealed class FixtureDrivenReducerTests
                 case "chat":
                     RunFixture<ChatState>(initial, expected, actions, Reducers.ApplyToChat);
                     break;
+                case "automation":
+                    RunFixture<AutomationCatalogState>(
+                        initial,
+                        expected,
+                        actions,
+                        Reducers.ApplyToAutomation);
+                    break;
+                case "automationRun":
+                    RunFixture<AutomationRunState>(
+                        initial,
+                        expected,
+                        actions,
+                        Reducers.ApplyToAutomationRun);
+                    break;
                 default:
                     throw new Xunit.Sdk.XunitException($"unknown reducer kind '{reducer}'");
             }

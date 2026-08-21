@@ -50,10 +50,11 @@ intentional stub (parity with the Rust and Go clients).
 
 ## Testing
 
-Run by `dotnet test` (against `net8.0`), all green (0 skipped):
+The shipping libraries build for `netstandard2.0` and `net8.0`; tests run
+against `net8.0`:
 
-1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays the 189
-   cross-language reducer fixtures (`types/test-cases/reducers/*.json`). The
+1. **Shared reducer conformance** — `FixtureDrivenReducerTests` replays every
+   cross-language reducer fixture (`types/test-cases/reducers/*.json`). The
    whole set counts as a single `[Theory]`.
 2. **Shared wire round-trip corpus** — `TypesRoundTripFixtures` data-drives the
    language-agnostic round-trip corpus under `types/test-cases/round-trips/*.json`
@@ -93,7 +94,7 @@ behavior rather than counting method names.)
   use cases in the client, which primitive each gets (`ConcurrentDictionary`
   for the collections, `lock` for the `HostEntry` field-bundle, `SemaphoreSlim`
   only for the WebSocket send path, `Channels`/`Interlocked`/`volatile`
-  elsewhere), and why the client targets `net8.0` only.
+  elsewhere), and the `netstandard2.0` compatibility strategy.
 - [`docs/decisions/serialization.md`](docs/decisions/serialization.md)
   — System.Text.Json (default, in-box, fastest) behind the `IAhpSerializer`
   seam, versus Newtonsoft / lazy-DOM / validating options, across speed,

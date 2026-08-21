@@ -435,7 +435,7 @@ public sealed class MultiHostClient : IMultiHostClient
         HostConfig config,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(config);
+        Guard.ThrowIfNull(config, nameof(config));
         if (config.Id is null) throw new ArgumentException("HostConfig.Id is required.", nameof(config));
         if (config.TransportFactory is null)
             throw new ArgumentException($"HostConfig.TransportFactory is required for {config.Id}.", nameof(config));
@@ -464,7 +464,7 @@ public sealed class MultiHostClient : IMultiHostClient
             if (string.IsNullOrEmpty(clientId))
                 clientId = GenerateClientId();
         }
-        await _store.StoreAsync(config.Id, clientId, cancellationToken).ConfigureAwait(false);
+        await _store.StoreAsync(config.Id, clientId!, cancellationToken).ConfigureAwait(false);
 
         var normalizedConfig = new HostConfig
         {
@@ -478,7 +478,7 @@ public sealed class MultiHostClient : IMultiHostClient
             ProtocolVersions = protoVersions,
         };
 
-        var entry = new HostEntry(config.Id, normalizedConfig, clientId);
+        var entry = new HostEntry(config.Id, normalizedConfig, clientId!);
 
         // Atomic add-if-absent: TryAdd is the check-then-act done correctly,
         // with no separate lock and no race window. Duplicate ids surface the
@@ -1057,8 +1057,17 @@ public sealed class MultiHostClient : IMultiHostClient
 
     private static string GenerateClientId()
     {
-        var bytes = RandomNumberGenerator.GetBytes(16);
+        var bytes = new byte[16];
+        using (RandomNumberGenerator random = RandomNumberGenerator.Create())
+        {
+            random.GetBytes(bytes);
+        }
+
+#if NETSTANDARD2_0
+        return BitConverter.ToString(bytes).Replace("-", string.Empty).ToLowerInvariant();
+#else
         return Convert.ToHexString(bytes).ToLowerInvariant();
+#endif
     }
 
     // ── Per-host observable plumbing ──────────────────────────────────────
@@ -1145,9 +1154,21 @@ public sealed class MultiHostClient : IMultiHostClient
         List<Channel<IReadOnlyList<SessionSummary>>>? summaries = null;
         lock (_perHostLock)
         {
-            if (_perResourceListeners.Remove(hostId, out var b1)) perResource = b1;
-            if (_snapshotListeners.Remove(hostId, out var b2)) snapshots = b2;
-            if (_summaryListeners.Remove(hostId, out var b3)) summaries = b3;
+            if (_perResourceListeners.TryGetValue(hostId, out var b1))
+            {
+                _perResourceListeners.Remove(hostId);
+                perResource = b1;
+            }
+            if (_snapshotListeners.TryGetValue(hostId, out var b2))
+            {
+                _snapshotListeners.Remove(hostId);
+                snapshots = b2;
+            }
+            if (_summaryListeners.TryGetValue(hostId, out var b3))
+            {
+                _summaryListeners.Remove(hostId);
+                summaries = b3;
+            }
         }
         if (perResource is not null) foreach (var l in perResource) l.Channel.Writer.TryComplete();
         if (snapshots is not null) foreach (var ch in snapshots) ch.Writer.TryComplete();
@@ -1379,9 +1400,9 @@ public sealed class MultiHostClient : IMultiHostClient
         long? clientSeq = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(action);
-        ArgumentNullException.ThrowIfNull(channel);
+        Guard.ThrowIfNull(host, nameof(host));
+        Guard.ThrowIfNull(action, nameof(action));
+        Guard.ThrowIfNull(channel, nameof(channel));
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
             throw new UnknownHostException(host);
         var client = entry.CurrentClient;
@@ -1401,8 +1422,8 @@ public sealed class MultiHostClient : IMultiHostClient
         string uri,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(uri);
+        Guard.ThrowIfNull(host, nameof(host));
+        Guard.ThrowIfNull(uri, nameof(uri));
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
             throw new UnknownHostException(host);
         var client = entry.CurrentClient;
@@ -1453,8 +1474,8 @@ public sealed class MultiHostClient : IMultiHostClient
         string uri,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentNullException.ThrowIfNull(uri);
+        Guard.ThrowIfNull(host, nameof(host));
+        Guard.ThrowIfNull(uri, nameof(uri));
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
             throw new UnknownHostException(host);
         var client = entry.CurrentClient;

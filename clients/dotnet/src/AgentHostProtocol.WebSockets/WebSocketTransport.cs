@@ -95,7 +95,7 @@ public sealed class WebSocketTransport : ITransport
     /// <param name="options">Optional configuration; see <see cref="WebSocketTransportOptions"/>.</param>
     public static WebSocketTransport FromClientWebSocket(ClientWebSocket ws, WebSocketTransportOptions? options = null)
     {
-        ArgumentNullException.ThrowIfNull(ws);
+        Guard.ThrowIfNull(ws, nameof(ws));
         var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
         return new WebSocketTransport(ws, maxBytes);
     }
@@ -105,8 +105,8 @@ public sealed class WebSocketTransport : ITransport
     /// <inheritdoc />
     public async ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(message);
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) == 1, this);
+        Guard.ThrowIfNull(message, nameof(message));
+        Guard.ThrowIfDisposed(Volatile.Read(ref _disposed) == 1, this);
         await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -118,7 +118,12 @@ public sealed class WebSocketTransport : ITransport
                 var rented = ArrayPool<byte>.Shared.Rent(Encoding.UTF8.GetMaxByteCount(text.Length));
                 try
                 {
-                    var written = Encoding.UTF8.GetBytes(text, rented);
+                    int written = Encoding.UTF8.GetBytes(
+                        text,
+                        0,
+                        text.Length,
+                        rented,
+                        0);
                     await _ws.SendAsync(
                         new ArraySegment<byte>(rented, 0, written),
                         WebSocketMessageType.Text,
@@ -133,9 +138,9 @@ public sealed class WebSocketTransport : ITransport
             }
             else
             {
-                var mem = message.Binary;
+                byte[] bytes = message.Binary.ToArray();
                 await _ws.SendAsync(
-                    mem,
+                    new ArraySegment<byte>(bytes),
                     WebSocketMessageType.Binary,
                     endOfMessage: true,
                     cancellationToken)
@@ -206,22 +211,22 @@ public sealed class WebSocketTransport : ITransport
         ReadOnlySpan<byte> span = _receiveBuffer.AsSpan(0, count);
         return messageType == WebSocketMessageType.Binary
             ? TransportMessage.FromBinary(span.ToArray())
-            : TransportMessage.FromText(Encoding.UTF8.GetString(span));
+            : TransportMessage.FromText(Encoding.UTF8.GetString(_receiveBuffer, 0, count));
     }
 
     // Doubles the receive buffer when the last frame filled it, so the next
     // ReceiveAsync has more room. Call AFTER copying the frame's bytes out.
-    private void GrowReceiveBufferIfFull(ValueWebSocketReceiveResult result)
+    private void GrowReceiveBufferIfFull(WebSocketReceiveResult result)
     {
         if (result.Count == _receiveBuffer.Length)
             _receiveBuffer = new byte[_receiveBuffer.Length * 2];
     }
 
-    private async ValueTask<ValueWebSocketReceiveResult> ReceiveFrameAsync(CancellationToken cancellationToken)
+    private async ValueTask<WebSocketReceiveResult> ReceiveFrameAsync(CancellationToken cancellationToken)
     {
         try
         {
-            return await _ws.ReceiveAsync(new Memory<byte>(_receiveBuffer), cancellationToken)
+            return await _ws.ReceiveAsync(new ArraySegment<byte>(_receiveBuffer), cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (WebSocketException ex)
@@ -239,7 +244,7 @@ public sealed class WebSocketTransport : ITransport
         // OperationCanceledException propagates as-is.
     }
 
-    private async ValueTask ThrowIfCloseAsync(ValueWebSocketReceiveResult result)
+    private async ValueTask ThrowIfCloseAsync(WebSocketReceiveResult result)
     {
         if (result.MessageType != WebSocketMessageType.Close)
             return;

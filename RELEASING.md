@@ -8,7 +8,7 @@ rules for the spec itself, the supported-version window, etc.) see
 ## Release model
 
 Every shippable artifact in this repo is versioned independently using its
-ecosystem's native SemVer. The protocol specification is a fifth artifact
+ecosystem's native SemVer. The protocol specification is a seventh artifact
 with its own release cadence. Each client release advertises which protocol
 versions it supports via a generated `SUPPORTED_PROTOCOL_VERSIONS` constant
 and a checked-in `clients/<lang>/release-metadata.json`.
@@ -17,10 +17,11 @@ and a checked-in `clients/<lang>/release-metadata.json`.
 
 Normal feature/fix PRs do **not** edit `CHANGELOG.md` files directly. They add
 one or more JSON fragments under `docs/.changes/`; omitting `targets` applies
-the entry to the spec and all five clients, while `targets` can scope an entry
-to any subset of `spec`, `rust`, `kotlin`, `typescript`, `swift`, and `go`.
+the entry to the spec and all six clients, while `targets` can scope an entry
+to any subset of `spec`, `rust`, `kotlin`, `typescript`, `swift`, `go`, and
+`dotnet`.
 
-Before tagging a coordinated release, collapse those fragments into the six
+Before tagging a coordinated release, collapse those fragments into the seven
 Keep-a-Changelog files:
 
 ```sh
@@ -28,7 +29,7 @@ npm run changelog:release -- --version X.Y.Z --date YYYY-MM-DD
 ```
 
 By default the command targets all artifacts. For a single-artifact hotfix, pass
-`--targets rust` (or `spec`, `kotlin`, `typescript`, `swift`, `go`; comma-join
+`--targets rust` (or `spec`, `kotlin`, `typescript`, `swift`, `go`, `dotnet`; comma-join
 multiple targets for a subset). The command creates or replaces the
 `## [X.Y.Z] — YYYY-MM-DD` section in each selected artifact changelog, adds the
 `Spec version` / `Implements AHP` line, groups fragment messages under standard

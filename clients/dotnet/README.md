@@ -3,6 +3,8 @@
 The [Agent Host Protocol](https://microsoft.github.io/agent-host-protocol/)
 (AHP) client for .NET: the wire types, the pure state reducers, an async
 JSON-RPC client, a `ClientWebSocket` transport, and the multi-host runtime.
+The shipping libraries target `netstandard2.0` and `net8.0`; tests and
+examples run on `net8.0`.
 
 ## Install
 

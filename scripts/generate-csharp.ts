@@ -632,6 +632,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
 
 const STATE_ENUMS = [
   'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
+  'SessionOriginKind',
   'ChatOriginKind', 'ChatInteractivity', 'ChatInputAnswerState', 'ChatInputAnswerValueKind',
   'ChatInputQuestionKind', 'ChatInputResponseKind', 'SessionInputRequestKind',
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
@@ -639,9 +640,12 @@ const STATE_ENUMS = [
   'ToolCallRiskAssessmentKind', 'ToolCallRiskAssessmentStatus',
   'ConfirmationOptionKind',
   'ToolCallContributorKind',
-  'ToolResultContentType', 'CustomizationType', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'TerminalLifecycleStatus',
   'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
+  'AutomationOperation', 'AutomationMisfirePolicy', 'AutomationTriggerKind',
+  'AutomationRunStatus', 'AutomationRunOriginKind',
 ];
 
 // `mutable: true` marks the STATE types the reducers mutate in place — these
@@ -773,8 +777,31 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: strin
   { name: 'ResourceChange' },
   { name: 'AnnotationsSummary' },
   { name: 'AnnotationsState' },
+  { name: 'AnnotationOrigin' },
   { name: 'Annotation' },
   { name: 'AnnotationEntry' },
+  { name: 'AutomationSessionOrigin' },
+  { name: 'TerminalRunningLifecycleState' },
+  { name: 'TerminalExitedLifecycleState' },
+  { name: 'AutomationSchedule' },
+  { name: 'AutomationScheduleTrigger' },
+  { name: 'AutomationEventTrigger' },
+  { name: 'AutomationTriggerEventDefinition' },
+  { name: 'AutomationTriggerDefinition' },
+  { name: 'AutomationSessionTemplate' },
+  { name: 'AutomationDefinition' },
+  { name: 'AutomationDefinitionPatch' },
+  { name: 'AutomationState', mutable: true },
+  { name: 'AutomationCatalogState', mutable: true },
+  { name: 'AutomationManualRunOrigin' },
+  { name: 'AutomationTriggeredRunOrigin' },
+  { name: 'AutomationPendingRunLifecycle' },
+  { name: 'AutomationRunningRunLifecycle' },
+  { name: 'AutomationCompletedRunLifecycle' },
+  { name: 'AutomationFailedRunLifecycle' },
+  { name: 'AutomationCancelledRunLifecycle' },
+  { name: 'AutomationRunSummary' },
+  { name: 'AutomationRunState', mutable: true },
 ];
 
 const RESPONSE_PART_UNION: UnionConfig = {
@@ -1112,10 +1139,106 @@ const SESSION_INPUT_REQUEST_UNION: UnionConfig = {
   unknown: true,
 };
 
+const TERMINAL_LIFECYCLE_STATE_UNION: UnionConfig = {
+  name: 'TerminalLifecycleState',
+  discriminantField: 'status',
+  doc: 'TerminalLifecycleState is the current lifecycle of a terminal process.',
+  variants: [
+    { variantName: 'Running', innerType: 'TerminalRunningLifecycleState', wireValue: 'running' },
+    { variantName: 'Exited', innerType: 'TerminalExitedLifecycleState', wireValue: 'exited' },
+  ],
+};
+
+const SESSION_ORIGIN_UNION: UnionConfig = {
+  name: 'SessionOrigin',
+  discriminantField: 'kind',
+  doc: 'SessionOrigin is the durable origin of a session.',
+  variants: [
+    { variantName: 'Automation', innerType: 'AutomationSessionOrigin', wireValue: 'automation' },
+  ],
+};
+
+const AUTOMATION_TRIGGER_UNION: UnionConfig = {
+  name: 'AutomationTrigger',
+  discriminantField: 'kind',
+  doc: 'AutomationTrigger is an automatic trigger for an automation.',
+  variants: [
+    { variantName: 'Schedule', innerType: 'AutomationScheduleTrigger', wireValue: 'schedule' },
+    { variantName: 'Event', innerType: 'AutomationEventTrigger', wireValue: 'event' },
+  ],
+};
+
+const AUTOMATION_RUN_ORIGIN_UNION: UnionConfig = {
+  name: 'AutomationRunOrigin',
+  discriminantField: 'kind',
+  doc: 'AutomationRunOrigin describes how an automation run was created.',
+  variants: [
+    { variantName: 'Manual', innerType: 'AutomationManualRunOrigin', wireValue: 'manual' },
+    { variantName: 'Trigger', innerType: 'AutomationTriggeredRunOrigin', wireValue: 'trigger' },
+  ],
+};
+
+const AUTOMATION_RUN_LIFECYCLE_UNION: UnionConfig = {
+  name: 'AutomationRunLifecycle',
+  discriminantField: 'status',
+  doc: 'AutomationRunLifecycle is the lifecycle of an automation run.',
+  variants: [
+    { variantName: 'Pending', innerType: 'AutomationPendingRunLifecycle', wireValue: 'pending' },
+    { variantName: 'Running', innerType: 'AutomationRunningRunLifecycle', wireValue: 'running' },
+    { variantName: 'Completed', innerType: 'AutomationCompletedRunLifecycle', wireValue: 'completed' },
+    { variantName: 'Failed', innerType: 'AutomationFailedRunLifecycle', wireValue: 'failed' },
+    { variantName: 'Cancelled', innerType: 'AutomationCancelledRunLifecycle', wireValue: 'cancelled' },
+  ],
+};
+
+const CUSTOMIZATION_ENABLEMENT_UNION_CS = `/// <summary>A single explicit customization enablement decision.</summary>
+[JsonConverter(typeof(CustomizationEnablementConverter))]
+public sealed class CustomizationEnablement : AhpUnion
+{
+    public CustomizationEnablement() { }
+    public CustomizationEnablement(object? value) : base(value) { }
+}
+
+public sealed record CustomizationEnablementGlobal
+{
+    public CustomizationEnablementKind Kind { get; init; } = CustomizationEnablementKind.Global;
+    public bool Enabled { get; init; }
+}
+
+public sealed record CustomizationEnablementWorkspace
+{
+    public CustomizationEnablementKind Kind { get; init; } = CustomizationEnablementKind.Workspace;
+    public required string Uri { get; init; }
+    public bool Enabled { get; init; }
+}
+
+public sealed record CustomizationEnablementSession
+{
+    public CustomizationEnablementKind Kind { get; init; } = CustomizationEnablementKind.Session;
+    public bool Enabled { get; init; }
+}
+
+internal sealed class CustomizationEnablementConverter : UnionConverter<CustomizationEnablement>
+{
+    public CustomizationEnablementConverter()
+        : base(
+            discriminator: "kind",
+            variants: new Dictionary<string, Type>
+            {
+                ["global"] = typeof(CustomizationEnablementGlobal),
+                ["workspace"] = typeof(CustomizationEnablementWorkspace),
+                ["session"] = typeof(CustomizationEnablementSession),
+            },
+            allowUnknown: false)
+    {
+    }
+}`;
+
 function generateSnapshotState(): string {
   return `/// <summary>
 /// SnapshotState is the state payload of a snapshot — root, session,
-/// chat, terminal, changeset, resource-watch, or annotations state. Read
+  /// chat, terminal, changeset, resource-watch, annotations, automation catalogue,
+  /// or automation-run state. Read
 /// probes for distinctive fields in an order where no probe shadows another
 /// (chat → session → terminal → changeset → resource-watch → annotations → root).
 /// </summary>
@@ -1142,6 +1265,12 @@ public sealed class SnapshotState
 
     /// <summary>Annotations state variant, when populated.</summary>
     public AnnotationsState? Annotations { get; set; }
+
+    /// <summary>Automation catalogue state variant, when populated.</summary>
+    public AutomationCatalogState? Automations { get; set; }
+
+    /// <summary>Automation run state variant, when populated.</summary>
+    public AutomationRunState? AutomationRun { get; set; }
 }
 
 /// <summary>System.Text.Json converter for the SnapshotState shape-probed union.</summary>
@@ -1152,7 +1281,17 @@ internal sealed class SnapshotStateConverter : JsonConverter<SnapshotState>
         using var doc = JsonDocument.ParseValue(ref reader);
         var root = doc.RootElement;
         var result = new SnapshotState();
-        if (root.TryGetProperty("turns", out _))
+        if (root.TryGetProperty("automation", out _) &&
+            root.TryGetProperty("origin", out _) &&
+            root.TryGetProperty("sessions", out _))
+        {
+            result.AutomationRun = root.Deserialize<AutomationRunState>(options);
+        }
+        else if (root.TryGetProperty("automations", out _))
+        {
+            result.Automations = root.Deserialize<AutomationCatalogState>(options);
+        }
+        else if (root.TryGetProperty("turns", out _))
         {
             result.Chat = root.Deserialize<ChatState>(options);
         }
@@ -1188,6 +1327,8 @@ internal sealed class SnapshotStateConverter : JsonConverter<SnapshotState>
 
     public override void Write(Utf8JsonWriter writer, SnapshotState value, JsonSerializerOptions options)
     {
+        if (value.AutomationRun is not null) { JsonSerializer.Serialize(writer, value.AutomationRun, options); return; }
+        if (value.Automations is not null) { JsonSerializer.Serialize(writer, value.Automations, options); return; }
         if (value.Chat is not null) { JsonSerializer.Serialize(writer, value.Chat, options); return; }
         if (value.Session is not null) { JsonSerializer.Serialize(writer, value.Session, options); return; }
         if (value.Terminal is not null) { JsonSerializer.Serialize(writer, value.Terminal, options); return; }
@@ -1229,6 +1370,8 @@ function generateStateFile(project: Project): string {
   }
 
   lines.push('// ─── Discriminated Unions ─────────────────────────────────────────────\n');
+  lines.push(CUSTOMIZATION_ENABLEMENT_UNION_CS);
+  lines.push('');
   for (const u of [
     RESPONSE_PART_UNION, TOOL_CALL_STATE_UNION, TOOL_CALL_CONFIRMATION_STATE_UNION,
     TOOL_CALL_RISK_ASSESSMENT_UNION,
@@ -1237,6 +1380,8 @@ function generateStateFile(project: Project): string {
     TOOL_RESULT_CONTENT_UNION, MESSAGE_ATTACHMENT_UNION, CUSTOMIZATION_UNION,
     CHILD_CUSTOMIZATION_UNION, CUSTOMIZATION_LOAD_STATE_UNION,
     MCP_SERVER_STATUS_UNION, TOOL_CALL_CONTRIBUTOR_UNION, SESSION_INPUT_REQUEST_UNION,
+    TERMINAL_LIFECYCLE_STATE_UNION, SESSION_ORIGIN_UNION, AUTOMATION_TRIGGER_UNION,
+    AUTOMATION_RUN_ORIGIN_UNION, AUTOMATION_RUN_LIFECYCLE_UNION,
   ]) {
     lines.push(generateDiscriminatedUnion(u));
     lines.push('');
@@ -1285,6 +1430,7 @@ const ACTION_VARIANTS: { type: string; variantName: string; tsInterface: string 
   { type: 'session/activeClientRemoved', variantName: 'SessionActiveClientRemoved', tsInterface: 'SessionActiveClientRemovedAction' },
   { type: 'session/workingDirectorySet', variantName: 'SessionWorkingDirectorySet', tsInterface: 'SessionWorkingDirectorySetAction' },
   { type: 'session/workingDirectoryRemoved', variantName: 'SessionWorkingDirectoryRemoved', tsInterface: 'SessionWorkingDirectoryRemovedAction' },
+  { type: 'session/workingDirectoryReplaced', variantName: 'SessionWorkingDirectoryReplaced', tsInterface: 'SessionWorkingDirectoryReplacedAction' },
   { type: 'session/inputNeededSet', variantName: 'SessionInputNeededSet', tsInterface: 'SessionInputNeededSetAction' },
   { type: 'session/inputNeededRemoved', variantName: 'SessionInputNeededRemoved', tsInterface: 'SessionInputNeededRemovedAction' },
   { type: 'session/pendingMessageSet', variantName: 'SessionPendingMessageSet', tsInterface: '_hand_written_session_action_' },
@@ -1362,6 +1508,15 @@ const ACTION_VARIANTS: { type: string; variantName: string; tsInterface: string 
   { type: 'annotations/entrySet', variantName: 'AnnotationsEntrySet', tsInterface: 'AnnotationsEntrySetAction' },
   { type: 'annotations/entryRemoved', variantName: 'AnnotationsEntryRemoved', tsInterface: 'AnnotationsEntryRemovedAction' },
   { type: 'annotations/updated', variantName: 'AnnotationsUpdated', tsInterface: 'AnnotationsUpdatedAction' },
+  { type: 'automation/createRequested', variantName: 'AutomationCreateRequested', tsInterface: 'AutomationCreateRequestedAction' },
+  { type: 'automation/updateRequested', variantName: 'AutomationUpdateRequested', tsInterface: 'AutomationUpdateRequestedAction' },
+  { type: 'automation/set', variantName: 'AutomationSet', tsInterface: 'AutomationSetAction' },
+  { type: 'automation/removed', variantName: 'AutomationRemoved', tsInterface: 'AutomationRemovedAction' },
+  { type: 'automationRun/lifecycleChanged', variantName: 'AutomationRunLifecycleChanged', tsInterface: 'AutomationRunLifecycleChangedAction' },
+  { type: 'automationRun/sessionSet', variantName: 'AutomationRunSessionSet', tsInterface: 'AutomationRunSessionSetAction' },
+  { type: 'automationRun/sessionRemoved', variantName: 'AutomationRunSessionRemoved', tsInterface: 'AutomationRunSessionRemovedAction' },
+  { type: 'automationRun/primarySessionChanged', variantName: 'AutomationRunPrimarySessionChanged', tsInterface: 'AutomationRunPrimarySessionChangedAction' },
+  { type: 'automationRun/cancelRequested', variantName: 'AutomationRunCancelRequested', tsInterface: 'AutomationRunCancelRequestedAction' },
 ];
 
 function generateMergedToolCallConfirmedClass(): string {
@@ -1913,6 +2068,10 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: str
   // record or those fields reference a non-existent type (CS0246).
   { name: 'Implementation' },
   { name: 'ClientCapabilities' },
+  { name: 'AutomationCapabilities' },
+  { name: 'AutomationCreateCapability' },
+  { name: 'AutomationScheduleCapabilities' },
+  { name: 'AutomationRunCancellationCapability' },
   { name: 'ReconnectParams' },
   // Union variants MUST self-carry their `type` discriminator: UnionConverter<T>.Write
   // serializes the inner value by its runtime type and relies on that property to
@@ -1951,6 +2110,9 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: str
   { name: 'CompletionsParams' }, { name: 'CompletionItem' }, { name: 'CompletionsResult' },
   { name: 'InvokeChangesetOperationParams' }, { name: 'InvokeChangesetOperationResult' },
   { name: 'ChangesetOperationFollowUp' },
+  { name: 'ListAutomationTriggerDefinitionsParams' }, { name: 'ListAutomationTriggerDefinitionsResult' },
+  { name: 'RunAutomationParams' }, { name: 'RunAutomationResult' },
+  { name: 'FetchAutomationRunsParams' }, { name: 'FetchAutomationRunsResult' },
 ];
 
 const CHAT_SOURCE_UNION: UnionConfig = {
@@ -2384,11 +2546,13 @@ function checkExhaustiveness(project: Project): void {
     'TerminalContentPart', 'MessageAttachment', 'MessageAttachmentBase',
     'Customization', 'ChildCustomization', 'ChildCustomizationType',
     'CustomizationLoadState', 'McpServerState', 'ToolCallContributor',
+    'SessionOrigin', 'TerminalLifecycleState', 'AutomationTrigger',
+    'AutomationRunOrigin', 'AutomationRunLifecycle',
     'SessionInputRequest', 'ToolCallConfirmationState', 'ToolCallRiskAssessment',
     'ReconnectResult', 'AuthRequiredErrorData',
     'PermissionDeniedErrorData', 'UnsupportedProtocolVersionErrorData',
     'AhpError', 'AhpErrorDetailsMap', 'AhpErrorCode', 'AhpErrorCodeWithData',
-    'JsonRpcErrorCode', 'ChangesetOperationTarget',
+    'JsonRpcErrorCode', 'ChangesetOperationTarget', 'CustomizationEnablement',
     'ChatOrigin', 'ChatInputQuestion', 'ChatInputAnswerValue', 'ChatInputAnswer',
     // ToolInput is `string | ContentRef` — emitted by hand as an untagged union
     // (TOOL_INPUT_UNION_CS), not through the discriminated-union list.

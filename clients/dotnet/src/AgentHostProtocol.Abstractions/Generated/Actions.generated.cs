@@ -81,6 +81,8 @@ public enum ActionType
     SessionWorkingDirectorySet,
     [WireValue("session/workingDirectoryRemoved")]
     SessionWorkingDirectoryRemoved,
+    [WireValue("session/workingDirectoryReplaced")]
+    SessionWorkingDirectoryReplaced,
     [WireValue("session/inputNeededSet")]
     SessionInputNeededSet,
     [WireValue("session/inputNeededRemoved")]
@@ -183,6 +185,24 @@ public enum ActionType
     TerminalCommandFinished,
     [WireValue("resourceWatch/changed")]
     ResourceWatchChanged,
+    [WireValue("automation/createRequested")]
+    AutomationCreateRequested,
+    [WireValue("automation/updateRequested")]
+    AutomationUpdateRequested,
+    [WireValue("automation/set")]
+    AutomationSet,
+    [WireValue("automation/removed")]
+    AutomationRemoved,
+    [WireValue("automationRun/lifecycleChanged")]
+    AutomationRunLifecycleChanged,
+    [WireValue("automationRun/sessionSet")]
+    AutomationRunSessionSet,
+    [WireValue("automationRun/sessionRemoved")]
+    AutomationRunSessionRemoved,
+    [WireValue("automationRun/primarySessionChanged")]
+    AutomationRunPrimarySessionChanged,
+    [WireValue("automationRun/cancelRequested")]
+    AutomationRunCancelRequested,
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────
@@ -720,13 +740,44 @@ public sealed record SessionWorkingDirectorySetAction
 /// reduced set — so this action is safe to model as idempotent. A host MAY
 /// decline to apply the removal (e.g. an immutable primary directory, see
 /// {@link MultipleWorkingDirectoriesCapability.immutablePrimary}); it then leaves
-/// the set unchanged.</summary>
+/// the set unchanged. When the agent advertises
+/// {@link MultipleWorkingDirectoriesCapability.primaryReplacement}, clients MUST
+/// NOT use this generic membership action to remove index `0`; the host MUST
+/// reject such a removal, leaving the protected slot intact.</summary>
 public sealed record SessionWorkingDirectoryRemovedAction
 {
     public ActionType Type { get; init; }
 
     /// <summary>The working directory to revoke the session's agent tool access to.</summary>
     public required string Directory { get; init; }
+}
+
+/// <summary>Atomically replaces one of the session's working directories.
+///
+/// This is a targeted compare-and-swap: the reducer is a no-op when
+/// {@link SessionState.workingDirectories} does not contain `directory`.
+/// Otherwise it replaces that entry with `replacement` and deduplicates the
+/// result, preserving every other directory's relative order. When
+/// `replacement` occurs after the target, it moves to the target's position;
+/// for example, `[A, B, C]` with `B → C` becomes `[A, C]`. When it occurs
+/// before the target, it retains its earlier position and the target is removed;
+/// `[A, B, C]` with `C → A` becomes `[A, B]`.
+///
+/// Only valid when the agent advertises
+/// {@link AgentCapabilities.multipleWorkingDirectories}. Replacing index `0`
+/// additionally requires
+/// {@link MultipleWorkingDirectoriesCapability.primaryReplacement}; clients
+/// MUST NOT target an immutable primary. The host MUST validate and apply its
+/// backend side effect before broadcasting an accepted action, or reject it.</summary>
+public sealed record SessionWorkingDirectoryReplacedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>URI of the existing entry to replace.</summary>
+    public required string Directory { get; init; }
+
+    /// <summary>URI to place in the replaced entry's position.</summary>
+    public required string Replacement { get; init; }
 }
 
 /// <summary>A session-level input request was added or updated.
@@ -777,25 +828,29 @@ public sealed record SessionCustomizationsChangedAction
     public required List<Customization> Customizations { get; init; }
 }
 
-/// <summary>A client toggled a customization on or off.
+/// <summary>A client updated a customization's enablement decisions.
 ///
 /// Matches `id` against every top-level customization first — a plugin or
 /// directory container, or a bare top-level MCP server — then against the
-/// children inside each container (a skill, agent, or other entry), and
-/// sets the matched entry's `enabled` flag. Disabling a container still
-/// disables all of its children — the effective state of a child is
-/// `container.enabled &amp;&amp; (child.enabled ?? true)` — so toggling a child
-/// only matters while its container is enabled. Is a no-op when no
-/// customization has the given `id`.</summary>
+/// children inside each container (a skill, agent, or other entry). Plugins
+/// and MCP servers retain the matched entry's explicit decisions; other
+/// entries update their `enabled` flag. Disabling a plugin still disables all
+/// of its children — the effective state of a plugin child is the plugin's
+/// derived enabled value and `(child.enabled ?? true)` — so toggling a child
+/// only matters while its plugin is enabled. Is a no-op when no
+/// customization has the given `id`.
+///
+/// The `enablement` array completely replaces all explicit decisions. A caller
+/// changing one scope must include every decision it intends to preserve.</summary>
 public sealed record SessionCustomizationToggledAction
 {
     public ActionType Type { get; init; }
 
-    /// <summary>The id of the container or child to toggle.</summary>
+    /// <summary>The id of the container or child to update.</summary>
     public required string Id { get; init; }
 
-    /// <summary>Whether to enable or disable the targeted customization.</summary>
-    public bool Enabled { get; init; }
+    /// <summary>Explicit enablement decisions, replacing the previous list entirely.</summary>
+    public required List<CustomizationEnablement> Enablement { get; init; }
 }
 
 /// <summary>Upserts a top-level customization (plugin or directory).
@@ -1081,7 +1136,7 @@ public sealed record ChatTurnStartedAction
 /// <summary>Streaming text chunk from the assistant, appended to a specific response part.
 ///
 /// The server MUST first emit a `chat/responsePart` to create the target
-/// part (markdown or reasoning), then use this action to append text to it.</summary>
+/// markdown part, then use this action to append text to it.</summary>
 public sealed record ChatDeltaAction
 {
     public ActionType Type { get; init; }
@@ -1929,10 +1984,6 @@ public sealed record ChangesetContentChangedAction
     /// <summary>Full replacement operation list. Omit when operations are unchanged.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<ChangesetOperation>? Operations { get; init; }
-
-    /// <summary>Error information, if the changeset content change failed.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ErrorInfo? Error { get; init; }
 }
 
 /// <summary>The set of operations available on this changeset changed. Full
@@ -2258,11 +2309,9 @@ public sealed record AnnotationsUpdatedAction
     /// <summary>The {@link Annotation.id} of the annotation to update.</summary>
     public required string AnnotationId { get; init; }
 
-    /// <summary>Re-anchors the annotation to the file versions this turn produced.
-    /// Matches a {@link Turn.id} on the owning session. Omit to leave the
-    /// current {@link Annotation.turnId} unchanged.</summary>
+    /// <summary>Replaces the annotation's provenance. Omit to leave it unchanged.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? TurnId { get; init; }
+    public AnnotationOrigin? Origin { get; init; }
 
     /// <summary>Re-anchors the annotation to this file. Omit to leave the current
     /// {@link Annotation.resource} unchanged.</summary>
@@ -2280,6 +2329,142 @@ public sealed record AnnotationsUpdatedAction
     /// leave the current {@link Annotation.resolved} state unchanged.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? Resolved { get; init; }
+}
+
+/// <summary>Ask the host to create a durable automation at a client-chosen resource.
+///
+/// Clients may dispatch this action only when the host advertises its `create`
+/// automation capability. {@link AutomationCreateRequestedAction.resource |
+/// `resource`} MUST use the `ahp-automation:` scheme and MUST NOT already
+/// identify an unrelated automation.
+///
+/// This side-effect request leaves optimistic catalogue state unchanged. The
+/// host validates trigger ids and configuration, normalizes event-trigger
+/// titles and descriptions, persists the definition, then publishes the
+/// authoritative result with {@link AutomationSetAction | `automation/set`}.
+/// Rejections leave the catalogue unchanged.</summary>
+public sealed record AutomationCreateRequestedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Client-chosen `ahp-automation:` URI that becomes {@link AutomationState.resource}.</summary>
+    public required string Resource { get; init; }
+
+    /// <summary>Complete initial {@link AutomationState.definition}.</summary>
+    public required AutomationDefinition Definition { get; init; }
+}
+
+/// <summary>Ask the host to update editable fields of an existing automation.
+///
+/// Clients may dispatch this action only while the target advertises
+/// {@link AutomationOperation.Update}. The host revalidates that operation and
+/// the client's authorization.
+///
+/// This side-effect request leaves optimistic catalogue state unchanged. The
+/// host applies accepted patches to its current authoritative definition in
+/// action order, revalidates and normalizes affected event triggers, then
+/// publishes the result with
+/// {@link AutomationSetAction | `automation/set`}. Omitted fields remain
+/// unchanged; when accepted actions replace the same field, the later action in
+/// server order wins.</summary>
+public sealed record AutomationUpdateRequestedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Target {@link AutomationState.resource}.</summary>
+    public required string Resource { get; init; }
+
+    /// <summary>Editable {@link AutomationDefinition} fields to replace.</summary>
+    public required AutomationDefinitionPatch Changes { get; init; }
+}
+
+/// <summary>Add or replace one full automation state in
+/// {@link AutomationCatalogState.automations}.
+///
+/// Existing entries are matched by {@link AutomationState.resource} and
+/// replaced in place. A previously unseen resource is appended.</summary>
+public sealed record AutomationSetAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Full new or replacement automation state.</summary>
+    public required AutomationState Automation { get; init; }
+}
+
+/// <summary>Remove one automation from {@link AutomationCatalogState.automations}.
+///
+/// Clients may dispatch this action only while the target advertises
+/// {@link AutomationOperation.Remove}. The host revalidates that operation
+/// before permanently deleting the automation. A rejected action leaves the
+/// authoritative catalogue and durable definition unchanged.
+///
+/// Removing an unknown resource is a no-op.</summary>
+public sealed record AutomationRemovedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>{@link AutomationState.resource} to remove.</summary>
+    public required string Resource { get; init; }
+}
+
+/// <summary>Replace the run lifecycle.
+///
+/// The host dispatches this action for every lifecycle transition.</summary>
+public sealed record AutomationRunLifecycleChangedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Complete replacement {@link AutomationRunState.lifecycle}.</summary>
+    public required AutomationRunLifecycle Lifecycle { get; init; }
+}
+
+/// <summary>Add a session to {@link AutomationRunState.sessions}.
+///
+/// Session URIs are unique. Setting an existing URI is a no-op.</summary>
+public sealed record AutomationRunSessionSetAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Session URI to append to {@link AutomationRunState.sessions} when not already linked.</summary>
+    public required string Session { get; init; }
+}
+
+/// <summary>Remove a linked session from the run.
+///
+/// Removing the current primary session also clears
+/// {@link AutomationRunState.primarySession}. An unknown URI is a no-op.</summary>
+public sealed record AutomationRunSessionRemovedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Entry in {@link AutomationRunState.sessions} to remove.</summary>
+    public required string Session { get; init; }
+}
+
+/// <summary>Select or clear the session clients should open first for this run.</summary>
+public sealed record AutomationRunPrimarySessionChangedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>New {@link AutomationRunState.primarySession}, or omitted to clear the selection.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? PrimarySession { get; init; }
+}
+
+/// <summary>Ask the host to cancel this run.
+///
+/// This is the only client-dispatchable automation-run action. It is a
+/// side-effect request and deliberately leaves optimistic state unchanged. The
+/// client may dispatch it only when the host advertises its `runCancellation`
+/// capability and the current lifecycle is `pending` or `running`. The host
+/// revalidates that the run is non-terminal. The authoritative outcome arrives
+/// later through
+/// {@link AutomationRunLifecycleChangedAction}: cancellation may transition to
+/// `cancelled`, or the run may complete or fail before cancellation takes
+/// effect.</summary>
+public sealed record AutomationRunCancelRequestedAction
+{
+    public ActionType Type { get; init; }
 }
 
 // ─── Partial Summaries (action-discovered) ───────────────────────────
@@ -2375,6 +2560,7 @@ internal sealed class StateActionConverter : UnionConverter<StateAction>
         ["session/activeClientRemoved"] = typeof(SessionActiveClientRemovedAction),
         ["session/workingDirectorySet"] = typeof(SessionWorkingDirectorySetAction),
         ["session/workingDirectoryRemoved"] = typeof(SessionWorkingDirectoryRemovedAction),
+        ["session/workingDirectoryReplaced"] = typeof(SessionWorkingDirectoryReplacedAction),
         ["session/inputNeededSet"] = typeof(SessionInputNeededSetAction),
         ["session/inputNeededRemoved"] = typeof(SessionInputNeededRemovedAction),
         ["session/pendingMessageSet"] = typeof(SessionPendingMessageSetAction),
@@ -2450,6 +2636,15 @@ internal sealed class StateActionConverter : UnionConverter<StateAction>
         ["annotations/entrySet"] = typeof(AnnotationsEntrySetAction),
         ["annotations/entryRemoved"] = typeof(AnnotationsEntryRemovedAction),
         ["annotations/updated"] = typeof(AnnotationsUpdatedAction),
+        ["automation/createRequested"] = typeof(AutomationCreateRequestedAction),
+        ["automation/updateRequested"] = typeof(AutomationUpdateRequestedAction),
+        ["automation/set"] = typeof(AutomationSetAction),
+        ["automation/removed"] = typeof(AutomationRemovedAction),
+        ["automationRun/lifecycleChanged"] = typeof(AutomationRunLifecycleChangedAction),
+        ["automationRun/sessionSet"] = typeof(AutomationRunSessionSetAction),
+        ["automationRun/sessionRemoved"] = typeof(AutomationRunSessionRemovedAction),
+        ["automationRun/primarySessionChanged"] = typeof(AutomationRunPrimarySessionChangedAction),
+        ["automationRun/cancelRequested"] = typeof(AutomationRunCancelRequestedAction),
             },
             allowUnknown: true)
     {
