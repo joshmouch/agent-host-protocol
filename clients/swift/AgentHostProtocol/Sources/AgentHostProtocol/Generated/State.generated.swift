@@ -6794,7 +6794,10 @@ public enum ResponsePart: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "markdown":
             self = .markdown(try MarkdownResponsePart(from: decoder))
@@ -6844,7 +6847,10 @@ public enum ToolCallState: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "streaming":
             self = .streaming(try ToolCallStreamingState(from: decoder))
@@ -6892,7 +6898,10 @@ public enum ToolCallConfirmationState: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "pending-confirmation":
             self = .pendingConfirmation(try ToolCallPendingConfirmationState(from: decoder))
@@ -6954,7 +6963,10 @@ public enum TerminalContentPart: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "unclassified":
             self = .unclassified(try TerminalUnclassifiedPart(from: decoder))
@@ -6991,7 +7003,10 @@ public enum ChatInputQuestion: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "text":
             self = .text(try ChatInputTextQuestion(from: decoder))
@@ -7039,7 +7054,10 @@ public enum ChatInputAnswerValue: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "text":
             self = .text(try ChatInputTextAnswerValue(from: decoder))
@@ -7117,7 +7135,10 @@ public enum MessageAttachment: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "simple":
             self = .simple(try SimpleMessageAttachment(from: decoder))
@@ -7160,7 +7181,10 @@ public enum Customization: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "plugin":
             self = .plugin(try PluginCustomization(from: decoder))
@@ -7200,7 +7224,10 @@ public enum ChildCustomization: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "agent":
             self = .agent(try AgentCustomization(from: decoder))
@@ -7285,7 +7312,10 @@ public enum McpServerState: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "starting":
             self = .starting(try McpServerStartingState(from: decoder))
@@ -7327,7 +7357,10 @@ public enum ToolCallContributor: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "client":
             self = .client(try ToolCallClientContributor(from: decoder))
@@ -7360,7 +7393,10 @@ public enum ToolCallRiskAssessment: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "loading":
             self = .loading(try ToolCallRiskAssessmentLoadingState(from: decoder))
@@ -7424,7 +7460,10 @@ public enum SessionInputRequest: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "chatInput":
             self = .chatInput(try SessionChatInputRequest(from: decoder))
@@ -7462,7 +7501,10 @@ public enum SessionOrigin: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "automation":
             self = .automation(try AutomationSessionOrigin(from: decoder))

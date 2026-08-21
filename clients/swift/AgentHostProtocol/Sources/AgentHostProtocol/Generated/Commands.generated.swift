@@ -2068,7 +2068,10 @@ public enum ChatSource: Codable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: DiscriminantKey.self)
-        let discriminant = try container.decode(String.self, forKey: .discriminant)
+        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {
+            self = .unknown(try AnyCodable(from: decoder))
+            return
+        }
         switch discriminant {
         case "fork":
             self = .fork(try ForkChatSource(from: decoder))

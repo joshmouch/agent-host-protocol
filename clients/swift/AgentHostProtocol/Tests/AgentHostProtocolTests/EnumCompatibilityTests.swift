@@ -18,6 +18,9 @@ final class EnumCompatibilityTests: XCTestCase {
         guard case .unknown = part else {
             return XCTFail("Expected unknown response part")
         }
-        XCTAssertEqual(String(data: try encoder.encode(part), encoding: .utf8), rawPart)
+        XCTAssertEqual(
+            try JSONSerialization.jsonObject(with: encoder.encode(part)) as? NSDictionary,
+            try JSONSerialization.jsonObject(with: Data(rawPart.utf8)) as? NSDictionary
+        )
     }
 }

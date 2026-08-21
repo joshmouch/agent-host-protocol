@@ -526,7 +526,14 @@ function generateDiscriminatedUnion(project: Project, config: UnionConfig): stri
   lines.push('');
   lines.push('    public init(from decoder: Decoder) throws {');
   lines.push('        let container = try decoder.container(keyedBy: DiscriminantKey.self)');
-  lines.push('        let discriminant = try container.decode(String.self, forKey: .discriminant)');
+  if (allowUnknown) {
+    lines.push('        guard let discriminant = try container.decodeIfPresent(String.self, forKey: .discriminant) else {');
+    lines.push('            self = .unknown(try AnyCodable(from: decoder))');
+    lines.push('            return');
+    lines.push('        }');
+  } else {
+    lines.push('        let discriminant = try container.decode(String.self, forKey: .discriminant)');
+  }
   lines.push('        switch discriminant {');
   for (const v of config.variants) {
     lines.push(`        case ${JSON.stringify(v.discriminantValue)}:`);
