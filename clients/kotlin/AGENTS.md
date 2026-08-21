@@ -177,15 +177,11 @@ The Kotlin port preserves Swift parity caveats already documented in PR #115:
 2. **Discriminator validation** — no runtime check that, e.g., a `MarkdownResponsePart`'s `kind` matches `MARKDOWN`. Mirrors Swift. For forward-compat unions, an *unrecognised* discriminator decodes to the `XUnknown(val raw: JsonObject)` variant (mirrors Rust's `Unknown(serde_json::Value)`) and round-trips its raw payload on re-encode.
 3. **`StateActionUnknown`** — captures the full raw JSON object of an unknown action (same shape as the state-channel `XUnknown` variants). The reducer treats it as a no-op. Re-encoding round-trips the original payload back to the wire.
 
-### Injectable timestamp
+### Deterministic timestamps
 
-The session reducer stamps `summary.modifiedAt` whenever it mutates fields that semantically advance the session's modification time (turn lifecycle, title change, agent change, customization update, input request changes, etc.). The stamp comes from a top-level `var`:
-
-```kotlin
-public var currentTimestampProvider: () -> Long = { System.currentTimeMillis() }
-```
-
-Tests override this with a constant to produce deterministic output, then restore the default in `@AfterEach`. The provider is global mutable state; if you parallelize tests across JVM threads, snap a value into a `ThreadLocal` first.
+Reducers never read the local clock. `chat/turnStarted` copies its producer-supplied
+`startedAt` into `modifiedAt`, and turn-ending actions derive `modifiedAt` by adding
+their producer-supplied duration to the active turn's `startedAt`.
 
 ### Cross-language parity tests
 
@@ -197,4 +193,4 @@ A small `SKIPPED_FIXTURES` set carries any fixtures intentionally skipped becaus
 
 ### `ReducersTest`
 
-`ReducersTest` covers a handful of behaviors that benefit from explicit local coverage: the `Reducer<S, A>` `object` wrappers delegating to the free functions, `terminal/input` being a no-op (returns the same instance), the queued message reorder algorithm (preserves messages not mentioned in `order`; ignores duplicates and unknown ids), pending steering vs. queued message upsert semantics, and the `currentTimestampProvider` override flowing through.
+`ReducersTest` covers a handful of behaviors that benefit from explicit local coverage: the `Reducer<S, A>` `object` wrappers delegating to the free functions, `terminal/input` being a no-op (returns the same instance), the queued message reorder algorithm (preserves messages not mentioned in `order`; ignores duplicates and unknown ids), pending steering vs. queued message upsert semantics, and deterministic turn timestamps.

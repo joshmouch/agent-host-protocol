@@ -28,9 +28,9 @@ const (
 type SessionLifecycle string
 
 const (
-	SessionLifecycleCreating       SessionLifecycle = "creating"
-	SessionLifecycleReady          SessionLifecycle = "ready"
-	SessionLifecycleCreationFailed SessionLifecycle = "creationFailed"
+	SessionLifecycleCreating SessionLifecycle = "creating"
+	SessionLifecycleReady    SessionLifecycle = "ready"
+	SessionLifecycleFailed   SessionLifecycle = "failed"
 )
 
 // Bitset of summary-level session status flags.
@@ -347,6 +347,14 @@ type TerminalClaimKind string
 const (
 	TerminalClaimKindClient  TerminalClaimKind = "client"
 	TerminalClaimKindSession TerminalClaimKind = "session"
+)
+
+// Lifecycle status of a terminal process.
+type TerminalLifecycleStatus string
+
+const (
+	TerminalLifecycleStatusRunning TerminalLifecycleStatus = "running"
+	TerminalLifecycleStatusExited  TerminalLifecycleStatus = "exited"
 )
 
 // Discriminant for the {@link McpServerState} union.
@@ -3248,8 +3256,8 @@ type TerminalInfo struct {
 	Title string `json:"title"`
 	// Who currently holds this terminal
 	Claim TerminalClaim `json:"claim"`
-	// Process exit code, if the terminal process has exited
-	ExitCode *int64 `json:"exitCode,omitempty"`
+	// Current terminal process lifecycle.
+	Lifecycle TerminalLifecycleState `json:"lifecycle"`
 }
 
 // A terminal claimed by a connected client.
@@ -3266,10 +3274,24 @@ type TerminalSessionClaim struct {
 	Kind TerminalClaimKind `json:"kind"`
 	// Session URI that claimed the terminal
 	Session URI `json:"session"`
-	// Optional turn identifier within the session
+	// Chat URI that claimed the terminal.
+	Chat URI `json:"chat"`
+	// Optional turn identifier within the chat.
 	TurnId *string `json:"turnId,omitempty"`
 	// Optional tool call identifier within the turn
 	ToolCallId *string `json:"toolCallId,omitempty"`
+}
+
+// A terminal process that is still running.
+type TerminalRunningLifecycleState struct {
+	Status TerminalLifecycleStatus `json:"status"`
+}
+
+// A terminal process that has exited.
+type TerminalExitedLifecycleState struct {
+	Status TerminalLifecycleStatus `json:"status"`
+	// Process exit code, if the runtime reported one.
+	ExitCode *int64 `json:"exitCode,omitempty"`
 }
 
 // Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
@@ -3289,8 +3311,8 @@ type TerminalState struct {
 	//
 	// Consumers that need command boundaries can filter by part type.
 	Content []TerminalContentPart `json:"content"`
-	// Process exit code, set when the terminal process exits
-	ExitCode *int64 `json:"exitCode,omitempty"`
+	// Current terminal process lifecycle.
+	Lifecycle TerminalLifecycleState `json:"lifecycle"`
 	// Who currently holds this terminal
 	Claim TerminalClaim `json:"claim"`
 	// Whether this terminal emits `terminal/commandExecuted` and
@@ -3561,14 +3583,22 @@ type AnnotationsState struct {
 	Annotations []Annotation `json:"annotations"`
 }
 
-// A conversation anchored to a specific file produced by a specific turn,
-// optionally narrowed to a range within that file.
+// Provenance of the content an annotation is anchored to.
+type AnnotationOrigin struct {
+	// Owning session URI.
+	Session URI `json:"session"`
+	// Owning chat URI, when the annotation is scoped to a chat.
+	Chat *URI `json:"chat,omitempty"`
+	// Turn identifier within {@link chat}, when the annotation is scoped to a turn.
+	TurnId *string `json:"turnId,omitempty"`
+}
+
+// A conversation anchored to a specific file in a session, optionally scoped
+// to a chat and turn and narrowed to a range within that file.
 //
-// {@link turnId} anchors the annotation to the file versions that turn
-// produced, so a later turn that rewrites the same file does not silently
-// invalidate the annotation's anchor — clients can resolve {@link resource}
-// and {@link range} against the turn's changeset. When {@link range} is
-// omitted the annotation is anchored to the entire file.
+// {@link origin} identifies the owning session and, when available, the chat
+// and turn that produced the file version. When {@link range} is omitted the
+// annotation is anchored to the entire file.
 //
 // Every annotation MUST contain at least one {@link AnnotationEntry}. An
 // {@link AnnotationsSetAction} that creates an annotation therefore carries
@@ -3579,9 +3609,8 @@ type Annotation struct {
 	// Stable identifier within the annotations channel. Assigned by the client
 	// that dispatches the creating {@link AnnotationsSetAction}.
 	Id string `json:"id"`
-	// Turn that produced the file versions this annotation is anchored to.
-	// Matches a {@link Turn.id} on the owning session.
-	TurnId string `json:"turnId"`
+	// Provenance of the content this annotation is anchored to.
+	Origin AnnotationOrigin `json:"origin"`
 	// The file the annotation is anchored to.
 	Resource URI `json:"resource"`
 	// Range within {@link resource} the annotation is anchored to. When
@@ -5345,6 +5374,54 @@ func (u ToolCallRiskAssessment) MarshalJSON() ([]byte, error) {
 		}
 		return unk.Raw, nil
 	}
+	if u.Value == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal(u.Value)
+}
+
+// TerminalLifecycleState is the current lifecycle of a terminal process.
+type TerminalLifecycleState struct {
+	Value isTerminalLifecycleState
+}
+
+// isTerminalLifecycleState is the marker interface implemented by every
+// concrete variant of TerminalLifecycleState.
+type isTerminalLifecycleState interface{ isTerminalLifecycleState() }
+
+func (*TerminalRunningLifecycleState) isTerminalLifecycleState() {}
+func (*TerminalExitedLifecycleState) isTerminalLifecycleState()  {}
+
+// UnmarshalJSON decodes the variant indicated by the "status" discriminator.
+func (u *TerminalLifecycleState) UnmarshalJSON(data []byte) error {
+	disc, ok, err := readDiscriminator(data, "status")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return missingDiscriminatorError("TerminalLifecycleState", "status")
+	}
+	switch disc {
+	case "running":
+		var value TerminalRunningLifecycleState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "exited":
+		var value TerminalExitedLifecycleState
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	default:
+		return unknownDiscriminatorError("TerminalLifecycleState", "status", disc)
+	}
+	return nil
+}
+
+// MarshalJSON encodes the active variant back to JSON.
+func (u TerminalLifecycleState) MarshalJSON() ([]byte, error) {
 	if u.Value == nil {
 		return []byte("null"), nil
 	}

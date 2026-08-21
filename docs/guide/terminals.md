@@ -30,7 +30,7 @@ TerminalInfo {
   resource: URI             // subscribable terminal URI
   title: string             // human-readable name
   claim: TerminalClaim      // who holds it
-  exitCode?: number         // present = process exited
+  lifecycle: TerminalLifecycleState
 }
 ```
 
@@ -45,11 +45,16 @@ TerminalState {
   cols?: number             // width in columns
   rows?: number             // height in rows
   content: TerminalContentPart[]  // structured content parts
-  exitCode?: number         // set when process exits
+  lifecycle: TerminalLifecycleState
   claim: TerminalClaim      // ownership
   supportsCommandDetection?: boolean  // true when command lifecycle actions are emitted
 }
 ```
+
+`TerminalLifecycleState` is a discriminated union: `{ status: 'running' }`
+while the process is active, and `{ status: 'exited', exitCode?: number }`
+after it exits. The explicit status preserves an exit even when the runtime
+does not report an exit code.
 
 The `content` field is an ordered array of typed content parts. Each part is either unstructured terminal output or a structured command with its command line and output:
 
@@ -99,6 +104,7 @@ TerminalClientClaim {
 TerminalSessionClaim {
   kind: 'session'
   session: URI
+  chat: URI
   turnId?: string           // present when actively used by a tool call
   toolCallId?: string
 }
@@ -108,8 +114,8 @@ The `turnId` and `toolCallId` fields on session claims distinguish between "acti
 
 | Claim State | Meaning |
 |---|---|
-| `{ kind: 'session', session, turnId, toolCallId }` | Actively used by a running tool call |
-| `{ kind: 'session', session }` | Backgrounded, still owned by the session |
+| `{ kind: 'session', session, chat, turnId, toolCallId }` | Actively used by a running tool call |
+| `{ kind: 'session', session, chat }` | Backgrounded, still owned by the chat |
 | `{ kind: 'client', clientId }` | User interacting directly in a terminal UI |
 
 Every terminal always has an owner. When a terminal is no longer needed, it should be disposed via the `disposeTerminal` command rather than released.
@@ -175,7 +181,7 @@ Clients MUST check `supportsCommandDetection` before relying on command boundari
 | `terminal/claimed` | Yes | Sets `claim` |
 | `terminal/titleChanged` | Yes | Sets `title` |
 | `terminal/cwdChanged` | No | Sets `cwd` |
-| `terminal/exited` | No | Sets `exitCode` |
+| `terminal/exited` | No | Sets `lifecycle` to `exited` with the optional `exitCode` |
 | `terminal/cleared` | Yes | Resets `content` to `[]` |
 
 The root terminal list is managed by the server via `root/terminalsChanged`, which uses full-replacement semantics.
@@ -204,10 +210,10 @@ sequenceDiagram
   A->>S: createTerminal({ terminal, name: "npm test" })
   S->>C: root/terminalsChanged (terminal added)
   S->>C: terminal/cwdChanged { cwd }
-  S->>C: terminal/claimed { claim: { kind: 'session', session, turnId, toolCallId } }
+  S->>C: terminal/claimed { claim: { kind: 'session', session, chat, turnId, toolCallId } }
   S->>C: terminal/data { data: "$ npm test\r\n..." }
   Note over S: Command finishes
-  S->>C: terminal/claimed { claim: { kind: 'session', session } }
+  S->>C: terminal/claimed { claim: { kind: 'session', session, chat } }
   S->>C: terminal/exited { exitCode: 0 }
   Note over C: Terminal remains in root list,<br/>client can view output or dispose
 ```
@@ -224,11 +230,11 @@ sequenceDiagram
 
   A->>S: createTerminal({ terminal, name: "dev-server" })
   S->>C: root/terminalsChanged (terminal added)
-  S->>C: terminal/claimed { claim: { kind: 'session', session, turnId, toolCallId } }
+  S->>C: terminal/claimed { claim: { kind: 'session', session, chat, turnId, toolCallId } }
   S->>C: terminal/data { data: "$ npm run dev\r\nServer running on port 3000\r\n" }
 
   Note over A: Tool call completes,<br/>terminal auto-detached
-  S->>C: terminal/claimed { claim: { kind: 'session', session } }
+  S->>C: terminal/claimed { claim: { kind: 'session', session, chat } }
   Note over S: Session still owns the terminal,<br/>but no active tool call
 
   S-->>C: terminal/data { data: "..." }
@@ -252,7 +258,7 @@ sequenceDiagram
   Note over S: Agent is running a build,<br/>terminal claimed by session+turn+toolCall
   S->>C: terminal/data { data: "Building..." }
 
-  C->>S: terminal/claimed { claim: { kind: 'session', session } }
+  C->>S: terminal/claimed { claim: { kind: 'session', session, chat } }
   Note over S: Server narrows claim,<br/>signals agent the tool call can complete
 
   S->>C: root/terminalsChanged (claim updated)
@@ -295,9 +301,9 @@ sequenceDiagram
   participant S as Server
   participant A as Agent
 
-  Note over S: Terminal is backgrounded,<br/>claim: { kind: 'session', session }
+  Note over S: Terminal is backgrounded,<br/>claim: { kind: 'session', session, chat }
 
-  A->>S: terminal/claimed { claim: { kind: 'session', session, turnId: "t2", toolCallId: "tc5" } }
+  A->>S: terminal/claimed { claim: { kind: 'session', session, chat, turnId: "t2", toolCallId: "tc5" } }
   S->>C: root/terminalsChanged (claim updated)
 
   Note over A: Agent reads recent output,<br/>sends input to the terminal
@@ -305,7 +311,7 @@ sequenceDiagram
   S->>C: terminal/data { data: "HTTP/1.1 200 OK\r\n" }
 
   Note over A: Tool call completes
-  S->>C: terminal/claimed { claim: { kind: 'session', session } }
+  S->>C: terminal/claimed { claim: { kind: 'session', session, chat } }
 ```
 
 ### Terminal Cleanup
@@ -317,7 +323,7 @@ sequenceDiagram
   participant C as Client
   participant S as Server
 
-  Note over S: Terminal has exited (exitCode set)
+  Note over S: Terminal lifecycle is exited
   C->>S: disposeTerminal({ terminal })
   S->>C: root/terminalsChanged (terminal removed)
   Note over S: Resources freed,<br/>subscribers receive no more actions

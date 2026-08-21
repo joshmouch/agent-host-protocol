@@ -1,0 +1,4 @@
+{
+  "type": "removed",
+  "message": "Removed `error` from `changeset/contentChanged`; changeset failures are represented by `changeset/statusChanged`."
+}

@@ -618,7 +618,8 @@ const STATE_ENUMS = [
   'ToolCallRiskAssessmentStatus',
   'ToolCallCancellationReason', 'ConfirmationOptionKind',
   'ToolCallContributorKind',
-  'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus',
+  'TerminalClaimKind', 'TerminalLifecycleStatus',
   'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
   'SessionOriginKind',
@@ -672,11 +673,12 @@ const STATE_STRUCTS = [
   'McpServerErrorState', 'McpServerStoppedState', 'McpOAuthClient', 'McpAuthRequirement',
   'ToolCallClientContributor', 'ToolCallMcpContributor',
   'FileEdit', 'TerminalCommandResult', 'TerminalInfo',
-  'TerminalClientClaim', 'TerminalSessionClaim', 'TerminalState',
+  'TerminalClientClaim', 'TerminalSessionClaim',
+  'TerminalRunningLifecycleState', 'TerminalExitedLifecycleState', 'TerminalState',
   'TerminalUnclassifiedPart', 'TerminalCommandPart',
   'UsageInfo', 'ErrorInfo', 'Snapshot',
   'Changeset', 'ChangesetCapabilities', 'ChangesetState', 'ChangesetFile', 'ChangesetOperation',
-  'AnnotationsSummary', 'AnnotationsState', 'Annotation', 'AnnotationEntry',
+  'AnnotationsSummary', 'AnnotationsState', 'AnnotationOrigin', 'Annotation', 'AnnotationEntry',
   'TelemetryCapabilities',
   'ResourceWatchState', 'ResourceChange',
   'AutomationSessionOrigin', 'AutomationSchedule',
@@ -887,6 +889,15 @@ const TOOL_CALL_RISK_ASSESSMENT_UNION: UnionConfig = {
   variants: [
     { caseName: 'loading', structName: 'ToolCallRiskAssessmentLoadingState', discriminantValue: 'loading' },
     { caseName: 'complete', structName: 'ToolCallRiskAssessmentCompleteState', discriminantValue: 'complete' },
+  ],
+};
+
+const TERMINAL_LIFECYCLE_STATE_UNION: UnionConfig = {
+  name: 'TerminalLifecycleState',
+  discriminantField: 'status',
+  variants: [
+    { caseName: 'running', structName: 'TerminalRunningLifecycleState', discriminantValue: 'running' },
+    { caseName: 'exited', structName: 'TerminalExitedLifecycleState', discriminantValue: 'exited' },
   ],
 };
 
@@ -1265,6 +1276,8 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
   lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
@@ -1558,7 +1571,7 @@ const COMMAND_STRUCTS = [
   'Implementation',
   'ReconnectParams', 'ReconnectReplayResult', 'ReconnectSnapshotResult',
   'SubscribeParams', 'SubscribeView', 'SubscriptionDeliveryOptions', 'SubscribeResult',
-  'SessionForkSource', 'CreateSessionParams', 'DisposeSessionParams',
+  'CreateSessionParams', 'DisposeSessionParams',
   'CreateChatParams', 'DisposeChatParams',
   'ListSessionsParams', 'ListSessionsResult',
   'ResourceReadParams', 'ResourceReadResult',
@@ -2292,6 +2305,7 @@ function checkExhaustiveness(project: Project): void {
     'McpServerState',              // MCP_SERVER_STATUS_UNION discriminated union
     'ToolCallContributor',          // TOOL_CALL_CONTRIBUTOR_UNION discriminated union
     'ToolCallRiskAssessment',       // TOOL_CALL_RISK_ASSESSMENT_UNION discriminated union
+    'TerminalLifecycleState',       // TERMINAL_LIFECYCLE_STATE_UNION discriminated union
     'SessionInputRequest',          // SESSION_INPUT_REQUEST_UNION discriminated union
     'ToolCallConfirmationState',    // TOOL_CALL_CONFIRMATION_STATE_UNION discriminated union
     'AuthRequiredErrorData',        // emitted by generateErrorsFile()

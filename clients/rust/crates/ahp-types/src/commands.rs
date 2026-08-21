@@ -469,15 +469,6 @@ pub struct SubscribeResult {
 /// clients.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionForkSource {
-    /// URI of the existing session to fork from
-    pub session: Uri,
-    /// Turn ID in the source session; content up to and including this turn's response is copied
-    pub turn_id: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CreateSessionParams {
     /// Channel URI this command targets.
     pub channel: Uri,
@@ -501,15 +492,8 @@ pub struct CreateSessionParams {
     /// capability treats only the first entry as the session's working directory
     /// and ignores the rest. Dispatch working-directory actions to change the set
     /// after the session has started.
-    ///
-    /// Ignored for forked sessions — a fork inherits its working directories
-    /// from the source session identified by `fork`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_directories: Option<Vec<Uri>>,
-    /// Fork from an existing session. The new session is populated with content
-    /// from the source session up to and including the specified turn's response.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fork: Option<SessionForkSource>,
     /// Agent-specific configuration values collected via `resolveSessionConfig`.
     /// Keys and values correspond to the schema returned by the server.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -76,7 +76,7 @@ SessionState {
   workingDirectories?: URI[]   // equal-peer working directories
   annotations?: AnnotationsSummary
 
-  lifecycle: 'creating' | 'ready' | 'creationFailed'
+  lifecycle: 'creating' | 'ready' | 'failed'
   creationError?: ErrorInfo
   chats: ChatSummary[]                     // catalog of chats in this session
   defaultChat?: URI                        // input-routing hint
@@ -556,23 +556,6 @@ sequenceDiagram
 ```
 
 If the `turnId` is not found in the completed turns array, the action is a no-op.
-
-## Session Forking
-
-A new session can be created as a **fork** of an existing session by providing the optional `fork` field in `createSession`. The server populates the new session with content from the source session up to and including the response of the specified turn.
-
-```typescript
-createSession({
-  session: 'ahp-session:/<new-uuid>',
-  provider: 'copilot',
-  fork: {
-    session: 'ahp-session:/<source-uuid>',
-    turnId: 't-3',     // copy turns through t-3
-  },
-});
-```
-
-The forked session is an independent copy — subsequent changes to either session do not affect the other. The server broadcasts `root/sessionAdded` for the new session as usual.
 
 ## Multiroot Sessions
 

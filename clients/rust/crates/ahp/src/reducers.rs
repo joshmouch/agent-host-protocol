@@ -49,7 +49,6 @@
 //! ```
 
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use ahp_types::actions::{
     ChatInputAnswerChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction,
@@ -64,15 +63,17 @@ use ahp_types::state::{
     InputRequestResponsePart, McpServerStartingState, McpServerState, McpServerStoppedState,
     PendingMessage, PendingMessageKind, ResourceWatchState, ResponsePart, RootState,
     SessionInputRequest, SessionLifecycle, SessionState, SessionStatus, TerminalCommandPart,
-    TerminalContentPart, TerminalState, TerminalUnclassifiedPart, ToolCallAuthRequiredState,
-    ToolCallCancellationReason, ToolCallCancelledState, ToolCallCompletedState,
-    ToolCallConfirmationReason, ToolCallContributor, ToolCallPendingConfirmationState,
-    ToolCallPendingResultConfirmationState, ToolCallResponsePart, ToolCallRunningState,
-    ToolCallState, ToolCallStatus, ToolCallStreamingState, ToolInput, Turn, TurnState,
+    TerminalContentPart, TerminalExitedLifecycleState, TerminalLifecycleState, TerminalState,
+    TerminalUnclassifiedPart, ToolCallAuthRequiredState, ToolCallCancellationReason,
+    ToolCallCancelledState, ToolCallCompletedState, ToolCallConfirmationReason,
+    ToolCallContributor, ToolCallPendingConfirmationState, ToolCallPendingResultConfirmationState,
+    ToolCallResponsePart, ToolCallRunningState, ToolCallState, ToolCallStatus,
+    ToolCallStreamingState, ToolInput, Turn, TurnState,
 };
+use jiff::{SignedDuration, Timestamp};
 
 /// What happened when an action was applied.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReduceOutcome {
     /// The action was applied and mutated state.
     Applied,
@@ -82,51 +83,51 @@ pub enum ReduceOutcome {
     /// The action targets a different scope (e.g. a session action
     /// applied to root). Caller should route to the right reducer.
     OutOfScope,
+    /// The action targeted this state but contained invalid data, so the state
+    /// was left unchanged.
+    Invalid(ReduceError),
 }
 
-#[cfg(test)]
-thread_local! {
-    static MOCK_NOW_MS: std::cell::Cell<Option<i64>> = const { std::cell::Cell::new(None) };
+/// Why an action could not be reduced safely.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ReduceError {
+    /// A turn carried a start timestamp that was not valid RFC 3339.
+    #[error("invalid RFC 3339 timestamp {timestamp:?}: {reason}")]
+    InvalidTimestamp {
+        /// Timestamp received from the active turn.
+        timestamp: String,
+        /// Parser diagnostic.
+        reason: String,
+    },
+    /// Adding a turn duration produced a timestamp outside Jiff's supported
+    /// range.
+    #[error("could not add {duration_ms}ms to timestamp {timestamp:?}: {reason}")]
+    TimestampArithmetic {
+        /// Timestamp received from the active turn.
+        timestamp: String,
+        /// Producer-supplied duration after reducer clamping.
+        duration_ms: i64,
+        /// Arithmetic diagnostic.
+        reason: String,
+    },
 }
 
-fn now_ms() -> i64 {
-    #[cfg(test)]
-    {
-        if let Some(v) = MOCK_NOW_MS.with(|c| c.get()) {
-            return v;
-        }
-    }
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
-}
-
-fn now_iso() -> String {
-    iso8601_from_unix_millis(now_ms())
-}
-
-fn iso8601_from_unix_millis(ms: i64) -> String {
-    let seconds = ms.div_euclid(1_000);
-    let millis = ms.rem_euclid(1_000);
-    let days = seconds.div_euclid(86_400);
-    let seconds_of_day = seconds.rem_euclid(86_400);
-    let hour = seconds_of_day / 3_600;
-    let minute = (seconds_of_day % 3_600) / 60;
-    let second = seconds_of_day % 60;
-
-    let z = days + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 }.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = mp + if mp < 10 { 3 } else { -9 };
-    let year = y + if month <= 2 { 1 } else { 0 };
-
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+fn add_milliseconds_to_timestamp(timestamp: &str, duration: i64) -> Result<String, ReduceError> {
+    let start: Timestamp =
+        timestamp
+            .parse()
+            .map_err(|error: jiff::Error| ReduceError::InvalidTimestamp {
+                timestamp: timestamp.to_owned(),
+                reason: error.to_string(),
+            })?;
+    let end = start
+        .checked_add(SignedDuration::from_millis(duration))
+        .map_err(|error| ReduceError::TimestampArithmetic {
+            timestamp: timestamp.to_owned(),
+            duration_ms: duration,
+            reason: error.to_string(),
+        })?;
+    Ok(format!("{end:.3}"))
 }
 
 struct ToolCallBase {
@@ -331,10 +332,6 @@ fn refresh_summary_status(state: &mut ChatState) {
     state.status = summary_status(state, None);
 }
 
-fn touch_chat_modified(state: &mut ChatState) {
-    state.modified_at = now_iso();
-}
-
 fn end_turn(
     state: &mut ChatState,
     turn_id: &str,
@@ -349,6 +346,14 @@ fn end_turn(
     if active.id != turn_id {
         return ReduceOutcome::NoOp;
     }
+
+    // Validate and derive the timestamp before consuming the active turn so an
+    // invalid action leaves state untouched.
+    let duration = duration.max(0);
+    let modified_at = match add_milliseconds_to_timestamp(&active.started_at, duration) {
+        Ok(timestamp) => timestamp,
+        Err(error) => return ReduceOutcome::Invalid(error),
+    };
     let active = state.active_turn.take().unwrap();
 
     let response_parts: Vec<ResponsePart> = active
@@ -399,12 +404,10 @@ fn end_turn(
         })
         .collect();
 
-    // Defensive clamp: `duration` is producer-supplied and opaque to this
-    // reducer, but a negative value would be nonsensical to display.
     let turn = Turn {
         id: active.id,
         started_at: Some(active.started_at),
-        duration: Some(duration.max(0)),
+        duration: Some(duration),
         message: active.message,
         response_parts,
         usage: active.usage,
@@ -413,7 +416,7 @@ fn end_turn(
     };
 
     state.turns.push(turn);
-    state.modified_at = now_iso();
+    state.modified_at = modified_at;
     state.status = summary_status(state, terminal_status);
     ReduceOutcome::Applied
 }
@@ -451,7 +454,6 @@ fn upsert_input_request(state: &mut ChatState, request: ChatInputRequest) -> Red
             }));
     }
     state.status = summary_status(state, None);
-    touch_chat_modified(state);
     state.status = with_status_flag(state.status, SessionStatus::IsRead, false);
     ReduceOutcome::Applied
 }
@@ -691,7 +693,7 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
             ReduceOutcome::Applied
         }
         StateAction::SessionCreationFailed(a) => {
-            state.lifecycle = SessionLifecycle::CreationFailed;
+            state.lifecycle = SessionLifecycle::Failed;
             state.creation_error = Some(a.error.clone());
             ReduceOutcome::Applied
         }
@@ -1207,7 +1209,6 @@ pub fn apply_action_to_chat(state: &mut ChatState, action: &StateAction) -> Redu
             };
             part.response = Some(a.response);
             refresh_summary_status(state);
-            touch_chat_modified(state);
             ReduceOutcome::Applied
         }
         StateAction::ChatPendingMessageSet(a) => {
@@ -1292,7 +1293,7 @@ fn apply_turn_started(state: &mut ChatState, a: &ChatTurnStartedAction) -> Reduc
         usage: None,
     });
     state.status = summary_status(state, None);
-    touch_chat_modified(state);
+    state.modified_at = a.started_at.clone();
     state.status = with_status_flag(state.status, SessionStatus::IsRead, false);
 
     if let Some(qmid) = &a.queued_message_id {
@@ -1689,7 +1690,6 @@ fn apply_truncated(state: &mut ChatState, turn_id: Option<&str>) -> ReduceOutcom
         }
     }
     state.active_turn = None;
-    touch_chat_modified(state);
     state.status = summary_status(state, None);
     ReduceOutcome::Applied
 }
@@ -1728,7 +1728,6 @@ fn apply_input_answer_changed(
     if answers.is_empty() {
         req.answers = None;
     }
-    touch_chat_modified(state);
     ReduceOutcome::Applied
 }
 
@@ -1775,7 +1774,9 @@ pub fn apply_action_to_terminal(state: &mut TerminalState, action: &StateAction)
             ReduceOutcome::Applied
         }
         StateAction::TerminalExited(a) => {
-            state.exit_code = a.exit_code;
+            state.lifecycle = TerminalLifecycleState::Exited(TerminalExitedLifecycleState {
+                exit_code: a.exit_code,
+            });
             ReduceOutcome::Applied
         }
         StateAction::TerminalCleared(_) => {
@@ -1877,7 +1878,6 @@ pub fn apply_action_to_changeset(
             if let Some(operations) = &a.operations {
                 state.operations = Some(operations.clone());
             }
-            state.error = a.error.clone();
             ReduceOutcome::Applied
         }
         StateAction::ChangesetOperationsChanged(a) => {
@@ -1945,8 +1945,8 @@ pub fn apply_action_to_annotations(
                 return ReduceOutcome::NoOp;
             };
             let ann = &mut state.annotations[idx];
-            if let Some(turn_id) = &a.turn_id {
-                ann.turn_id = turn_id.clone();
+            if let Some(origin) = &a.origin {
+                ann.origin = origin.clone();
             }
             if let Some(resource) = &a.resource {
                 ann.resource = resource.clone();
@@ -2230,6 +2230,66 @@ mod tests {
     }
 
     #[test]
+    fn turn_complete_rejects_invalid_timestamp_without_mutating_state() {
+        let mut state = empty_chat("copilot:/s1/chat/1");
+        state.active_turn = Some(ActiveTurn {
+            id: "t1".into(),
+            started_at: "not-a-timestamp".into(),
+            message: user_message("hi"),
+            response_parts: Vec::new(),
+            usage: None,
+        });
+        state.status = SessionStatus::InProgress.bits();
+        let original = state.clone();
+        let action = StateAction::ChatTurnComplete(ahp_types::actions::ChatTurnCompleteAction {
+            turn_id: "t1".into(),
+            duration: 1000,
+            meta: None,
+        });
+
+        let outcome = apply_action_to_chat(&mut state, &action);
+
+        assert!(matches!(
+            outcome,
+            ReduceOutcome::Invalid(ReduceError::InvalidTimestamp { ref timestamp, .. })
+                if timestamp == "not-a-timestamp"
+        ));
+        assert_eq!(state, original);
+    }
+
+    #[test]
+    fn turn_complete_rejects_timestamp_overflow_without_mutating_state() {
+        let started_at = format!("{:.9}", Timestamp::MAX);
+        let mut state = empty_chat("copilot:/s1/chat/1");
+        state.active_turn = Some(ActiveTurn {
+            id: "t1".into(),
+            started_at: started_at.clone(),
+            message: user_message("hi"),
+            response_parts: Vec::new(),
+            usage: None,
+        });
+        state.status = SessionStatus::InProgress.bits();
+        let original = state.clone();
+        let action = StateAction::ChatTurnComplete(ahp_types::actions::ChatTurnCompleteAction {
+            turn_id: "t1".into(),
+            duration: 1,
+            meta: None,
+        });
+
+        let outcome = apply_action_to_chat(&mut state, &action);
+
+        assert!(matches!(
+            outcome,
+            ReduceOutcome::Invalid(ReduceError::TimestampArithmetic {
+                ref timestamp,
+                duration_ms: 1,
+                ..
+            }) if timestamp == &started_at
+        ));
+        assert_eq!(state, original);
+    }
+
+    #[test]
     fn session_reducer_handles_ready_and_chat_catalog_actions() {
         let mut s = empty_session("copilot:/s1");
         let ready = StateAction::SessionReady(ahp_types::actions::SessionReadyAction {});
@@ -2322,10 +2382,13 @@ mod tests {
             cols: None,
             rows: None,
             content: Vec::new(),
-            exit_code: None,
+            lifecycle: TerminalLifecycleState::Running(
+                ahp_types::state::TerminalRunningLifecycleState {},
+            ),
             claim: ahp_types::state::TerminalClaim::Session(
                 ahp_types::state::TerminalSessionClaim {
                     session: "session:/s1".into(),
+                    chat: "chat:/c1".into(),
                     turn_id: None,
                     tool_call_id: None,
                 },
@@ -2368,16 +2431,6 @@ mod tests {
             }
             other => other,
         }
-    }
-
-    const MOCK_NOW: i64 = 9999;
-
-    fn set_mock_time() {
-        MOCK_NOW_MS.with(|c| c.set(Some(MOCK_NOW)));
-    }
-
-    fn clear_mock_time() {
-        MOCK_NOW_MS.with(|c| c.set(None));
     }
 
     /// Load all JSON fixtures from `types/test-cases/reducers/` and run
@@ -2425,8 +2478,6 @@ mod tests {
 
         let mut passed = 0usize;
         let skipped = 0usize;
-
-        set_mock_time();
 
         for entry in &entries {
             let path = entry.path();
@@ -2572,8 +2623,6 @@ mod tests {
 
             passed += 1;
         }
-
-        clear_mock_time();
 
         eprintln!(
             "Fixture results: {passed} passed, {skipped} skipped, {} total",

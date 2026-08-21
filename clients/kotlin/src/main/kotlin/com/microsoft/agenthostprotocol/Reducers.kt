@@ -9,6 +9,7 @@ package com.microsoft.agenthostprotocol
 
 import com.microsoft.agenthostprotocol.generated.*
 import java.time.Instant
+import java.time.format.DateTimeFormatterBuilder
 import kotlinx.serialization.json.JsonElement
 
 // ─── Reducer Interface ──────────────────────────────────────────────────────
@@ -83,17 +84,10 @@ public object AutomationRunReducer : Reducer<AutomationRunState, StateAction> {
         automationRunReducer(state, action)
 }
 
-// ─── Timestamp Provider ─────────────────────────────────────────────────────
+private val isoTimestampFormatter = DateTimeFormatterBuilder().appendInstant(3).toFormatter()
 
-/**
- * Injectable timestamp provider. Returns epoch milliseconds.
- *
- * Tests override this to produce deterministic `modifiedAt` values when
- * exercising reducers; production callers should leave it on the default.
- */
-public var currentTimestampProvider: () -> Long = { System.currentTimeMillis() }
-
-private fun nowIsoString(): String = Instant.ofEpochMilli(currentTimestampProvider()).toString()
+private fun addMillisecondsToTimestamp(timestamp: String, duration: Long): String =
+    isoTimestampFormatter.format(Instant.parse(timestamp).plusMillis(duration))
 
 // ─── Status Bitset Helpers ──────────────────────────────────────────────────
 
@@ -466,7 +460,7 @@ private fun endTurn(
     val withoutTurn = state.copy(
         turns = state.turns + turn,
         activeTurn = null,
-        modifiedAt = nowIsoString(),
+        modifiedAt = addMillisecondsToTimestamp(active.startedAt, turn.duration ?: 0L),
     )
     return withoutTurn.copy(status = chatSummaryStatus(withoutTurn, terminalStatus))
 }
@@ -498,7 +492,6 @@ private fun upsertInputRequest(state: ChatState, request: ChatInputRequest): Cha
     val next = state.copy(activeTurn = activeTurn.copy(responseParts = updated))
     return next.copy(
         status = withStatusFlag(chatSummaryStatus(next), SessionStatus.IS_READ, false),
-        modifiedAt = nowIsoString(),
     )
 }
 
@@ -547,7 +540,7 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
     is StateActionSessionReady -> state.copy(lifecycle = SessionLifecycle.READY)
 
     is StateActionSessionCreationFailed -> state.copy(
-        lifecycle = SessionLifecycle.CREATION_FAILED,
+        lifecycle = SessionLifecycle.FAILED,
         creationError = action.value.error,
     )
 
@@ -881,7 +874,7 @@ public fun chatReducer(state: ChatState, action: StateAction): ChatState = when 
         )
         val withStatus = withTurn.copy(
             status = withStatusFlag(chatSummaryStatus(withTurn), SessionStatus.IS_READ, false),
-            modifiedAt = nowIsoString(),
+            modifiedAt = a.startedAt,
         )
         if (a.queuedMessageId == null) {
             withStatus
@@ -1365,7 +1358,6 @@ public fun chatReducer(state: ChatState, action: StateAction): ChatState = when 
             turns = turns,
             turnsNextCursor = if (a.turnId == null) null else state.turnsNextCursor,
             activeTurn = null,
-            modifiedAt = nowIsoString(),
         )
         next.copy(status = chatSummaryStatus(next))
     }
@@ -1410,7 +1402,6 @@ public fun chatReducer(state: ChatState, action: StateAction): ChatState = when 
             }
             state.copy(
                 activeTurn = activeTurn.copy(responseParts = updated),
-                modifiedAt = nowIsoString(),
             )
         }
     }
@@ -1439,7 +1430,6 @@ public fun chatReducer(state: ChatState, action: StateAction): ChatState = when 
             val next = state.copy(activeTurn = activeTurn.copy(responseParts = updated))
             next.copy(
                 status = chatSummaryStatus(next),
-                modifiedAt = nowIsoString(),
             )
         }
     }
@@ -1571,7 +1561,14 @@ public fun terminalReducer(state: TerminalState, action: StateAction): TerminalS
 
     is StateActionTerminalCwdChanged -> state.copy(cwd = action.value.cwd)
 
-    is StateActionTerminalExited -> state.copy(exitCode = action.value.exitCode)
+    is StateActionTerminalExited -> state.copy(
+        lifecycle = TerminalLifecycleStateExited(
+            TerminalExitedLifecycleState(
+                status = TerminalLifecycleStatus.EXITED,
+                exitCode = action.value.exitCode,
+            ),
+        ),
+    )
 
     is StateActionTerminalCleared -> state.copy(content = emptyList())
 
@@ -1672,9 +1669,9 @@ public fun changesetReducer(state: ChangesetState, action: StateAction): Changes
 
     is StateActionChangesetContentChanged ->
         if (action.value.operations == null) {
-            state.copy(files = action.value.files, error = action.value.error)
+            state.copy(files = action.value.files)
         } else {
-            state.copy(files = action.value.files, operations = action.value.operations, error = action.value.error)
+            state.copy(files = action.value.files, operations = action.value.operations)
         }
 
     is StateActionChangesetOperationsChanged ->
@@ -1737,7 +1734,7 @@ public fun annotationsReducer(state: AnnotationsState, action: StateAction): Ann
         } else {
             val annotation = state.annotations[idx]
             val updated = annotation.copy(
-                turnId = action.value.turnId ?: annotation.turnId,
+                origin = action.value.origin ?: annotation.origin,
                 resource = action.value.resource ?: annotation.resource,
                 range = action.value.range ?: annotation.range,
                 resolved = action.value.resolved ?: annotation.resolved

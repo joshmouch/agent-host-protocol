@@ -42,8 +42,8 @@ pub enum SessionLifecycle {
     Creating,
     #[serde(rename = "ready")]
     Ready,
-    #[serde(rename = "creationFailed")]
-    CreationFailed,
+    #[serde(rename = "failed")]
+    Failed,
 }
 
 /// Bitset of summary-level session status flags.
@@ -480,6 +480,15 @@ pub enum TerminalClaimKind {
     Client,
     #[serde(rename = "session")]
     Session,
+}
+
+/// Lifecycle status of a terminal process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TerminalLifecycleStatus {
+    #[serde(rename = "running")]
+    Running,
+    #[serde(rename = "exited")]
+    Exited,
 }
 
 /// Discriminant for the {@link McpServerState} union.
@@ -3896,9 +3905,8 @@ pub struct TerminalInfo {
     pub title: String,
     /// Who currently holds this terminal
     pub claim: TerminalClaim,
-    /// Process exit code, if the terminal process has exited
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i64>,
+    /// Current terminal process lifecycle.
+    pub lifecycle: TerminalLifecycleState,
 }
 
 /// A terminal claimed by a connected client.
@@ -3915,12 +3923,28 @@ pub struct TerminalClientClaim {
 pub struct TerminalSessionClaim {
     /// Session URI that claimed the terminal
     pub session: Uri,
-    /// Optional turn identifier within the session
+    /// Chat URI that claimed the terminal.
+    pub chat: Uri,
+    /// Optional turn identifier within the chat.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
     /// Optional tool call identifier within the turn
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_call_id: Option<String>,
+}
+
+/// A terminal process that is still running.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalRunningLifecycleState {}
+
+/// A terminal process that has exited.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalExitedLifecycleState {
+    /// Process exit code, if the runtime reported one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i64>,
 }
 
 /// Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
@@ -3945,9 +3969,8 @@ pub struct TerminalState {
     ///
     /// Consumers that need command boundaries can filter by part type.
     pub content: Vec<TerminalContentPart>,
-    /// Process exit code, set when the terminal process exits
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i64>,
+    /// Current terminal process lifecycle.
+    pub lifecycle: TerminalLifecycleState,
     /// Who currently holds this terminal
     pub claim: TerminalClaim,
     /// Whether this terminal emits `terminal/commandExecuted` and
@@ -4263,14 +4286,26 @@ pub struct AnnotationsState {
     pub annotations: Vec<Annotation>,
 }
 
-/// A conversation anchored to a specific file produced by a specific turn,
-/// optionally narrowed to a range within that file.
+/// Provenance of the content an annotation is anchored to.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationOrigin {
+    /// Owning session URI.
+    pub session: Uri,
+    /// Owning chat URI, when the annotation is scoped to a chat.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat: Option<Uri>,
+    /// Turn identifier within {@link chat}, when the annotation is scoped to a turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
+}
+
+/// A conversation anchored to a specific file in a session, optionally scoped
+/// to a chat and turn and narrowed to a range within that file.
 ///
-/// {@link turnId} anchors the annotation to the file versions that turn
-/// produced, so a later turn that rewrites the same file does not silently
-/// invalidate the annotation's anchor — clients can resolve {@link resource}
-/// and {@link range} against the turn's changeset. When {@link range} is
-/// omitted the annotation is anchored to the entire file.
+/// {@link origin} identifies the owning session and, when available, the chat
+/// and turn that produced the file version. When {@link range} is omitted the
+/// annotation is anchored to the entire file.
 ///
 /// Every annotation MUST contain at least one {@link AnnotationEntry}. An
 /// {@link AnnotationsSetAction} that creates an annotation therefore carries
@@ -4283,9 +4318,8 @@ pub struct Annotation {
     /// Stable identifier within the annotations channel. Assigned by the client
     /// that dispatches the creating {@link AnnotationsSetAction}.
     pub id: String,
-    /// Turn that produced the file versions this annotation is anchored to.
-    /// Matches a {@link Turn.id} on the owning session.
-    pub turn_id: String,
+    /// Provenance of the content this annotation is anchored to.
+    pub origin: AnnotationOrigin,
     /// The file the annotation is anchored to.
     pub resource: Uri,
     /// Range within {@link resource} the annotation is anchored to. When
@@ -5192,6 +5226,16 @@ pub enum ToolCallRiskAssessment {
     /// Reducers treat this as a no-op.
     #[serde(untagged)]
     Unknown(serde_json::Value),
+}
+
+/// Current lifecycle of a terminal process.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status")]
+pub enum TerminalLifecycleState {
+    #[serde(rename = "running")]
+    Running(TerminalRunningLifecycleState),
+    #[serde(rename = "exited")]
+    Exited(TerminalExitedLifecycleState),
 }
 
 /// One outstanding piece of input a session is blocked on, aggregated across all chats.

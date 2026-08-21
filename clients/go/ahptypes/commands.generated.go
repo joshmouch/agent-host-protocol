@@ -366,13 +366,6 @@ type SubscribeResult struct {
 // After creation, the client should subscribe to the session URI to receive state
 // updates. The server also broadcasts a `root/sessionAdded` notification to all
 // clients.
-type SessionForkSource struct {
-	// URI of the existing session to fork from
-	Session URI `json:"session"`
-	// Turn ID in the source session; content up to and including this turn's response is copied
-	TurnId string `json:"turnId"`
-}
-
 type CreateSessionParams struct {
 	// Channel URI this command targets.
 	Channel URI `json:"channel"`
@@ -394,13 +387,7 @@ type CreateSessionParams struct {
 	// capability treats only the first entry as the session's working directory
 	// and ignores the rest. Dispatch working-directory actions to change the set
 	// after the session has started.
-	//
-	// Ignored for forked sessions — a fork inherits its working directories
-	// from the source session identified by `fork`.
 	WorkingDirectories []URI `json:"workingDirectories,omitempty"`
-	// Fork from an existing session. The new session is populated with content
-	// from the source session up to and including the specified turn's response.
-	Fork *SessionForkSource `json:"fork,omitempty"`
 	// Agent-specific configuration values collected via `resolveSessionConfig`.
 	// Keys and values correspond to the schema returned by the server.
 	Config map[string]json.RawMessage `json:"config,omitempty"`

@@ -2,7 +2,6 @@ package ahp
 
 import (
 	"encoding/json"
-	"sync"
 	"time"
 
 	"github.com/microsoft/agent-host-protocol/clients/go/ahptypes"
@@ -26,35 +25,16 @@ const (
 	ReduceOutcomeOutOfScope
 )
 
-// ─── Injectable timestamp ──────────────────────────────────────────────
-
-var (
-	nowMu       sync.RWMutex
-	nowProvider func() int64 = func() int64 { return time.Now().UnixMilli() }
-)
-
-// SetNowProvider overrides the clock reducers use to stamp modifiedAt fields.
-// Chat modifiedAt values are formatted as ISO 8601 strings from this clock;
-// session summary modifiedAt keeps the numeric millisecond timestamp. Pass nil
-// to restore the default ([time.Now].UnixMilli).
-func SetNowProvider(fn func() int64) {
-	nowMu.Lock()
-	defer nowMu.Unlock()
-	if fn == nil {
-		nowProvider = func() int64 { return time.Now().UnixMilli() }
-	} else {
-		nowProvider = fn
+func addMillisecondsToTimestamp(timestamp string, duration int64) string {
+	start, err := time.Parse(time.RFC3339Nano, timestamp)
+	if err != nil {
+		panic("invalid ISO 8601 timestamp: " + timestamp)
 	}
-}
-
-func nowMs() int64 {
-	nowMu.RLock()
-	defer nowMu.RUnlock()
-	return nowProvider()
-}
-
-func nowISOString() string {
-	return time.UnixMilli(nowMs()).UTC().Format("2006-01-02T15:04:05.000Z")
+	delta := time.Duration(duration) * time.Millisecond
+	if int64(delta/time.Millisecond) != duration {
+		panic("timestamp duration overflows time.Duration")
+	}
+	return start.Add(delta).UTC().Format("2006-01-02T15:04:05.000Z")
 }
 
 // ─── Status helpers ────────────────────────────────────────────────────
@@ -209,10 +189,6 @@ func refreshSummaryStatus(state *ahptypes.ChatState) {
 	state.Status = summaryStatus(state, nil)
 }
 
-func touchChatModified(state *ahptypes.ChatState) {
-	state.ModifiedAt = nowISOString()
-}
-
 // ─── Active-turn helpers ───────────────────────────────────────────────
 
 func endTurn(state *ahptypes.ChatState, turnID string, duration int64, turnState ahptypes.TurnState, terminalStatus *ahptypes.SessionStatus, errInfo *ahptypes.ErrorInfo) ReduceOutcome {
@@ -272,7 +248,7 @@ func endTurn(state *ahptypes.ChatState, turnID string, duration int64, turnState
 	}
 
 	state.Turns = append(state.Turns, turn)
-	state.ModifiedAt = nowISOString()
+	state.ModifiedAt = addMillisecondsToTimestamp(active.StartedAt, duration)
 	state.Status = summaryStatus(state, terminalStatus)
 	return ReduceOutcomeApplied
 }
@@ -294,7 +270,6 @@ func upsertInputRequest(state *ahptypes.ChatState, req ahptypes.ChatInputRequest
 			}
 			state.ActiveTurn.ResponseParts = parts
 			state.Status = summaryStatus(state, nil)
-			touchChatModified(state)
 			state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsRead, false)
 			return ReduceOutcomeApplied
 		}
@@ -306,7 +281,6 @@ func upsertInputRequest(state *ahptypes.ChatState, req ahptypes.ChatInputRequest
 		},
 	})
 	state.Status = summaryStatus(state, nil)
-	touchChatModified(state)
 	state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsRead, false)
 	return ReduceOutcomeApplied
 }
@@ -691,7 +665,6 @@ func ApplyActionToChat(state *ahptypes.ChatState, action ahptypes.StateAction) R
 				Response: &response,
 			}
 			refreshSummaryStatus(state)
-			touchChatModified(state)
 			return ReduceOutcomeApplied
 		}
 		return ReduceOutcomeNoOp
@@ -817,7 +790,7 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 		state.Lifecycle = ahptypes.SessionLifecycleReady
 		return ReduceOutcomeApplied
 	case *ahptypes.SessionCreationFailedAction:
-		state.Lifecycle = ahptypes.SessionLifecycleCreationFailed
+		state.Lifecycle = ahptypes.SessionLifecycleFailed
 		errCopy := a.Error
 		state.CreationError = &errCopy
 		return ReduceOutcomeApplied
@@ -1055,7 +1028,7 @@ func applyTurnStarted(state *ahptypes.ChatState, a *ahptypes.ChatTurnStartedActi
 		ResponseParts: []ahptypes.ResponsePart{},
 	}
 	state.Status = summaryStatus(state, nil)
-	state.ModifiedAt = nowISOString()
+	state.ModifiedAt = a.StartedAt
 	state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsRead, false)
 
 	if a.QueuedMessageId != nil {
@@ -1533,7 +1506,6 @@ func applyTruncated(state *ahptypes.ChatState, turnID *string) ReduceOutcome {
 		state.Turns = state.Turns[:idx+1]
 	}
 	state.ActiveTurn = nil
-	touchChatModified(state)
 	state.Status = summaryStatus(state, nil)
 	return ReduceOutcomeApplied
 }
@@ -1559,7 +1531,6 @@ func applyInputAnswerChanged(state *ahptypes.ChatState, a *ahptypes.ChatInputAns
 		if len(req.Answers) == 0 {
 			req.Answers = nil
 		}
-		touchChatModified(state)
 		return ReduceOutcomeApplied
 	}
 	return ReduceOutcomeNoOp
@@ -1594,7 +1565,10 @@ func ApplyActionToTerminal(state *ahptypes.TerminalState, action ahptypes.StateA
 		state.Cwd = &cwd
 		return ReduceOutcomeApplied
 	case *ahptypes.TerminalExitedAction:
-		state.ExitCode = a.ExitCode
+		state.Lifecycle = ahptypes.TerminalLifecycleState{Value: &ahptypes.TerminalExitedLifecycleState{
+			Status:   ahptypes.TerminalLifecycleStatusExited,
+			ExitCode: a.ExitCode,
+		}}
 		return ReduceOutcomeApplied
 	case *ahptypes.TerminalClearedAction:
 		state.Content = []ahptypes.TerminalContentPart{}
@@ -1714,7 +1688,6 @@ func ApplyActionToChangeset(state *ahptypes.ChangesetState, action ahptypes.Stat
 		if a.Operations != nil {
 			state.Operations = a.Operations
 		}
-		state.Error = a.Error
 		return ReduceOutcomeApplied
 
 	case *ahptypes.ChangesetOperationsChangedAction:
@@ -1765,8 +1738,8 @@ func ApplyActionToAnnotations(state *ahptypes.AnnotationsState, action ahptypes.
 	case *ahptypes.AnnotationsUpdatedAction:
 		for i := range state.Annotations {
 			if state.Annotations[i].Id == a.AnnotationId {
-				if a.TurnId != nil {
-					state.Annotations[i].TurnId = *a.TurnId
+				if a.Origin != nil {
+					state.Annotations[i].Origin = *a.Origin
 				}
 				if a.Resource != nil {
 					state.Annotations[i].Resource = *a.Resource

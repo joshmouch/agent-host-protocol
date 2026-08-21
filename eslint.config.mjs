@@ -19,4 +19,14 @@ export default [
       '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
     },
   },
+  {
+    files: ['types/**/*reducer*.ts'],
+    ignores: ['types/**/*.test.ts'],
+    rules: {
+      'no-restricted-globals': ['error', {
+        name: 'Date',
+        message: 'Reducers must be deterministic. Put timestamps on actions or derive them from action data.',
+      }],
+    },
+  },
 ];

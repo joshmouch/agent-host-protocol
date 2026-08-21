@@ -15,8 +15,6 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import org.junit.jupiter.api.AfterEach
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
@@ -49,22 +47,6 @@ import kotlin.test.assertTrue
  * ```
  */
 class FixtureDrivenReducerTest {
-
-    private var originalProvider: (() -> Long)? = null
-
-    @BeforeEach
-    fun mockTimestamp() {
-        // Match the TypeScript test mock (`Date.now = () => 9999`) so chat
-        // fixtures assert the corresponding ISO `modifiedAt` value.
-        originalProvider = currentTimestampProvider
-        currentTimestampProvider = { MOCK_NOW }
-    }
-
-    @AfterEach
-    fun restoreTimestamp() {
-        originalProvider?.let { currentTimestampProvider = it }
-        originalProvider = null
-    }
 
     @TestFactory
     fun allFixtures(): List<DynamicTest> {
@@ -361,7 +343,6 @@ class FixtureDrivenReducerTest {
 
     private companion object {
         // Matches the TypeScript test mock: Date.now = () => 9999.
-        private const val MOCK_NOW: Long = 9999L
 
         /**
          * Fixture descriptions intentionally skipped because they exercise

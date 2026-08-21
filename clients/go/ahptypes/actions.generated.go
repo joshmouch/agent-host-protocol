@@ -1232,8 +1232,6 @@ type ChangesetContentChangedAction struct {
 	Files []ChangesetFile `json:"files"`
 	// Full replacement operation list. Omit when operations are unchanged.
 	Operations []ChangesetOperation `json:"operations,omitempty"`
-	// Error information, if the changeset content change failed.
-	Error *ErrorInfo `json:"error,omitempty"`
 }
 
 // The set of operations available on this changeset changed. Full
@@ -1321,10 +1319,8 @@ type AnnotationsUpdatedAction struct {
 	Type ActionType `json:"type"`
 	// The {@link Annotation.id} of the annotation to update.
 	AnnotationId string `json:"annotationId"`
-	// Re-anchors the annotation to the file versions this turn produced.
-	// Matches a {@link Turn.id} on the owning session. Omit to leave the
-	// current {@link Annotation.turnId} unchanged.
-	TurnId *string `json:"turnId,omitempty"`
+	// Replaces the annotation's provenance. Omit to leave it unchanged.
+	Origin *AnnotationOrigin `json:"origin,omitempty"`
 	// Re-anchors the annotation to this file. Omit to leave the current
 	// {@link Annotation.resource} unchanged.
 	Resource *URI `json:"resource,omitempty"`

@@ -711,7 +711,8 @@ const STATE_ENUMS = [
   'ToolCallRiskAssessmentStatus',
   'ToolCallCancellationReason',
   'ConfirmationOptionKind', 'ToolCallContributorKind',
-  'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus', 'TerminalClaimKind',
+  'ToolResultContentType', 'CustomizationType', 'CustomizationEnablementKind', 'CustomizationLoadStatus',
+  'TerminalClaimKind', 'TerminalLifecycleStatus',
   'McpServerStatus', 'McpAuthRequiredReason',
   'ChangesetStatus', 'ChangesetOperationStatus', 'ChangesetOperationScope', 'ResourceChangeType',
   'SessionOriginKind',
@@ -830,6 +831,8 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'TerminalInfo' },
   { name: 'TerminalClientClaim' },
   { name: 'TerminalSessionClaim' },
+  { name: 'TerminalRunningLifecycleState' },
+  { name: 'TerminalExitedLifecycleState' },
   { name: 'TerminalState' },
   { name: 'TerminalUnclassifiedPart' },
   { name: 'TerminalCommandPart' },
@@ -843,6 +846,7 @@ const STATE_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: strin
   { name: 'ChangesetOperation' },
   { name: 'AnnotationsSummary' },
   { name: 'AnnotationsState' },
+  { name: 'AnnotationOrigin' },
   { name: 'Annotation' },
   { name: 'AnnotationEntry' },
   { name: 'TelemetryCapabilities' },
@@ -1078,6 +1082,16 @@ const TOOL_CALL_RISK_ASSESSMENT_UNION: UnionConfig = {
     { variantName: 'Complete', innerType: 'ToolCallRiskAssessmentCompleteState', wireValue: 'complete' },
   ],
   unknown: true,
+};
+
+const TERMINAL_LIFECYCLE_STATE_UNION: UnionConfig = {
+  name: 'TerminalLifecycleState',
+  discriminantField: 'status',
+  doc: 'TerminalLifecycleState is the current lifecycle of a terminal process.',
+  variants: [
+    { variantName: 'Running', innerType: 'TerminalRunningLifecycleState', wireValue: 'running' },
+    { variantName: 'Exited', innerType: 'TerminalExitedLifecycleState', wireValue: 'exited' },
+  ],
 };
 
 const SESSION_INPUT_REQUEST_UNION: UnionConfig = {
@@ -1461,6 +1475,8 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
+  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
   lines.push('');
   lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
@@ -1695,7 +1711,7 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; goName?: str
   { name: 'ReconnectReplayResult', omitDiscriminants: true },
   { name: 'ReconnectSnapshotResult', omitDiscriminants: true },
   { name: 'SubscribeParams' }, { name: 'SubscribeView' }, { name: 'SubscriptionDeliveryOptions' }, { name: 'SubscribeResult' },
-  { name: 'SessionForkSource' }, { name: 'CreateSessionParams' },
+  { name: 'CreateSessionParams' },
   { name: 'DisposeSessionParams' },
   { name: 'ForkChatSource' }, { name: 'SideChatSource' }, { name: 'CreateChatParams' }, { name: 'DisposeChatParams' },
   { name: 'ListSessionsParams' }, { name: 'ListSessionsResult' },
@@ -2286,6 +2302,7 @@ function checkExhaustiveness(project: Project): void {
     'McpServerState',
     'ToolCallContributor',
     'ToolCallRiskAssessment',
+    'TerminalLifecycleState',
     'SessionInputRequest',
     'ToolCallConfirmationState',
     'ReconnectResult',

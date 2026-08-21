@@ -544,18 +544,6 @@ data class SubscribeResult(
 )
 
 @Serializable
-data class SessionForkSource(
-    /**
-     * URI of the existing session to fork from
-     */
-    val session: String,
-    /**
-     * Turn ID in the source session; content up to and including this turn's response is copied
-     */
-    val turnId: String
-)
-
-@Serializable
 data class CreateSessionParams(
     /**
      * Channel URI this command targets.
@@ -585,16 +573,8 @@ data class CreateSessionParams(
      * capability treats only the first entry as the session's working directory
      * and ignores the rest. Dispatch working-directory actions to change the set
      * after the session has started.
-     *
-     * Ignored for forked sessions — a fork inherits its working directories
-     * from the source session identified by `fork`.
      */
     val workingDirectories: List<String>? = null,
-    /**
-     * Fork from an existing session. The new session is populated with content
-     * from the source session up to and including the specified turn's response.
-     */
-    val fork: SessionForkSource? = null,
     /**
      * Agent-specific configuration values collected via `resolveSessionConfig`.
      * Keys and values correspond to the schema returned by the server.

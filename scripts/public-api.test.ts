@@ -15,6 +15,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Declarations deliberately withheld from the entry point. */
 const INTENTIONALLY_INTERNAL: ReadonlySet<string> = new Set([
+  'addMillisecondsToTimestamp', // deterministic reducer timestamp helper
   'softAssertNever', // reducer-internal exhaustiveness helper
 ]);
 

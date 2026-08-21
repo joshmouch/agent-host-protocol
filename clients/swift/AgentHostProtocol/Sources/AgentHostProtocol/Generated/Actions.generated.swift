@@ -1617,19 +1617,15 @@ public struct ChangesetContentChangedAction: Codable, Sendable {
     public var files: [ChangesetFile]
     /// Full replacement operation list. Omit when operations are unchanged.
     public var operations: [ChangesetOperation]?
-    /// Error information, if the changeset content change failed.
-    public var error: ErrorInfo?
 
     public init(
         type: ActionType,
         files: [ChangesetFile],
-        operations: [ChangesetOperation]? = nil,
-        error: ErrorInfo? = nil
+        operations: [ChangesetOperation]? = nil
     ) {
         self.type = type
         self.files = files
         self.operations = operations
-        self.error = error
     }
 }
 
@@ -1697,10 +1693,8 @@ public struct AnnotationsUpdatedAction: Codable, Sendable {
     public var type: ActionType
     /// The {@link Annotation.id} of the annotation to update.
     public var annotationId: String
-    /// Re-anchors the annotation to the file versions this turn produced.
-    /// Matches a {@link Turn.id} on the owning session. Omit to leave the
-    /// current {@link Annotation.turnId} unchanged.
-    public var turnId: String?
+    /// Replaces the annotation's provenance. Omit to leave it unchanged.
+    public var origin: AnnotationOrigin?
     /// Re-anchors the annotation to this file. Omit to leave the current
     /// {@link Annotation.resource} unchanged.
     public var resource: String?
@@ -1716,14 +1710,14 @@ public struct AnnotationsUpdatedAction: Codable, Sendable {
     public init(
         type: ActionType,
         annotationId: String,
-        turnId: String? = nil,
+        origin: AnnotationOrigin? = nil,
         resource: String? = nil,
         range: TextRange? = nil,
         resolved: Bool? = nil
     ) {
         self.type = type
         self.annotationId = annotationId
-        self.turnId = turnId
+        self.origin = origin
         self.resource = resource
         self.range = range
         self.resolved = resolved

@@ -1905,10 +1905,6 @@
             "$ref": "#/$defs/ChangesetOperation"
           },
           "description": "Full replacement operation list. Omit when operations are unchanged."
-        },
-        "error": {
-          "$ref": "#/$defs/ErrorInfo",
-          "description": "Error information, if the changeset content change failed."
         }
       },
       "required": [
@@ -2001,9 +1997,9 @@
           "type": "string",
           "description": "The {@link Annotation.id} of the annotation to update."
         },
-        "turnId": {
-          "type": "string",
-          "description": "Re-anchors the annotation to the file versions this turn produced.\nMatches a {@link Turn.id} on the owning session. Omit to leave the\ncurrent {@link Annotation.turnId} unchanged."
+        "origin": {
+          "$ref": "#/$defs/AnnotationOrigin",
+          "description": "Replaces the annotation's provenance. Omit to leave it unchanged."
         },
         "resource": {
           "$ref": "#/$defs/URI",
@@ -6829,15 +6825,44 @@
           "$ref": "#/$defs/TerminalClaim",
           "description": "Who currently holds this terminal"
         },
-        "exitCode": {
-          "type": "number",
-          "description": "Process exit code, if the terminal process has exited"
+        "lifecycle": {
+          "$ref": "#/$defs/TerminalLifecycleState",
+          "description": "Current terminal process lifecycle."
         }
       },
       "required": [
         "resource",
         "title",
-        "claim"
+        "claim",
+        "lifecycle"
+      ]
+    },
+    "TerminalRunningLifecycleState": {
+      "type": "object",
+      "description": "A terminal process that is still running.",
+      "properties": {
+        "status": {
+          "const": "running"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "TerminalExitedLifecycleState": {
+      "type": "object",
+      "description": "A terminal process that has exited.",
+      "properties": {
+        "status": {
+          "const": "exited"
+        },
+        "exitCode": {
+          "type": "number",
+          "description": "Process exit code, if the runtime reported one."
+        }
+      },
+      "required": [
+        "status"
       ]
     },
     "TerminalClientClaim": {
@@ -6870,9 +6895,13 @@
           "$ref": "#/$defs/URI",
           "description": "Session URI that claimed the terminal"
         },
+        "chat": {
+          "$ref": "#/$defs/URI",
+          "description": "Chat URI that claimed the terminal."
+        },
         "turnId": {
           "type": "string",
-          "description": "Optional turn identifier within the session"
+          "description": "Optional turn identifier within the chat."
         },
         "toolCallId": {
           "type": "string",
@@ -6881,7 +6910,8 @@
       },
       "required": [
         "kind",
-        "session"
+        "session",
+        "chat"
       ]
     },
     "TerminalState": {
@@ -6911,9 +6941,9 @@
           },
           "description": "Typed content parts, replacing the flat `content: string`.\n\nNaive consumers that only need the raw VT stream can reconstruct it with:\n  `content.map(p => p.type === 'command' ? p.output : p.value).join('')`\n\nConsumers that need command boundaries can filter by part type."
         },
-        "exitCode": {
-          "type": "number",
-          "description": "Process exit code, set when the terminal process exits"
+        "lifecycle": {
+          "$ref": "#/$defs/TerminalLifecycleState",
+          "description": "Current terminal process lifecycle."
         },
         "claim": {
           "$ref": "#/$defs/TerminalClaim",
@@ -6931,6 +6961,7 @@
       "required": [
         "title",
         "content",
+        "lifecycle",
         "claim"
       ]
     },
@@ -7193,17 +7224,38 @@
         "annotations"
       ]
     },
+    "AnnotationOrigin": {
+      "type": "object",
+      "description": "Provenance of the content an annotation is anchored to.",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning session URI."
+        },
+        "chat": {
+          "$ref": "#/$defs/URI",
+          "description": "Owning chat URI, when the annotation is scoped to a chat."
+        },
+        "turnId": {
+          "type": "string",
+          "description": "Turn identifier within {@link chat}, when the annotation is scoped to a turn."
+        }
+      },
+      "required": [
+        "session"
+      ]
+    },
     "Annotation": {
       "type": "object",
-      "description": "A conversation anchored to a specific file produced by a specific turn,\noptionally narrowed to a range within that file.\n\n{@link turnId} anchors the annotation to the file versions that turn\nproduced, so a later turn that rewrites the same file does not silently\ninvalidate the annotation's anchor — clients can resolve {@link resource}\nand {@link range} against the turn's changeset. When {@link range} is\nomitted the annotation is anchored to the entire file.\n\nEvery annotation MUST contain at least one {@link AnnotationEntry}. An\n{@link AnnotationsSetAction} that creates an annotation therefore carries\nits mandatory first entry, and removing the last remaining entry collapses\nthe annotation via {@link AnnotationsRemovedAction} rather than leaving an\nempty annotation behind.",
+      "description": "A conversation anchored to a specific file in a session, optionally scoped\nto a chat and turn and narrowed to a range within that file.\n\n{@link origin} identifies the owning session and, when available, the chat\nand turn that produced the file version. When {@link range} is omitted the\nannotation is anchored to the entire file.\n\nEvery annotation MUST contain at least one {@link AnnotationEntry}. An\n{@link AnnotationsSetAction} that creates an annotation therefore carries\nits mandatory first entry, and removing the last remaining entry collapses\nthe annotation via {@link AnnotationsRemovedAction} rather than leaving an\nempty annotation behind.",
       "properties": {
         "id": {
           "type": "string",
           "description": "Stable identifier within the annotations channel. Assigned by the client\nthat dispatches the creating {@link AnnotationsSetAction}."
         },
-        "turnId": {
-          "type": "string",
-          "description": "Turn that produced the file versions this annotation is anchored to.\nMatches a {@link Turn.id} on the owning session."
+        "origin": {
+          "$ref": "#/$defs/AnnotationOrigin",
+          "description": "Provenance of the content this annotation is anchored to."
         },
         "resource": {
           "$ref": "#/$defs/URI",
@@ -7232,7 +7284,7 @@
       },
       "required": [
         "id",
-        "turnId",
+        "origin",
         "resource",
         "resolved",
         "entries"
@@ -8361,6 +8413,17 @@
       ],
       "description": "Content block in a tool result.\n\nMirrors the content blocks in MCP `CallToolResult.content`, plus\n`ToolResultResourceContent` for lazy-loading large results,\n`ToolResultFileEditContent` for file edit diffs,\n`ToolResultTerminalContent` for live terminal output and\ncommand completion metadata, and\n`ToolResultSubagentContent` for tool-spawned worker chats (AHP extensions)."
     },
+    "TerminalLifecycleState": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TerminalRunningLifecycleState"
+        },
+        {
+          "$ref": "#/$defs/TerminalExitedLifecycleState"
+        }
+      ],
+      "description": "Current lifecycle of a terminal process."
+    },
     "TerminalClaim": {
       "oneOf": [
         {
@@ -8801,7 +8864,7 @@
       "enum": [
         "creating",
         "ready",
-        "creationFailed"
+        "failed"
       ],
       "type": "string",
       "description": "Session initialization state."

@@ -34,7 +34,7 @@ import type {
 export const enum SessionLifecycle {
   Creating = 'creating',
   Ready = 'ready',
-  CreationFailed = 'creationFailed',
+  Failed = 'failed',
 }
 
 /**

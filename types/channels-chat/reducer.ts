@@ -29,6 +29,7 @@ import {
 import { SessionStatus } from '../channels-session/state.js';
 import type { ChatAction } from '../action-origin.generated.js';
 import { softAssertNever } from '../common/reducer-helpers.js';
+import { addMillisecondsToTimestamp } from '../common/timestamps.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -215,7 +216,7 @@ function endTurn(
     ...state,
     turns: [...state.turns, turn],
     activeTurn: undefined,
-    modifiedAt: new Date(Date.now()).toISOString(),
+    modifiedAt: addMillisecondsToTimestamp(active.startedAt, turn.duration ?? 0),
   };
   return {
     ...next,
@@ -250,7 +251,7 @@ function upsertInputRequestPart(state: ChatState, request: InputRequestResponseP
       responseParts,
     },
   };
-  return { ...next, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false), modifiedAt: new Date(Date.now()).toISOString() };
+  return { ...next, status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false) };
 }
 
 /**
@@ -356,7 +357,7 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
       next = {
         ...next,
         status: withStatusFlag(summaryStatus(next), SessionStatus.IsRead, false),
-        modifiedAt: new Date(Date.now()).toISOString(),
+        modifiedAt: action.startedAt,
       };
 
       // If this turn was auto-started from a pending message, remove it
@@ -720,7 +721,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
         ...state,
         turns,
         activeTurn: undefined,
-        modifiedAt: new Date(Date.now()).toISOString(),
       };
       if (action.turnId === undefined) {
         delete next.turnsNextCursor;
@@ -776,7 +776,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
           ...activeTurn,
           responseParts,
         },
-        modifiedAt: new Date(Date.now()).toISOString(),
       };
     }
 
@@ -809,7 +808,6 @@ export function chatReducer(state: ChatState, action: ChatAction, log?: (msg: st
       return {
         ...next,
         status: summaryStatus(next),
-        modifiedAt: new Date(Date.now()).toISOString(),
       };
     }
 

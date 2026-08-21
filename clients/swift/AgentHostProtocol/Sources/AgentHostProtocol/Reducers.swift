@@ -3,19 +3,14 @@
 
 import Foundation
 
-// MARK: - Timestamp Provider
-
-/// Injectable timestamp provider for testing. Returns epoch milliseconds.
-public var currentTimestampProvider: () -> Int = {
-    Int(Date().timeIntervalSince1970 * 1000)
-}
-
 private let iso8601TimestampFormatter: ISO8601DateFormatter = {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     formatter.timeZone = TimeZone(secondsFromGMT: 0)
     return formatter
 }()
+
+private let iso8601TimestampParser = ISO8601DateFormatter()
 
 // MARK: - Status Bitset Helpers
 
@@ -133,7 +128,7 @@ public func chatReducer(state: ChatState, action: StateAction) -> ChatState {
 
     case .chatTurnStarted(let a):
         var next = state
-        next.modifiedAt = currentTimestamp()
+        next.modifiedAt = a.startedAt
         next.activeTurn = ActiveTurn(
             id: a.turnId,
             startedAt: a.startedAt,
@@ -541,7 +536,6 @@ public func chatReducer(state: ChatState, action: StateAction) -> ChatState {
         }
         next.activeTurn = nil
         next.status = chatSummaryStatus(next)
-        next.modifiedAt = currentTimestamp()
         return next
 
     case .chatTurnsLoaded(let a):
@@ -578,7 +572,6 @@ public func chatReducer(state: ChatState, action: StateAction) -> ChatState {
         activeTurn.responseParts[idx] = .inputRequest(part)
         var next = state
         next.activeTurn = activeTurn
-        next.modifiedAt = currentTimestamp()
         return next
 
     case .chatInputCompleted(let a):
@@ -602,7 +595,6 @@ public func chatReducer(state: ChatState, action: StateAction) -> ChatState {
         var next = state
         next.activeTurn = activeTurn
         next.status = chatSummaryStatus(next)
-        next.modifiedAt = currentTimestamp()
         return next
 
     // ── Pending Messages ──────────────────────────────────────────────────
@@ -678,7 +670,7 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
 
     case .sessionCreationFailed(let a):
         var next = state
-        next.lifecycle = .creationFailed
+        next.lifecycle = .failed
         next.creationError = a.error
         return next
 
@@ -942,9 +934,14 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
 
 // MARK: - Helpers
 
-private func currentTimestamp() -> String {
-    let date = Date(timeIntervalSince1970: Double(currentTimestampProvider()) / 1000)
-    return iso8601TimestampFormatter.string(from: date)
+private func addMillisecondsToTimestamp(_ timestamp: String, _ duration: Int) -> String {
+    guard let start = iso8601TimestampFormatter.date(from: timestamp)
+        ?? iso8601TimestampParser.date(from: timestamp) else {
+        preconditionFailure("Invalid ISO 8601 timestamp: \(timestamp)")
+    }
+    return iso8601TimestampFormatter.string(
+        from: start.addingTimeInterval(Double(duration) / 1_000)
+    )
 }
 
 private func updateMcpServerCustomizationState(
@@ -1055,7 +1052,6 @@ private func upsertInputRequest(state: ChatState, request: ChatInputRequest) -> 
     var next = state
     next.activeTurn = activeTurn
     next.status = withStatusFlag(chatSummaryStatus(next), .isRead, false)
-    next.modifiedAt = currentTimestamp()
     return next
 }
 
@@ -1131,7 +1127,7 @@ private func endTurn(
     next.turns.append(turn)
     next.activeTurn = nil
     next.status = chatSummaryStatus(next, terminalStatus: terminalStatus)
-    next.modifiedAt = currentTimestamp()
+    next.modifiedAt = addMillisecondsToTimestamp(activeTurn.startedAt, turn.duration ?? 0)
     return next
 }
 
@@ -1240,7 +1236,10 @@ public func terminalReducer(state: TerminalState, action: StateAction) -> Termin
 
     case .terminalExited(let a):
         var next = state
-        next.exitCode = a.exitCode
+        next.lifecycle = .exited(TerminalExitedLifecycleState(
+            status: .exited,
+            exitCode: a.exitCode
+        ))
         return next
 
     case .terminalCleared:
@@ -1340,7 +1339,6 @@ public func changesetReducer(state: ChangesetState, action: StateAction) -> Chan
         if let operations = a.operations {
             next.operations = operations
         }
-        next.error = a.error
         return next
 
     case .changesetOperationsChanged(let a):
@@ -1400,7 +1398,7 @@ public func annotationsReducer(state: AnnotationsState, action: StateAction) -> 
         }
         var next = state
         var annotation = next.annotations[idx]
-        if let turnId = a.turnId { annotation.turnId = turnId }
+        if let origin = a.origin { annotation.origin = origin }
         if let resource = a.resource { annotation.resource = resource }
         if let range = a.range { annotation.range = range }
         if let resolved = a.resolved { annotation.resolved = resolved }

@@ -11,7 +11,7 @@
  * Run: npx tsx --test types/reducers.test.ts
  */
 
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -110,24 +110,7 @@ const fixtures: Fixture[] = fixtureFiles.map(f => {
 
 // ─── Fixture-Driven Reducer Tests ────────────────────────────────────────────
 
-/**
- * The reducers call Date.now() for modifiedAt timestamps.
- * We mock it to a fixed value (9999) matching what was used during
- * fixture generation, so expected values match exactly.
- */
-const MOCK_NOW = 9999;
-let originalDateNow: typeof Date.now;
-
 describe('reducer fixtures', () => {
-  beforeEach(() => {
-    originalDateNow = Date.now;
-    Date.now = () => MOCK_NOW;
-  });
-
-  afterEach(() => {
-    Date.now = originalDateNow;
-  });
-
   for (const fixture of fixtures) {
     it(fixture.description, () => {
       let state = fixture.initial;
