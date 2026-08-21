@@ -31,7 +31,7 @@ The client initiates the connection with an `initialize` **request**. The client
 }
 ```
 
-`protocolVersions` is ordered from most preferred to least preferred. The server picks one entry and returns it as `InitializeResult.protocolVersion`. If the server cannot speak any of the offered versions it MUST return [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) instead of a result. See [Versioning](/specification/versioning) for the negotiation rules.
+`protocolVersions` is ordered from most preferred to least preferred. The server picks one entry and returns it as `InitializeResult.protocolVersion`. If the server cannot speak any of the offered versions it MUST return [`UnsupportedProtocolVersion`](/reference/error-codes) (`-32005`) with required `data.supportedVersions` instead of a result. See [Versioning](/specification/versioning) for the negotiation rules.
 
 `initialSubscriptions` allows the client to subscribe to channels in the same round-trip as the handshake — typically `ahp-root://` plus any previously-open session URIs.
 

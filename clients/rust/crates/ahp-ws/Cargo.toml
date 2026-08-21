@@ -16,6 +16,9 @@ categories = ["api-bindings", "asynchronous", "network-programming"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lints]
+workspace = true
+
 [features]
 # Default to rustls with roots loaded from the OS trust store: a pure-Rust
 # TLS stack (no OpenSSL on Linux) that still validates against the platform

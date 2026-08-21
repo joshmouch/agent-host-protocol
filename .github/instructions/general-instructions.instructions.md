@@ -36,6 +36,11 @@ applyTo: 'types/**/*.ts'
   ```
 
 - `number` types are assumed to be 64-bit integers. If a floating point values are reasonable for a field, you MUST annotate its jsdoc with `@format float`
+- Every protocol `enum` declaration MUST carry exactly one JSDoc compatibility
+  annotation: use `@nonexhaustive` when later protocol versions may add wire
+  values (clients preserve unknown raw values), and `@exhaustive` only when an
+  unknown value is invalid and clients must reject it. The generators validate
+  this contract and use it for both raw enums and discriminated unions.
 - For actions or commands that could be implemented by returning an array `T[]` directly, still prefer to wrap it in `{ items: T[] }` for forward compatibility. This allows adding additional fields later without breaking the shape.
 - Naming discriminants for discriminated unions:
   - Lifecycle / state-machine unions: name the union `Foo*State` and its discriminant enum `Foo*Status`. Variant interfaces are `Foo*State` (e.g. `ToolCallState` + `ToolCallStatus` + `ToolCallStreamingState`; `McpServerState` + `McpServerStatus` + `McpServerStartingState`; `CustomizationLoadState` + `CustomizationLoadStatus`).

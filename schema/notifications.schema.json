@@ -1224,8 +1224,8 @@
           "description": "The `clientId` expected to execute the tool. Matches the `clientId` of the\ntool call's client {@link ToolCallContributor}."
         },
         "toolCall": {
-          "$ref": "#/$defs/ToolCallState",
-          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState} (i.e. a\n{@link ToolCallState} in `running` status)."
+          "$ref": "#/$defs/ToolCallRunningState",
+          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState}."
         }
       },
       "required": [
@@ -5911,32 +5911,6 @@
       ],
       "description": "The two tool-call states that block on a client confirmation: parameter\nconfirmation before execution ({@link ToolCallPendingConfirmationState}) and\nresult confirmation after execution\n({@link ToolCallPendingResultConfirmationState}).\n\n{@link ToolCallAuthRequiredState} is intentionally **not** part of this\nunion: it doesn't block on a `chat/toolCallConfirmed`-style client\ndecision, it blocks on the client completing an OAuth flow and calling\n`authenticate`. See {@link SessionToolAuthenticationRequest} for its\nsession-level surfacing.\n\nSurfaced at the session level by {@link SessionToolConfirmationRequest}."
     },
-    "ToolCallState": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ToolCallStreamingState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallPendingConfirmationState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallRunningState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallAuthRequiredState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallPendingResultConfirmationState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallCompletedState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallCancelledState"
-        }
-      ],
-      "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
-    },
     "CustomizationLoadState": {
       "oneOf": [
         {
@@ -6279,6 +6253,32 @@
         }
       ],
       "description": "An attachment associated with a {@link Message}."
+    },
+    "ToolCallState": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolCallStreamingState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallPendingConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallRunningState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallAuthRequiredState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallPendingResultConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallCompletedState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallCancelledState"
+        }
+      ],
+      "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
     },
     "ChatInputResponseKind": {
       "enum": [

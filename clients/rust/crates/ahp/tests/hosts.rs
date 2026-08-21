@@ -1,3 +1,5 @@
+#![allow(clippy::panic, clippy::unwrap_used)]
+
 //! Integration tests for the multi-host SDK (`ahp::hosts`).
 //!
 //! Uses an in-memory transport pair (mirroring `client_roundtrip.rs`)

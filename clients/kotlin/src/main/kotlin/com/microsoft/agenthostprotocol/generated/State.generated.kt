@@ -105,14 +105,24 @@ enum class PendingMessageKind {
 /**
  * Session initialization state.
  */
-@Serializable
-enum class SessionLifecycle {
-    @SerialName("creating")
-    CREATING,
-    @SerialName("ready")
-    READY,
-    @SerialName("failed")
-    FAILED
+@Serializable(with = SessionLifecycleSerializer::class)
+@JvmInline
+value class SessionLifecycle(val rawValue: String) {
+    companion object {
+        val CREATING: SessionLifecycle = SessionLifecycle("creating")
+        val READY: SessionLifecycle = SessionLifecycle("ready")
+        val FAILED: SessionLifecycle = SessionLifecycle("failed")
+    }
+}
+
+internal object SessionLifecycleSerializer : KSerializer<SessionLifecycle> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("SessionLifecycle", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: SessionLifecycle) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): SessionLifecycle =
+        SessionLifecycle(decoder.decodeString())
 }
 
 /**
@@ -172,28 +182,37 @@ internal object SessionStatusSerializer : KSerializer<SessionStatus> {
 /**
  * Discriminant for {@link ChatOrigin} — how a chat came into existence.
  */
-@Serializable
-enum class ChatOriginKind {
-    /**
-     * User created the chat explicitly (e.g. via the host UI).
-     */
-    @SerialName("user")
-    USER,
-    /**
-     * Forked from an existing chat at a specific turn.
-     */
-    @SerialName("fork")
-    FORK,
-    /**
-     * Created as an independent side conversation from a specific turn.
-     */
-    @SerialName("sideChat")
-    SIDE_CHAT,
-    /**
-     * Spawned by a tool call running in another chat (e.g. a sub-agent delegation).
-     */
-    @SerialName("tool")
-    TOOL
+@Serializable(with = ChatOriginKindSerializer::class)
+@JvmInline
+value class ChatOriginKind(val rawValue: String) {
+    companion object {
+        /**
+         * User created the chat explicitly (e.g. via the host UI).
+         */
+        val USER: ChatOriginKind = ChatOriginKind("user")
+        /**
+         * Forked from an existing chat at a specific turn.
+         */
+        val FORK: ChatOriginKind = ChatOriginKind("fork")
+        /**
+         * Created as an independent side conversation from a specific turn.
+         */
+        val SIDE_CHAT: ChatOriginKind = ChatOriginKind("sideChat")
+        /**
+         * Spawned by a tool call running in another chat (e.g. a sub-agent delegation).
+         */
+        val TOOL: ChatOriginKind = ChatOriginKind("tool")
+    }
+}
+
+internal object ChatOriginKindSerializer : KSerializer<ChatOriginKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChatOriginKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChatOriginKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChatOriginKind =
+        ChatOriginKind(decoder.decodeString())
 }
 
 /**
@@ -243,37 +262,52 @@ enum class ChatInputAnswerState {
 /**
  * Answer value kind.
  */
-@Serializable
-enum class ChatInputAnswerValueKind {
-    @SerialName("text")
-    TEXT,
-    @SerialName("number")
-    NUMBER,
-    @SerialName("boolean")
-    BOOLEAN,
-    @SerialName("selected")
-    SELECTED,
-    @SerialName("selected-many")
-    SELECTED_MANY
+@Serializable(with = ChatInputAnswerValueKindSerializer::class)
+@JvmInline
+value class ChatInputAnswerValueKind(val rawValue: String) {
+    companion object {
+        val TEXT: ChatInputAnswerValueKind = ChatInputAnswerValueKind("text")
+        val NUMBER: ChatInputAnswerValueKind = ChatInputAnswerValueKind("number")
+        val BOOLEAN: ChatInputAnswerValueKind = ChatInputAnswerValueKind("boolean")
+        val SELECTED: ChatInputAnswerValueKind = ChatInputAnswerValueKind("selected")
+        val SELECTED_MANY: ChatInputAnswerValueKind = ChatInputAnswerValueKind("selected-many")
+    }
+}
+
+internal object ChatInputAnswerValueKindSerializer : KSerializer<ChatInputAnswerValueKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChatInputAnswerValueKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChatInputAnswerValueKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChatInputAnswerValueKind =
+        ChatInputAnswerValueKind(decoder.decodeString())
 }
 
 /**
  * Question/input control kind.
  */
-@Serializable
-enum class ChatInputQuestionKind {
-    @SerialName("text")
-    TEXT,
-    @SerialName("number")
-    NUMBER,
-    @SerialName("integer")
-    INTEGER,
-    @SerialName("boolean")
-    BOOLEAN,
-    @SerialName("single-select")
-    SINGLE_SELECT,
-    @SerialName("multi-select")
-    MULTI_SELECT
+@Serializable(with = ChatInputQuestionKindSerializer::class)
+@JvmInline
+value class ChatInputQuestionKind(val rawValue: String) {
+    companion object {
+        val TEXT: ChatInputQuestionKind = ChatInputQuestionKind("text")
+        val NUMBER: ChatInputQuestionKind = ChatInputQuestionKind("number")
+        val INTEGER: ChatInputQuestionKind = ChatInputQuestionKind("integer")
+        val BOOLEAN: ChatInputQuestionKind = ChatInputQuestionKind("boolean")
+        val SINGLE_SELECT: ChatInputQuestionKind = ChatInputQuestionKind("single-select")
+        val MULTI_SELECT: ChatInputQuestionKind = ChatInputQuestionKind("multi-select")
+    }
+}
+
+internal object ChatInputQuestionKindSerializer : KSerializer<ChatInputQuestionKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChatInputQuestionKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChatInputQuestionKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChatInputQuestionKind =
+        ChatInputQuestionKind(decoder.decodeString())
 }
 
 /**
@@ -296,28 +330,37 @@ enum class ChatInputResponseKind {
  * This is a general/typological union (not a lifecycle), so the discriminant is
  * a `*Kind`.
  */
-@Serializable
-enum class SessionInputRequestKind {
-    /**
-     * A user-facing elicitation mirrored from an unresolved chat response part.
-     */
-    @SerialName("chatInput")
-    CHAT_INPUT,
-    /**
-     * A tool call awaiting parameter- or result-confirmation.
-     */
-    @SerialName("toolConfirmation")
-    TOOL_CONFIRMATION,
-    /**
-     * A running tool the session wants an active client to execute.
-     */
-    @SerialName("toolClientExecution")
-    TOOL_CLIENT_EXECUTION,
-    /**
-     * A tool call blocked on MCP authentication mid-execution.
-     */
-    @SerialName("toolAuthentication")
-    TOOL_AUTHENTICATION
+@Serializable(with = SessionInputRequestKindSerializer::class)
+@JvmInline
+value class SessionInputRequestKind(val rawValue: String) {
+    companion object {
+        /**
+         * A user-facing elicitation mirrored from an unresolved chat response part.
+         */
+        val CHAT_INPUT: SessionInputRequestKind = SessionInputRequestKind("chatInput")
+        /**
+         * A tool call awaiting parameter- or result-confirmation.
+         */
+        val TOOL_CONFIRMATION: SessionInputRequestKind = SessionInputRequestKind("toolConfirmation")
+        /**
+         * A running tool the session wants an active client to execute.
+         */
+        val TOOL_CLIENT_EXECUTION: SessionInputRequestKind = SessionInputRequestKind("toolClientExecution")
+        /**
+         * A tool call blocked on MCP authentication mid-execution.
+         */
+        val TOOL_AUTHENTICATION: SessionInputRequestKind = SessionInputRequestKind("toolAuthentication")
+    }
+}
+
+internal object SessionInputRequestKindSerializer : KSerializer<SessionInputRequestKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("SessionInputRequestKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: SessionInputRequestKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): SessionInputRequestKind =
+        SessionInputRequestKind(decoder.decodeString())
 }
 
 /**
@@ -336,112 +379,141 @@ enum class TurnState {
 /**
  * Discriminant for {@link MessageOrigin} — identifies who produced a message.
  */
-@Serializable
-enum class MessageKind {
-    /**
-     * Sent directly by the user.
-     */
-    @SerialName("user")
-    USER,
-    /**
-     * Produced by the agent itself rather than the user — for example, an agent
-     * that seeds the first message of a chat it spawned.
-     */
-    @SerialName("agent")
-    AGENT,
-    /**
-     * Produced by a tool rather than the user — for example, a tool that spawns a
-     * worker chat whose first message carries a seed prompt.
-     */
-    @SerialName("tool")
-    TOOL,
-    /**
-     * Emitted automatically when an automation run starts a session.
-     */
-    @SerialName("automation")
-    AUTOMATION,
-    /**
-     * A system-generated notification rather than a direct user message.
-     */
-    @SerialName("systemNotification")
-    SYSTEM_NOTIFICATION
+@Serializable(with = MessageKindSerializer::class)
+@JvmInline
+value class MessageKind(val rawValue: String) {
+    companion object {
+        /**
+         * Sent directly by the user.
+         */
+        val USER: MessageKind = MessageKind("user")
+        /**
+         * Produced by the agent itself rather than the user — for example, an agent
+         * that seeds the first message of a chat it spawned.
+         */
+        val AGENT: MessageKind = MessageKind("agent")
+        /**
+         * Produced by a tool rather than the user — for example, a tool that spawns a
+         * worker chat whose first message carries a seed prompt.
+         */
+        val TOOL: MessageKind = MessageKind("tool")
+        /**
+         * Emitted automatically when an automation run starts a session.
+         */
+        val AUTOMATION: MessageKind = MessageKind("automation")
+        /**
+         * A system-generated notification rather than a direct user message.
+         */
+        val SYSTEM_NOTIFICATION: MessageKind = MessageKind("systemNotification")
+    }
+}
+
+internal object MessageKindSerializer : KSerializer<MessageKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("MessageKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: MessageKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): MessageKind =
+        MessageKind(decoder.decodeString())
 }
 
 /**
  * Discriminant for {@link MessageAttachment} variants.
  */
-@Serializable
-enum class MessageAttachmentKind {
-    /**
-     * A simple, opaque attachment whose representation is described by the producer.
-     */
-    @SerialName("simple")
-    SIMPLE,
-    /**
-     * An attachment whose data is embedded inline as a base64 string.
-     */
-    @SerialName("embeddedResource")
-    EMBEDDED_RESOURCE,
-    /**
-     * An attachment that references a resource by URI.
-     */
-    @SerialName("resource")
-    RESOURCE,
-    /**
-     * An attachment that references annotations on an annotations channel.
-     */
-    @SerialName("annotations")
-    ANNOTATIONS,
-    /**
-     * An attachment that references a bounded transcript from another chat.
-     */
-    @SerialName("chat")
-    CHAT
+@Serializable(with = MessageAttachmentKindSerializer::class)
+@JvmInline
+value class MessageAttachmentKind(val rawValue: String) {
+    companion object {
+        /**
+         * A simple, opaque attachment whose representation is described by the producer.
+         */
+        val SIMPLE: MessageAttachmentKind = MessageAttachmentKind("simple")
+        /**
+         * An attachment whose data is embedded inline as a base64 string.
+         */
+        val EMBEDDED_RESOURCE: MessageAttachmentKind = MessageAttachmentKind("embeddedResource")
+        /**
+         * An attachment that references a resource by URI.
+         */
+        val RESOURCE: MessageAttachmentKind = MessageAttachmentKind("resource")
+        /**
+         * An attachment that references annotations on an annotations channel.
+         */
+        val ANNOTATIONS: MessageAttachmentKind = MessageAttachmentKind("annotations")
+        /**
+         * An attachment that references a bounded transcript from another chat.
+         */
+        val CHAT: MessageAttachmentKind = MessageAttachmentKind("chat")
+    }
+}
+
+internal object MessageAttachmentKindSerializer : KSerializer<MessageAttachmentKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("MessageAttachmentKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: MessageAttachmentKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): MessageAttachmentKind =
+        MessageAttachmentKind(decoder.decodeString())
 }
 
 /**
  * Discriminant for response part types.
  */
-@Serializable
-enum class ResponsePartKind {
-    @SerialName("markdown")
-    MARKDOWN,
-    @SerialName("contentRef")
-    CONTENT_REF,
-    @SerialName("toolCall")
-    TOOL_CALL,
-    @SerialName("reasoning")
-    REASONING,
-    @SerialName("systemNotification")
-    SYSTEM_NOTIFICATION,
-    @SerialName("inputRequest")
-    INPUT_REQUEST
+@Serializable(with = ResponsePartKindSerializer::class)
+@JvmInline
+value class ResponsePartKind(val rawValue: String) {
+    companion object {
+        val MARKDOWN: ResponsePartKind = ResponsePartKind("markdown")
+        val CONTENT_REF: ResponsePartKind = ResponsePartKind("contentRef")
+        val TOOL_CALL: ResponsePartKind = ResponsePartKind("toolCall")
+        val REASONING: ResponsePartKind = ResponsePartKind("reasoning")
+        val SYSTEM_NOTIFICATION: ResponsePartKind = ResponsePartKind("systemNotification")
+        val INPUT_REQUEST: ResponsePartKind = ResponsePartKind("inputRequest")
+    }
+}
+
+internal object ResponsePartKindSerializer : KSerializer<ResponsePartKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ResponsePartKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ResponsePartKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ResponsePartKind =
+        ResponsePartKind(decoder.decodeString())
 }
 
 /**
  * Status of a tool call in the lifecycle state machine.
  */
-@Serializable
-enum class ToolCallStatus {
-    @SerialName("streaming")
-    STREAMING,
-    @SerialName("pending-confirmation")
-    PENDING_CONFIRMATION,
-    @SerialName("running")
-    RUNNING,
-    /**
-     * Running paused because the MCP server backing this call needs
-     * authentication (typically step-up auth for insufficient scope,
-     * surfacing mid-execution). See {@link ToolCallAuthRequiredState}.
-     */
-    @SerialName("auth-required")
-    AUTH_REQUIRED,
-    @SerialName("pending-result-confirmation")
-    PENDING_RESULT_CONFIRMATION,
-    @SerialName("completed")
-    COMPLETED,
-    @SerialName("cancelled")
-    CANCELLED
+@Serializable(with = ToolCallStatusSerializer::class)
+@JvmInline
+value class ToolCallStatus(val rawValue: String) {
+    companion object {
+        val STREAMING: ToolCallStatus = ToolCallStatus("streaming")
+        val PENDING_CONFIRMATION: ToolCallStatus = ToolCallStatus("pending-confirmation")
+        val RUNNING: ToolCallStatus = ToolCallStatus("running")
+        /**
+         * Running paused because the MCP server backing this call needs
+         * authentication (typically step-up auth for insufficient scope,
+         * surfacing mid-execution). See {@link ToolCallAuthRequiredState}.
+         */
+        val AUTH_REQUIRED: ToolCallStatus = ToolCallStatus("auth-required")
+        val PENDING_RESULT_CONFIRMATION: ToolCallStatus = ToolCallStatus("pending-result-confirmation")
+        val COMPLETED: ToolCallStatus = ToolCallStatus("completed")
+        val CANCELLED: ToolCallStatus = ToolCallStatus("cancelled")
+    }
+}
+
+internal object ToolCallStatusSerializer : KSerializer<ToolCallStatus> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolCallStatus", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolCallStatus) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolCallStatus =
+        ToolCallStatus(decoder.decodeString())
 }
 
 /**
@@ -451,34 +523,67 @@ enum class ToolCallStatus {
  * - `UserAction` — User explicitly approved
  * - `Setting` — Approved by a persistent user setting
  */
-@Serializable
-enum class ToolCallConfirmationReason {
-    @SerialName("not-needed")
-    NOT_NEEDED,
-    @SerialName("user-action")
-    USER_ACTION,
-    @SerialName("setting")
-    SETTING
+@Serializable(with = ToolCallConfirmationReasonSerializer::class)
+@JvmInline
+value class ToolCallConfirmationReason(val rawValue: String) {
+    companion object {
+        val NOT_NEEDED: ToolCallConfirmationReason = ToolCallConfirmationReason("not-needed")
+        val USER_ACTION: ToolCallConfirmationReason = ToolCallConfirmationReason("user-action")
+        val SETTING: ToolCallConfirmationReason = ToolCallConfirmationReason("setting")
+    }
+}
+
+internal object ToolCallConfirmationReasonSerializer : KSerializer<ToolCallConfirmationReason> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolCallConfirmationReason", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolCallConfirmationReason) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolCallConfirmationReason =
+        ToolCallConfirmationReason(decoder.decodeString())
 }
 
 /**
  * Identifies a model judge as the source of a confirmation requirement.
  */
-@Serializable
-enum class ToolCallRiskAssessmentKind {
-    @SerialName("judge")
-    JUDGE
+@Serializable(with = ToolCallRiskAssessmentKindSerializer::class)
+@JvmInline
+value class ToolCallRiskAssessmentKind(val rawValue: String) {
+    companion object {
+        val JUDGE: ToolCallRiskAssessmentKind = ToolCallRiskAssessmentKind("judge")
+    }
+}
+
+internal object ToolCallRiskAssessmentKindSerializer : KSerializer<ToolCallRiskAssessmentKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolCallRiskAssessmentKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolCallRiskAssessmentKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolCallRiskAssessmentKind =
+        ToolCallRiskAssessmentKind(decoder.decodeString())
 }
 
 /**
  * Lifecycle status of an asynchronous model-judge confirmation decision.
  */
-@Serializable
-enum class ToolCallRiskAssessmentStatus {
-    @SerialName("loading")
-    LOADING,
-    @SerialName("complete")
-    COMPLETE
+@Serializable(with = ToolCallRiskAssessmentStatusSerializer::class)
+@JvmInline
+value class ToolCallRiskAssessmentStatus(val rawValue: String) {
+    companion object {
+        val LOADING: ToolCallRiskAssessmentStatus = ToolCallRiskAssessmentStatus("loading")
+        val COMPLETE: ToolCallRiskAssessmentStatus = ToolCallRiskAssessmentStatus("complete")
+    }
+}
+
+internal object ToolCallRiskAssessmentStatusSerializer : KSerializer<ToolCallRiskAssessmentStatus> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolCallRiskAssessmentStatus", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolCallRiskAssessmentStatus) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolCallRiskAssessmentStatus =
+        ToolCallRiskAssessmentStatus(decoder.decodeString())
 }
 
 /**
@@ -497,39 +602,71 @@ enum class ToolCallCancellationReason {
 /**
  * Whether a confirmation option represents an approval or denial action.
  */
-@Serializable
-enum class ConfirmationOptionKind {
-    @SerialName("approve")
-    APPROVE,
-    @SerialName("deny")
-    DENY
+@Serializable(with = ConfirmationOptionKindSerializer::class)
+@JvmInline
+value class ConfirmationOptionKind(val rawValue: String) {
+    companion object {
+        val APPROVE: ConfirmationOptionKind = ConfirmationOptionKind("approve")
+        val DENY: ConfirmationOptionKind = ConfirmationOptionKind("deny")
+    }
 }
 
-@Serializable
-enum class ToolCallContributorKind {
-    @SerialName("client")
-    CLIENT,
-    @SerialName("mcp")
-    MCP
+internal object ConfirmationOptionKindSerializer : KSerializer<ConfirmationOptionKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ConfirmationOptionKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ConfirmationOptionKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ConfirmationOptionKind =
+        ConfirmationOptionKind(decoder.decodeString())
+}
+
+/**
+ * Identifies the source of a tool call's implementation.
+ */
+@Serializable(with = ToolCallContributorKindSerializer::class)
+@JvmInline
+value class ToolCallContributorKind(val rawValue: String) {
+    companion object {
+        val CLIENT: ToolCallContributorKind = ToolCallContributorKind("client")
+        val MCP: ToolCallContributorKind = ToolCallContributorKind("mcp")
+    }
+}
+
+internal object ToolCallContributorKindSerializer : KSerializer<ToolCallContributorKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolCallContributorKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolCallContributorKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolCallContributorKind =
+        ToolCallContributorKind(decoder.decodeString())
 }
 
 /**
  * Discriminant for tool result content types.
  */
-@Serializable
-enum class ToolResultContentType {
-    @SerialName("text")
-    TEXT,
-    @SerialName("embeddedResource")
-    EMBEDDED_RESOURCE,
-    @SerialName("resource")
-    RESOURCE,
-    @SerialName("fileEdit")
-    FILE_EDIT,
-    @SerialName("terminal")
-    TERMINAL,
-    @SerialName("subagent")
-    SUBAGENT
+@Serializable(with = ToolResultContentTypeSerializer::class)
+@JvmInline
+value class ToolResultContentType(val rawValue: String) {
+    companion object {
+        val TEXT: ToolResultContentType = ToolResultContentType("text")
+        val EMBEDDED_RESOURCE: ToolResultContentType = ToolResultContentType("embeddedResource")
+        val RESOURCE: ToolResultContentType = ToolResultContentType("resource")
+        val FILE_EDIT: ToolResultContentType = ToolResultContentType("fileEdit")
+        val TERMINAL: ToolResultContentType = ToolResultContentType("terminal")
+        val SUBAGENT: ToolResultContentType = ToolResultContentType("subagent")
+    }
+}
+
+internal object ToolResultContentTypeSerializer : KSerializer<ToolResultContentType> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ToolResultContentType", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ToolResultContentType) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ToolResultContentType =
+        ToolResultContentType(decoder.decodeString())
 }
 
 /**
@@ -543,37 +680,52 @@ enum class ToolResultContentType {
  * directly by the host. The remaining types appear only as children of
  * a container.
  */
-@Serializable
-enum class CustomizationType {
-    @SerialName("plugin")
-    PLUGIN,
-    @SerialName("directory")
-    DIRECTORY,
-    @SerialName("agent")
-    AGENT,
-    @SerialName("skill")
-    SKILL,
-    @SerialName("prompt")
-    PROMPT,
-    @SerialName("rule")
-    RULE,
-    @SerialName("hook")
-    HOOK,
-    @SerialName("mcpServer")
-    MCP_SERVER
+@Serializable(with = CustomizationTypeSerializer::class)
+@JvmInline
+value class CustomizationType(val rawValue: String) {
+    companion object {
+        val PLUGIN: CustomizationType = CustomizationType("plugin")
+        val DIRECTORY: CustomizationType = CustomizationType("directory")
+        val AGENT: CustomizationType = CustomizationType("agent")
+        val SKILL: CustomizationType = CustomizationType("skill")
+        val PROMPT: CustomizationType = CustomizationType("prompt")
+        val RULE: CustomizationType = CustomizationType("rule")
+        val HOOK: CustomizationType = CustomizationType("hook")
+        val MCP_SERVER: CustomizationType = CustomizationType("mcpServer")
+    }
+}
+
+internal object CustomizationTypeSerializer : KSerializer<CustomizationType> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("CustomizationType", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: CustomizationType) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): CustomizationType =
+        CustomizationType(decoder.decodeString())
 }
 
 /**
  * Scope at which customization enablement is decided.
  */
-@Serializable
-enum class CustomizationEnablementKind {
-    @SerialName("global")
-    GLOBAL,
-    @SerialName("workspace")
-    WORKSPACE,
-    @SerialName("session")
-    SESSION
+@Serializable(with = CustomizationEnablementKindSerializer::class)
+@JvmInline
+value class CustomizationEnablementKind(val rawValue: String) {
+    companion object {
+        val GLOBAL: CustomizationEnablementKind = CustomizationEnablementKind("global")
+        val WORKSPACE: CustomizationEnablementKind = CustomizationEnablementKind("workspace")
+        val SESSION: CustomizationEnablementKind = CustomizationEnablementKind("session")
+    }
+}
+
+internal object CustomizationEnablementKindSerializer : KSerializer<CustomizationEnablementKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("CustomizationEnablementKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: CustomizationEnablementKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): CustomizationEnablementKind =
+        CustomizationEnablementKind(decoder.decodeString())
 }
 
 /**
@@ -616,37 +768,45 @@ enum class TerminalLifecycleStatus {
 /**
  * Discriminant for the {@link McpServerState} union.
  */
-@Serializable
-enum class McpServerStatus {
-    /**
-     * Server has been registered but is not yet running.
-     */
-    @SerialName("starting")
-    STARTING,
-    /**
-     * Server is running and serving requests.
-     */
-    @SerialName("ready")
-    READY,
-    /**
-     * Server is reachable but requires additional authentication before it
-     * can start, or before it can serve a particular request. Carries the
-     * RFC 9728 Protected Resource Metadata the client needs to obtain a
-     * token; the client then pushes the token via the existing
-     * `authenticate` command.
-     */
-    @SerialName("authRequired")
-    AUTH_REQUIRED,
-    /**
-     * Server failed to start, crashed, or otherwise transitioned to a fatal error.
-     */
-    @SerialName("error")
-    ERROR,
-    /**
-     * Server has been shut down.
-     */
-    @SerialName("stopped")
-    STOPPED
+@Serializable(with = McpServerStatusSerializer::class)
+@JvmInline
+value class McpServerStatus(val rawValue: String) {
+    companion object {
+        /**
+         * Server has been registered but is not yet running.
+         */
+        val STARTING: McpServerStatus = McpServerStatus("starting")
+        /**
+         * Server is running and serving requests.
+         */
+        val READY: McpServerStatus = McpServerStatus("ready")
+        /**
+         * Server is reachable but requires additional authentication before it
+         * can start, or before it can serve a particular request. Carries the
+         * RFC 9728 Protected Resource Metadata the client needs to obtain a
+         * token; the client then pushes the token via the existing
+         * `authenticate` command.
+         */
+        val AUTH_REQUIRED: McpServerStatus = McpServerStatus("authRequired")
+        /**
+         * Server failed to start, crashed, or otherwise transitioned to a fatal error.
+         */
+        val ERROR: McpServerStatus = McpServerStatus("error")
+        /**
+         * Server has been shut down.
+         */
+        val STOPPED: McpServerStatus = McpServerStatus("stopped")
+    }
+}
+
+internal object McpServerStatusSerializer : KSerializer<McpServerStatus> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("McpServerStatus", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: McpServerStatus) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): McpServerStatus =
+        McpServerStatus(decoder.decodeString())
 }
 
 /**
@@ -654,61 +814,81 @@ enum class McpServerStatus {
  * state. Mirrors the three failure modes defined by the
  * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
  */
-@Serializable
-enum class McpAuthRequiredReason {
-    /**
-     * No token has been provided yet (HTTP 401, no prior token).
-     */
-    @SerialName("required")
-    REQUIRED,
-    /**
-     * A previously valid token expired or was revoked (HTTP 401).
-     */
-    @SerialName("expired")
-    EXPIRED,
-    /**
-     * Step-up auth: a token is present but its scopes are insufficient for
-     * the requested operation (HTTP 403 with
-     * `WWW-Authenticate: Bearer error="insufficient_scope"`).
-     *
-     * Unlike {@link Required} and {@link Expired} — which typically surface
-     * before any tool work is in flight — `InsufficientScope` is almost
-     * always triggered by an MCP request issued mid-turn (a `tools/call`,
-     * `resources/read`, etc.). The host SHOULD pair the
-     * {@link McpServerAuthRequiredState} transition with
-     * {@link SessionStatus.InputNeeded} on
-     * {@link SessionSummary.status | the session} so the activity becomes
-     * visible at the session-summary level, and clients SHOULD watch for
-     * this kind on any
-     * {@link McpServerCustomization | MCP server} backing a running tool
-     * call so they can present an explicit "grant more access" affordance
-     * tied to the blocked tool call.
-     */
-    @SerialName("insufficientScope")
-    INSUFFICIENT_SCOPE
+@Serializable(with = McpAuthRequiredReasonSerializer::class)
+@JvmInline
+value class McpAuthRequiredReason(val rawValue: String) {
+    companion object {
+        /**
+         * No token has been provided yet (HTTP 401, no prior token).
+         */
+        val REQUIRED: McpAuthRequiredReason = McpAuthRequiredReason("required")
+        /**
+         * A previously valid token expired or was revoked (HTTP 401).
+         */
+        val EXPIRED: McpAuthRequiredReason = McpAuthRequiredReason("expired")
+        /**
+         * Step-up auth: a token is present but its scopes are insufficient for
+         * the requested operation (HTTP 403 with
+         * `WWW-Authenticate: Bearer error="insufficient_scope"`).
+         *
+         * Unlike {@link Required} and {@link Expired} — which typically surface
+         * before any tool work is in flight — `InsufficientScope` is almost
+         * always triggered by an MCP request issued mid-turn (a `tools/call`,
+         * `resources/read`, etc.). The host SHOULD pair the
+         * {@link McpServerAuthRequiredState} transition with
+         * {@link SessionStatus.InputNeeded} on
+         * {@link SessionSummary.status | the session} so the activity becomes
+         * visible at the session-summary level, and clients SHOULD watch for
+         * this kind on any
+         * {@link McpServerCustomization | MCP server} backing a running tool
+         * call so they can present an explicit "grant more access" affordance
+         * tied to the blocked tool call.
+         */
+        val INSUFFICIENT_SCOPE: McpAuthRequiredReason = McpAuthRequiredReason("insufficientScope")
+    }
+}
+
+internal object McpAuthRequiredReasonSerializer : KSerializer<McpAuthRequiredReason> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("McpAuthRequiredReason", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: McpAuthRequiredReason) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): McpAuthRequiredReason =
+        McpAuthRequiredReason(decoder.decodeString())
 }
 
 /**
  * Computation lifecycle of a {@link ChangesetState}.
  */
-@Serializable
-enum class ChangesetStatus {
-    /**
-     * The server is still computing the contents of this changeset.
-     */
-    @SerialName("computing")
-    COMPUTING,
-    /**
-     * The changeset has been fully computed and is up-to-date.
-     */
-    @SerialName("ready")
-    READY,
-    /**
-     * Computation failed. The cause is described by
-     * {@link ChangesetState.error}.
-     */
-    @SerialName("error")
-    ERROR
+@Serializable(with = ChangesetStatusSerializer::class)
+@JvmInline
+value class ChangesetStatus(val rawValue: String) {
+    companion object {
+        /**
+         * The server is still computing the contents of this changeset.
+         */
+        val COMPUTING: ChangesetStatus = ChangesetStatus("computing")
+        /**
+         * The changeset has been fully computed and is up-to-date.
+         */
+        val READY: ChangesetStatus = ChangesetStatus("ready")
+        /**
+         * Computation failed. The cause is described by
+         * {@link ChangesetState.error}.
+         */
+        val ERROR: ChangesetStatus = ChangesetStatus("error")
+    }
+}
+
+internal object ChangesetStatusSerializer : KSerializer<ChangesetStatus> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChangesetStatus", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChangesetStatus) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChangesetStatus =
+        ChangesetStatus(decoder.decodeString())
 }
 
 /**
@@ -719,52 +899,71 @@ enum class ChangesetStatus {
  * every subscriber observes a consistent view (e.g. a spinner on a "Create
  * Pull Request" button, or an inline error after a failed "revert").
  */
-@Serializable
-enum class ChangesetOperationStatus {
-    /**
-     * The operation is ready to be invoked. This is the default when
-     * {@link ChangesetOperation.status} is omitted.
-     */
-    @SerialName("idle")
-    IDLE,
-    /**
-     * An invocation of this operation is currently in flight.
-     */
-    @SerialName("running")
-    RUNNING,
-    /**
-     * The most recent invocation failed. The cause is described by
-     * {@link ChangesetOperation.error}.
-     */
-    @SerialName("error")
-    ERROR,
-    /**
-     * The operation is currently disabled and cannot be invoked.
-     */
-    @SerialName("disabled")
-    DISABLED
+@Serializable(with = ChangesetOperationStatusSerializer::class)
+@JvmInline
+value class ChangesetOperationStatus(val rawValue: String) {
+    companion object {
+        /**
+         * The operation is ready to be invoked. This is the default when
+         * {@link ChangesetOperation.status} is omitted.
+         */
+        val IDLE: ChangesetOperationStatus = ChangesetOperationStatus("idle")
+        /**
+         * An invocation of this operation is currently in flight.
+         */
+        val RUNNING: ChangesetOperationStatus = ChangesetOperationStatus("running")
+        /**
+         * The most recent invocation failed. The cause is described by
+         * {@link ChangesetOperation.error}.
+         */
+        val ERROR: ChangesetOperationStatus = ChangesetOperationStatus("error")
+        /**
+         * The operation is currently disabled and cannot be invoked.
+         */
+        val DISABLED: ChangesetOperationStatus = ChangesetOperationStatus("disabled")
+    }
+}
+
+internal object ChangesetOperationStatusSerializer : KSerializer<ChangesetOperationStatus> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChangesetOperationStatus", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChangesetOperationStatus) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChangesetOperationStatus =
+        ChangesetOperationStatus(decoder.decodeString())
 }
 
 /**
  * Where a {@link ChangesetOperation} can be invoked.
  */
-@Serializable
-enum class ChangesetOperationScope {
-    /**
-     * Applies to the whole changeset.
-     */
-    @SerialName("changeset")
-    CHANGESET,
-    /**
-     * Applies to a single file within the changeset.
-     */
-    @SerialName("resource")
-    RESOURCE,
-    /**
-     * Applies to a line range within a single file.
-     */
-    @SerialName("range")
-    RANGE
+@Serializable(with = ChangesetOperationScopeSerializer::class)
+@JvmInline
+value class ChangesetOperationScope(val rawValue: String) {
+    companion object {
+        /**
+         * Applies to the whole changeset.
+         */
+        val CHANGESET: ChangesetOperationScope = ChangesetOperationScope("changeset")
+        /**
+         * Applies to a single file within the changeset.
+         */
+        val RESOURCE: ChangesetOperationScope = ChangesetOperationScope("resource")
+        /**
+         * Applies to a line range within a single file.
+         */
+        val RANGE: ChangesetOperationScope = ChangesetOperationScope("range")
+    }
+}
+
+internal object ChangesetOperationScopeSerializer : KSerializer<ChangesetOperationScope> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ChangesetOperationScope", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: ChangesetOperationScope) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): ChangesetOperationScope =
+        ChangesetOperationScope(decoder.decodeString())
 }
 
 /**
@@ -783,13 +982,25 @@ enum class ResourceChangeType {
 /**
  * Discriminant describing the durable provenance of a session.
  */
-@Serializable
-enum class SessionOriginKind {
-    /**
-     * The session was created as part of an automation run.
-     */
-    @SerialName("automation")
-    AUTOMATION
+@Serializable(with = SessionOriginKindSerializer::class)
+@JvmInline
+value class SessionOriginKind(val rawValue: String) {
+    companion object {
+        /**
+         * The session was created as part of an automation run.
+         */
+        val AUTOMATION: SessionOriginKind = SessionOriginKind("automation")
+    }
+}
+
+internal object SessionOriginKindSerializer : KSerializer<SessionOriginKind> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("SessionOriginKind", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: SessionOriginKind) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): SessionOriginKind =
+        SessionOriginKind(decoder.decodeString())
 }
 
 /**
@@ -800,42 +1011,63 @@ enum class SessionOriginKind {
  * capabilities describe what the host implementation can support, while
  * operations describe what is allowed for this particular automation now.
  */
-@Serializable
-enum class AutomationOperation {
-    /**
-     * Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}.
-     */
-    @SerialName("update")
-    UPDATE,
-    /**
-     * Permanently remove the automation using {@link AutomationRemovedAction | `automation/removed`}.
-     */
-    @SerialName("remove")
-    REMOVE,
-    /**
-     * Start a manual run using {@link RunAutomationParams | runAutomation}.
-     */
-    @SerialName("run")
-    RUN
+@Serializable(with = AutomationOperationSerializer::class)
+@JvmInline
+value class AutomationOperation(val rawValue: String) {
+    companion object {
+        /**
+         * Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}.
+         */
+        val UPDATE: AutomationOperation = AutomationOperation("update")
+        /**
+         * Permanently remove the automation using {@link AutomationRemovedAction | `automation/removed`}.
+         */
+        val REMOVE: AutomationOperation = AutomationOperation("remove")
+        /**
+         * Start a manual run using {@link RunAutomationParams | runAutomation}.
+         */
+        val RUN: AutomationOperation = AutomationOperation("run")
+    }
+}
+
+internal object AutomationOperationSerializer : KSerializer<AutomationOperation> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("AutomationOperation", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: AutomationOperation) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): AutomationOperation =
+        AutomationOperation(decoder.decodeString())
 }
 
 /**
  * How a host handles schedule occurrences missed while automatic execution was
  * unavailable.
  */
-@Serializable
-enum class AutomationMisfirePolicy {
-    /**
-     * Discard missed occurrences and wait for the next future occurrence.
-     */
-    @SerialName("skip")
-    SKIP,
-    /**
-     * Start at most one catch-up run when execution becomes available, regardless
-     * of how many occurrences were missed.
-     */
-    @SerialName("runOnce")
-    RUN_ONCE
+@Serializable(with = AutomationMisfirePolicySerializer::class)
+@JvmInline
+value class AutomationMisfirePolicy(val rawValue: String) {
+    companion object {
+        /**
+         * Discard missed occurrences and wait for the next future occurrence.
+         */
+        val SKIP: AutomationMisfirePolicy = AutomationMisfirePolicy("skip")
+        /**
+         * Start at most one catch-up run when execution becomes available, regardless
+         * of how many occurrences were missed.
+         */
+        val RUN_ONCE: AutomationMisfirePolicy = AutomationMisfirePolicy("runOnce")
+    }
+}
+
+internal object AutomationMisfirePolicySerializer : KSerializer<AutomationMisfirePolicy> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("AutomationMisfirePolicy", PrimitiveKind.STRING)
+    override fun serialize(encoder: Encoder, value: AutomationMisfirePolicy) {
+        encoder.encodeString(value.rawValue)
+    }
+    override fun deserialize(decoder: Decoder): AutomationMisfirePolicy =
+        AutomationMisfirePolicy(decoder.decodeString())
 }
 
 /**
@@ -1736,10 +1968,9 @@ data class SessionToolClientExecutionRequest(
     val clientId: String,
     /**
      * The running tool call the session wants the owning client to execute. The
-     * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-     * {@link ToolCallState} in `running` status).
+     * host only ever populates this with a {@link ToolCallRunningState}.
      */
-    val toolCall: ToolCallState
+    val toolCall: ToolCallRunningState
 )
 
 @Serializable
@@ -5728,16 +5959,6 @@ sealed interface TerminalClaim
 value class TerminalClaimClient(val value: TerminalClientClaim) : TerminalClaim
 @JvmInline
 value class TerminalClaimSession(val value: TerminalSessionClaim) : TerminalClaim
-/**
- * Forward-compat catch-all for unknown TerminalClaim discriminators.
- *
- * Older clients may receive newer wire variants they don't recognise; capturing
- * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
- * Reducers handle this variant conservatively on a per-union basis (typically
- * as a no-op, but see `Reducers.kt` for the exact treatment).
- */
-@JvmInline
-value class TerminalClaimUnknown(val raw: JsonObject) : TerminalClaim
 
 internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
     override val descriptor: SerialDescriptor =
@@ -5750,11 +5971,11 @@ internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for TerminalClaim")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: return TerminalClaimUnknown(obj)
+            ?: error("Missing kind discriminator on TerminalClaim")
         return when (discriminant) {
             "client" -> TerminalClaimClient(input.json.decodeFromJsonElement(TerminalClientClaim.serializer(), element))
             "session" -> TerminalClaimSession(input.json.decodeFromJsonElement(TerminalSessionClaim.serializer(), element))
-            else -> TerminalClaimUnknown(obj)
+            else -> error("Unknown TerminalClaim discriminator: $discriminant")
         }
     }
 
@@ -5764,7 +5985,6 @@ internal object TerminalClaimSerializer : KSerializer<TerminalClaim> {
         val element: JsonElement = when (value) {
             is TerminalClaimClient -> output.json.encodeToJsonElement(TerminalClientClaim.serializer(), value.value)
             is TerminalClaimSession -> output.json.encodeToJsonElement(TerminalSessionClaim.serializer(), value.value)
-            is TerminalClaimUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -5949,16 +6169,6 @@ sealed interface ChatInputAnswer
 value class ChatInputAnswerDraft(val value: ChatInputAnswered) : ChatInputAnswer
 @JvmInline
 value class ChatInputAnswerSkipped(val value: ChatInputSkipped) : ChatInputAnswer
-/**
- * Forward-compat catch-all for unknown ChatInputAnswer discriminators.
- *
- * Older clients may receive newer wire variants they don't recognise; capturing
- * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
- * Reducers handle this variant conservatively on a per-union basis (typically
- * as a no-op, but see `Reducers.kt` for the exact treatment).
- */
-@JvmInline
-value class ChatInputAnswerUnknown(val raw: JsonObject) : ChatInputAnswer
 
 internal object ChatInputAnswerSerializer : KSerializer<ChatInputAnswer> {
     override val descriptor: SerialDescriptor =
@@ -5971,12 +6181,12 @@ internal object ChatInputAnswerSerializer : KSerializer<ChatInputAnswer> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for ChatInputAnswer")
         val discriminant = (obj["state"] as? JsonPrimitive)?.content
-            ?: return ChatInputAnswerUnknown(obj)
+            ?: error("Missing state discriminator on ChatInputAnswer")
         return when (discriminant) {
             "draft" -> ChatInputAnswerDraft(input.json.decodeFromJsonElement(ChatInputAnswered.serializer(), element))
             "submitted" -> ChatInputAnswerDraft(input.json.decodeFromJsonElement(ChatInputAnswered.serializer(), element))
             "skipped" -> ChatInputAnswerSkipped(input.json.decodeFromJsonElement(ChatInputSkipped.serializer(), element))
-            else -> ChatInputAnswerUnknown(obj)
+            else -> error("Unknown ChatInputAnswer discriminator: $discriminant")
         }
     }
 
@@ -5986,7 +6196,6 @@ internal object ChatInputAnswerSerializer : KSerializer<ChatInputAnswer> {
         val element: JsonElement = when (value) {
             is ChatInputAnswerDraft -> output.json.encodeToJsonElement(ChatInputAnswered.serializer(), value.value)
             is ChatInputAnswerSkipped -> output.json.encodeToJsonElement(ChatInputSkipped.serializer(), value.value)
-            is ChatInputAnswerUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -6182,16 +6391,6 @@ value class CustomizationLoadStateLoaded(val value: CustomizationLoadedState) : 
 value class CustomizationLoadStateDegraded(val value: CustomizationDegradedState) : CustomizationLoadState
 @JvmInline
 value class CustomizationLoadStateError(val value: CustomizationErrorState) : CustomizationLoadState
-/**
- * Forward-compat catch-all for unknown CustomizationLoadState discriminators.
- *
- * Older clients may receive newer wire variants they don't recognise; capturing
- * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
- * Reducers handle this variant conservatively on a per-union basis (typically
- * as a no-op, but see `Reducers.kt` for the exact treatment).
- */
-@JvmInline
-value class CustomizationLoadStateUnknown(val raw: JsonObject) : CustomizationLoadState
 
 internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoadState> {
     override val descriptor: SerialDescriptor =
@@ -6204,13 +6403,13 @@ internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoad
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for CustomizationLoadState")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: return CustomizationLoadStateUnknown(obj)
+            ?: error("Missing kind discriminator on CustomizationLoadState")
         return when (discriminant) {
             "loading" -> CustomizationLoadStateLoading(input.json.decodeFromJsonElement(CustomizationLoadingState.serializer(), element))
             "loaded" -> CustomizationLoadStateLoaded(input.json.decodeFromJsonElement(CustomizationLoadedState.serializer(), element))
             "degraded" -> CustomizationLoadStateDegraded(input.json.decodeFromJsonElement(CustomizationDegradedState.serializer(), element))
             "error" -> CustomizationLoadStateError(input.json.decodeFromJsonElement(CustomizationErrorState.serializer(), element))
-            else -> CustomizationLoadStateUnknown(obj)
+            else -> error("Unknown CustomizationLoadState discriminator: $discriminant")
         }
     }
 
@@ -6222,7 +6421,6 @@ internal object CustomizationLoadStateSerializer : KSerializer<CustomizationLoad
             is CustomizationLoadStateLoaded -> output.json.encodeToJsonElement(CustomizationLoadedState.serializer(), value.value)
             is CustomizationLoadStateDegraded -> output.json.encodeToJsonElement(CustomizationDegradedState.serializer(), value.value)
             is CustomizationLoadStateError -> output.json.encodeToJsonElement(CustomizationErrorState.serializer(), value.value)
-            is CustomizationLoadStateUnknown -> value.raw
         }
         output.encodeJsonElement(element)
     }
@@ -6487,6 +6685,16 @@ sealed interface SessionOrigin
 
 @JvmInline
 value class SessionOriginAutomation(val value: AutomationSessionOrigin) : SessionOrigin
+/**
+ * Forward-compat catch-all for unknown SessionOrigin discriminators.
+ *
+ * Older clients may receive newer wire variants they don't recognise; capturing
+ * the raw `JsonObject` lets such payloads round-trip through the client unchanged.
+ * Reducers handle this variant conservatively on a per-union basis (typically
+ * as a no-op, but see `Reducers.kt` for the exact treatment).
+ */
+@JvmInline
+value class SessionOriginUnknown(val raw: JsonObject) : SessionOrigin
 
 internal object SessionOriginSerializer : KSerializer<SessionOrigin> {
     override val descriptor: SerialDescriptor =
@@ -6499,10 +6707,10 @@ internal object SessionOriginSerializer : KSerializer<SessionOrigin> {
         val obj = element as? JsonObject
             ?: error("Expected JsonObject for SessionOrigin")
         val discriminant = (obj["kind"] as? JsonPrimitive)?.content
-            ?: error("Missing kind discriminator on SessionOrigin")
+            ?: return SessionOriginUnknown(obj)
         return when (discriminant) {
             "automation" -> SessionOriginAutomation(input.json.decodeFromJsonElement(AutomationSessionOrigin.serializer(), element))
-            else -> error("Unknown SessionOrigin discriminator: $discriminant")
+            else -> SessionOriginUnknown(obj)
         }
     }
 
@@ -6511,10 +6719,12 @@ internal object SessionOriginSerializer : KSerializer<SessionOrigin> {
             ?: error("SessionOrigin can only be serialized to JSON")
         val element: JsonElement = when (value) {
             is SessionOriginAutomation -> output.json.encodeToJsonElement(AutomationSessionOrigin.serializer(), value.value)
+            is SessionOriginUnknown -> value.raw
         }
         val encodedObject = element.jsonObject.toMutableMap()
         val discriminant = when (value) {
             is SessionOriginAutomation -> "automation"
+            is SessionOriginUnknown -> null
         }
         if (discriminant != null) encodedObject["kind"] = JsonPrimitive(discriminant)
         output.encodeJsonElement(JsonObject(encodedObject))

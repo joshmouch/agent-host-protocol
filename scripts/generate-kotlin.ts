@@ -35,6 +35,10 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import {
+  discriminatedUnionAllowsUnknown,
+  getEnumCompatibility,
+} from './enum-compatibility.js';
 
 const GENERATED_HEADER =
   '// Generated from types/*.ts — do not edit\n\n' +
@@ -350,6 +354,7 @@ function generateKotlinEnum(enumDecl: EnumDeclaration): string {
   const desc = enumDecl.getJsDocs()[0]?.getDescription().trim();
   const values = enumDecl.getMembers().map(m => m.getValue());
   const isNumeric = values.every(v => typeof v === 'number');
+  const isNonexhaustive = getEnumCompatibility(enumDecl) === 'nonexhaustive';
 
   // Bitset enums (JSDoc convention "Bitset of …") → `value class` so OR'd
   // combinations with unknown bits decode/encode losslessly.
@@ -404,6 +409,38 @@ function generateKotlinEnum(enumDecl: EnumDeclaration): string {
     lines.push('    }');
     lines.push(`    override fun deserialize(decoder: Decoder): ${name} =`);
     lines.push(`        ${name}(decoder.decodeLong().toUInt())`);
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  if (isNonexhaustive) {
+    const rawType = isNumeric ? 'Long' : 'String';
+    const primitiveKind = isNumeric ? 'PrimitiveKind.LONG' : 'PrimitiveKind.STRING';
+    const encode = isNumeric ? 'encoder.encodeLong(value.rawValue)' : 'encoder.encodeString(value.rawValue)';
+    const decode = isNumeric ? 'decoder.decodeLong()' : 'decoder.decodeString()';
+    lines.push(`@Serializable(with = ${name}Serializer::class)`);
+    lines.push('@JvmInline');
+    lines.push(`value class ${name}(val rawValue: ${rawType}) {`);
+    lines.push('    companion object {');
+    for (const member of enumDecl.getMembers()) {
+      const memberName = toScreamingSnake(member.getName());
+      const memberDoc = member.getJsDocs()[0]?.getDescription().trim();
+      if (memberDoc) {
+        lines.push(...emitKDoc(memberDoc, '        '));
+      }
+      lines.push(`        val ${memberName}: ${name} = ${name}(${JSON.stringify(member.getValue())})`);
+    }
+    lines.push('    }');
+    lines.push('}');
+    lines.push('');
+    lines.push(`internal object ${name}Serializer : KSerializer<${name}> {`);
+    lines.push(`    override val descriptor: SerialDescriptor =`);
+    lines.push(`        PrimitiveSerialDescriptor("${name}", ${primitiveKind})`);
+    lines.push(`    override fun serialize(encoder: Encoder, value: ${name}) {`);
+    lines.push(`        ${encode}`);
+    lines.push('    }');
+    lines.push(`    override fun deserialize(decoder: Decoder): ${name} =`);
+    lines.push(`        ${name}(${decode})`);
     lines.push('}');
     return lines.join('\n');
   }
@@ -485,6 +522,8 @@ interface UnionConfig {
    * on the same set of state-channel unions.
    */
   unknown?: boolean;
+  /** Discriminator enum when a generated wrapper lacks the field itself. */
+  discriminatorEnum?: string;
   /** Force the sealed case's discriminator when serializing its payload. */
   injectDiscriminantOnSerialize?: boolean;
 }
@@ -500,7 +539,14 @@ interface UnionConfig {
  * `structName` for the sealed-interface declaration but preserve every entry
  * in the deserializer switch.
  */
-function generateDiscriminatedUnion(config: UnionConfig): string {
+function generateDiscriminatedUnion(project: Project, config: UnionConfig): string {
+  const unknown = discriminatedUnionAllowsUnknown(
+    project,
+    config.discriminantField,
+    config.variants.map(variant => variant.structName),
+    config.unknown,
+    config.discriminatorEnum,
+  );
   const lines: string[] = [];
 
   lines.push(`@Serializable(with = ${config.name}Serializer::class)`);
@@ -518,7 +564,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     lines.push(`@JvmInline`);
     lines.push(`value class ${config.name}${v.caseName}(val value: ${v.structName}) : ${config.name}`);
   }
-  if (config.unknown) {
+  if (unknown) {
     lines.push(`/**`);
     lines.push(` * Forward-compat catch-all for unknown ${config.name} discriminators.`);
     lines.push(' *');
@@ -544,7 +590,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
   lines.push('        val obj = element as? JsonObject');
   lines.push(`            ?: error("Expected JsonObject for ${config.name}")`);
   lines.push(`        val discriminant = (obj[${JSON.stringify(config.discriminantField)}] as? JsonPrimitive)?.content`);
-  if (config.unknown) {
+  if (unknown) {
     lines.push(`            ?: return ${config.name}Unknown(obj)`);
   } else {
     lines.push(`            ?: error("Missing ${config.discriminantField} discriminator on ${config.name}")`);
@@ -554,7 +600,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     const variantClass = `${config.name}${(byStruct.get(v.structName) ?? v).caseName}`;
     lines.push(`            ${JSON.stringify(v.discriminantValue)} -> ${variantClass}(input.json.decodeFromJsonElement(${v.structName}.serializer(), element))`);
   }
-  if (config.unknown) {
+  if (unknown) {
     lines.push(`            else -> ${config.name}Unknown(obj)`);
   } else {
     lines.push(`            else -> error("Unknown ${config.name} discriminator: $discriminant")`);
@@ -570,7 +616,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     const variantClass = `${config.name}${v.caseName}`;
     lines.push(`            is ${variantClass} -> output.json.encodeToJsonElement(${v.structName}.serializer(), value.value)`);
   }
-  if (config.unknown) {
+  if (unknown) {
     lines.push(`            is ${config.name}Unknown -> value.raw`);
   }
   lines.push('        }');
@@ -580,7 +626,7 @@ function generateDiscriminatedUnion(config: UnionConfig): string {
     for (const v of byStruct.values()) {
       lines.push(`            is ${config.name}${v.caseName} -> ${JSON.stringify(v.discriminantValue)}`);
     }
-    if (config.unknown) {
+    if (unknown) {
       lines.push(`            is ${config.name}Unknown -> null`);
     }
     lines.push('        }');
@@ -1364,47 +1410,47 @@ function generateStateFile(project: Project): string {
   lines.push('');
   lines.push(generateChatOriginKotlin());
   lines.push('');
-  lines.push(generateDiscriminatedUnion(RESPONSE_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, RESPONSE_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONFIRMATION_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONFIRMATION_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CLAIM_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CLAIM_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CONTENT_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CONTENT_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_QUESTION_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_QUESTION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_VALUE_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_ANSWER_VALUE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_ANSWER_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_ANSWER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, MESSAGE_ATTACHMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHILD_CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push(generateDiscriminatedUnion(project, MCP_SERVER_STATUS_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONTRIBUTOR_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_LIFECYCLE_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_REQUEST_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_TRIGGER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_LIFECYCLE_UNION));
   lines.push('');
   lines.push(generateToolResultContentUnion());
   lines.push('');
@@ -1914,12 +1960,12 @@ function generateCommandsFile(project: Project): string {
 
   lines.push('// ─── ChatSource Union ───────────────────────────────────────────────────────');
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_SOURCE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_SOURCE_UNION));
   lines.push('');
 
   lines.push('// ─── ReconnectResult Union ──────────────────────────────────────────────────');
   lines.push('');
-  lines.push(generateDiscriminatedUnion(RECONNECT_RESULT_UNION));
+  lines.push(generateDiscriminatedUnion(project, RECONNECT_RESULT_UNION));
   lines.push('');
 
   lines.push('// ─── Changeset Operation Unions ─────────────────────────────────────────────');
@@ -2032,8 +2078,7 @@ function generateErrorsFile(project: Project): string {
   lines.push('    const val TURN_IN_PROGRESS: Int = -32004');
   lines.push('    /** The server cannot speak any of the protocol versions offered by the client */');
   lines.push('    const val UNSUPPORTED_PROTOCOL_VERSION: Int = -32005');
-  lines.push('    /** The requested content URI does not exist */');
-  lines.push('    const val CONTENT_NOT_FOUND: Int = -32006');
+  lines.push('    // -32006 is intentionally reserved and unassigned.');
   lines.push('    /** Authentication required for a protected resource */');
   lines.push('    const val AUTH_REQUIRED: Int = -32007');
   lines.push('    /** The requested file, folder, or URI does not exist */');

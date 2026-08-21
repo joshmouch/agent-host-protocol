@@ -28,198 +28,378 @@ use crate::state::{
 // ─── ActionType ──────────────────────────────────────────────────────
 
 /// Discriminant values for all state actions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ActionType {
-    #[serde(rename = "root/agentsChanged")]
     RootAgentsChanged,
-    #[serde(rename = "root/activeSessionsChanged")]
     RootActiveSessionsChanged,
-    #[serde(rename = "session/ready")]
     SessionReady,
-    #[serde(rename = "session/creationFailed")]
     SessionCreationFailed,
-    #[serde(rename = "session/chatAdded")]
     SessionChatAdded,
-    #[serde(rename = "session/chatRemoved")]
     SessionChatRemoved,
-    #[serde(rename = "session/chatUpdated")]
     SessionChatUpdated,
-    #[serde(rename = "session/defaultChatChanged")]
     SessionDefaultChatChanged,
-    #[serde(rename = "chat/turnStarted")]
     ChatTurnStarted,
-    #[serde(rename = "chat/delta")]
     ChatDelta,
-    #[serde(rename = "chat/responsePart")]
     ChatResponsePart,
-    #[serde(rename = "chat/toolCallStart")]
     ChatToolCallStart,
-    #[serde(rename = "chat/toolCallDelta")]
     ChatToolCallDelta,
-    #[serde(rename = "chat/toolCallReady")]
     ChatToolCallReady,
-    #[serde(rename = "chat/toolCallConfirmed")]
     ChatToolCallConfirmed,
-    #[serde(rename = "chat/toolCallComplete")]
     ChatToolCallComplete,
-    #[serde(rename = "chat/toolCallResultConfirmed")]
     ChatToolCallResultConfirmed,
-    #[serde(rename = "chat/toolCallContentChanged")]
     ChatToolCallContentChanged,
-    #[serde(rename = "chat/toolCallAuthRequired")]
     ChatToolCallAuthRequired,
-    #[serde(rename = "chat/toolCallAuthResolved")]
     ChatToolCallAuthResolved,
-    #[serde(rename = "chat/turnComplete")]
     ChatTurnComplete,
-    #[serde(rename = "chat/turnCancelled")]
     ChatTurnCancelled,
-    #[serde(rename = "chat/error")]
     ChatError,
-    #[serde(rename = "chat/activityChanged")]
     ChatActivityChanged,
-    #[serde(rename = "chat/workingDirectorySet")]
     ChatWorkingDirectorySet,
-    #[serde(rename = "chat/workingDirectoryRemoved")]
     ChatWorkingDirectoryRemoved,
-    #[serde(rename = "session/titleChanged")]
     SessionTitleChanged,
-    #[serde(rename = "chat/usage")]
     ChatUsage,
-    #[serde(rename = "chat/reasoning")]
     ChatReasoning,
-    #[serde(rename = "session/serverToolsChanged")]
     SessionServerToolsChanged,
-    #[serde(rename = "session/activeClientSet")]
     SessionActiveClientSet,
-    #[serde(rename = "session/activeClientRemoved")]
     SessionActiveClientRemoved,
-    #[serde(rename = "session/workingDirectorySet")]
     SessionWorkingDirectorySet,
-    #[serde(rename = "session/workingDirectoryRemoved")]
     SessionWorkingDirectoryRemoved,
-    #[serde(rename = "session/workingDirectoryReplaced")]
     SessionWorkingDirectoryReplaced,
-    #[serde(rename = "session/inputNeededSet")]
     SessionInputNeededSet,
-    #[serde(rename = "session/inputNeededRemoved")]
     SessionInputNeededRemoved,
-    #[serde(rename = "chat/pendingMessageSet")]
     ChatPendingMessageSet,
-    #[serde(rename = "chat/pendingMessageRemoved")]
     ChatPendingMessageRemoved,
-    #[serde(rename = "chat/queuedMessagesReordered")]
     ChatQueuedMessagesReordered,
-    #[serde(rename = "chat/draftChanged")]
     ChatDraftChanged,
-    #[serde(rename = "chat/inputRequested")]
     ChatInputRequested,
-    #[serde(rename = "chat/inputAnswerChanged")]
     ChatInputAnswerChanged,
-    #[serde(rename = "chat/inputCompleted")]
     ChatInputCompleted,
-    #[serde(rename = "session/customizationsChanged")]
     SessionCustomizationsChanged,
-    #[serde(rename = "session/customizationToggled")]
     SessionCustomizationToggled,
-    #[serde(rename = "session/customizationUpdated")]
     SessionCustomizationUpdated,
-    #[serde(rename = "session/customizationRemoved")]
     SessionCustomizationRemoved,
-    #[serde(rename = "session/mcpServerStateChanged")]
     SessionMcpServerStateChanged,
-    #[serde(rename = "session/mcpServerStartRequested")]
     SessionMcpServerStartRequested,
-    #[serde(rename = "session/mcpServerStopRequested")]
     SessionMcpServerStopRequested,
-    #[serde(rename = "chat/truncated")]
     ChatTruncated,
-    #[serde(rename = "chat/turnsLoaded")]
     ChatTurnsLoaded,
-    #[serde(rename = "session/isReadChanged")]
     SessionIsReadChanged,
-    #[serde(rename = "session/isArchivedChanged")]
     SessionIsArchivedChanged,
-    #[serde(rename = "session/activityChanged")]
     SessionActivityChanged,
-    #[serde(rename = "session/changesetsChanged")]
     SessionChangesetsChanged,
-    #[serde(rename = "session/configChanged")]
     SessionConfigChanged,
-    #[serde(rename = "session/metaChanged")]
     SessionMetaChanged,
-    #[serde(rename = "changeset/statusChanged")]
     ChangesetStatusChanged,
-    #[serde(rename = "changeset/fileSet")]
     ChangesetFileSet,
-    #[serde(rename = "changeset/fileRemoved")]
     ChangesetFileRemoved,
-    #[serde(rename = "changeset/filesReviewChanged")]
     ChangesetFilesReviewChanged,
-    #[serde(rename = "changeset/contentChanged")]
     ChangesetContentChanged,
-    #[serde(rename = "changeset/operationsChanged")]
     ChangesetOperationsChanged,
-    #[serde(rename = "changeset/operationStatusChanged")]
     ChangesetOperationStatusChanged,
-    #[serde(rename = "changeset/cleared")]
     ChangesetCleared,
-    #[serde(rename = "annotations/set")]
     AnnotationsSet,
-    #[serde(rename = "annotations/updated")]
     AnnotationsUpdated,
-    #[serde(rename = "annotations/removed")]
     AnnotationsRemoved,
-    #[serde(rename = "annotations/entrySet")]
     AnnotationsEntrySet,
-    #[serde(rename = "annotations/entryRemoved")]
     AnnotationsEntryRemoved,
-    #[serde(rename = "root/terminalsChanged")]
     RootTerminalsChanged,
-    #[serde(rename = "root/configChanged")]
     RootConfigChanged,
-    #[serde(rename = "terminal/data")]
     TerminalData,
-    #[serde(rename = "terminal/input")]
     TerminalInput,
-    #[serde(rename = "terminal/resized")]
     TerminalResized,
-    #[serde(rename = "terminal/claimed")]
     TerminalClaimed,
-    #[serde(rename = "terminal/titleChanged")]
     TerminalTitleChanged,
-    #[serde(rename = "terminal/cwdChanged")]
     TerminalCwdChanged,
-    #[serde(rename = "terminal/exited")]
     TerminalExited,
-    #[serde(rename = "terminal/cleared")]
     TerminalCleared,
-    #[serde(rename = "terminal/commandDetectionAvailable")]
     TerminalCommandDetectionAvailable,
-    #[serde(rename = "terminal/commandExecuted")]
     TerminalCommandExecuted,
-    #[serde(rename = "terminal/commandFinished")]
     TerminalCommandFinished,
-    #[serde(rename = "resourceWatch/changed")]
     ResourceWatchChanged,
-    #[serde(rename = "automation/createRequested")]
     AutomationCreateRequested,
-    #[serde(rename = "automation/updateRequested")]
     AutomationUpdateRequested,
-    #[serde(rename = "automation/set")]
     AutomationSet,
-    #[serde(rename = "automation/removed")]
     AutomationRemoved,
-    #[serde(rename = "automationRun/lifecycleChanged")]
     AutomationRunLifecycleChanged,
-    #[serde(rename = "automationRun/sessionSet")]
     AutomationRunSessionSet,
-    #[serde(rename = "automationRun/sessionRemoved")]
     AutomationRunSessionRemoved,
-    #[serde(rename = "automationRun/primarySessionChanged")]
     AutomationRunPrimarySessionChanged,
-    #[serde(rename = "automationRun/cancelRequested")]
     AutomationRunCancelRequested,
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    Unknown(String),
+}
+
+impl serde::Serialize for ActionType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::RootAgentsChanged => serializer.serialize_str("root/agentsChanged"),
+            Self::RootActiveSessionsChanged => {
+                serializer.serialize_str("root/activeSessionsChanged")
+            }
+            Self::SessionReady => serializer.serialize_str("session/ready"),
+            Self::SessionCreationFailed => serializer.serialize_str("session/creationFailed"),
+            Self::SessionChatAdded => serializer.serialize_str("session/chatAdded"),
+            Self::SessionChatRemoved => serializer.serialize_str("session/chatRemoved"),
+            Self::SessionChatUpdated => serializer.serialize_str("session/chatUpdated"),
+            Self::SessionDefaultChatChanged => {
+                serializer.serialize_str("session/defaultChatChanged")
+            }
+            Self::ChatTurnStarted => serializer.serialize_str("chat/turnStarted"),
+            Self::ChatDelta => serializer.serialize_str("chat/delta"),
+            Self::ChatResponsePart => serializer.serialize_str("chat/responsePart"),
+            Self::ChatToolCallStart => serializer.serialize_str("chat/toolCallStart"),
+            Self::ChatToolCallDelta => serializer.serialize_str("chat/toolCallDelta"),
+            Self::ChatToolCallReady => serializer.serialize_str("chat/toolCallReady"),
+            Self::ChatToolCallConfirmed => serializer.serialize_str("chat/toolCallConfirmed"),
+            Self::ChatToolCallComplete => serializer.serialize_str("chat/toolCallComplete"),
+            Self::ChatToolCallResultConfirmed => {
+                serializer.serialize_str("chat/toolCallResultConfirmed")
+            }
+            Self::ChatToolCallContentChanged => {
+                serializer.serialize_str("chat/toolCallContentChanged")
+            }
+            Self::ChatToolCallAuthRequired => serializer.serialize_str("chat/toolCallAuthRequired"),
+            Self::ChatToolCallAuthResolved => serializer.serialize_str("chat/toolCallAuthResolved"),
+            Self::ChatTurnComplete => serializer.serialize_str("chat/turnComplete"),
+            Self::ChatTurnCancelled => serializer.serialize_str("chat/turnCancelled"),
+            Self::ChatError => serializer.serialize_str("chat/error"),
+            Self::ChatActivityChanged => serializer.serialize_str("chat/activityChanged"),
+            Self::ChatWorkingDirectorySet => serializer.serialize_str("chat/workingDirectorySet"),
+            Self::ChatWorkingDirectoryRemoved => {
+                serializer.serialize_str("chat/workingDirectoryRemoved")
+            }
+            Self::SessionTitleChanged => serializer.serialize_str("session/titleChanged"),
+            Self::ChatUsage => serializer.serialize_str("chat/usage"),
+            Self::ChatReasoning => serializer.serialize_str("chat/reasoning"),
+            Self::SessionServerToolsChanged => {
+                serializer.serialize_str("session/serverToolsChanged")
+            }
+            Self::SessionActiveClientSet => serializer.serialize_str("session/activeClientSet"),
+            Self::SessionActiveClientRemoved => {
+                serializer.serialize_str("session/activeClientRemoved")
+            }
+            Self::SessionWorkingDirectorySet => {
+                serializer.serialize_str("session/workingDirectorySet")
+            }
+            Self::SessionWorkingDirectoryRemoved => {
+                serializer.serialize_str("session/workingDirectoryRemoved")
+            }
+            Self::SessionWorkingDirectoryReplaced => {
+                serializer.serialize_str("session/workingDirectoryReplaced")
+            }
+            Self::SessionInputNeededSet => serializer.serialize_str("session/inputNeededSet"),
+            Self::SessionInputNeededRemoved => {
+                serializer.serialize_str("session/inputNeededRemoved")
+            }
+            Self::ChatPendingMessageSet => serializer.serialize_str("chat/pendingMessageSet"),
+            Self::ChatPendingMessageRemoved => {
+                serializer.serialize_str("chat/pendingMessageRemoved")
+            }
+            Self::ChatQueuedMessagesReordered => {
+                serializer.serialize_str("chat/queuedMessagesReordered")
+            }
+            Self::ChatDraftChanged => serializer.serialize_str("chat/draftChanged"),
+            Self::ChatInputRequested => serializer.serialize_str("chat/inputRequested"),
+            Self::ChatInputAnswerChanged => serializer.serialize_str("chat/inputAnswerChanged"),
+            Self::ChatInputCompleted => serializer.serialize_str("chat/inputCompleted"),
+            Self::SessionCustomizationsChanged => {
+                serializer.serialize_str("session/customizationsChanged")
+            }
+            Self::SessionCustomizationToggled => {
+                serializer.serialize_str("session/customizationToggled")
+            }
+            Self::SessionCustomizationUpdated => {
+                serializer.serialize_str("session/customizationUpdated")
+            }
+            Self::SessionCustomizationRemoved => {
+                serializer.serialize_str("session/customizationRemoved")
+            }
+            Self::SessionMcpServerStateChanged => {
+                serializer.serialize_str("session/mcpServerStateChanged")
+            }
+            Self::SessionMcpServerStartRequested => {
+                serializer.serialize_str("session/mcpServerStartRequested")
+            }
+            Self::SessionMcpServerStopRequested => {
+                serializer.serialize_str("session/mcpServerStopRequested")
+            }
+            Self::ChatTruncated => serializer.serialize_str("chat/truncated"),
+            Self::ChatTurnsLoaded => serializer.serialize_str("chat/turnsLoaded"),
+            Self::SessionIsReadChanged => serializer.serialize_str("session/isReadChanged"),
+            Self::SessionIsArchivedChanged => serializer.serialize_str("session/isArchivedChanged"),
+            Self::SessionActivityChanged => serializer.serialize_str("session/activityChanged"),
+            Self::SessionChangesetsChanged => serializer.serialize_str("session/changesetsChanged"),
+            Self::SessionConfigChanged => serializer.serialize_str("session/configChanged"),
+            Self::SessionMetaChanged => serializer.serialize_str("session/metaChanged"),
+            Self::ChangesetStatusChanged => serializer.serialize_str("changeset/statusChanged"),
+            Self::ChangesetFileSet => serializer.serialize_str("changeset/fileSet"),
+            Self::ChangesetFileRemoved => serializer.serialize_str("changeset/fileRemoved"),
+            Self::ChangesetFilesReviewChanged => {
+                serializer.serialize_str("changeset/filesReviewChanged")
+            }
+            Self::ChangesetContentChanged => serializer.serialize_str("changeset/contentChanged"),
+            Self::ChangesetOperationsChanged => {
+                serializer.serialize_str("changeset/operationsChanged")
+            }
+            Self::ChangesetOperationStatusChanged => {
+                serializer.serialize_str("changeset/operationStatusChanged")
+            }
+            Self::ChangesetCleared => serializer.serialize_str("changeset/cleared"),
+            Self::AnnotationsSet => serializer.serialize_str("annotations/set"),
+            Self::AnnotationsUpdated => serializer.serialize_str("annotations/updated"),
+            Self::AnnotationsRemoved => serializer.serialize_str("annotations/removed"),
+            Self::AnnotationsEntrySet => serializer.serialize_str("annotations/entrySet"),
+            Self::AnnotationsEntryRemoved => serializer.serialize_str("annotations/entryRemoved"),
+            Self::RootTerminalsChanged => serializer.serialize_str("root/terminalsChanged"),
+            Self::RootConfigChanged => serializer.serialize_str("root/configChanged"),
+            Self::TerminalData => serializer.serialize_str("terminal/data"),
+            Self::TerminalInput => serializer.serialize_str("terminal/input"),
+            Self::TerminalResized => serializer.serialize_str("terminal/resized"),
+            Self::TerminalClaimed => serializer.serialize_str("terminal/claimed"),
+            Self::TerminalTitleChanged => serializer.serialize_str("terminal/titleChanged"),
+            Self::TerminalCwdChanged => serializer.serialize_str("terminal/cwdChanged"),
+            Self::TerminalExited => serializer.serialize_str("terminal/exited"),
+            Self::TerminalCleared => serializer.serialize_str("terminal/cleared"),
+            Self::TerminalCommandDetectionAvailable => {
+                serializer.serialize_str("terminal/commandDetectionAvailable")
+            }
+            Self::TerminalCommandExecuted => serializer.serialize_str("terminal/commandExecuted"),
+            Self::TerminalCommandFinished => serializer.serialize_str("terminal/commandFinished"),
+            Self::ResourceWatchChanged => serializer.serialize_str("resourceWatch/changed"),
+            Self::AutomationCreateRequested => {
+                serializer.serialize_str("automation/createRequested")
+            }
+            Self::AutomationUpdateRequested => {
+                serializer.serialize_str("automation/updateRequested")
+            }
+            Self::AutomationSet => serializer.serialize_str("automation/set"),
+            Self::AutomationRemoved => serializer.serialize_str("automation/removed"),
+            Self::AutomationRunLifecycleChanged => {
+                serializer.serialize_str("automationRun/lifecycleChanged")
+            }
+            Self::AutomationRunSessionSet => serializer.serialize_str("automationRun/sessionSet"),
+            Self::AutomationRunSessionRemoved => {
+                serializer.serialize_str("automationRun/sessionRemoved")
+            }
+            Self::AutomationRunPrimarySessionChanged => {
+                serializer.serialize_str("automationRun/primarySessionChanged")
+            }
+            Self::AutomationRunCancelRequested => {
+                serializer.serialize_str("automationRun/cancelRequested")
+            }
+            Self::Unknown(value) => serializer.serialize_str(value),
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ActionType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Ok(match raw.as_str() {
+            "root/agentsChanged" => Self::RootAgentsChanged,
+            "root/activeSessionsChanged" => Self::RootActiveSessionsChanged,
+            "session/ready" => Self::SessionReady,
+            "session/creationFailed" => Self::SessionCreationFailed,
+            "session/chatAdded" => Self::SessionChatAdded,
+            "session/chatRemoved" => Self::SessionChatRemoved,
+            "session/chatUpdated" => Self::SessionChatUpdated,
+            "session/defaultChatChanged" => Self::SessionDefaultChatChanged,
+            "chat/turnStarted" => Self::ChatTurnStarted,
+            "chat/delta" => Self::ChatDelta,
+            "chat/responsePart" => Self::ChatResponsePart,
+            "chat/toolCallStart" => Self::ChatToolCallStart,
+            "chat/toolCallDelta" => Self::ChatToolCallDelta,
+            "chat/toolCallReady" => Self::ChatToolCallReady,
+            "chat/toolCallConfirmed" => Self::ChatToolCallConfirmed,
+            "chat/toolCallComplete" => Self::ChatToolCallComplete,
+            "chat/toolCallResultConfirmed" => Self::ChatToolCallResultConfirmed,
+            "chat/toolCallContentChanged" => Self::ChatToolCallContentChanged,
+            "chat/toolCallAuthRequired" => Self::ChatToolCallAuthRequired,
+            "chat/toolCallAuthResolved" => Self::ChatToolCallAuthResolved,
+            "chat/turnComplete" => Self::ChatTurnComplete,
+            "chat/turnCancelled" => Self::ChatTurnCancelled,
+            "chat/error" => Self::ChatError,
+            "chat/activityChanged" => Self::ChatActivityChanged,
+            "chat/workingDirectorySet" => Self::ChatWorkingDirectorySet,
+            "chat/workingDirectoryRemoved" => Self::ChatWorkingDirectoryRemoved,
+            "session/titleChanged" => Self::SessionTitleChanged,
+            "chat/usage" => Self::ChatUsage,
+            "chat/reasoning" => Self::ChatReasoning,
+            "session/serverToolsChanged" => Self::SessionServerToolsChanged,
+            "session/activeClientSet" => Self::SessionActiveClientSet,
+            "session/activeClientRemoved" => Self::SessionActiveClientRemoved,
+            "session/workingDirectorySet" => Self::SessionWorkingDirectorySet,
+            "session/workingDirectoryRemoved" => Self::SessionWorkingDirectoryRemoved,
+            "session/workingDirectoryReplaced" => Self::SessionWorkingDirectoryReplaced,
+            "session/inputNeededSet" => Self::SessionInputNeededSet,
+            "session/inputNeededRemoved" => Self::SessionInputNeededRemoved,
+            "chat/pendingMessageSet" => Self::ChatPendingMessageSet,
+            "chat/pendingMessageRemoved" => Self::ChatPendingMessageRemoved,
+            "chat/queuedMessagesReordered" => Self::ChatQueuedMessagesReordered,
+            "chat/draftChanged" => Self::ChatDraftChanged,
+            "chat/inputRequested" => Self::ChatInputRequested,
+            "chat/inputAnswerChanged" => Self::ChatInputAnswerChanged,
+            "chat/inputCompleted" => Self::ChatInputCompleted,
+            "session/customizationsChanged" => Self::SessionCustomizationsChanged,
+            "session/customizationToggled" => Self::SessionCustomizationToggled,
+            "session/customizationUpdated" => Self::SessionCustomizationUpdated,
+            "session/customizationRemoved" => Self::SessionCustomizationRemoved,
+            "session/mcpServerStateChanged" => Self::SessionMcpServerStateChanged,
+            "session/mcpServerStartRequested" => Self::SessionMcpServerStartRequested,
+            "session/mcpServerStopRequested" => Self::SessionMcpServerStopRequested,
+            "chat/truncated" => Self::ChatTruncated,
+            "chat/turnsLoaded" => Self::ChatTurnsLoaded,
+            "session/isReadChanged" => Self::SessionIsReadChanged,
+            "session/isArchivedChanged" => Self::SessionIsArchivedChanged,
+            "session/activityChanged" => Self::SessionActivityChanged,
+            "session/changesetsChanged" => Self::SessionChangesetsChanged,
+            "session/configChanged" => Self::SessionConfigChanged,
+            "session/metaChanged" => Self::SessionMetaChanged,
+            "changeset/statusChanged" => Self::ChangesetStatusChanged,
+            "changeset/fileSet" => Self::ChangesetFileSet,
+            "changeset/fileRemoved" => Self::ChangesetFileRemoved,
+            "changeset/filesReviewChanged" => Self::ChangesetFilesReviewChanged,
+            "changeset/contentChanged" => Self::ChangesetContentChanged,
+            "changeset/operationsChanged" => Self::ChangesetOperationsChanged,
+            "changeset/operationStatusChanged" => Self::ChangesetOperationStatusChanged,
+            "changeset/cleared" => Self::ChangesetCleared,
+            "annotations/set" => Self::AnnotationsSet,
+            "annotations/updated" => Self::AnnotationsUpdated,
+            "annotations/removed" => Self::AnnotationsRemoved,
+            "annotations/entrySet" => Self::AnnotationsEntrySet,
+            "annotations/entryRemoved" => Self::AnnotationsEntryRemoved,
+            "root/terminalsChanged" => Self::RootTerminalsChanged,
+            "root/configChanged" => Self::RootConfigChanged,
+            "terminal/data" => Self::TerminalData,
+            "terminal/input" => Self::TerminalInput,
+            "terminal/resized" => Self::TerminalResized,
+            "terminal/claimed" => Self::TerminalClaimed,
+            "terminal/titleChanged" => Self::TerminalTitleChanged,
+            "terminal/cwdChanged" => Self::TerminalCwdChanged,
+            "terminal/exited" => Self::TerminalExited,
+            "terminal/cleared" => Self::TerminalCleared,
+            "terminal/commandDetectionAvailable" => Self::TerminalCommandDetectionAvailable,
+            "terminal/commandExecuted" => Self::TerminalCommandExecuted,
+            "terminal/commandFinished" => Self::TerminalCommandFinished,
+            "resourceWatch/changed" => Self::ResourceWatchChanged,
+            "automation/createRequested" => Self::AutomationCreateRequested,
+            "automation/updateRequested" => Self::AutomationUpdateRequested,
+            "automation/set" => Self::AutomationSet,
+            "automation/removed" => Self::AutomationRemoved,
+            "automationRun/lifecycleChanged" => Self::AutomationRunLifecycleChanged,
+            "automationRun/sessionSet" => Self::AutomationRunSessionSet,
+            "automationRun/sessionRemoved" => Self::AutomationRunSessionRemoved,
+            "automationRun/primarySessionChanged" => Self::AutomationRunPrimarySessionChanged,
+            "automationRun/cancelRequested" => Self::AutomationRunCancelRequested,
+            _ => Self::Unknown(raw),
+        })
+    }
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────
@@ -377,7 +557,7 @@ pub struct ChatTurnStartedAction {
 /// Streaming text chunk from the assistant, appended to a specific response part.
 ///
 /// The server MUST first emit a `chat/responsePart` to create the target
-/// part (markdown or reasoning), then use this action to append text to it.
+/// markdown part, then use this action to append text to it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatDeltaAction {

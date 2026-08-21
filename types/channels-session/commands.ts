@@ -166,6 +166,7 @@ export interface FetchTurnsResult {}
  * The kind of completion items being requested.
  *
  * @category Commands
+ * @nonexhaustive
  */
 export const enum CompletionItemKind {
   /**

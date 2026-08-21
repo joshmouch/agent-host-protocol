@@ -580,7 +580,7 @@ function generateErrorsSchema(project: Project): JsonSchema {
       AhpErrorCode: {
         description: 'AHP application-specific error codes.',
         type: 'number',
-        enum: [-32001, -32002, -32003, -32004, -32005, -32006, -32007, -32008, -32009, -32010],
+        enum: [-32001, -32002, -32003, -32004, -32005, -32007, -32008, -32009, -32010, -32011],
       },
     },
   };

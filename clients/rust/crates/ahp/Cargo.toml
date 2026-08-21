@@ -16,6 +16,9 @@ categories = ["api-bindings", "asynchronous", "network-programming"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[lints]
+workspace = true
+
 [dependencies]
 ahp-types = { workspace = true }
 serde = { workspace = true }

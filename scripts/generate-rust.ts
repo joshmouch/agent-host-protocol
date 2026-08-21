@@ -22,6 +22,10 @@ import fs from 'fs';
 import path from 'path';
 import { findProtocolSourceFiles } from './find-protocol-sources.js';
 import { readProtocolVersions } from './read-protocol-versions.js';
+import {
+  discriminatedUnionAllowsUnknown,
+  getEnumCompatibility,
+} from './enum-compatibility.js';
 
 const GENERATED_BANNER = '// Generated from types/*.ts — do not edit.\n//\n// Regenerate with: npm run generate:rust\n\n#![allow(missing_docs)]\n';
 
@@ -472,6 +476,7 @@ function generateRustEnum(enumDecl: EnumDeclaration): string {
   const desc = enumDecl.getJsDocs()[0]?.getDescription().trim();
   const values = enumDecl.getMembers().map(m => m.getValue());
   const isNumeric = values.every(v => typeof v === 'number');
+  const isNonexhaustive = getEnumCompatibility(enumDecl) === 'nonexhaustive';
 
   if (desc) {
     for (const d of desc.split('\n')) {
@@ -479,7 +484,57 @@ function generateRustEnum(enumDecl: EnumDeclaration): string {
     }
   }
 
-  if (isNumeric) {
+  if (isNonexhaustive) {
+    const rawType = isNumeric ? 'i64' : 'String';
+    lines.push('#[derive(Debug, Clone, PartialEq, Eq, Hash)]');
+    lines.push(`pub enum ${name} {`);
+    for (const mem of enumDecl.getMembers()) {
+      const doc = mem.getJsDocs()[0]?.getDescription().trim();
+      if (doc) {
+        for (const d of doc.split('\n')) lines.push(`    /// ${d.trimEnd()}`);
+      }
+      lines.push(`    ${mem.getName()},`);
+    }
+    lines.push(`    /// Unknown raw value from a newer protocol version, preserved verbatim.`);
+    lines.push(`    Unknown(${rawType}),`);
+    lines.push('}');
+    lines.push('');
+    lines.push(`impl serde::Serialize for ${name} {`);
+    lines.push('    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>');
+    lines.push('    where S: serde::Serializer {');
+    lines.push('        match self {');
+    for (const mem of enumDecl.getMembers()) {
+      const value = mem.getValue();
+      const serialized = isNumeric ? `serializer.serialize_i64(${value})` : `serializer.serialize_str(${JSON.stringify(String(value))})`;
+      lines.push(`            Self::${mem.getName()} => ${serialized},`);
+    }
+    lines.push(`            Self::Unknown(value) => ${isNumeric ? 'serializer.serialize_i64(*value)' : 'serializer.serialize_str(value)'},`);
+    lines.push('        }');
+    lines.push('    }');
+    lines.push('}');
+    lines.push('');
+    lines.push(`impl<'de> serde::Deserialize<'de> for ${name} {`);
+    lines.push('    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>');
+    lines.push('    where D: serde::Deserializer<\'de> {');
+    lines.push(`        let raw = <${rawType} as serde::Deserialize>::deserialize(deserializer)?;`);
+    if (isNumeric) {
+      lines.push('        Ok(match raw {');
+      for (const mem of enumDecl.getMembers()) {
+        lines.push(`            ${mem.getValue()} => Self::${mem.getName()},`);
+      }
+      lines.push('            value => Self::Unknown(value),');
+      lines.push('        })');
+    } else {
+      lines.push('        Ok(match raw.as_str() {');
+      for (const mem of enumDecl.getMembers()) {
+        lines.push(`            ${JSON.stringify(String(mem.getValue()))} => Self::${mem.getName()},`);
+      }
+      lines.push('            _ => Self::Unknown(raw),');
+      lines.push('        })');
+    }
+    lines.push('    }');
+    lines.push('}');
+  } else if (isNumeric) {
     lines.push('#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize_repr, Deserialize_repr)]');
     lines.push('#[repr(u32)]');
     lines.push(`pub enum ${name} {`);
@@ -544,9 +599,14 @@ function generateRustStruct(rustName: string, props: RustProp[], opts: StructOpt
       attrs.push('default');
       attrs.push('skip_serializing_if = "Option::is_none"');
     }
+    if (rustName === 'SessionToolClientExecutionRequest' && p.rustName === 'tool_call') {
+      attrs.push('serialize_with = "serialize_running_tool_call"');
+      attrs.push('deserialize_with = "deserialize_running_tool_call"');
+    }
     if (attrs.length > 0) {
       lines.push(`    #[serde(${attrs.join(', ')})]`);
     }
+
     // Box self-referential fields to break infinite size cycles.
     let rustType = p.rustType;
     if (rustType.includes(rustName)) {
@@ -557,6 +617,34 @@ function generateRustStruct(rustName: string, props: RustProp[], opts: StructOpt
 
   lines.push('}');
   return lines.join('\n');
+}
+
+function generateRunningToolCallSerdeHelpers(): string {
+  return `fn serialize_running_tool_call<S>(
+    value: &ToolCallRunningState,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let mut raw = serde_json::to_value(value).map_err(serde::ser::Error::custom)?;
+    let serde_json::Value::Object(object) = &mut raw else {
+        return Err(serde::ser::Error::custom("running tool call must serialize to an object"));
+    };
+    object.insert("status".to_owned(), serde_json::Value::String("running".to_owned()));
+    serde::Serialize::serialize(&raw, serializer)
+}
+
+fn deserialize_running_tool_call<'de, D>(deserializer: D) -> Result<ToolCallRunningState, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let raw = serde_json::Value::deserialize(deserializer)?;
+    if raw.get("status").and_then(serde_json::Value::as_str) != Some("running") {
+        return Err(serde::de::Error::custom("expected running tool-call status"));
+    }
+    serde_json::from_value(raw).map_err(serde::de::Error::custom)
+}`;
 }
 
 // ─── Partial Struct Generation ───────────────────────────────────────────────
@@ -598,9 +686,18 @@ interface UnionConfig {
   variants: UnionVariant[];
   /** Extra variant for unknown/future values. */
   unknown?: boolean;
+  /** Discriminator enum when a generated wrapper lacks the field itself. */
+  discriminatorEnum?: string;
 }
 
-function generateDiscriminatedUnion(cfg: UnionConfig): string {
+function generateDiscriminatedUnion(project: Project, cfg: UnionConfig): string {
+  const unknown = discriminatedUnionAllowsUnknown(
+    project,
+    cfg.discriminantField,
+    cfg.variants.map(variant => variant.innerType),
+    cfg.unknown,
+    cfg.discriminatorEnum,
+  );
   const lines: string[] = [];
   if (cfg.doc) {
     for (const d of cfg.doc.split('\n')) lines.push(`/// ${d.trimEnd()}`);
@@ -622,7 +719,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
     }
   }
 
-  if (cfg.unknown) {
+  if (unknown) {
     lines.push('    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.');
     lines.push('    /// Reducers treat this as a no-op.');
     lines.push('    #[serde(untagged)]');
@@ -1075,7 +1172,7 @@ const SESSION_INPUT_REQUEST_UNION: UnionConfig = {
     { variantName: 'ChatInput', innerType: 'SessionChatInputRequest', wireValue: 'chatInput' },
     { variantName: 'ToolConfirmation', innerType: 'SessionToolConfirmationRequest', wireValue: 'toolConfirmation' },
     { variantName: 'ToolClientExecution', innerType: 'SessionToolClientExecutionRequest', wireValue: 'toolClientExecution' },
-    { variantName: 'ToolAuthentication', innerType: 'SessionToolAuthenticationRequest', wireValue: 'toolAuthentication' },
+    { variantName: 'ToolAuthentication', innerType: 'SessionToolAuthenticationRequest', wireValue: 'toolAuthentication', boxed: true },
   ],
   unknown: true,
 };
@@ -1122,7 +1219,16 @@ const AUTOMATION_RUN_LIFECYCLE_UNION: UnionConfig = {
   ],
 };
 
-function generateChatOrigin(): string {
+function generateChatOrigin(project: Project): string {
+  const originKind = findEnum(project, 'ChatOriginKind');
+  if (!originKind) throw new Error('ChatOriginKind enum not found');
+  const unknownVariant = getEnumCompatibility(originKind) === 'nonexhaustive'
+    ? `    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
+    /// Reducers treat this as a no-op.
+    #[serde(untagged)]
+    Unknown(serde_json::Value),
+`
+    : '';
   return `/// How a chat came into existence.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
@@ -1160,11 +1266,7 @@ pub enum ChatOrigin {
         #[serde(rename = "toolCallId")]
         tool_call_id: String,
     },
-    /// Unknown or future variant — preserved as raw JSON for round-trip fidelity.
-    /// Reducers treat this as a no-op.
-    #[serde(untagged)]
-    Unknown(serde_json::Value),
-}`;
+${unknownVariant}}`;
 }
 
 function generateSnapshotState(): string {
@@ -1222,6 +1324,10 @@ function generateStateFile(project: Project): string {
       lines.push(generateStructFromInterface(project, entry.name, entry.rustName, {
         omitDiscriminants: entry.omitDiscriminants,
       }));
+      if (entry.name === 'SessionToolClientExecutionRequest') {
+        lines.push('');
+        lines.push(generateRunningToolCallSerdeHelpers());
+      }
       if (entry.name === 'SubscribeParams') {
         lines.push('');
         lines.push(generateSubscribeParamsImplRust());
@@ -1234,58 +1340,58 @@ function generateStateFile(project: Project): string {
   }
 
   lines.push('// ─── Customization Enablement Union ───────────────────────────────────────\n');
-  lines.push(generateCustomizationEnablementRust());
+  lines.push(generateCustomizationEnablementRust(project));
   lines.push('');
 
   lines.push(generateToolInput());
   lines.push('');
 
   lines.push('// ─── Discriminated Unions ─────────────────────────────────────────────\n');
-  lines.push(generateChatOrigin());
+  lines.push(generateChatOrigin(project));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(RESPONSE_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, RESPONSE_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONFIRMATION_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONFIRMATION_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CLAIM_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CLAIM_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_CONTENT_PART_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_CONTENT_PART_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_QUESTION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_QUESTION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_ANSWER_VALUE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_ANSWER_VALUE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHAT_INPUT_ANSWER_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_INPUT_ANSWER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_RESULT_CONTENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_RESULT_CONTENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MESSAGE_ATTACHMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, MESSAGE_ATTACHMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CHILD_CUSTOMIZATION_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHILD_CUSTOMIZATION_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(CUSTOMIZATION_LOAD_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CUSTOMIZATION_LOAD_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(MCP_SERVER_STATUS_UNION));
+  lines.push(generateDiscriminatedUnion(project, MCP_SERVER_STATUS_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_CONTRIBUTOR_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_CONTRIBUTOR_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TOOL_CALL_RISK_ASSESSMENT_UNION));
+  lines.push(generateDiscriminatedUnion(project, TOOL_CALL_RISK_ASSESSMENT_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(TERMINAL_LIFECYCLE_STATE_UNION));
+  lines.push(generateDiscriminatedUnion(project, TERMINAL_LIFECYCLE_STATE_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_INPUT_REQUEST_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_INPUT_REQUEST_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(SESSION_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, SESSION_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_TRIGGER_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_TRIGGER_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_ORIGIN_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_ORIGIN_UNION));
   lines.push('');
-  lines.push(generateDiscriminatedUnion(AUTOMATION_RUN_LIFECYCLE_UNION));
+  lines.push(generateDiscriminatedUnion(project, AUTOMATION_RUN_LIFECYCLE_UNION));
   lines.push('');
   lines.push(generateSnapshotState());
   lines.push('');
@@ -1521,12 +1627,12 @@ pub struct ActionEnvelope {
     wireValue: v.type,
     boxed: v.boxed,
   }));
-  lines.push(generateDiscriminatedUnion({
+  lines.push(generateDiscriminatedUnion(project, {
     name: 'StateAction',
     discriminantField: 'type',
     doc: 'Discriminated union of every state action.',
     variants,
-    unknown: true,
+    discriminatorEnum: 'ActionType',
   }));
   lines.push('');
 
@@ -1637,21 +1743,28 @@ function generateCommandsFile(project: Project): string {
   }
 
   lines.push('// ─── ChatSource Union ─────────────────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(CHAT_SOURCE_UNION));
+  lines.push(generateDiscriminatedUnion(project, CHAT_SOURCE_UNION));
   lines.push('');
 
   lines.push('// ─── ReconnectResult Union ────────────────────────────────────────────\n');
-  lines.push(generateDiscriminatedUnion(RECONNECT_RESULT_UNION));
+  lines.push(generateDiscriminatedUnion(project, RECONNECT_RESULT_UNION));
   lines.push('');
 
   lines.push('// ─── Changeset Operation Unions ───────────────────────────────────────\n');
-  lines.push(generateChangesetOperationTargetRust());
+  lines.push(generateChangesetOperationTargetRust(project));
   lines.push('');
 
   return lines.join('\n');
 }
 
-function generateCustomizationEnablementRust(): string {
+function generateCustomizationEnablementRust(project: Project): string {
+  const kind = findEnum(project, 'CustomizationEnablementKind');
+  if (!kind) throw new Error('CustomizationEnablementKind enum not found');
+  const unknownVariant = getEnumCompatibility(kind) === 'nonexhaustive'
+    ? `    #[serde(untagged)]
+    Unknown(serde_json::Value),
+`
+    : '';
   return `/// A single explicit customization enablement decision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
@@ -1669,7 +1782,7 @@ pub enum CustomizationEnablement {
     Session {
         enabled: bool,
     },
-}`;
+${unknownVariant}}`;
 }
 
 function generateSubscribeParamsImplRust(): string {
@@ -1706,7 +1819,14 @@ function generateSubscribeParamsImplRust(): string {
 }`;
 }
 
-function generateChangesetOperationTargetRust(): string {
+function generateChangesetOperationTargetRust(project: Project): string {
+  const kind = findEnum(project, 'ChangesetOperationTargetKind');
+  if (!kind) throw new Error('ChangesetOperationTargetKind enum not found');
+  const unknownVariant = getEnumCompatibility(kind) === 'nonexhaustive'
+    ? `    #[serde(untagged)]
+    Unknown(serde_json::Value),
+`
+    : '';
   return `/// Identifies the file or range a \`ChangesetOperation\` should act on.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
@@ -1724,7 +1844,7 @@ pub enum ChangesetOperationTarget {
         side: Option<String>,
         range: TextRange,
     },
-}`;
+${unknownVariant}}`;
 }
 
 // ─── Notifications File Generator ────────────────────────────────────────────
@@ -1823,10 +1943,10 @@ pub mod ahp_error_codes {
     /// The operation requires no active turn, but one is in progress.
     pub const TURN_IN_PROGRESS: i32 = -32004;
     /// The server cannot speak any of the protocol versions offered by the
-    /// client in \`InitializeParams.protocolVersions\`.
+    /// client in \`InitializeParams.protocolVersions\`; its required data
+    /// payload advertises supported versions.
     pub const UNSUPPORTED_PROTOCOL_VERSION: i32 = -32005;
-    /// The requested content URI does not exist.
-    pub const CONTENT_NOT_FOUND: i32 = -32006;
+    // -32006 is intentionally reserved and unassigned.
     /// Authentication required for a protected resource.
     pub const AUTH_REQUIRED: i32 = -32007;
     /// The requested file, folder, or URI does not exist.

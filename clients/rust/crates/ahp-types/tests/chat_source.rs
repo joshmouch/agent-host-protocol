@@ -1,4 +1,9 @@
-use ahp_types::commands::ChatSource;
+#![allow(clippy::panic, clippy::unwrap_used)]
+
+use ahp_types::{
+    commands::ChatSource,
+    state::{ResponsePart, ResponsePartKind},
+};
 
 #[test]
 fn chat_source_routes_by_kind() {
@@ -32,14 +37,35 @@ fn chat_source_routes_by_kind() {
 }
 
 #[test]
-fn chat_source_rejects_missing_or_unknown_kind() {
+fn chat_source_preserves_missing_or_unknown_kind() {
     for raw in [
         r#"{"chat":"ahp-chat:/main","turnId":"turn-12"}"#,
         r#"{"kind":"future","chat":"ahp-chat:/main","turnId":"turn-12"}"#,
     ] {
-        assert!(
-            serde_json::from_str::<ChatSource>(raw).is_err(),
-            "expected decode failure for {raw}"
+        let source = serde_json::from_str::<ChatSource>(raw).expect("decode unknown chat source");
+        assert!(matches!(source, ChatSource::Unknown(_)));
+        assert_eq!(
+            serde_json::to_value(&source).expect("encode unknown chat source"),
+            serde_json::from_str::<serde_json::Value>(raw).expect("decode expected JSON")
         );
     }
+}
+
+#[test]
+fn nonexhaustive_enum_and_union_preserve_future_values() {
+    let kind = serde_json::from_str::<ResponsePartKind>(r#""futurePart""#)
+        .expect("decode unknown response-part kind");
+    assert!(matches!(&kind, ResponsePartKind::Unknown(value) if value == "futurePart"));
+    assert_eq!(
+        serde_json::to_string(&kind).expect("encode unknown response-part kind"),
+        r#""futurePart""#
+    );
+
+    let raw = r#"{"kind":"futurePart","payload":{"preserve":true}}"#;
+    let part = serde_json::from_str::<ResponsePart>(raw).expect("decode unknown response part");
+    assert!(matches!(part, ResponsePart::Unknown(_)));
+    assert_eq!(
+        serde_json::to_string(&part).expect("encode unknown response part"),
+        raw
+    );
 }

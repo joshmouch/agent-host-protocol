@@ -30,8 +30,7 @@ public enum AhpErrorCodes {
     public static let turnInProgress = -32004
     /// The server cannot speak any of the protocol versions offered by the client in `InitializeParams.protocolVersions`
     public static let unsupportedProtocolVersion = -32005
-    /// The requested content URI does not exist
-    public static let contentNotFound = -32006
+    // -32006 is intentionally reserved and unassigned.
     /// Authentication required for a protected resource
     public static let authRequired = -32007
     /// The requested file, folder, or URI does not exist

@@ -16,6 +16,7 @@ import { generateKotlinPackage } from './generate-kotlin.js';
 import { generateTypeScriptClient } from './generate-typescript.js';
 import { generateGoModule } from './generate-go.js';
 import { generateReleaseMetadata } from './generate-release-metadata.js';
+import { validateEnumCompatibility } from './enum-compatibility.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -55,6 +56,8 @@ const generateAll =
 const project = new Project({
   tsConfigFilePath: path.join(TYPES_DIR, 'tsconfig.json'),
 });
+
+validateEnumCompatibility(project);
 
 if (generateAll || docsOnly) {
   console.log('Generating documentation markdown...');

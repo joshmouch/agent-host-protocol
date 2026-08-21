@@ -5,11 +5,32 @@ import Foundation
 // MARK: - Notification Enums
 
 /// Reason why authentication is required.
-public enum AuthRequiredReason: String, Codable, Sendable {
+public enum AuthRequiredReason: Codable, Sendable, Equatable {
     /// The client has not yet authenticated for the resource
-    case required = "required"
+    case required
     /// A previously valid token has expired or been revoked
-    case expired = "expired"
+    case expired
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "required": self = .required
+        case "expired": self = .expired
+        default: self = .unknown(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .required: try container.encode("required")
+        case .expired: try container.encode("expired")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 // MARK: - Notification Types

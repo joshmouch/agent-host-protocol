@@ -354,7 +354,9 @@ fn end_turn(
         Ok(timestamp) => timestamp,
         Err(error) => return ReduceOutcome::Invalid(error),
     };
-    let active = state.active_turn.take().unwrap();
+    let Some(active) = state.active_turn.take() else {
+        return ReduceOutcome::NoOp;
+    };
 
     let response_parts: Vec<ResponsePart> = active
         .response_parts
@@ -504,6 +506,7 @@ fn effective_enablement(enablement: &[CustomizationEnablement]) -> bool {
         Some(CustomizationEnablement::Global { enabled }) => *enabled,
         Some(CustomizationEnablement::Workspace { enabled, .. }) => *enabled,
         Some(CustomizationEnablement::Session { enabled }) => *enabled,
+        Some(CustomizationEnablement::Unknown(_)) => false,
         None => true,
     }
 }
@@ -1216,7 +1219,7 @@ pub fn apply_action_to_chat(state: &mut ChatState, action: &StateAction) -> Redu
                 id: a.id.clone(),
                 message: a.message.clone(),
             };
-            match a.kind {
+            match &a.kind {
                 PendingMessageKind::Steering => {
                     state.steering_message = Some(entry);
                 }
@@ -1345,7 +1348,7 @@ fn apply_tool_call_ready(state: &mut ChatState, a: &ChatToolCallReadyAction) -> 
             ToolCallState::Streaming(_)
             | ToolCallState::Running(_)
             | ToolCallState::PendingConfirmation(_) => {
-                if let Some(confirmed) = a.confirmed {
+                if let Some(confirmed) = a.confirmed.clone() {
                     ToolCallState::Running(ToolCallRunningState {
                         tool_call_id: base.tool_call_id,
                         tool_name: base.tool_name,
@@ -1436,7 +1439,10 @@ fn apply_tool_call_confirmed(
                 contributor,
                 meta,
                 invocation_message,
-                confirmed: a.confirmed.unwrap_or(ToolCallConfirmationReason::NotNeeded),
+                confirmed: match a.confirmed.clone() {
+                    Some(confirmed) => confirmed,
+                    None => ToolCallConfirmationReason::NotNeeded,
+                },
                 selected_option,
                 content: None,
             })
@@ -1450,7 +1456,10 @@ fn apply_tool_call_confirmed(
                 contributor,
                 meta,
                 invocation_message,
-                reason: a.reason.unwrap_or(ToolCallCancellationReason::Denied),
+                reason: match a.reason {
+                    Some(reason) => reason,
+                    None => ToolCallCancellationReason::Denied,
+                },
                 reason_message: a.reason_message.clone(),
                 user_suggestion: a.user_suggestion.clone(),
                 selected_option,
@@ -1834,10 +1843,10 @@ pub fn apply_action_to_changeset(
             // Carry `error` only when the new status is `Error` so we don't
             // leave a stale error sitting on a recovered changeset.
             if a.status == ChangesetStatus::Error {
-                state.status = a.status;
+                state.status = a.status.clone();
                 state.error = a.error.clone();
             } else {
-                state.status = a.status;
+                state.status = a.status.clone();
                 state.error = None;
             }
             ReduceOutcome::Applied
@@ -1894,10 +1903,10 @@ pub fn apply_action_to_changeset(
             // Carry `error` only when the new status is `Error` so we don't
             // leave a stale error on an operation that recovered or started running.
             if a.status == ChangesetOperationStatus::Error {
-                ops[idx].status = a.status;
+                ops[idx].status = a.status.clone();
                 ops[idx].error = a.error.clone();
             } else {
-                ops[idx].status = a.status;
+                ops[idx].status = a.status.clone();
                 ops[idx].error = None;
             }
             ReduceOutcome::Applied
@@ -2099,6 +2108,7 @@ pub fn apply_action_to_automation_run(
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used)]
 mod tests {
     use super::*;
     use ahp_types::state::{

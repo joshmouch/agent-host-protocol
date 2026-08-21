@@ -348,7 +348,7 @@ InputRequestResponsePart {
 
 `SystemNotificationResponsePart._meta` carries provider-specific metadata describing what triggered the notification. A host MAY attach a machine-readable descriptor so clients can categorize, icon, group, filter, or localize the notification without parsing `content`. Clients MAY inspect well-known keys for enhanced UI, and MUST render coherently from `content` alone when `_meta` is absent or unrecognized.
 
-Text content uses a **create-then-append** pattern: the server first emits a `chat/responsePart` action to create a new markdown (or reasoning) part with an `id`, then streams text into it via `chat/delta` (or `chat/reasoning`) actions targeting that `partId`. This pattern is extensible to future streaming content types.
+Text content uses a **create-then-append** pattern: the server first emits a `chat/responsePart` action to create a new markdown or reasoning part with an `id`. `chat/delta` targets markdown parts only, while `chat/reasoning` targets reasoning parts only. This pattern is extensible to future streaming content types.
 
 Clients fetch `ContentRef` content separately via the `resourceRead(uri)` command. This keeps the state tree small and serializable.
 

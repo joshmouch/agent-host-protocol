@@ -88,7 +88,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Protocol versions the client is willing to speak, ordered from most\npreferred to least preferred. Each entry is a [SemVer](https://semver.org)\n`MAJOR.MINOR.PATCH` string (e.g. `\"0.1.0\"`).\n\nThe server selects one entry and returns it as `InitializeResult.protocolVersion`.\nIf the server cannot speak any of the offered versions, it MUST return\nerror code `-32005` (`UnsupportedProtocolVersion`)."
+          "description": "Protocol versions the client is willing to speak, ordered from most\npreferred to least preferred. Each entry is a [SemVer](https://semver.org)\n`MAJOR.MINOR.PATCH` string (e.g. `\"0.1.0\"`).\n\nThe server selects one entry and returns it as `InitializeResult.protocolVersion`.\nIf the server cannot speak any of the offered versions, it MUST return\nerror code `-32005` (`UnsupportedProtocolVersion`) with required\n`UnsupportedProtocolVersionErrorData` containing `supportedVersions`."
         },
         "clientId": {
           "type": "string",
@@ -133,7 +133,7 @@
     },
     "InitializeResult": {
       "type": "object",
-      "description": "Result of the `initialize` command.\n\n`protocolVersion` is the version the server has selected from the client's\n`protocolVersions` list. The client and server MUST use this version for\nthe rest of the connection. If the server cannot speak any of the offered\nversions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)\ninstead of a result.",
+      "description": "Result of the `initialize` command.\n\n`protocolVersion` is the version the server has selected from the client's\n`protocolVersions` list. The client and server MUST use this version for\nthe rest of the connection. If the server cannot speak any of the offered\nversions it MUST return error code `-32005` (`UnsupportedProtocolVersion`)\nwith required `UnsupportedProtocolVersionErrorData` containing\n`supportedVersions`, instead of a result.",
       "properties": {
         "protocolVersion": {
           "type": "string",
@@ -2618,8 +2618,8 @@
           "description": "The `clientId` expected to execute the tool. Matches the `clientId` of the\ntool call's client {@link ToolCallContributor}."
         },
         "toolCall": {
-          "$ref": "#/$defs/ToolCallState",
-          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState} (i.e. a\n{@link ToolCallState} in `running` status)."
+          "$ref": "#/$defs/ToolCallRunningState",
+          "description": "The running tool call the session wants the owning client to execute. The\nhost only ever populates this with a {@link ToolCallRunningState}."
         }
       },
       "required": [
@@ -7929,7 +7929,7 @@
     },
     "ChatDeltaAction": {
       "type": "object",
-      "description": "Streaming text chunk from the assistant, appended to a specific response part.\n\nThe server MUST first emit a `chat/responsePart` to create the target\npart (markdown or reasoning), then use this action to append text to it.",
+      "description": "Streaming text chunk from the assistant, appended to a specific response part.\n\nThe server MUST first emit a `chat/responsePart` to create the target\nmarkdown part, then use this action to append text to it.",
       "properties": {
         "type": {
           "const": "chat/delta"
@@ -10028,32 +10028,6 @@
       ],
       "description": "The two tool-call states that block on a client confirmation: parameter\nconfirmation before execution ({@link ToolCallPendingConfirmationState}) and\nresult confirmation after execution\n({@link ToolCallPendingResultConfirmationState}).\n\n{@link ToolCallAuthRequiredState} is intentionally **not** part of this\nunion: it doesn't block on a `chat/toolCallConfirmed`-style client\ndecision, it blocks on the client completing an OAuth flow and calling\n`authenticate`. See {@link SessionToolAuthenticationRequest} for its\nsession-level surfacing.\n\nSurfaced at the session level by {@link SessionToolConfirmationRequest}."
     },
-    "ToolCallState": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/ToolCallStreamingState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallPendingConfirmationState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallRunningState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallAuthRequiredState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallPendingResultConfirmationState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallCompletedState"
-        },
-        {
-          "$ref": "#/$defs/ToolCallCancelledState"
-        }
-      ],
-      "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
-    },
     "CustomizationLoadState": {
       "oneOf": [
         {
@@ -10376,6 +10350,32 @@
       ],
       "type": "string",
       "description": "Discriminant for {@link MessageOrigin} — identifies who produced a message."
+    },
+    "ToolCallState": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolCallStreamingState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallPendingConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallRunningState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallAuthRequiredState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallPendingResultConfirmationState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallCompletedState"
+        },
+        {
+          "$ref": "#/$defs/ToolCallCancelledState"
+        }
+      ],
+      "description": "Discriminated union of all tool call lifecycle states.\n\nSee the [state model guide](/guide/state-model.html#tool-call-lifecycle)\nfor the full state machine diagram."
     },
     "ChatInputResponseKind": {
       "enum": [

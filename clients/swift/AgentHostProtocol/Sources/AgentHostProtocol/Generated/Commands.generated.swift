@@ -11,11 +11,32 @@ public enum ReconnectResultType: String, Codable, Sendable {
 }
 
 /// How a new chat uses its source chat and turn.
-public enum ChatSourceKind: String, Codable, Sendable {
+public enum ChatSourceKind: Codable, Sendable, Equatable {
     /// Copy source history through the referenced turn into the new chat.
-    case fork = "fork"
+    case fork
     /// Supply source context without copying it into the new chat's visible history.
-    case sideChat = "sideChat"
+    case sideChat
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "fork": self = .fork
+        case "sideChat": self = .sideChat
+        default: self = .unknown(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .fork: try container.encode("fork")
+        case .sideChat: try container.encode("sideChat")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 /// Encoding of fetched content data.
@@ -25,18 +46,60 @@ public enum ContentEncoding: String, Codable, Sendable {
 }
 
 /// The kind of completion items being requested.
-public enum CompletionItemKind: String, Codable, Sendable {
+public enum CompletionItemKind: Codable, Sendable, Equatable {
     /// Completions for the text of a {@link Message} the user is composing.
     /// Each returned item carries an attachment that gets associated with the
     /// message when accepted.
-    case userMessage = "userMessage"
+    case userMessage
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "userMessage": self = .userMessage
+        default: self = .unknown(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .userMessage: try container.encode("userMessage")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 /// Discriminant for {@link ResourceResolveResult.type}.
-public enum ResourceType: String, Codable, Sendable {
-    case file = "file"
-    case directory = "directory"
-    case symlink = "symlink"
+public enum ResourceType: Codable, Sendable, Equatable {
+    case file
+    case directory
+    case symlink
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "file": self = .file
+        case "directory": self = .directory
+        case "symlink": self = .symlink
+        default: self = .unknown(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .file: try container.encode("file")
+        case .directory: try container.encode("directory")
+        case .symlink: try container.encode("symlink")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 /// How {@link ResourceWriteParams.data} is placed within the target file.
@@ -178,7 +241,8 @@ public struct InitializeParams: Codable, Sendable {
     ///
     /// The server selects one entry and returns it as `InitializeResult.protocolVersion`.
     /// If the server cannot speak any of the offered versions, it MUST return
-    /// error code `-32005` (`UnsupportedProtocolVersion`).
+    /// error code `-32005` (`UnsupportedProtocolVersion`) with required
+    /// `UnsupportedProtocolVersionErrorData` containing `supportedVersions`.
     public var protocolVersions: [String]
     /// Unique client identifier
     public var clientId: String
@@ -1994,6 +2058,9 @@ public struct FetchAutomationRunsResult: Codable, Sendable {
 public enum ChatSource: Codable, Sendable {
     case fork(ForkChatSource)
     case sideChat(SideChatSource)
+    /// Unknown or future discriminant; the raw payload is preserved
+    /// and re-encoded verbatim for forward-compatibility.
+    case unknown(AnyCodable)
 
     private enum DiscriminantKey: String, CodingKey {
         case discriminant = "kind"
@@ -2008,7 +2075,7 @@ public enum ChatSource: Codable, Sendable {
         case "sideChat":
             self = .sideChat(try SideChatSource(from: decoder))
         default:
-            throw DecodingError.dataCorruptedError(forKey: .discriminant, in: container, debugDescription: "Unknown ChatSource discriminant: \(discriminant)")
+            self = .unknown(try AnyCodable(from: decoder))
         }
     }
 
@@ -2016,6 +2083,7 @@ public enum ChatSource: Codable, Sendable {
         switch self {
         case .fork(let value): try value.encode(to: encoder)
         case .sideChat(let value): try value.encode(to: encoder)
+        case .unknown(let value): try value.encode(to: encoder)
         }
     }
 }

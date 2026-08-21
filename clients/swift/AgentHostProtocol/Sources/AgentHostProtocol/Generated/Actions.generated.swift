@@ -5,102 +5,309 @@ import Foundation
 // MARK: - ActionType
 
 /// Discriminant values for all state actions.
-public enum ActionType: String, Codable, Sendable {
-    case rootAgentsChanged = "root/agentsChanged"
-    case rootActiveSessionsChanged = "root/activeSessionsChanged"
-    case sessionReady = "session/ready"
-    case sessionCreationFailed = "session/creationFailed"
-    case sessionChatAdded = "session/chatAdded"
-    case sessionChatRemoved = "session/chatRemoved"
-    case sessionChatUpdated = "session/chatUpdated"
-    case sessionDefaultChatChanged = "session/defaultChatChanged"
-    case chatTurnStarted = "chat/turnStarted"
-    case chatDelta = "chat/delta"
-    case chatResponsePart = "chat/responsePart"
-    case chatToolCallStart = "chat/toolCallStart"
-    case chatToolCallDelta = "chat/toolCallDelta"
-    case chatToolCallReady = "chat/toolCallReady"
-    case chatToolCallConfirmed = "chat/toolCallConfirmed"
-    case chatToolCallComplete = "chat/toolCallComplete"
-    case chatToolCallResultConfirmed = "chat/toolCallResultConfirmed"
-    case chatToolCallContentChanged = "chat/toolCallContentChanged"
-    case chatToolCallAuthRequired = "chat/toolCallAuthRequired"
-    case chatToolCallAuthResolved = "chat/toolCallAuthResolved"
-    case chatTurnComplete = "chat/turnComplete"
-    case chatTurnCancelled = "chat/turnCancelled"
-    case chatError = "chat/error"
-    case chatActivityChanged = "chat/activityChanged"
-    case chatWorkingDirectorySet = "chat/workingDirectorySet"
-    case chatWorkingDirectoryRemoved = "chat/workingDirectoryRemoved"
-    case sessionTitleChanged = "session/titleChanged"
-    case chatUsage = "chat/usage"
-    case chatReasoning = "chat/reasoning"
-    case sessionServerToolsChanged = "session/serverToolsChanged"
-    case sessionActiveClientSet = "session/activeClientSet"
-    case sessionActiveClientRemoved = "session/activeClientRemoved"
-    case sessionWorkingDirectorySet = "session/workingDirectorySet"
-    case sessionWorkingDirectoryRemoved = "session/workingDirectoryRemoved"
-    case sessionWorkingDirectoryReplaced = "session/workingDirectoryReplaced"
-    case sessionInputNeededSet = "session/inputNeededSet"
-    case sessionInputNeededRemoved = "session/inputNeededRemoved"
-    case chatPendingMessageSet = "chat/pendingMessageSet"
-    case chatPendingMessageRemoved = "chat/pendingMessageRemoved"
-    case chatQueuedMessagesReordered = "chat/queuedMessagesReordered"
-    case chatDraftChanged = "chat/draftChanged"
-    case chatInputRequested = "chat/inputRequested"
-    case chatInputAnswerChanged = "chat/inputAnswerChanged"
-    case chatInputCompleted = "chat/inputCompleted"
-    case sessionCustomizationsChanged = "session/customizationsChanged"
-    case sessionCustomizationToggled = "session/customizationToggled"
-    case sessionCustomizationUpdated = "session/customizationUpdated"
-    case sessionCustomizationRemoved = "session/customizationRemoved"
-    case sessionMcpServerStateChanged = "session/mcpServerStateChanged"
-    case sessionMcpServerStartRequested = "session/mcpServerStartRequested"
-    case sessionMcpServerStopRequested = "session/mcpServerStopRequested"
-    case chatTruncated = "chat/truncated"
-    case chatTurnsLoaded = "chat/turnsLoaded"
-    case sessionIsReadChanged = "session/isReadChanged"
-    case sessionIsArchivedChanged = "session/isArchivedChanged"
-    case sessionActivityChanged = "session/activityChanged"
-    case sessionChangesetsChanged = "session/changesetsChanged"
-    case sessionConfigChanged = "session/configChanged"
-    case sessionMetaChanged = "session/metaChanged"
-    case changesetStatusChanged = "changeset/statusChanged"
-    case changesetFileSet = "changeset/fileSet"
-    case changesetFileRemoved = "changeset/fileRemoved"
-    case changesetFilesReviewChanged = "changeset/filesReviewChanged"
-    case changesetContentChanged = "changeset/contentChanged"
-    case changesetOperationsChanged = "changeset/operationsChanged"
-    case changesetOperationStatusChanged = "changeset/operationStatusChanged"
-    case changesetCleared = "changeset/cleared"
-    case annotationsSet = "annotations/set"
-    case annotationsUpdated = "annotations/updated"
-    case annotationsRemoved = "annotations/removed"
-    case annotationsEntrySet = "annotations/entrySet"
-    case annotationsEntryRemoved = "annotations/entryRemoved"
-    case rootTerminalsChanged = "root/terminalsChanged"
-    case rootConfigChanged = "root/configChanged"
-    case terminalData = "terminal/data"
-    case terminalInput = "terminal/input"
-    case terminalResized = "terminal/resized"
-    case terminalClaimed = "terminal/claimed"
-    case terminalTitleChanged = "terminal/titleChanged"
-    case terminalCwdChanged = "terminal/cwdChanged"
-    case terminalExited = "terminal/exited"
-    case terminalCleared = "terminal/cleared"
-    case terminalCommandDetectionAvailable = "terminal/commandDetectionAvailable"
-    case terminalCommandExecuted = "terminal/commandExecuted"
-    case terminalCommandFinished = "terminal/commandFinished"
-    case resourceWatchChanged = "resourceWatch/changed"
-    case automationCreateRequested = "automation/createRequested"
-    case automationUpdateRequested = "automation/updateRequested"
-    case automationSet = "automation/set"
-    case automationRemoved = "automation/removed"
-    case automationRunLifecycleChanged = "automationRun/lifecycleChanged"
-    case automationRunSessionSet = "automationRun/sessionSet"
-    case automationRunSessionRemoved = "automationRun/sessionRemoved"
-    case automationRunPrimarySessionChanged = "automationRun/primarySessionChanged"
-    case automationRunCancelRequested = "automationRun/cancelRequested"
+public enum ActionType: Codable, Sendable, Equatable {
+    case rootAgentsChanged
+    case rootActiveSessionsChanged
+    case sessionReady
+    case sessionCreationFailed
+    case sessionChatAdded
+    case sessionChatRemoved
+    case sessionChatUpdated
+    case sessionDefaultChatChanged
+    case chatTurnStarted
+    case chatDelta
+    case chatResponsePart
+    case chatToolCallStart
+    case chatToolCallDelta
+    case chatToolCallReady
+    case chatToolCallConfirmed
+    case chatToolCallComplete
+    case chatToolCallResultConfirmed
+    case chatToolCallContentChanged
+    case chatToolCallAuthRequired
+    case chatToolCallAuthResolved
+    case chatTurnComplete
+    case chatTurnCancelled
+    case chatError
+    case chatActivityChanged
+    case chatWorkingDirectorySet
+    case chatWorkingDirectoryRemoved
+    case sessionTitleChanged
+    case chatUsage
+    case chatReasoning
+    case sessionServerToolsChanged
+    case sessionActiveClientSet
+    case sessionActiveClientRemoved
+    case sessionWorkingDirectorySet
+    case sessionWorkingDirectoryRemoved
+    case sessionWorkingDirectoryReplaced
+    case sessionInputNeededSet
+    case sessionInputNeededRemoved
+    case chatPendingMessageSet
+    case chatPendingMessageRemoved
+    case chatQueuedMessagesReordered
+    case chatDraftChanged
+    case chatInputRequested
+    case chatInputAnswerChanged
+    case chatInputCompleted
+    case sessionCustomizationsChanged
+    case sessionCustomizationToggled
+    case sessionCustomizationUpdated
+    case sessionCustomizationRemoved
+    case sessionMcpServerStateChanged
+    case sessionMcpServerStartRequested
+    case sessionMcpServerStopRequested
+    case chatTruncated
+    case chatTurnsLoaded
+    case sessionIsReadChanged
+    case sessionIsArchivedChanged
+    case sessionActivityChanged
+    case sessionChangesetsChanged
+    case sessionConfigChanged
+    case sessionMetaChanged
+    case changesetStatusChanged
+    case changesetFileSet
+    case changesetFileRemoved
+    case changesetFilesReviewChanged
+    case changesetContentChanged
+    case changesetOperationsChanged
+    case changesetOperationStatusChanged
+    case changesetCleared
+    case annotationsSet
+    case annotationsUpdated
+    case annotationsRemoved
+    case annotationsEntrySet
+    case annotationsEntryRemoved
+    case rootTerminalsChanged
+    case rootConfigChanged
+    case terminalData
+    case terminalInput
+    case terminalResized
+    case terminalClaimed
+    case terminalTitleChanged
+    case terminalCwdChanged
+    case terminalExited
+    case terminalCleared
+    case terminalCommandDetectionAvailable
+    case terminalCommandExecuted
+    case terminalCommandFinished
+    case resourceWatchChanged
+    case automationCreateRequested
+    case automationUpdateRequested
+    case automationSet
+    case automationRemoved
+    case automationRunLifecycleChanged
+    case automationRunSessionSet
+    case automationRunSessionRemoved
+    case automationRunPrimarySessionChanged
+    case automationRunCancelRequested
+    /// Unknown raw value from a newer protocol version, preserved verbatim.
+    case unknown(String)
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        switch raw {
+        case "root/agentsChanged": self = .rootAgentsChanged
+        case "root/activeSessionsChanged": self = .rootActiveSessionsChanged
+        case "session/ready": self = .sessionReady
+        case "session/creationFailed": self = .sessionCreationFailed
+        case "session/chatAdded": self = .sessionChatAdded
+        case "session/chatRemoved": self = .sessionChatRemoved
+        case "session/chatUpdated": self = .sessionChatUpdated
+        case "session/defaultChatChanged": self = .sessionDefaultChatChanged
+        case "chat/turnStarted": self = .chatTurnStarted
+        case "chat/delta": self = .chatDelta
+        case "chat/responsePart": self = .chatResponsePart
+        case "chat/toolCallStart": self = .chatToolCallStart
+        case "chat/toolCallDelta": self = .chatToolCallDelta
+        case "chat/toolCallReady": self = .chatToolCallReady
+        case "chat/toolCallConfirmed": self = .chatToolCallConfirmed
+        case "chat/toolCallComplete": self = .chatToolCallComplete
+        case "chat/toolCallResultConfirmed": self = .chatToolCallResultConfirmed
+        case "chat/toolCallContentChanged": self = .chatToolCallContentChanged
+        case "chat/toolCallAuthRequired": self = .chatToolCallAuthRequired
+        case "chat/toolCallAuthResolved": self = .chatToolCallAuthResolved
+        case "chat/turnComplete": self = .chatTurnComplete
+        case "chat/turnCancelled": self = .chatTurnCancelled
+        case "chat/error": self = .chatError
+        case "chat/activityChanged": self = .chatActivityChanged
+        case "chat/workingDirectorySet": self = .chatWorkingDirectorySet
+        case "chat/workingDirectoryRemoved": self = .chatWorkingDirectoryRemoved
+        case "session/titleChanged": self = .sessionTitleChanged
+        case "chat/usage": self = .chatUsage
+        case "chat/reasoning": self = .chatReasoning
+        case "session/serverToolsChanged": self = .sessionServerToolsChanged
+        case "session/activeClientSet": self = .sessionActiveClientSet
+        case "session/activeClientRemoved": self = .sessionActiveClientRemoved
+        case "session/workingDirectorySet": self = .sessionWorkingDirectorySet
+        case "session/workingDirectoryRemoved": self = .sessionWorkingDirectoryRemoved
+        case "session/workingDirectoryReplaced": self = .sessionWorkingDirectoryReplaced
+        case "session/inputNeededSet": self = .sessionInputNeededSet
+        case "session/inputNeededRemoved": self = .sessionInputNeededRemoved
+        case "chat/pendingMessageSet": self = .chatPendingMessageSet
+        case "chat/pendingMessageRemoved": self = .chatPendingMessageRemoved
+        case "chat/queuedMessagesReordered": self = .chatQueuedMessagesReordered
+        case "chat/draftChanged": self = .chatDraftChanged
+        case "chat/inputRequested": self = .chatInputRequested
+        case "chat/inputAnswerChanged": self = .chatInputAnswerChanged
+        case "chat/inputCompleted": self = .chatInputCompleted
+        case "session/customizationsChanged": self = .sessionCustomizationsChanged
+        case "session/customizationToggled": self = .sessionCustomizationToggled
+        case "session/customizationUpdated": self = .sessionCustomizationUpdated
+        case "session/customizationRemoved": self = .sessionCustomizationRemoved
+        case "session/mcpServerStateChanged": self = .sessionMcpServerStateChanged
+        case "session/mcpServerStartRequested": self = .sessionMcpServerStartRequested
+        case "session/mcpServerStopRequested": self = .sessionMcpServerStopRequested
+        case "chat/truncated": self = .chatTruncated
+        case "chat/turnsLoaded": self = .chatTurnsLoaded
+        case "session/isReadChanged": self = .sessionIsReadChanged
+        case "session/isArchivedChanged": self = .sessionIsArchivedChanged
+        case "session/activityChanged": self = .sessionActivityChanged
+        case "session/changesetsChanged": self = .sessionChangesetsChanged
+        case "session/configChanged": self = .sessionConfigChanged
+        case "session/metaChanged": self = .sessionMetaChanged
+        case "changeset/statusChanged": self = .changesetStatusChanged
+        case "changeset/fileSet": self = .changesetFileSet
+        case "changeset/fileRemoved": self = .changesetFileRemoved
+        case "changeset/filesReviewChanged": self = .changesetFilesReviewChanged
+        case "changeset/contentChanged": self = .changesetContentChanged
+        case "changeset/operationsChanged": self = .changesetOperationsChanged
+        case "changeset/operationStatusChanged": self = .changesetOperationStatusChanged
+        case "changeset/cleared": self = .changesetCleared
+        case "annotations/set": self = .annotationsSet
+        case "annotations/updated": self = .annotationsUpdated
+        case "annotations/removed": self = .annotationsRemoved
+        case "annotations/entrySet": self = .annotationsEntrySet
+        case "annotations/entryRemoved": self = .annotationsEntryRemoved
+        case "root/terminalsChanged": self = .rootTerminalsChanged
+        case "root/configChanged": self = .rootConfigChanged
+        case "terminal/data": self = .terminalData
+        case "terminal/input": self = .terminalInput
+        case "terminal/resized": self = .terminalResized
+        case "terminal/claimed": self = .terminalClaimed
+        case "terminal/titleChanged": self = .terminalTitleChanged
+        case "terminal/cwdChanged": self = .terminalCwdChanged
+        case "terminal/exited": self = .terminalExited
+        case "terminal/cleared": self = .terminalCleared
+        case "terminal/commandDetectionAvailable": self = .terminalCommandDetectionAvailable
+        case "terminal/commandExecuted": self = .terminalCommandExecuted
+        case "terminal/commandFinished": self = .terminalCommandFinished
+        case "resourceWatch/changed": self = .resourceWatchChanged
+        case "automation/createRequested": self = .automationCreateRequested
+        case "automation/updateRequested": self = .automationUpdateRequested
+        case "automation/set": self = .automationSet
+        case "automation/removed": self = .automationRemoved
+        case "automationRun/lifecycleChanged": self = .automationRunLifecycleChanged
+        case "automationRun/sessionSet": self = .automationRunSessionSet
+        case "automationRun/sessionRemoved": self = .automationRunSessionRemoved
+        case "automationRun/primarySessionChanged": self = .automationRunPrimarySessionChanged
+        case "automationRun/cancelRequested": self = .automationRunCancelRequested
+        default: self = .unknown(raw)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .rootAgentsChanged: try container.encode("root/agentsChanged")
+        case .rootActiveSessionsChanged: try container.encode("root/activeSessionsChanged")
+        case .sessionReady: try container.encode("session/ready")
+        case .sessionCreationFailed: try container.encode("session/creationFailed")
+        case .sessionChatAdded: try container.encode("session/chatAdded")
+        case .sessionChatRemoved: try container.encode("session/chatRemoved")
+        case .sessionChatUpdated: try container.encode("session/chatUpdated")
+        case .sessionDefaultChatChanged: try container.encode("session/defaultChatChanged")
+        case .chatTurnStarted: try container.encode("chat/turnStarted")
+        case .chatDelta: try container.encode("chat/delta")
+        case .chatResponsePart: try container.encode("chat/responsePart")
+        case .chatToolCallStart: try container.encode("chat/toolCallStart")
+        case .chatToolCallDelta: try container.encode("chat/toolCallDelta")
+        case .chatToolCallReady: try container.encode("chat/toolCallReady")
+        case .chatToolCallConfirmed: try container.encode("chat/toolCallConfirmed")
+        case .chatToolCallComplete: try container.encode("chat/toolCallComplete")
+        case .chatToolCallResultConfirmed: try container.encode("chat/toolCallResultConfirmed")
+        case .chatToolCallContentChanged: try container.encode("chat/toolCallContentChanged")
+        case .chatToolCallAuthRequired: try container.encode("chat/toolCallAuthRequired")
+        case .chatToolCallAuthResolved: try container.encode("chat/toolCallAuthResolved")
+        case .chatTurnComplete: try container.encode("chat/turnComplete")
+        case .chatTurnCancelled: try container.encode("chat/turnCancelled")
+        case .chatError: try container.encode("chat/error")
+        case .chatActivityChanged: try container.encode("chat/activityChanged")
+        case .chatWorkingDirectorySet: try container.encode("chat/workingDirectorySet")
+        case .chatWorkingDirectoryRemoved: try container.encode("chat/workingDirectoryRemoved")
+        case .sessionTitleChanged: try container.encode("session/titleChanged")
+        case .chatUsage: try container.encode("chat/usage")
+        case .chatReasoning: try container.encode("chat/reasoning")
+        case .sessionServerToolsChanged: try container.encode("session/serverToolsChanged")
+        case .sessionActiveClientSet: try container.encode("session/activeClientSet")
+        case .sessionActiveClientRemoved: try container.encode("session/activeClientRemoved")
+        case .sessionWorkingDirectorySet: try container.encode("session/workingDirectorySet")
+        case .sessionWorkingDirectoryRemoved: try container.encode("session/workingDirectoryRemoved")
+        case .sessionWorkingDirectoryReplaced: try container.encode("session/workingDirectoryReplaced")
+        case .sessionInputNeededSet: try container.encode("session/inputNeededSet")
+        case .sessionInputNeededRemoved: try container.encode("session/inputNeededRemoved")
+        case .chatPendingMessageSet: try container.encode("chat/pendingMessageSet")
+        case .chatPendingMessageRemoved: try container.encode("chat/pendingMessageRemoved")
+        case .chatQueuedMessagesReordered: try container.encode("chat/queuedMessagesReordered")
+        case .chatDraftChanged: try container.encode("chat/draftChanged")
+        case .chatInputRequested: try container.encode("chat/inputRequested")
+        case .chatInputAnswerChanged: try container.encode("chat/inputAnswerChanged")
+        case .chatInputCompleted: try container.encode("chat/inputCompleted")
+        case .sessionCustomizationsChanged: try container.encode("session/customizationsChanged")
+        case .sessionCustomizationToggled: try container.encode("session/customizationToggled")
+        case .sessionCustomizationUpdated: try container.encode("session/customizationUpdated")
+        case .sessionCustomizationRemoved: try container.encode("session/customizationRemoved")
+        case .sessionMcpServerStateChanged: try container.encode("session/mcpServerStateChanged")
+        case .sessionMcpServerStartRequested: try container.encode("session/mcpServerStartRequested")
+        case .sessionMcpServerStopRequested: try container.encode("session/mcpServerStopRequested")
+        case .chatTruncated: try container.encode("chat/truncated")
+        case .chatTurnsLoaded: try container.encode("chat/turnsLoaded")
+        case .sessionIsReadChanged: try container.encode("session/isReadChanged")
+        case .sessionIsArchivedChanged: try container.encode("session/isArchivedChanged")
+        case .sessionActivityChanged: try container.encode("session/activityChanged")
+        case .sessionChangesetsChanged: try container.encode("session/changesetsChanged")
+        case .sessionConfigChanged: try container.encode("session/configChanged")
+        case .sessionMetaChanged: try container.encode("session/metaChanged")
+        case .changesetStatusChanged: try container.encode("changeset/statusChanged")
+        case .changesetFileSet: try container.encode("changeset/fileSet")
+        case .changesetFileRemoved: try container.encode("changeset/fileRemoved")
+        case .changesetFilesReviewChanged: try container.encode("changeset/filesReviewChanged")
+        case .changesetContentChanged: try container.encode("changeset/contentChanged")
+        case .changesetOperationsChanged: try container.encode("changeset/operationsChanged")
+        case .changesetOperationStatusChanged: try container.encode("changeset/operationStatusChanged")
+        case .changesetCleared: try container.encode("changeset/cleared")
+        case .annotationsSet: try container.encode("annotations/set")
+        case .annotationsUpdated: try container.encode("annotations/updated")
+        case .annotationsRemoved: try container.encode("annotations/removed")
+        case .annotationsEntrySet: try container.encode("annotations/entrySet")
+        case .annotationsEntryRemoved: try container.encode("annotations/entryRemoved")
+        case .rootTerminalsChanged: try container.encode("root/terminalsChanged")
+        case .rootConfigChanged: try container.encode("root/configChanged")
+        case .terminalData: try container.encode("terminal/data")
+        case .terminalInput: try container.encode("terminal/input")
+        case .terminalResized: try container.encode("terminal/resized")
+        case .terminalClaimed: try container.encode("terminal/claimed")
+        case .terminalTitleChanged: try container.encode("terminal/titleChanged")
+        case .terminalCwdChanged: try container.encode("terminal/cwdChanged")
+        case .terminalExited: try container.encode("terminal/exited")
+        case .terminalCleared: try container.encode("terminal/cleared")
+        case .terminalCommandDetectionAvailable: try container.encode("terminal/commandDetectionAvailable")
+        case .terminalCommandExecuted: try container.encode("terminal/commandExecuted")
+        case .terminalCommandFinished: try container.encode("terminal/commandFinished")
+        case .resourceWatchChanged: try container.encode("resourceWatch/changed")
+        case .automationCreateRequested: try container.encode("automation/createRequested")
+        case .automationUpdateRequested: try container.encode("automation/updateRequested")
+        case .automationSet: try container.encode("automation/set")
+        case .automationRemoved: try container.encode("automation/removed")
+        case .automationRunLifecycleChanged: try container.encode("automationRun/lifecycleChanged")
+        case .automationRunSessionSet: try container.encode("automationRun/sessionSet")
+        case .automationRunSessionRemoved: try container.encode("automationRun/sessionRemoved")
+        case .automationRunPrimarySessionChanged: try container.encode("automationRun/primarySessionChanged")
+        case .automationRunCancelRequested: try container.encode("automationRun/cancelRequested")
+        case .unknown(let raw): try container.encode(raw)
+        }
+    }
 }
 
 // MARK: - Action Infrastructure

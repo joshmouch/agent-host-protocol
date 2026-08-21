@@ -22,6 +22,7 @@ import type { SessionState } from '../channels-session/state.js';
  * state is authoritative for those interactions.
  *
  * @category Automation Run State
+ * @exhaustive
  */
 export const enum AutomationRunStatus {
   /** The durable run record exists but execution has not started. */
@@ -40,6 +41,7 @@ export const enum AutomationRunStatus {
  * Discriminant describing what created an automation run.
  *
  * @category Automation Run State
+ * @exhaustive
  */
 export const enum AutomationRunOriginKind {
   /** A client explicitly invoked {@link RunAutomationParams | runAutomation}. */

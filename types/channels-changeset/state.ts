@@ -101,6 +101,7 @@ export interface ChangesetCapabilities {
  * Computation lifecycle of a {@link ChangesetState}.
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetStatus {
   /** The server is still computing the contents of this changeset. */
@@ -190,6 +191,7 @@ export interface ChangesetFile {
  * Pull Request" button, or an inline error after a failed "revert").
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetOperationStatus {
   /**
@@ -214,6 +216,7 @@ export const enum ChangesetOperationStatus {
  * Where a {@link ChangesetOperation} can be invoked.
  *
  * @category Changesets
+ * @nonexhaustive
  */
 export const enum ChangesetOperationScope {
   /** Applies to the whole changeset. */
