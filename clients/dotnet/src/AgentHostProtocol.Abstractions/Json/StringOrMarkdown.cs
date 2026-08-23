@@ -20,21 +20,29 @@ public sealed class StringOrMarkdown
     /// Non-null iff the value was decoded from the <c>{ "markdown": "..." }</c>
     /// object form.
     /// </summary>
-    public string? Markdown { get; init; }
+    public string? Markdown { get; }
 
     /// <summary>Non-null iff the value was decoded from a bare JSON string.</summary>
-    public string? Plain { get; init; }
+    public string? Plain { get; }
 
     /// <summary>Creates an empty value (encodes as <c>""</c>).</summary>
     public StringOrMarkdown()
     {
     }
 
+    private StringOrMarkdown(string? plain, string? markdown)
+    {
+        Plain = plain;
+        Markdown = markdown;
+    }
+
     /// <summary>Returns a value that encodes as a bare JSON string.</summary>
-    public static StringOrMarkdown FromPlain(string text) => new() { Plain = text };
+    public static StringOrMarkdown FromPlain(string text) =>
+        new(text ?? throw new ArgumentNullException(nameof(text)), markdown: null);
 
     /// <summary>Returns a value that encodes as <c>{ "markdown": text }</c>.</summary>
-    public static StringOrMarkdown FromMarkdown(string text) => new() { Markdown = text };
+    public static StringOrMarkdown FromMarkdown(string text) =>
+        new(plain: null, text ?? throw new ArgumentNullException(nameof(text)));
 
     /// <summary>
     /// Returns the underlying text regardless of which form the value was
@@ -54,7 +62,7 @@ internal sealed class StringOrMarkdownConverter : JsonConverter<StringOrMarkdown
             case JsonTokenType.Null:
                 return new StringOrMarkdown();
             case JsonTokenType.String:
-                return new StringOrMarkdown { Plain = reader.GetString() };
+                return StringOrMarkdown.FromPlain(reader.GetString()!);
             default:
                 using (JsonDocument doc = JsonDocument.ParseValue(ref reader))
                 {
@@ -62,7 +70,7 @@ internal sealed class StringOrMarkdownConverter : JsonConverter<StringOrMarkdown
                         && doc.RootElement.TryGetProperty("markdown", out JsonElement md)
                         && md.ValueKind == JsonValueKind.String)
                     {
-                        return new StringOrMarkdown { Markdown = md.GetString() };
+                        return StringOrMarkdown.FromMarkdown(md.GetString()!);
                     }
 
                     throw new JsonException("StringOrMarkdown object form missing required 'markdown' field");

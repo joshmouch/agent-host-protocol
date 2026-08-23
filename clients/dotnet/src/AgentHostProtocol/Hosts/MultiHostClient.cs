@@ -429,7 +429,9 @@ public sealed class MultiHostClient : IMultiHostClient
     /// <summary>
     /// Registers <paramref name="config"/>, opens its initial transport, runs the
     /// <c>initialize</c> handshake, and starts the reconnect supervisor. Returns a
-    /// fresh <see cref="HostHandle"/> snapshot.
+    /// fresh <see cref="HostHandle"/> snapshot. The configuration is snapshotted;
+    /// subsequent changes to its nested client configuration or collection values
+    /// do not affect reconnects.
     /// </summary>
     public async Task<HostHandle> AddHostAsync(
         HostConfig config,
@@ -440,6 +442,9 @@ public sealed class MultiHostClient : IMultiHostClient
         if (config.TransportFactory is null)
             throw new ArgumentException($"HostConfig.TransportFactory is required for {config.Id}.", nameof(config));
 
+        // Take ownership of all caller-mutable state before the first await.
+        var ownedConfig = config.Snapshot(config.ClientId ?? "");
+
         // After shutdown, adding a host is rejected with HostShutDownException
         // carrying the would-be host id (mirrors Swift `add` throwing
         // `.hostShutDown(id)` once `didShutDown`).
@@ -448,44 +453,26 @@ public sealed class MultiHostClient : IMultiHostClient
             if (_didShutDown) throw new HostShutDownException(config.Id);
         }
 
-        var policy = config.ReconnectPolicy ?? ReconnectPolicy.Default;
-        var initialSubs = config.InitialSubscriptions is { Count: > 0 }
-            ? config.InitialSubscriptions
-            : new[] { ProtocolVersion.RootResourceUri };
-        var protoVersions = config.ProtocolVersions is { Count: > 0 }
-            ? config.ProtocolVersions
-            : ProtocolVersion.Supported;
-
         // Resolve or mint a clientId.
-        var clientId = config.ClientId;
+        var clientId = ownedConfig.ClientId;
         if (string.IsNullOrEmpty(clientId))
         {
-            clientId = await _store.LoadAsync(config.Id, cancellationToken).ConfigureAwait(false);
+            clientId = await _store.LoadAsync(ownedConfig.Id, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrEmpty(clientId))
                 clientId = GenerateClientId();
         }
-        await _store.StoreAsync(config.Id, clientId!, cancellationToken).ConfigureAwait(false);
+        await _store.StoreAsync(ownedConfig.Id, clientId!, cancellationToken).ConfigureAwait(false);
 
-        var normalizedConfig = new HostConfig
-        {
-            Id = config.Id,
-            Label = config.Label,
-            ClientId = clientId,
-            InitialSubscriptions = initialSubs,
-            ClientConfig = config.ClientConfig,
-            TransportFactory = config.TransportFactory,
-            ReconnectPolicy = policy,
-            ProtocolVersions = protoVersions,
-        };
+        var normalizedConfig = ownedConfig.Snapshot(clientId!);
 
-        var entry = new HostEntry(config.Id, normalizedConfig, clientId!);
+        var entry = new HostEntry(ownedConfig.Id, normalizedConfig, clientId!);
 
         // Atomic add-if-absent: TryAdd is the check-then-act done correctly,
         // with no separate lock and no race window. Duplicate ids surface the
         // typed DuplicateHostException carrying the offending id (mirrors Swift
         // `add` throwing `.duplicateHost(id)`).
-        if (!_hosts.TryAdd(config.Id.ToString(), entry))
-            throw new DuplicateHostException(config.Id);
+        if (!_hosts.TryAdd(ownedConfig.Id.ToString(), entry))
+            throw new DuplicateHostException(ownedConfig.Id);
 
         // Initial connect; on failure remove the host and propagate.
         try
@@ -672,7 +659,7 @@ public sealed class MultiHostClient : IMultiHostClient
     {
         SetHostState(entry, new HostState { Kind = HostStateKind.Connecting });
 
-        var transport = await entry.Config.TransportFactory!(entry.Id, cancellationToken).ConfigureAwait(false);
+        var transport = await entry.Config.TransportFactory(entry.Id, cancellationToken).ConfigureAwait(false);
         var client = AhpClient.Connect(
             transport,
             entry.Config.ClientConfig,

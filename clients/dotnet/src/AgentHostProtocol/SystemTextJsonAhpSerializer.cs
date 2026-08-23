@@ -16,7 +16,7 @@ namespace Microsoft.AgentHostProtocol;
 /// </summary>
 public static class AhpJson
 {
-    /// <summary>The canonical serializer options used by the default serializer.</summary>
+    /// <summary>The canonical, read-only serializer options used by the default serializer.</summary>
     public static readonly JsonSerializerOptions Options = new()
     {
         // Most wire names are camelCase(PropertyName); generated types carry an
@@ -52,10 +52,23 @@ public sealed class SystemTextJsonAhpSerializer : IAhpSerializer
     private readonly JsonSerializerOptions _options;
 
     /// <summary>Creates the serializer.</summary>
-    /// <param name="options">Override options; defaults to <see cref="AhpJson.Options"/>.</param>
+    /// <param name="options">
+    /// Override options; defaults to <see cref="AhpJson.Options"/>. Custom options
+    /// are copied and frozen so later caller mutation cannot change serializer
+    /// behavior while requests are in flight.
+    /// </param>
     public SystemTextJsonAhpSerializer(JsonSerializerOptions? options = null)
     {
-        _options = options ?? AhpJson.Options;
+        if (options is null)
+        {
+            _options = AhpJson.Options;
+            return;
+        }
+
+        _options = new JsonSerializerOptions(options);
+#pragma warning disable IL2026, IL3050
+        _options.MakeReadOnly(populateMissingResolver: true);
+#pragma warning restore IL2026, IL3050
     }
 
     /// <summary>A shared, reusable instance using the default options.</summary>

@@ -107,7 +107,14 @@ public sealed class FixRegressionTests
     [Fact]
     public void ApplySummaryChange_DoesNotMutate_AlreadyTakenSnapshot()
     {
-        var entry = new HostEntry(new HostId("h"), new HostConfig { Id = new HostId("h") }, "client-1");
+        var entry = new HostEntry(
+            new HostId("h"),
+            new HostConfig
+            {
+                Id = new HostId("h"),
+                TransportFactory = (_, _) => throw new InvalidOperationException(),
+            },
+            "client-1");
         entry.PutSessionSummary(new SessionSummary
         {
             Resource = "ahp-session:/s1",
@@ -135,7 +142,14 @@ public sealed class FixRegressionTests
     [Fact]
     public void ApplySummaryChange_Meta_OverridesWhenPresent_CarriesOverWhenAbsent()
     {
-        var entry = new HostEntry(new HostId("h"), new HostConfig { Id = new HostId("h") }, "client-1");
+        var entry = new HostEntry(
+            new HostId("h"),
+            new HostConfig
+            {
+                Id = new HostId("h"),
+                TransportFactory = (_, _) => throw new InvalidOperationException(),
+            },
+            "client-1");
         var originalMeta = new Dictionary<string, JsonElement>
         {
             ["pinned"] = JsonDocument.Parse("true").RootElement,

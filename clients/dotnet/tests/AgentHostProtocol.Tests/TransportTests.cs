@@ -221,19 +221,19 @@ public sealed class TransportTests
     // SubscriptionBufferCapacity is normalised to the default 256 (NOT to 1 as
     // Swift's AHPClientConfig does — see featureGaps note). Exercise the REAL
     // clamp by connecting a REAL AhpClient over a REAL MemTransport and reading
-    // the mutated config back. Theory covers the 0 and negative cases.
+    // the effective subscription capacity. The caller-owned config stays unchanged.
     [Theory]
     [InlineData(0)]
     [InlineData(-42)]
-    public async Task ClientConfig_SubscriptionBuffer_NonPositiveClampsToDefault(int requested)
+    public async Task ClientConfig_SubscriptionBuffer_NonPositiveUsesDefaultWithoutMutatingCaller(int requested)
     {
         var (clientSide, _) = MemTransport.CreatePair();
         var cfg = new ClientConfig { SubscriptionBufferCapacity = requested };
 
         await using var client = AhpClient.Connect(clientSide, cfg);
 
-        // Connect normalised the non-positive request up to the 256 default.
-        Assert.Equal(256, cfg.SubscriptionBufferCapacity);
+        using var subscription = client.AttachSubscription("ahp-test://capacity");
+        Assert.Equal(requested, cfg.SubscriptionBufferCapacity);
     }
 
     // ── E: subscription-buffer clamp — positive preserved ──────────────────

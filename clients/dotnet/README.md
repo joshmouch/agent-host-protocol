@@ -17,8 +17,8 @@ dotnet add package Microsoft.AgentHostProtocol
 | `Microsoft.AgentHostProtocol.Abstractions` | Wire types + reducers' data contracts + the `ITransport` / `IAhpSerializer` interfaces. No I/O, no dependencies. Reference this alone to parse / construct AHP messages or implement a transport. |
 | `Microsoft.AgentHostProtocol` | The async `AhpClient`, pure reducers, default System.Text.Json serializer, `ClientWebSocket` transport, and `MultiHostClient`. |
 
-(`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
-consumers add the two packages above.)
+`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
+consumers only add the main package.
 
 ## Quickstart
 
@@ -63,11 +63,11 @@ services.AddAgentHostProtocol(cfg => cfg.DefaultRequestTimeout = TimeSpan.FromSe
 
 That registers `IAhpSerializer`, `IClientIdStore`, `MultiHostClient`, and an
 `IAhpClientFactory` as singletons. Because a client needs a live transport,
-resolve the factory and call `ConnectAsync(transport)`:
+resolve the factory and call `Connect(transport)`:
 
 ```csharp
 var factory = provider.GetRequiredService<IAhpClientFactory>();
-await using var client = await factory.ConnectAsync(transport);
+await using var client = factory.Connect(transport);
 ```
 
 The `MultiHostClient` singleton is disposed by the container on shutdown. The

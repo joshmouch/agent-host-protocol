@@ -19,6 +19,27 @@ public sealed class MultiHostClientTests
 {
     private static readonly SystemTextJsonAhpSerializer Ser = SystemTextJsonAhpSerializer.Default;
 
+    private sealed class BlockingClientIdStore : IClientIdStore
+    {
+        public TaskCompletionSource<object?> LoadStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<object?> ContinueLoad { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<string?> LoadAsync(HostId host, CancellationToken cancellationToken = default)
+        {
+            LoadStarted.TrySetResult(null);
+            await ContinueLoad.Task.WaitAsync(cancellationToken);
+            return "client-a";
+        }
+
+        public Task StoreAsync(
+            HostId host,
+            string clientId,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
     // ── Fake server helpers ───────────────────────────────────────────────
     // The receive→decode→dispatch loop lives once in FakeHost; these helpers
     // build the per-test FakeHost definitions and the response payloads.
@@ -143,6 +164,49 @@ public sealed class MultiHostClientTests
         Assert.False(string.IsNullOrEmpty(hB.ClientId));
         Assert.NotEqual(hA.ClientId, hB.ClientId);   // each host mints its own clientId
         Assert.Equal(2, m.Hosts().Count);
+    }
+
+    [Fact]
+    public async Task MultiHost_AddHostSnapshotsConfigurationBeforeFirstAwait()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var store = new BlockingClientIdStore();
+        var subscriptions = new List<string> { "ahp-test://original" };
+        var protocolVersions = new List<string> { ProtocolVersion.Current };
+        var observedInitialize = new TaskCompletionSource<InitializeParams>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var multiHost = new MultiHostClient(store);
+
+        var config = new HostConfig
+        {
+            Id = new HostId("host-a"),
+            InitialSubscriptions = subscriptions,
+            ProtocolVersions = protocolVersions,
+            TransportFactory = (hostId, ct) =>
+            {
+                var (client, server) = MemTransport.CreatePair();
+                _ = Task.Run(() => FakeHost.New()
+                    .OnInitialize((request, side, token) =>
+                    {
+                        observedInitialize.TrySetResult(
+                            Ser.Deserialize<InitializeParams>(request.Params!.Value.GetRawText()));
+                        return RespondInitializeAsync(side, request.Id, token);
+                    })
+                    .RunAsync(server, ct));
+                return Task.FromResult<ITransport>(client);
+            },
+        };
+
+        var addTask = multiHost.AddHostAsync(config, cts.Token);
+        await store.LoadStarted.Task.WaitAsync(cts.Token);
+        subscriptions[0] = "ahp-test://changed";
+        protocolVersions[0] = "changed";
+        store.ContinueLoad.TrySetResult(null);
+
+        await addTask;
+        var initialize = await observedInitialize.Task.WaitAsync(cts.Token);
+        Assert.Equal("ahp-test://original", Assert.Single(initialize.InitialSubscriptions!));
+        Assert.Equal(ProtocolVersion.Current, Assert.Single(initialize.ProtocolVersions));
     }
 
     // ── H: events tagged hostId ────────────────────────────────────────────
@@ -313,7 +377,7 @@ public sealed class MultiHostClientTests
             // pending entry resolves.
             .AckUnmatchedWithEmpty();
         if (injectAfterInit is not null)
-            host.AfterInitialize((side, c) => RepeatSessionAddedAsync(side, injectAfterInit, c));
+            host.AfterInitialize((side, c) => RepeatSessionAddedAsync(side, (SessionSummary)injectAfterInit, c));
         return host.RunAsync(serverSide, ct);
     }
 

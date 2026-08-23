@@ -87,6 +87,19 @@ public sealed class ClientConfig
 
     /// <summary>Returns a config with sensible defaults (30 s timeout, 256-message buffer).</summary>
     public static ClientConfig Default => new();
+
+    internal static ClientConfig Snapshot(ClientConfig? config)
+    {
+        var source = config ?? Default;
+        return new ClientConfig
+        {
+            DefaultRequestTimeout = source.DefaultRequestTimeout,
+            SubscriptionBufferCapacity = source.SubscriptionBufferCapacity > 0
+                ? source.SubscriptionBufferCapacity
+                : 256,
+            KeepAlive = source.KeepAlive ?? KeepAlivePolicy.Disabled,
+        };
+    }
 }
 
 // ─── Connection state ──────────────────────────────────────────────────────────
@@ -261,7 +274,8 @@ public sealed class AhpClient : IAhpClient
     /// <summary>
     /// Wires <paramref name="transport"/> to a new <see cref="AhpClient"/> and
     /// starts the background reader / writer tasks. The client owns the transport
-    /// from this point.
+    /// from this point. The configuration is snapshotted; subsequent changes to
+    /// <paramref name="config"/> do not affect the connected client.
     /// </summary>
     public static AhpClient Connect(
         ITransport transport,
@@ -269,8 +283,7 @@ public sealed class AhpClient : IAhpClient
         IAhpSerializer? serializer = null)
     {
         Guard.ThrowIfNull(transport, nameof(transport));
-        var cfg = config ?? ClientConfig.Default;
-        if (cfg.SubscriptionBufferCapacity <= 0) cfg.SubscriptionBufferCapacity = 256;
+        var cfg = ClientConfig.Snapshot(config);
         return new AhpClient(transport, cfg, serializer ?? SystemTextJsonAhpSerializer.Default);
     }
 

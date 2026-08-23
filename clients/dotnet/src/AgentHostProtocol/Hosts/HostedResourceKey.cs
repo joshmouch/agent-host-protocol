@@ -47,7 +47,7 @@ public readonly struct HostedResourceKey : IEquatable<HostedResourceKey>
     /// Percent-escapes <paramref name="value"/> per RFC 3986 (UTF-8 bytes; uppercase
     /// hex digits, matching the RFC's normalized form).
     /// </summary>
-    public static string PercentEscape(string value)
+    internal static string PercentEscape(string value)
     {
         Guard.ThrowIfNull(value, nameof(value));
         var sb = new StringBuilder(value.Length);
