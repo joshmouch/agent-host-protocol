@@ -70,31 +70,35 @@ public sealed class WebSocketTransportTests
         /// </summary>
         public Task AcceptOneAsync(Func<WebSocket, CancellationToken, Task> handler, CancellationToken ct)
         {
-            return Task.Run(async () =>
-            {
-                var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
-                // Capture the request headers from the real upgrade request
-                // before completing the handshake, so a test can assert a custom
-                // header (e.g. Authorization) was forwarded on the wire.
-                _requestHeaders.TrySetResult(ctx.Request.Headers);
-                if (!ctx.Request.IsWebSocketRequest)
-                {
-                    ctx.Response.StatusCode = 400;
-                    ctx.Response.Close();
-                    throw new InvalidOperationException("expected a WebSocket upgrade request");
-                }
+            return AcceptOneCoreAsync(handler, ct);
+        }
 
-                var wsCtx = await ctx.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
-                var serverWs = wsCtx.WebSocket;
-                try
-                {
-                    await handler(serverWs, ct).ConfigureAwait(false);
-                }
-                finally
-                {
-                    serverWs.Dispose();
-                }
-            }, ct);
+        private async Task AcceptOneCoreAsync(
+            Func<WebSocket, CancellationToken, Task> handler,
+            CancellationToken ct)
+        {
+            var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
+            // Capture the request headers from the real upgrade request
+            // before completing the handshake, so a test can assert a custom
+            // header (e.g. Authorization) was forwarded on the wire.
+            _requestHeaders.TrySetResult(ctx.Request.Headers);
+            if (!ctx.Request.IsWebSocketRequest)
+            {
+                ctx.Response.StatusCode = 400;
+                ctx.Response.Close();
+                throw new InvalidOperationException("expected a WebSocket upgrade request");
+            }
+
+            var wsCtx = await ctx.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
+            var serverWs = wsCtx.WebSocket;
+            try
+            {
+                await handler(serverWs, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                serverWs.Dispose();
+            }
         }
 
         /// <summary>
