@@ -255,3 +255,59 @@ jobs:
       - name: Test Go module
         run: go test ./...
 
+  dotnet:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/dotnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      # The .NET 10 SDK builds the netstandard2.0 and net8.0 targets and
+      # understands the .slnx solution format; the 8.0.x entry provides the
+      # runtime used by the tests.
+      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5d # v5.0.0
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Install Node deps
+        working-directory: .
+        run: npm ci
+
+      # Verify the committed C# sources are in sync with the TypeScript
+      # protocol definitions. `git status --porcelain` (like the Kotlin / Go
+      # jobs) so a newly-emitted file also fails the check.
+      - name: Verify generated .NET is up to date
+        working-directory: .
+        run: |
+          npm run generate:dotnet
+          if [ -n "$(git status --porcelain -- clients/dotnet)" ]; then
+            echo "::error::Generated .NET sources are out of date. Run 'npm run generate:dotnet' and commit the result."
+            git status --porcelain -- clients/dotnet
+            git --no-pager diff -- clients/dotnet
+            exit 1
+          fi
+
+      - name: Restore .NET solution
+        run: dotnet restore
+
+      # Whitespace formatting gate — the C# analog of the Go job's gofmt check,
+      # governed by clients/dotnet/.editorconfig.
+      - name: Verify .NET formatting
+        run: dotnet format whitespace --verify-no-changes --no-restore
+
+      - name: Build .NET solution
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test .NET solution
+        run: dotnet test --no-build --configuration Release
+
+      - name: Pack .NET solution
+        run: dotnet pack --no-build --configuration Release

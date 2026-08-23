@@ -35,6 +35,7 @@ import {
   readSwiftPackageVersion,
   readTypeScriptPackageVersion,
   readGoPackageVersion,
+  readDotnetPackageVersion,
 } from './generate-release-metadata.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -156,6 +157,16 @@ function main(): void {
       hint:
         'Bumped clients/go/VERSION? Add a matching ## [X.Y.Z] heading ' +
         'to clients/go/CHANGELOG.md before tagging clients/go/vX.Y.Z.',
+    },
+    {
+      label: 'dotnet',
+      version: readDotnetPackageVersion(
+        fs.readFileSync(path.join(ROOT, 'clients', 'dotnet', 'VERSION'), 'utf-8'),
+      ),
+      changelogPath: path.join(ROOT, 'clients', 'dotnet', 'CHANGELOG.md'),
+      hint:
+        'Bumped clients/dotnet/VERSION? Add a matching ## [X.Y.Z] heading ' +
+        'to clients/dotnet/CHANGELOG.md before tagging dotnet/vX.Y.Z.',
     },
   ];
 

@@ -24,7 +24,7 @@ interface Options {
 
 function usage(): never {
   console.error(
-    'Usage: npm run changelog:release -- --version X.Y.Z [--date YYYY-MM-DD] [--targets spec,rust,kotlin,typescript,swift,go] [--dry-run]',
+    'Usage: npm run changelog:release -- --version X.Y.Z [--date YYYY-MM-DD] [--targets spec,rust,kotlin,typescript,swift,go,dotnet] [--dry-run]',
   );
   process.exit(1);
 }

@@ -8,7 +8,7 @@ rules for the spec itself, the supported-version window, etc.) see
 ## Release model
 
 Every shippable artifact in this repo is versioned independently using its
-ecosystem's native SemVer. The protocol specification is a fifth artifact
+ecosystem's native SemVer. The protocol specification is a seventh artifact
 with its own release cadence. Each client release advertises which protocol
 versions it supports via a generated `SUPPORTED_PROTOCOL_VERSIONS` constant
 and a checked-in `clients/<lang>/release-metadata.json`.
@@ -17,10 +17,11 @@ and a checked-in `clients/<lang>/release-metadata.json`.
 
 Normal feature/fix PRs do **not** edit `CHANGELOG.md` files directly. They add
 one or more JSON fragments under `docs/.changes/`; omitting `targets` applies
-the entry to the spec and all five clients, while `targets` can scope an entry
-to any subset of `spec`, `rust`, `kotlin`, `typescript`, `swift`, and `go`.
+the entry to the spec and all six clients, while `targets` can scope an entry
+to any subset of `spec`, `rust`, `kotlin`, `typescript`, `swift`, `go`, and
+`dotnet`.
 
-Before tagging a coordinated release, collapse those fragments into the six
+Before tagging a coordinated release, collapse those fragments into the seven
 Keep-a-Changelog files:
 
 ```sh
@@ -28,7 +29,7 @@ npm run changelog:release -- --version X.Y.Z --date YYYY-MM-DD
 ```
 
 By default the command targets all artifacts. For a single-artifact hotfix, pass
-`--targets rust` (or `spec`, `kotlin`, `typescript`, `swift`, `go`; comma-join
+`--targets rust` (or `spec`, `kotlin`, `typescript`, `swift`, `go`, `dotnet`; comma-join
 multiple targets for a subset). The command creates or replaces the
 `## [X.Y.Z] — YYYY-MM-DD` section in each selected artifact changelog, adds the
 `Spec version` / `Implements AHP` line, groups fragment messages under standard
@@ -48,6 +49,7 @@ want to validate fragment JSON without consuming it.
 | TypeScript | `typescript/vX.Y.Z` | `clients/typescript/pipeline.yml` (Azure DevOps) | npm (`@microsoft/agent-host-protocol`) via ESRP. |
 | Swift      | `vX.Y.Z` (bare)     | `.github/workflows/publish-swift.yml` | SwiftPM resolves the tag directly. |
 | Go         | `clients/go/vX.Y.Z` | `.github/workflows/publish-go.yml` | Go module proxy resolves the tag directly. |
+| .NET       | `dotnet/vX.Y.Z`     | maintainer-owned pipeline (see below) | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`). |
 
 > **Why Swift gets the bare semver tag namespace:** SwiftPM only resolves
 > packages by matching plain `X.Y.Z` / `vX.Y.Z` git tags at the manifest's
@@ -174,6 +176,26 @@ trigger started the run.
    for the tag. Go consumers resolve the tag via
    `go get github.com/microsoft/agent-host-protocol/clients/go@vX.Y.Z`;
    no registry push happens.
+
+### .NET (`dotnet/vX.Y.Z`)
+
+1. Update `clients/dotnet/VERSION` to the new bare semver string (no
+   leading `v`).
+2. Run `npm run generate:metadata` and commit the regenerated
+   `clients/dotnet/release-metadata.json`.
+3. Rotate `clients/dotnet/CHANGELOG.md`.
+4. Merge to `main`.
+5. Tag: `git tag dotnet/v0.X.Y && git push origin dotnet/v0.X.Y`.
+6. Publish the libraries (`Microsoft.AgentHostProtocol`,
+   `Microsoft.AgentHostProtocol.Abstractions`,
+   `Microsoft.AgentHostProtocol.Abstractions`) to NuGet.org. This client does
+   not ship its own publish automation — the maintainers wire the
+   `dotnet pack` + `dotnet nuget push` step into their own release pipeline,
+   the same way the Kotlin and TypeScript packages publish through the signed
+   Azure DevOps / ESRP pipelines rather than a GitHub Actions registry push.
+   The per-PR CI job already builds, tests, and runs the test-parity gate for
+   the solution; `npm run verify:changelog` guards the
+   `clients/dotnet/VERSION` ↔ `CHANGELOG.md` heading match.
 
 ### Spec (`spec/vX.Y.Z`)
 

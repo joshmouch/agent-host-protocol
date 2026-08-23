@@ -1,0 +1,76 @@
+{
+  "initial": {
+    "provider": "copilot",
+    "title": "Initial title",
+    "status": 1,
+    "lifecycle": "creating",
+    "activeClients": [],
+    "chats": []
+  },
+  "envelopes": [
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/titleChanged",
+        "title": "Session One"
+      },
+      "serverSeq": 1,
+      "origin": "host"
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isReadChanged",
+        "isRead": true
+      },
+      "serverSeq": 2,
+      "origin": "host"
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/activityChanged",
+        "activity": "thinking"
+      },
+      "serverSeq": 3,
+      "origin": "host"
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/titleChanged",
+        "title": "Session One — renamed"
+      },
+      "serverSeq": 4,
+      "origin": "host"
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isReadChanged",
+        "isRead": false
+      },
+      "serverSeq": 5,
+      "origin": "host"
+    },
+    {
+      "channel": "ahp-session:/interop",
+      "action": {
+        "type": "session/isArchivedChanged",
+        "isArchived": true
+      },
+      "serverSeq": 6,
+      "origin": "host"
+    }
+  ],
+  "final": {
+    "provider": "copilot",
+    "title": "Session One — renamed",
+    "status": 65,
+    "activity": "thinking",
+    "lifecycle": "creating",
+    "activeClients": [],
+    "chats": []
+  },
+  "_source": "Captured from an independent AHP WebSocket host running the canonical TypeScript sessionReducer (independent implementation). Updated for AHP 0.5.0: SessionState is flat (SessionMetadata denormalized onto it); modifiedAt/createdAt are no longer session-state fields, so the host-authoritative modifiedAt overlay is no longer needed for session convergence."
+}
