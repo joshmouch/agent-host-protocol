@@ -309,15 +309,21 @@ public sealed class WebSocketTransportTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var server = LoopbackWsServer.Start();
+        var abortServer = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        // Server abruptly aborts the socket (no close handshake) right after accept.
-        var serverTask = server.AcceptOneAsync((serverWs, ct) =>
+        // Abort only after the client handshake has completed. Aborting while
+        // ConnectAsync is still settling is runtime-dependent and can leave the
+        // client waiting indefinitely on constrained Linux runners.
+        var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
         {
+            await abortServer.Task.WaitAsync(ct).ConfigureAwait(false);
             serverWs.Abort();
-            return Task.CompletedTask;
         }, cts.Token);
 
         await using var transport = await WebSocketTransport.ConnectAsync(server.WsUri, cancellationToken: cts.Token);
+        abortServer.TrySetResult();
+        await serverTask.WaitAsync(cts.Token);
 
         var ex = await Record.ExceptionAsync(async () => await transport.ReceiveAsync(cts.Token));
         Assert.NotNull(ex);
@@ -326,6 +332,5 @@ public sealed class WebSocketTransportTests
         // WebSocketException into a plain Exception ("ahp: websocket closed:").
         Assert.IsNotType<TransportClosedException>(ex);
 
-        await serverTask;
     }
 }
