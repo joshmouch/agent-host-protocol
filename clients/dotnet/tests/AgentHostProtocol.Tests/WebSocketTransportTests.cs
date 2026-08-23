@@ -70,35 +70,31 @@ public sealed class WebSocketTransportTests
         /// </summary>
         public Task AcceptOneAsync(Func<WebSocket, CancellationToken, Task> handler, CancellationToken ct)
         {
-            return AcceptOneCoreAsync(handler, ct);
-        }
+            return Task.Run(async () =>
+            {
+                var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
+                // Capture the request headers from the real upgrade request
+                // before completing the handshake, so a test can assert a custom
+                // header (e.g. Authorization) was forwarded on the wire.
+                _requestHeaders.TrySetResult(ctx.Request.Headers);
+                if (!ctx.Request.IsWebSocketRequest)
+                {
+                    ctx.Response.StatusCode = 400;
+                    ctx.Response.Close();
+                    throw new InvalidOperationException("expected a WebSocket upgrade request");
+                }
 
-        private async Task AcceptOneCoreAsync(
-            Func<WebSocket, CancellationToken, Task> handler,
-            CancellationToken ct)
-        {
-            var ctx = await _listener.GetContextAsync().ConfigureAwait(false);
-            // Capture the request headers from the real upgrade request
-            // before completing the handshake, so a test can assert a custom
-            // header (e.g. Authorization) was forwarded on the wire.
-            _requestHeaders.TrySetResult(ctx.Request.Headers);
-            if (!ctx.Request.IsWebSocketRequest)
-            {
-                ctx.Response.StatusCode = 400;
-                ctx.Response.Close();
-                throw new InvalidOperationException("expected a WebSocket upgrade request");
-            }
-
-            var wsCtx = await ctx.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
-            var serverWs = wsCtx.WebSocket;
-            try
-            {
-                await handler(serverWs, ct).ConfigureAwait(false);
-            }
-            finally
-            {
-                serverWs.Dispose();
-            }
+                var wsCtx = await ctx.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
+                var serverWs = wsCtx.WebSocket;
+                try
+                {
+                    await handler(serverWs, ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    serverWs.Dispose();
+                }
+            }, ct);
         }
 
         /// <summary>
@@ -218,11 +214,14 @@ public sealed class WebSocketTransportTests
         await using var server = LoopbackWsServer.Start();
         var options = new WebSocketTransportOptions { MaxMessageBytes = 1 };
         options.ConfigureSocket = _ => options.MaxMessageBytes = 1024;
+        var sendPayload = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseServer = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
         var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
         {
+            await sendPayload.Task.WaitAsync(ct).ConfigureAwait(false);
             var payload = System.Text.Encoding.UTF8.GetBytes("{}");
             await serverWs.SendAsync(
                 new ArraySegment<byte>(payload),
@@ -236,6 +235,7 @@ public sealed class WebSocketTransportTests
             server.WsUri,
             options,
             cts.Token);
+        sendPayload.TrySetResult();
 
         try
         {
@@ -309,21 +309,15 @@ public sealed class WebSocketTransportTests
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var server = LoopbackWsServer.Start();
-        var abortServer = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
 
-        // Abort only after the client handshake has completed. Aborting while
-        // ConnectAsync is still settling is runtime-dependent and can leave the
-        // client waiting indefinitely on constrained Linux runners.
-        var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
+        // Server abruptly aborts the socket (no close handshake) right after accept.
+        var serverTask = server.AcceptOneAsync((serverWs, ct) =>
         {
-            await abortServer.Task.WaitAsync(ct).ConfigureAwait(false);
             serverWs.Abort();
+            return Task.CompletedTask;
         }, cts.Token);
 
         await using var transport = await WebSocketTransport.ConnectAsync(server.WsUri, cancellationToken: cts.Token);
-        abortServer.TrySetResult();
-        await serverTask.WaitAsync(cts.Token);
 
         var ex = await Record.ExceptionAsync(async () => await transport.ReceiveAsync(cts.Token));
         Assert.NotNull(ex);
@@ -332,5 +326,6 @@ public sealed class WebSocketTransportTests
         // WebSocketException into a plain Exception ("ahp: websocket closed:").
         Assert.IsNotType<TransportClosedException>(ex);
 
+        await serverTask;
     }
 }
