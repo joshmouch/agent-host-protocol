@@ -119,6 +119,29 @@ implementation can swap the engine or decorate it with JSON-Schema validation
 (against the schemas the repository generates under `schema/`) without changing
 the client or transport.
 
+### Native AOT and trimming
+
+The `net8.0` assets are trim- and Native AOT-compatible. The generator emits
+System.Text.Json metadata for the complete generated protocol model. The
+default serializer uses that metadata for JSON-RPC framing, discriminated
+unions, snapshots, and wire enums without enabling reflection serialization.
+`AhpJsonMetadata.Default` exposes the resolver without making the generated
+context's hundreds of implementation-detail properties public API.
+
+Custom values passed through `IAhpSerializer` need their own metadata when
+reflection is disabled. Add the application's context to the options before
+constructing the serializer; the serializer copies and freezes the options and
+adds the AHP context:
+
+```csharp
+var options = new JsonSerializerOptions();
+options.TypeInfoResolverChain.Add(MyApplicationJsonContext.Default);
+var serializer = new SystemTextJsonAhpSerializer(options);
+```
+
+CI publishes and runs `tests/AgentHostProtocol.AotSmoke` as a native executable
+with `JsonSerializerIsReflectionEnabledByDefault=false`.
+
 ## Releasing
 
 1. Bump [`VERSION`](VERSION).

@@ -19,6 +19,16 @@ public sealed class ApiQualityTests
     }
 
     [Fact]
+    public void GeneratedJsonContext_IsNotPublicApi()
+    {
+        Type? contextType = typeof(Implementation).Assembly.GetType(
+            "Microsoft.AgentHostProtocol.AgentHostProtocolJsonContext");
+
+        Assert.NotNull(contextType);
+        Assert.False(contextType.IsPublic || contextType.IsNestedPublic);
+    }
+
+    [Fact]
     public async Task AhpClient_ConnectSnapshotsCallerConfiguration()
     {
         var config = new ClientConfig { SubscriptionBufferCapacity = 1 };
@@ -47,7 +57,9 @@ public sealed class ApiQualityTests
 
         options.WriteIndented = true;
 
-        Assert.Equal("{\"value\":42}", serializer.Serialize(new { Value = 42 }));
+        Assert.Equal(
+            "{\"name\":\"test\",\"version\":\"1.0\"}",
+            serializer.Serialize(new Implementation { Name = "test", Version = "1.0" }));
     }
 
     [Fact]

@@ -509,18 +509,6 @@ public sealed class AhpClient : IAhpClient
 
     // ── Writer loop ───────────────────────────────────────────────────────
 
-    // The client routes all JSON through the injected IAhpSerializer, whose
-    // contract is [RequiresUnreferencedCode]/[RequiresDynamicCode] (the default
-    // SystemTextJsonAhpSerializer is reflection-based). The trim/AOT unsafety is
-    // declared at that contract; re-declaring it on this internal loop — or
-    // propagating the attribute up through the constructor / Connect() / the
-    // entire client + multi-host public surface — is out of scope here, so the
-    // serializer-call warnings are suppressed at the call site with that
-    // contract named as the owner.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task RunWriterAsync()
     {
         try
@@ -558,13 +546,6 @@ public sealed class AhpClient : IAhpClient
 
     // ── Reader loop ───────────────────────────────────────────────────────
 
-    // See RunWriterAsync: JSON decode goes through the [RequiresUnreferencedCode]/
-    // [RequiresDynamicCode] IAhpSerializer, which owns the trim/AOT-unsafety
-    // declaration.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task RunReaderAsync()
     {
         try
@@ -667,12 +648,6 @@ public sealed class AhpClient : IAhpClient
     /// handler is installed, otherwise the handler's result (or its thrown error).
     /// Mirrors the TS client's <c>handleServerRequest</c>.
     /// </summary>
-    // See RunWriterAsync: the handler's result serialize goes through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task HandleServerRequestAsync(JsonRpcRequest req)
     {
         var handler = _serverRequestHandler;
@@ -728,12 +703,6 @@ public sealed class AhpClient : IAhpClient
         catch { /* shutting down — best effort */ }
     }
 
-    // See RunWriterAsync: the per-notification deserialize calls go through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private void HandleNotification(JsonRpcNotification n)
     {
         if (n.Params is null) return;
@@ -834,12 +803,6 @@ public sealed class AhpClient : IAhpClient
     /// would be non-null.
     /// </para>
     /// </summary>
-    // See RunWriterAsync: param serialize + result deserialize go through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     public async Task<TResult?> RequestAsync<TParams, TResult>(
         string method,
         TParams parameters,
@@ -957,12 +920,6 @@ public sealed class AhpClient : IAhpClient
     /// <summary>
     /// Sends a JSON-RPC notification (fire-and-forget).
     /// </summary>
-    // See RunWriterAsync: param serialize goes through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     public async Task NotifyAsync<TParams>(
         string method,
         TParams parameters,
@@ -1360,10 +1317,6 @@ public sealed class AhpClient : IAhpClient
     // Decode the raw params into the typed record and dispatch to the matching
     // handler. An unset method rejects with MethodNotFound so the peer sees the
     // same reply as the no-handler path.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task<object?> DispatchResourceRequestAsync(
         ResourceRequestHandlers handlers, string method, JsonElement? prms)
     {

@@ -6210,13 +6210,22 @@ internal sealed class ToolInputConverter : JsonConverter<ToolInput>
         {
             return new ToolInput { Inline = reader.GetString() };
         }
-        return new ToolInput { ContentRef = JsonSerializer.Deserialize<ContentRef>(ref reader, options) };
+        return new ToolInput
+        {
+            ContentRef = JsonSerializer.Deserialize(
+                ref reader,
+                AhpJsonTypeInfo.Get<ContentRef>(options))
+        };
     }
 
     public override void Write(Utf8JsonWriter writer, ToolInput value, JsonSerializerOptions options)
     {
         if (value.Inline is not null) { writer.WriteStringValue(value.Inline); return; }
-        if (value.ContentRef is not null) { JsonSerializer.Serialize(writer, value.ContentRef, options); return; }
+        if (value.ContentRef is not null)
+        {
+            JsonSerializer.Serialize(writer, value.ContentRef, AhpJsonTypeInfo.Get<ContentRef>(options));
+            return;
+        }
         writer.WriteNullValue();
     }
 }
@@ -6271,57 +6280,57 @@ internal sealed class SnapshotStateConverter : JsonConverter<SnapshotState>
             root.TryGetProperty("origin", out _) &&
             root.TryGetProperty("sessions", out _))
         {
-            result.AutomationRun = root.Deserialize<AutomationRunState>(options);
+            result.AutomationRun = root.Deserialize(AhpJsonTypeInfo.Get<AutomationRunState>(options));
         }
         else if (root.TryGetProperty("automations", out _))
         {
-            result.Automations = root.Deserialize<AutomationCatalogState>(options);
+            result.Automations = root.Deserialize(AhpJsonTypeInfo.Get<AutomationCatalogState>(options));
         }
         else if (root.TryGetProperty("turns", out _))
         {
-            result.Chat = root.Deserialize<ChatState>(options);
+            result.Chat = root.Deserialize(AhpJsonTypeInfo.Get<ChatState>(options));
         }
         else if (root.TryGetProperty("lifecycle", out _))
         {
             // SessionState is discriminated on its required `lifecycle` field.
             // (It no longer carries `summary`; that field was removed when the
             // session state was flattened.)
-            result.Session = root.Deserialize<SessionState>(options);
+            result.Session = root.Deserialize(AhpJsonTypeInfo.Get<SessionState>(options));
         }
         else if (root.TryGetProperty("content", out _))
         {
-            result.Terminal = root.Deserialize<TerminalState>(options);
+            result.Terminal = root.Deserialize(AhpJsonTypeInfo.Get<TerminalState>(options));
         }
         else if (root.TryGetProperty("status", out _) && root.TryGetProperty("files", out _))
         {
-            result.Changeset = root.Deserialize<ChangesetState>(options);
+            result.Changeset = root.Deserialize(AhpJsonTypeInfo.Get<ChangesetState>(options));
         }
         else if (root.TryGetProperty("root", out _) && root.TryGetProperty("recursive", out _))
         {
-            result.ResourceWatch = root.Deserialize<ResourceWatchState>(options);
+            result.ResourceWatch = root.Deserialize(AhpJsonTypeInfo.Get<ResourceWatchState>(options));
         }
         else if (root.TryGetProperty("annotations", out _))
         {
-            result.Annotations = root.Deserialize<AnnotationsState>(options);
+            result.Annotations = root.Deserialize(AhpJsonTypeInfo.Get<AnnotationsState>(options));
         }
         else
         {
-            result.Root = root.Deserialize<RootState>(options);
+            result.Root = root.Deserialize(AhpJsonTypeInfo.Get<RootState>(options));
         }
         return result;
     }
 
     public override void Write(Utf8JsonWriter writer, SnapshotState value, JsonSerializerOptions options)
     {
-        if (value.AutomationRun is not null) { JsonSerializer.Serialize(writer, value.AutomationRun, options); return; }
-        if (value.Automations is not null) { JsonSerializer.Serialize(writer, value.Automations, options); return; }
-        if (value.Chat is not null) { JsonSerializer.Serialize(writer, value.Chat, options); return; }
-        if (value.Session is not null) { JsonSerializer.Serialize(writer, value.Session, options); return; }
-        if (value.Terminal is not null) { JsonSerializer.Serialize(writer, value.Terminal, options); return; }
-        if (value.Changeset is not null) { JsonSerializer.Serialize(writer, value.Changeset, options); return; }
-        if (value.ResourceWatch is not null) { JsonSerializer.Serialize(writer, value.ResourceWatch, options); return; }
-        if (value.Annotations is not null) { JsonSerializer.Serialize(writer, value.Annotations, options); return; }
-        if (value.Root is not null) { JsonSerializer.Serialize(writer, value.Root, options); return; }
+        if (value.AutomationRun is not null) { JsonSerializer.Serialize(writer, value.AutomationRun, AhpJsonTypeInfo.Get<AutomationRunState>(options)); return; }
+        if (value.Automations is not null) { JsonSerializer.Serialize(writer, value.Automations, AhpJsonTypeInfo.Get<AutomationCatalogState>(options)); return; }
+        if (value.Chat is not null) { JsonSerializer.Serialize(writer, value.Chat, AhpJsonTypeInfo.Get<ChatState>(options)); return; }
+        if (value.Session is not null) { JsonSerializer.Serialize(writer, value.Session, AhpJsonTypeInfo.Get<SessionState>(options)); return; }
+        if (value.Terminal is not null) { JsonSerializer.Serialize(writer, value.Terminal, AhpJsonTypeInfo.Get<TerminalState>(options)); return; }
+        if (value.Changeset is not null) { JsonSerializer.Serialize(writer, value.Changeset, AhpJsonTypeInfo.Get<ChangesetState>(options)); return; }
+        if (value.ResourceWatch is not null) { JsonSerializer.Serialize(writer, value.ResourceWatch, AhpJsonTypeInfo.Get<ResourceWatchState>(options)); return; }
+        if (value.Annotations is not null) { JsonSerializer.Serialize(writer, value.Annotations, AhpJsonTypeInfo.Get<AnnotationsState>(options)); return; }
+        if (value.Root is not null) { JsonSerializer.Serialize(writer, value.Root, AhpJsonTypeInfo.Get<RootState>(options)); return; }
         writer.WriteNullValue();
     }
 }

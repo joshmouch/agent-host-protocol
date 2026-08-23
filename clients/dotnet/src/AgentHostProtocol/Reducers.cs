@@ -4,10 +4,7 @@
 #nullable enable
 
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Text.Json;
 
 namespace Microsoft.AgentHostProtocol;
@@ -2479,11 +2476,6 @@ public static class Reducers
     /// reads its <c>type</c> field directly. Mirrors the Swift client's
     /// <c>isClientDispatchable</c>.
     /// </summary>
-    // Reads the variant's `Type` property reflectively + the [WireValue] attributes
-    // on ActionType — trim/AOT-relevant, so the declaration is kept; the cost is one
-    // cached property read, not a full serialize of the action's nested payload.
-    [RequiresUnreferencedCode("Reflects over the action variant's Type property and ActionType's [WireValue] members; trimming may remove the metadata it reads. Declared (not suppressed) so trim/AOT consumers are warned at the call site.")]
-    [RequiresDynamicCode("Reflects over the action variant's Type property and ActionType's [WireValue] members.")]
     public static bool IsClientDispatchable(StateAction action)
     {
         Guard.ThrowIfNull(action, nameof(action));
@@ -2503,45 +2495,8 @@ public static class Reducers
             default:
                 // Known variant record: read its ActionType discriminator and map it
                 // to the wire string the serializer would have emitted.
-                if (TryReadActionType(inner, out var actionType)
-                    && s_actionTypeWire.TryGetValue(actionType, out var wire))
-                {
-                    return s_clientDispatchableActions.Contains(wire);
-                }
-                return false;
+                return GeneratedActionMetadata.TryGetActionType(inner, out var actionType)
+                    && s_clientDispatchableActions.Contains(GeneratedActionMetadata.GetWireName(actionType));
         }
-    }
-
-    // Cache: variant CLR type -> its `Type` (ActionType) property accessor. Every
-    // generated state-action variant carries `public ActionType Type { get; init; }`.
-    private static readonly ConcurrentDictionary<Type, PropertyInfo?> s_typeProperty = new();
-
-    // ActionType -> wire string, derived once from the [WireValue] attributes (the
-    // same source the WireEnumConverter uses), so the lookup needs no serialize.
-    private static readonly Dictionary<ActionType, string> s_actionTypeWire = BuildActionTypeWireMap();
-
-    [UnconditionalSuppressMessage("Trimming", "IL2070",
-        Justification = "GetProperty(\"Type\") over a state-action variant CLR type; the variants are all preserved generated records with a public ActionType Type property.")]
-    private static bool TryReadActionType(object variant, out ActionType actionType)
-    {
-        var prop = s_typeProperty.GetOrAdd(variant.GetType(), static t => t.GetProperty("Type"));
-        if (prop is not null && prop.GetValue(variant) is ActionType at)
-        {
-            actionType = at;
-            return true;
-        }
-        actionType = default;
-        return false;
-    }
-
-    private static Dictionary<ActionType, string> BuildActionTypeWireMap()
-    {
-        var map = new Dictionary<ActionType, string>();
-        foreach (FieldInfo field in typeof(ActionType).GetFields(BindingFlags.Public | BindingFlags.Static))
-        {
-            var value = (ActionType)field.GetValue(null)!;
-            map[value] = field.GetCustomAttribute<WireValueAttribute>()?.Value ?? field.Name;
-        }
-        return map;
     }
 }

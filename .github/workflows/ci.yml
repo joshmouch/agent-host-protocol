@@ -306,6 +306,15 @@ jobs:
       - name: Build .NET solution
         run: dotnet build --no-restore --configuration Release
 
+      - name: Publish and run .NET Native AOT smoke test
+        run: |
+          dotnet publish tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj \
+            --configuration Release \
+            --runtime linux-x64 \
+            --self-contained true \
+            --output artifacts/aot-smoke
+          ./artifacts/aot-smoke/AgentHostProtocol.AotSmoke
+
       - name: Test .NET solution
         run: dotnet test --no-build --configuration Release
 

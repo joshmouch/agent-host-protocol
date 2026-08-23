@@ -8,6 +8,7 @@
     <Project Path="src/AgentHostProtocol/AgentHostProtocol.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj" />
     <Project Path="tests/AgentHostProtocol.Tests/AgentHostProtocol.Tests.csproj" />
   </Folder>
 </Solution>

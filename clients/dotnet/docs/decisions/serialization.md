@@ -43,8 +43,8 @@ the default is System.Text.Json and what the seam does and does not decouple.
 
 | Option | Throughput | Allocations | Eager/Lazy | Deps | AOT | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| **System.Text.Json (POCO)** ✅ | Highest | Lowest (`Span<T>`/UTF-8) | Eager | **In-box** (net8) | Source-gen capable | Strict by default; Microsoft's greenfield recommendation. |
-| System.Text.Json + source generation | Highest (+startup, +AOT) | Lowest | Eager | In-box | **Best** | An AOT/trimming enhancement for later — but **not** a drop-in `[JsonSerializable]` context: see "Deferred, on purpose" — the runtime-`Type`-keyed union converters do not compose with the source generator, so it requires reshaping the generated unions, not just adding a context. |
+| **System.Text.Json + source generation** ✅ | Highest (+startup, +AOT) | Lowest | Eager | **In-box** (net8) | **Best** | Generated metadata covers the complete wire model; custom converters resolve metadata before runtime-type dispatch. |
+| System.Text.Json (reflection contracts) | Highest | Lowest (`Span<T>`/UTF-8) | Eager | In-box | Poor | Simpler initially, but unsuitable for trimming and Native AOT. |
 | Newtonsoft.Json (Json.NET) | ~20–35% slower; ~3× more allocations on .NET 10 | High (reflection, no `Span`) | Eager or `JObject` (lazy, mutable) | **+dependency** | Reflection (AOT-hostile) | Lenient by default; ubiquitous, but a dependency and slower. |
 | Lazy DOM — `JsonNode` / `JsonElement` (STJ) or `JObject` (Newtonsoft) | n/a (no bind) | Low for partial reads | **Lazy** | In-box (STJ) | ok | A *different consumption model*: expose untyped views instead of typed state. Reducers can't run on it without materializing. |
 | Utf8Json / Jil / other high-perf | Very high | Very low | Eager | +dependency | varies | Effectively unmaintained; not worth the dependency/risk for a JSON wire protocol. |
@@ -72,14 +72,14 @@ Rationale, against the dimensions:
 - **Dependencies:** STJ is **in the shared framework** for net8 — the
   packages stay at **zero NuGet dependencies**, which is a hard goal for this
   library.
-- **AOT / trimming:** STJ supports source generation as a path to
-  Native-AOT/trimming friendliness later. Note this is **not** a free,
-  drop-in step for this client: the discriminated unions dispatch on a
-  runtime `Type`, which the source generator does not support, so the
-  migration is a typed-variant rewrite of the generated unions (see
-  "Deferred, on purpose"). Until then the shipping libraries declare the
-  reflection unsafety via `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]`
-  on the serializer seam so trimmed/AOT consumers are warned at build time.
+- **AOT / trimming:** the C# generator emits metadata for every generated
+  protocol type and exposes it through the compact
+  `AhpJsonMetadata.Default` resolver API. Runtime-type union dispatch remains
+  compact, but resolves each known variant through
+  `JsonSerializerOptions.GetTypeInfo` and uses metadata-based serializer
+  overloads. The `net8.0` assets declare `IsTrimmable` and
+  `IsAotCompatible`; CI publishes and executes a reflection-disabled Native
+  AOT smoke application.
 - **Strictness:** strict-by-default is correct for a wire protocol — a
   malformed or unexpected frame should fail loudly, not be silently coerced.
 - **Custom shapes:** the protocol's discriminated unions, `StringOrMarkdown`,
@@ -101,7 +101,7 @@ Rationale, against the dimensions:
   mean re-emitting the types for that engine — tractable since they're
   generated, but STJ stays the one default.
 
-### Deferred, on purpose
+### Boundaries and deferred work
 
 - **Validation ("validated vs not"):** a future opt-in
   `Microsoft.AgentHostProtocol.Validation` package will decorate
@@ -112,29 +112,28 @@ Rationale, against the dimensions:
   without materializing typed state (a proxy/pass-through), that is a separate
   read-only `JsonNode`/`JsonElement` surface — not a drop-in serializer swap,
   because the reducers require typed state.
-- **Source generation:** add source-gen for AOT/trimming and a further perf
-  bump when there is a concrete AOT consumer. This is **not** merely "add a
-  `[JsonSerializable]` `JsonSerializerContext`." The union machinery is
-  fundamentally reflection-polymorphic: `UnionConverter<T>.Read` resolves the
-  payload type at runtime from a `Dictionary<string, Type>` and calls
-  `root.Deserialize(variantType, options)`, and `Write` serializes via
-  `inner.GetType()`. The STJ source generator only emits metadata for
-  compile-time-known closed types and does **not** support custom converters
-  that dispatch on a runtime `Type`. A real source-gen migration therefore
-  requires reshaping every discriminated union away from the `object?`-valued
-  `AhpUnion` + runtime-`Type` dispatch toward a closed, statically-known variant
-  representation (e.g. STJ's `[JsonPolymorphic]`/`[JsonDerivedType]`, or
-  per-variant typed properties) — a redesign of the generated wire types plus
-  the codegen, not a drop-in. In the meantime the libraries opt into the
-  trim/AOT analyzers and annotate the reflection entry points with
-  `[RequiresUnreferencedCode]`/`[RequiresDynamicCode]` so the limitation is
-  declared at build time rather than discovered at runtime.
+- **Application-defined JSON types:** the AHP context intentionally contains
+  only protocol types. Consumers that pass their own types through
+  `IAhpSerializer` must add an `IJsonTypeInfoResolver` (normally their own
+  source-generated context) to the options supplied to
+  `SystemTextJsonAhpSerializer` when reflection serialization is disabled.
+  Reflection-enabled applications retain the generic serializer methods'
+  compatibility fallback for application-defined values.
+- **Generated union shape:** `AhpUnion.Value` still provides a compact common
+  representation and supports lossless unknown-value round trips. The
+  converter's runtime `Type` lookup is AOT-safe because every known variant has
+  generated metadata, but the wrapper can still represent an empty or
+  caller-supplied invalid state. Hardening that public shape would be a separate
+  compatibility decision.
 
 ## Consequences
 
 - The default path is fast, allocation-light, and dependency-free.
+- Native AOT and trimmed applications use the default serializer without
+  reflection contracts.
 - A different engine or a validating layer can be added behind `IAhpSerializer`
   without touching the client or transport.
+- Custom application types require explicitly registered JSON metadata.
 - Consumers who want JSON-Schema validation opt into a separate package; the
   core never pays for it.
 
