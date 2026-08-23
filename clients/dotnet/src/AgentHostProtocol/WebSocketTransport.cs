@@ -68,10 +68,12 @@ public sealed class WebSocketTransport : ITransport
         WebSocketTransportOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        var configureSocket = options?.ConfigureSocket;
+        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
         var ws = new ClientWebSocket();
         try
         {
-            options?.ConfigureSocket?.Invoke(ws);
+            configureSocket?.Invoke(ws);
             await ws.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -79,7 +81,6 @@ public sealed class WebSocketTransport : ITransport
             ws.Dispose();
             throw;
         }
-        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
         return new WebSocketTransport(ws, maxBytes);
     }
 

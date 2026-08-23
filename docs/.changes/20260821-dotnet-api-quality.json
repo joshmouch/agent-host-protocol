@@ -1,5 +1,5 @@
 {
   "type": "changed",
-  "message": "The .NET client now snapshots caller-owned configuration, freezes serializer options, enforces valid `StringOrMarkdown` values, and consistently uses value-semantic `HostId` APIs.",
+  "message": "The .NET client now snapshots caller-owned configuration, freezes serializer options, validates protocol negotiation, restores live reconnect state correctly, enforces valid `StringOrMarkdown` values, and consistently uses value-semantic `HostId` APIs.",
   "targets": ["dotnet"]
 }

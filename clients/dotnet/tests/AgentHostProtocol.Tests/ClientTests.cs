@@ -579,6 +579,35 @@ public sealed class ClientTests
         await serverTask;
     }
 
+    [Fact]
+    public async Task Initialize_RejectsUnofferedProtocolVersion()
+    {
+        var (clientSide, serverSide) = MemTransport.CreatePair();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var serverTask = Task.Run(
+            () => AnswerOneRequestAsync(
+                serverSide,
+                "initialize",
+                new InitializeResult
+                {
+                    ProtocolVersion = "999.0.0",
+                    Snapshots = new System.Collections.Generic.List<Snapshot>(),
+                },
+                cts.Token),
+            cts.Token);
+
+        await using var client = AhpClient.Connect(clientSide);
+        var ex = await Assert.ThrowsAsync<AhpTransportException>(
+            () => client.InitializeAsync(
+                "test-client",
+                new[] { ProtocolVersion.Current },
+                cancellationToken: cts.Token));
+
+        Assert.Equal("protocol", ex.Kind);
+        Assert.Contains("999.0.0", ex.Message, StringComparison.Ordinal);
+        await serverTask;
+    }
+
     // D: subscribe round-trip + snapshot.
     [Fact]
     public async Task Subscribe_RoundTrip_DeliversSnapshot()

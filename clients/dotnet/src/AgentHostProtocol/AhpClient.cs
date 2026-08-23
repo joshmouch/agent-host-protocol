@@ -1039,9 +1039,16 @@ public sealed class AhpClient : IAhpClient
 
         // The protocol requires a result for `initialize`; a null/empty result is
         // a protocol violation, surfaced loudly rather than returned as null.
-        return await RequestAsync<InitializeParams, InitializeResult>("initialize", @params, cancellationToken)
+        var result = await RequestAsync<InitializeParams, InitializeResult>("initialize", @params, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new AhpRpcException(JsonRpcErrorCodes.InternalError, "ahp: initialize returned no result");
+        if (!versions.Contains(result.ProtocolVersion))
+        {
+            throw new AhpTransportException(
+                "protocol",
+                $"ahp: server selected unoffered protocol version '{result.ProtocolVersion}'");
+        }
+        return result;
     }
 
     /// <summary>Re-establishes a dropped connection via the <c>reconnect</c> flow.</summary>

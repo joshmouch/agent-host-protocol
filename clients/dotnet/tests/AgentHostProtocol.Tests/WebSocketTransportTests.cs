@@ -207,6 +207,44 @@ public sealed class WebSocketTransportTests
         await serverTask;
     }
 
+    [Fact]
+    public async Task NativeTransport_SnapshotsOptionsBeforeConnecting()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var server = LoopbackWsServer.Start();
+        var options = new WebSocketTransportOptions { MaxMessageBytes = 1 };
+        options.ConfigureSocket = _ => options.MaxMessageBytes = 1024;
+        var releaseServer = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
+        {
+            var payload = System.Text.Encoding.UTF8.GetBytes("{}");
+            await serverWs.SendAsync(
+                new ArraySegment<byte>(payload),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                ct).ConfigureAwait(false);
+            await releaseServer.Task.WaitAsync(ct).ConfigureAwait(false);
+        }, cts.Token);
+
+        await using var transport = await WebSocketTransport.ConnectAsync(
+            server.WsUri,
+            options,
+            cts.Token);
+
+        try
+        {
+            await Assert.ThrowsAsync<TransportClosedException>(
+                async () => await transport.ReceiveAsync(cts.Token));
+        }
+        finally
+        {
+            releaseServer.TrySetResult();
+        }
+        await serverTask;
+    }
+
     // ── E: reject unsupported scheme ──────────────────────────────────────
     // ClientWebSocket rejects non-ws/wss URIs. A short-timeout CTS guards
     // against any hang. We catch broadly and assert an exception was raised.

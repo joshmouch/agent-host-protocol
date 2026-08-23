@@ -344,6 +344,277 @@ public sealed class MultiHostClientTests
         Assert.Equal(2, maxSeqSeen);
     }
 
+    [Fact]
+    public async Task MultiHost_Reconnect_UsesLiveSubscriptionsAndServerSequence()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var reconnectParams = new TaskCompletionSource<ReconnectParams>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        MemTransport? firstServer = null;
+        var attempt = 0;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (client, server) = MemTransport.CreatePair();
+            if (Interlocked.Increment(ref attempt) == 1)
+            {
+                firstServer = server;
+                _ = Task.Run(() => FakeHost.New()
+                    .OnInitialize((request, side, token) =>
+                        RespondInitializeWithRootAsync(side, request.Id, null, 0, token))
+                    .OnListSessions((request, side, token) =>
+                        RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+                    .On("subscribe", (request, side, token) =>
+                        FakeHost.RespondResultAsync(side, request.Id, new SubscribeResult(), token))
+                    .RunAsync(server, cts.Token));
+            }
+            else
+            {
+                _ = Task.Run(() => FakeHost.New()
+                    .OnReconnect((request, side, token) =>
+                    {
+                        reconnectParams.TrySetResult(
+                            Ser.Deserialize<ReconnectParams>(request.Params!.Value.GetRawText()));
+                        return FakeHost.RespondResultAsync(
+                            side,
+                            request.Id,
+                            new ReconnectResult(new ReconnectReplayResult
+                            {
+                                Type = ReconnectResultType.Replay,
+                                Actions = new List<ActionEnvelope>(),
+                                Missing = new List<string> { "copilot:/dynamic" },
+                            }),
+                            token);
+                    })
+                    .OnListSessions((request, side, token) =>
+                        RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+                    .RunAsync(server, cts.Token));
+            }
+            return Task.FromResult<ITransport>(client);
+        };
+
+        var m = new MultiHostClient();
+        await using var _mh = m;
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            TransportFactory = factory,
+            InitialSubscriptions = new[] { ProtocolVersion.RootResourceUri },
+            ReconnectPolicy = new ReconnectPolicy
+            {
+                InitialBackoff = TimeSpan.FromMilliseconds(20),
+                MaxBackoff = TimeSpan.FromMilliseconds(20),
+                BackoffMultiplier = 1,
+            },
+        }, cts.Token);
+
+        await m.SubscribeAsync(new HostId("h"), "copilot:/dynamic", cts.Token);
+        await SendActionAsync(firstServer!, ProtocolVersion.RootResourceUri, 41, cts.Token);
+        await WaitUntilAsync(
+            () => m.Host(new HostId("h"))?.ServerSeq == 41,
+            cts.Token);
+
+        var initialGeneration = m.Host(new HostId("h"))!.Generation;
+        await m.ReconnectAsync(new HostId("h"), cts.Token);
+        var observed = await reconnectParams.Task.WaitAsync(cts.Token);
+        await WaitUntilAsync(
+            () => m.Host(new HostId("h")) is { } host
+                && host.Generation > initialGeneration
+                && host.State.Kind == HostStateKind.Connected,
+            cts.Token,
+            8000);
+
+        Assert.Equal(41, observed.LastSeenServerSeq);
+        Assert.Equal(
+            new[] { ProtocolVersion.RootResourceUri, "copilot:/dynamic" },
+            observed.Subscriptions);
+        Assert.DoesNotContain("copilot:/dynamic", m.Host(new HostId("h"))!.Subscriptions);
+    }
+
+    [Fact]
+    public async Task MultiHost_ReconnectSnapshot_AppliesStateAndRetainsStatelessSubscriptions()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var initializeCount = 0;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (client, server) = MemTransport.CreatePair();
+            _ = Task.Run(() => FakeHost.New()
+                .OnInitialize((request, side, token) =>
+                {
+                    Interlocked.Increment(ref initializeCount);
+                    return RespondInitializeWithRootAsync(side, request.Id, null, 1, token);
+                })
+                .OnReconnect((request, side, token) =>
+                    FakeHost.RespondResultAsync(
+                        side,
+                        request.Id,
+                        new ReconnectResult(new ReconnectSnapshotResult
+                        {
+                            Type = ReconnectResultType.Snapshot,
+                            Snapshots = new List<Snapshot>
+                            {
+                                new()
+                                {
+                                    Resource = ProtocolVersion.RootResourceUri,
+                                    FromSeq = 77,
+                                    State = new SnapshotState
+                                    {
+                                        Root = new RootState
+                                        {
+                                            Agents = new List<AgentInfo>(),
+                                            ActiveSessions = 9,
+                                        },
+                                    },
+                                },
+                            },
+                        }),
+                        token))
+                .OnListSessions((request, side, token) =>
+                    RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+                .RunAsync(server, cts.Token));
+            return Task.FromResult<ITransport>(client);
+        };
+
+        var m = new MultiHostClient();
+        await using var _mh = m;
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            TransportFactory = factory,
+            InitialSubscriptions = new[] { ProtocolVersion.RootResourceUri, "copilot:/missing" },
+        }, cts.Token);
+
+        var initialGeneration = m.Host(new HostId("h"))!.Generation;
+        await m.ReconnectAsync(new HostId("h"), cts.Token);
+        await WaitUntilAsync(
+            () => m.Host(new HostId("h")) is { } host
+                && host.Generation > initialGeneration
+                && host.State.Kind == HostStateKind.Connected,
+            cts.Token,
+            8000);
+
+        var snapshot = m.Host(new HostId("h"))!;
+        Assert.Equal(1, Volatile.Read(ref initializeCount));
+        Assert.Equal(77, snapshot.ServerSeq);
+        Assert.Equal(9, snapshot.ActiveSessions);
+        Assert.Contains(ProtocolVersion.RootResourceUri, snapshot.Subscriptions);
+        Assert.Contains("copilot:/missing", snapshot.Subscriptions);
+    }
+
+    [Fact]
+    public async Task MultiHost_Initialize_BuffersHandshakeEventsAndAppliesRootActions()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var (client, server) = MemTransport.CreatePair();
+        _ = FakeHost.New()
+            .OnInitialize(async (request, side, token) =>
+            {
+                await FakeHost.SendNotificationAsync(side, "action", new ActionEnvelope
+                {
+                    Channel = ProtocolVersion.RootResourceUri,
+                    ServerSeq = 5,
+                    Action = new StateAction(new RootActiveSessionsChangedAction
+                    {
+                        Type = ActionType.RootActiveSessionsChanged,
+                        ActiveSessions = 7,
+                    }),
+                }, token);
+                await RespondInitializeWithRootAsync(side, request.Id, null, 0, token);
+            })
+            .OnListSessions((request, side, token) =>
+                RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+            .RunAsync(server, cts.Token);
+
+        var m = new MultiHostClient();
+        await using var _mh = m;
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            TransportFactory = (_, _) => Task.FromResult<ITransport>(client),
+            InitialSubscriptions = new[] { ProtocolVersion.RootResourceUri },
+        }, cts.Token);
+
+        await WaitUntilAsync(
+            () => m.Host(new HostId("h")) is { ServerSeq: 5, ActiveSessions: 7 },
+            cts.Token);
+    }
+
+    [Fact]
+    public async Task MultiHost_SubscribeDuringReconnect_TargetsReplacementConnection()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var reconnectEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseReconnect = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var replacementSubscribed = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var attempt = 0;
+
+        HostTransportFactory factory = (_, _) =>
+        {
+            var (client, server) = MemTransport.CreatePair();
+            if (Interlocked.Increment(ref attempt) == 1)
+            {
+                _ = FakeHost.New()
+                    .OnInitialize((request, side, token) =>
+                        RespondInitializeWithRootAsync(side, request.Id, null, 0, token))
+                    .OnListSessions((request, side, token) =>
+                        RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+                    .RunAsync(server, cts.Token);
+            }
+            else
+            {
+                _ = FakeHost.New()
+                    .OnReconnect(async (request, side, token) =>
+                    {
+                        reconnectEntered.TrySetResult();
+                        await releaseReconnect.Task.WaitAsync(token);
+                        await FakeHost.RespondResultAsync(
+                            side,
+                            request.Id,
+                            new ReconnectResult(new ReconnectReplayResult
+                            {
+                                Type = ReconnectResultType.Replay,
+                                Actions = new List<ActionEnvelope>(),
+                                Missing = new List<string>(),
+                            }),
+                            token);
+                    })
+                    .OnListSessions((request, side, token) =>
+                        RespondListSessionsAsync(side, request.Id, Array.Empty<SessionSummary>(), token))
+                    .On("subscribe", (request, side, token) =>
+                    {
+                        replacementSubscribed.TrySetResult();
+                        return FakeHost.RespondResultAsync(side, request.Id, new SubscribeResult(), token);
+                    })
+                    .RunAsync(server, cts.Token);
+            }
+            return Task.FromResult<ITransport>(client);
+        };
+
+        var m = new MultiHostClient();
+        await using var _mh = m;
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            TransportFactory = factory,
+            InitialSubscriptions = new[] { ProtocolVersion.RootResourceUri },
+        }, cts.Token);
+
+        await m.ReconnectAsync(new HostId("h"), cts.Token);
+        await reconnectEntered.Task.WaitAsync(cts.Token);
+        var subscribeTask = m.SubscribeAsync(new HostId("h"), "copilot:/dynamic", cts.Token);
+        Assert.False(subscribeTask.IsCompleted);
+
+        releaseReconnect.TrySetResult();
+        await subscribeTask;
+        await replacementSubscribed.Task.WaitAsync(cts.Token);
+        Assert.Contains("copilot:/dynamic", m.Host(new HostId("h"))!.Subscriptions);
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     //  Phase 2 (P2-C) — aggregated views, per-host streams, manual reconnect,
     //  typed host errors. Ported from Swift MultiHostClientTests.swift. Drives
@@ -1431,6 +1702,32 @@ public sealed class MultiHostClientTests
             "ShutdownAsync must not be blocked by a hung transport factory");
     }
 
+    [Fact]
+    public async Task MultiHost_Shutdown_NotBlockedByHungInitialTransportFactory()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var factoryEntered = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var m = new MultiHostClient();
+
+        HostTransportFactory factory = async (_, ct) =>
+        {
+            factoryEntered.TrySetResult();
+            await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false);
+            throw new InvalidOperationException("unreachable");
+        };
+
+        var addTask = m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("hung-initial"),
+            TransportFactory = factory,
+        }, CancellationToken.None);
+        await factoryEntered.Task.WaitAsync(cts.Token);
+
+        await m.ShutdownAsync(cts.Token);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await addTask);
+    }
+
     // ── 21. explicit clientId wins over store ──────────────────────────────
     //
     // Pins the clientId-resolution branch in AddHostAsync: an explicit
@@ -1664,6 +1961,54 @@ public sealed class MultiHostClientTests
         await WaitUntilAsync(() => observer.IsClosed, cts.Token, 8000);
         Assert.True(observer.IsClosed,
             "AhpClient shutdown on a failed handshake should have closed the transport");
+    }
+
+    [Fact]
+    public async Task MultiHost_CancelledReconnect_ShutsDownUnderlyingClient()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var reconnectStarted = new TaskCompletionSource<object?>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var observer = new ClosedObserver();
+        var attempt = 0;
+
+        HostTransportFactory factory = (id, ct) =>
+        {
+            var (client, server) = MemTransport.CreatePair();
+            if (Interlocked.Increment(ref attempt) == 1)
+            {
+                _ = Task.Run(() => RunFakeServerFullAsync(server, ct: cts.Token));
+                return Task.FromResult<ITransport>(client);
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var frame = await server.ReceiveAsync(cts.Token).ConfigureAwait(false);
+                    var message = Ser.DecodeMessage(frame);
+                    if (message.Request?.Method == "reconnect")
+                        reconnectStarted.TrySetResult(null);
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { }
+            });
+            return Task.FromResult<ITransport>(new TrackingTransport(client, observer));
+        };
+
+        var m = new MultiHostClient();
+        await m.AddHostAsync(new HostConfig
+        {
+            Id = new HostId("h"),
+            TransportFactory = factory,
+        }, cts.Token);
+
+        await m.ReconnectAsync(new HostId("h"), cts.Token);
+        await reconnectStarted.Task.WaitAsync(cts.Token);
+        await m.RemoveHostAsync(new HostId("h"), cts.Token);
+
+        Assert.True(observer.IsClosed);
+        await m.DisposeAsync();
     }
 
     // ── 27. state during backoff after a drop is Reconnecting ──────────────
