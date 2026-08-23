@@ -316,7 +316,7 @@ jobs:
           ./artifacts/aot-smoke/AgentHostProtocol.AotSmoke
 
       - name: Test .NET solution
-        run: dotnet test --no-build --configuration Release
+        run: dotnet test --no-build --configuration Release -- --timeout 5m --long-running 30
 
       - name: Pack .NET solution
         run: dotnet pack --no-build --configuration Release
