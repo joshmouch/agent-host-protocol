@@ -7,6 +7,7 @@
 
 using System;
 using System.Collections.Specialized; // NameValueCollection (captured request headers)
+using System.IO;
 using System.Net;                 // HttpListener, IPEndPoint
 using System.Net.Sockets;         // TcpListener (free-port picking)
 using System.Net.WebSockets;      // WebSocket, WebSocketMessageType, ...
@@ -115,6 +116,44 @@ public sealed class WebSocketTransportTests
             try { ((IDisposable)_listener).Dispose(); } catch { /* best effort */ }
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class FaultingWebSocket : WebSocket
+    {
+        public override WebSocketCloseStatus? CloseStatus => null;
+        public override string? CloseStatusDescription => null;
+        public override WebSocketState State => WebSocketState.Open;
+        public override string? SubProtocol => null;
+
+        public override void Abort()
+        {
+        }
+
+        public override Task CloseAsync(
+            WebSocketCloseStatus closeStatus,
+            string? statusDescription,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public override Task CloseOutputAsync(
+            WebSocketCloseStatus closeStatus,
+            string? statusDescription,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public override void Dispose()
+        {
+        }
+
+        public override Task<WebSocketReceiveResult> ReceiveAsync(
+            ArraySegment<byte> buffer,
+            CancellationToken cancellationToken) =>
+            Task.FromException<WebSocketReceiveResult>(
+                new WebSocketException(WebSocketError.ConnectionClosedPrematurely));
+
+        public override Task SendAsync(
+            ArraySegment<byte> buffer,
+            WebSocketMessageType messageType,
+            bool endOfMessage,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     // ── E: real-socket handshake (HttpListener loopback) ──────────────────
@@ -299,33 +338,19 @@ public sealed class WebSocketTransportTests
     }
 
     // ── E: abnormal close error ───────────────────────────────────────────
-    // On an ABNORMAL close (server aborts the socket without a close frame),
-    // WebSocketTransport.ReceiveAsync wraps the WebSocketException into a thrown
-    // Exception ("ahp: websocket closed: ...", see WebSocketTransport.cs ~145).
-    // Assert that an exception is raised — i.e. NOT a clean TransportClosedException
-    // drain.
+    // A WebSocket receive failure is mapped to the transport's stable I/O error
+    // contract. This is intentionally driven with a deterministic WebSocket test
+    // double: Linux socket stacks differ in when an aborted loopback connection is
+    // observed, which made the prior real-socket version hang in hosted CI.
     [Fact]
     public async Task WsTransport_AbnormalClose_RaisesTransportError()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var server = LoopbackWsServer.Start();
+        await using var transport = new WebSocketTransport(
+            new FaultingWebSocket(),
+            maxMessageBytes: 1024);
 
-        // Server abruptly aborts the socket (no close handshake) right after accept.
-        var serverTask = server.AcceptOneAsync((serverWs, ct) =>
-        {
-            serverWs.Abort();
-            return Task.CompletedTask;
-        }, cts.Token);
-
-        await using var transport = await WebSocketTransport.ConnectAsync(server.WsUri, cancellationToken: cts.Token);
-
-        var ex = await Record.ExceptionAsync(async () => await transport.ReceiveAsync(cts.Token));
-        Assert.NotNull(ex);
-        // An abnormal close must surface as a fault, not a clean
-        // TransportClosedException drain. WebSocketTransport.ReceiveAsync wraps
-        // WebSocketException into a plain Exception ("ahp: websocket closed:").
-        Assert.IsNotType<TransportClosedException>(ex);
-
-        await serverTask;
+        var ex = await Assert.ThrowsAsync<IOException>(
+            async () => await transport.ReceiveAsync(TestContext.Current.CancellationToken));
+        Assert.IsType<WebSocketException>(ex.InnerException);
     }
 }

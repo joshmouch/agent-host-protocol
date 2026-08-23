@@ -40,7 +40,7 @@ public sealed class WebSocketTransportOptions
 /// </summary>
 public sealed class WebSocketTransport : ITransport
 {
-    private readonly ClientWebSocket _ws;
+    private readonly WebSocket _ws;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly long _maxMessageBytes;
     private int _disposed;
@@ -48,7 +48,7 @@ public sealed class WebSocketTransport : ITransport
     // Receive buffer: 64 KiB initial, grows as needed.
     private byte[] _receiveBuffer = new byte[64 * 1024];
 
-    private WebSocketTransport(ClientWebSocket ws, long maxMessageBytes)
+    internal WebSocketTransport(WebSocket ws, long maxMessageBytes)
     {
         _ws = ws;
         _maxMessageBytes = maxMessageBytes;
