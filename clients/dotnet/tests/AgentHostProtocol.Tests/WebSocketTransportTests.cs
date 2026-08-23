@@ -249,43 +249,16 @@ public sealed class WebSocketTransportTests
     [Fact]
     public async Task NativeTransport_SnapshotsOptionsBeforeConnecting()
     {
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await using var server = LoopbackWsServer.Start();
         var options = new WebSocketTransportOptions { MaxMessageBytes = 1 };
         options.ConfigureSocket = _ => options.MaxMessageBytes = 1024;
-        var sendPayload = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        var releaseServer = new TaskCompletionSource(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-
-        var serverTask = server.AcceptOneAsync(async (serverWs, ct) =>
-        {
-            await sendPayload.Task.WaitAsync(ct).ConfigureAwait(false);
-            var payload = System.Text.Encoding.UTF8.GetBytes("{}");
-            await serverWs.SendAsync(
-                new ArraySegment<byte>(payload),
-                WebSocketMessageType.Text,
-                endOfMessage: true,
-                ct).ConfigureAwait(false);
-            await releaseServer.Task.WaitAsync(ct).ConfigureAwait(false);
-        }, cts.Token);
-
-        await using var transport = await WebSocketTransport.ConnectAsync(
-            server.WsUri,
+        await using var transport = await WebSocketTransport.ConnectCoreAsync(
+            new Uri("ws://localhost/"),
             options,
-            cts.Token);
-        sendPayload.TrySetResult();
+            static (_, _, _) => Task.CompletedTask,
+            TestContext.Current.CancellationToken);
 
-        try
-        {
-            await Assert.ThrowsAsync<TransportClosedException>(
-                async () => await transport.ReceiveAsync(cts.Token));
-        }
-        finally
-        {
-            releaseServer.TrySetResult();
-        }
-        await serverTask;
+        Assert.Equal(1, transport.MaxMessageBytes);
+        Assert.Equal(1024, options.MaxMessageBytes);
     }
 
     // ── E: reject unsupported scheme ──────────────────────────────────────
