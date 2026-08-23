@@ -552,5 +552,5 @@ Initial release of the .NET client.
   `ApplyToTerminal` / `ApplyToChangeset`), the default
   `SystemTextJsonAhpSerializer`, the per-URI subscription fan-out, and the
   `MultiHostClient` runtime under `Microsoft.AgentHostProtocol.Hosts`.
-- **`Microsoft.AgentHostProtocol.WebSockets`** — a `ClientWebSocket`-based
-  `ITransport` implementation.
+- **`WebSocketTransport`** — a `ClientWebSocket`-based `ITransport`
+  implementation included in `Microsoft.AgentHostProtocol`.

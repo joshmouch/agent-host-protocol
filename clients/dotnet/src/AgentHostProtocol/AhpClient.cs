@@ -213,6 +213,7 @@ public sealed class AhpClient : IAhpClient
 
     // Lifecycle
     private readonly TaskCompletionSource<bool> _doneTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly CancellationTokenSource _lifetimeCts = new();
     private int _shutdownStarted;  // 0 = running, 1 = shut down
     private Exception? _closeErr;
 
@@ -305,6 +306,7 @@ public sealed class AhpClient : IAhpClient
     public async ValueTask DisposeAsync()
     {
         await ShutdownAsync().ConfigureAwait(false);
+        _lifetimeCts.Dispose();
     }
 
     /// <summary>
@@ -325,6 +327,7 @@ public sealed class AhpClient : IAhpClient
         }
 
         Volatile.Write(ref _closeErr, cause);
+        _lifetimeCts.Cancel();
 
         // Signal the done task so Done-waiters unblock.
         _doneTcs.TrySetResult(true);
@@ -509,13 +512,18 @@ public sealed class AhpClient : IAhpClient
     {
         try
         {
-            await foreach (var item in _outbound.Reader.ReadAllAsync().ConfigureAwait(false))
+            await foreach (var item in _outbound.Reader.ReadAllAsync(_lifetimeCts.Token).ConfigureAwait(false))
             {
                 var frame = _serializer.EncodeMessage(item.Message);
                 try
                 {
-                    await _transport.SendAsync(frame).ConfigureAwait(false);
+                    await _transport.SendAsync(frame, _lifetimeCts.Token).ConfigureAwait(false);
                     item.Sent?.TrySetResult(true);
+                }
+                catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+                {
+                    item.Sent?.TrySetException(new AhpClientClosedException());
+                    return;
                 }
                 catch (Exception ex)
                 {
@@ -525,7 +533,11 @@ public sealed class AhpClient : IAhpClient
                 }
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Normal teardown canceled the channel enumeration.
+        }
+        catch (Exception ex)
         {
             await ShutdownWithErrorAsync(new AhpTransportException("io", $"ahp: writer: {ex.Message}", ex)).ConfigureAwait(false);
         }
@@ -551,12 +563,16 @@ public sealed class AhpClient : IAhpClient
                 TransportMessage frame;
                 try
                 {
-                    frame = await _transport.ReceiveAsync().ConfigureAwait(false);
+                    frame = await _transport.ReceiveAsync(_lifetimeCts.Token).ConfigureAwait(false);
                 }
                 catch (TransportClosedException)
                 {
                     // A clean remote close is not an error: shut down without a cause.
                     await ShutdownWithErrorAsync(null).ConfigureAwait(false);
+                    return;
+                }
+                catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+                {
                     return;
                 }
                 catch (Exception ex)

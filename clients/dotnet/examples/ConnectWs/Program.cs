@@ -10,7 +10,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol;
-using Microsoft.AgentHostProtocol.WebSockets;
 
 if (args.Length != 1)
 {

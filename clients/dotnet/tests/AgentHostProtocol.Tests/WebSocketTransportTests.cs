@@ -14,7 +14,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol;
-using Microsoft.AgentHostProtocol.WebSockets;
 using Xunit;
 
 namespace Microsoft.AgentHostProtocol.Tests;

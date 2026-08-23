@@ -6,7 +6,7 @@
     <AssemblyName>Microsoft.AgentHostProtocol</AssemblyName>
     <IsPackable>true</IsPackable>
     <PackageId>Microsoft.AgentHostProtocol</PackageId>
-    <Description>The Agent Host Protocol (AHP) client for .NET: an async JSON-RPC client, the pure state reducers, the default System.Text.Json serializer, and the multi-host runtime. Bring your own transport (see Microsoft.AgentHostProtocol.WebSockets for a ClientWebSocket-based one).</Description>
+    <Description>The Agent Host Protocol (AHP) client for .NET: an async JSON-RPC client, the pure state reducers, the default System.Text.Json serializer, a ClientWebSocket transport, and the multi-host runtime.</Description>
     <!-- Trim/AOT analyzer posture. (De)serialization is reflection-based STJ
          today (source-gen deferred per docs/decisions/serialization.md), so the
          library is NOT trim/AOT-safe and does not CLAIM to be — no IsTrimmable /

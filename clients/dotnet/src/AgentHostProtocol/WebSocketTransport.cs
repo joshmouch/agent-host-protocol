@@ -10,9 +10,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AgentHostProtocol;
-
-namespace Microsoft.AgentHostProtocol.WebSockets;
+namespace Microsoft.AgentHostProtocol;
 
 /// <summary>
 /// Options for <see cref="WebSocketTransport.ConnectAsync"/> and

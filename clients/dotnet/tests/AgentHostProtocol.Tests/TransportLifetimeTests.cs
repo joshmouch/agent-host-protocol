@@ -36,19 +36,53 @@ public sealed class TransportLifetimeTests
         Assert.True(transport.Disposed);
     }
 
+    [Fact]
+    public async Task BackgroundTransportOperations_ReceiveClientLifetimeCancellation()
+    {
+        var transport = new RecordingTransport();
+        await using var client = AhpClient.Connect(transport);
+
+        await transport.ReceiveStarted.Task.WaitAsync(TestContext.Current.CancellationToken);
+        await client.NotifyAsync(
+            "test",
+            new { },
+            TestContext.Current.CancellationToken);
+        await client.ShutdownAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(transport.SendTokenCanBeCanceled);
+        Assert.True(transport.ReceiveTokenCanBeCanceled);
+        Assert.True(transport.ReceiveTokenWasCanceled);
+    }
+
     private sealed class RecordingTransport : ITransport
     {
         private readonly CancellationTokenSource _closed = new();
         public bool Disposed { get; private set; }
+        public bool SendTokenCanBeCanceled { get; private set; }
+        public bool ReceiveTokenCanBeCanceled { get; private set; }
+        public bool ReceiveTokenWasCanceled { get; private set; }
+        public TaskCompletionSource<bool> ReceiveStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default)
-            => ValueTask.CompletedTask;
+        {
+            SendTokenCanBeCanceled = cancellationToken.CanBeCanceled;
+            return ValueTask.CompletedTask;
+        }
 
         public async ValueTask<TransportMessage> ReceiveAsync(CancellationToken cancellationToken = default)
         {
+            ReceiveTokenCanBeCanceled = cancellationToken.CanBeCanceled;
+            ReceiveStarted.TrySetResult(true);
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _closed.Token);
-            try { await Task.Delay(Timeout.Infinite, linked.Token).ConfigureAwait(false); }
-            catch (OperationCanceledException) { /* fall through to the closed signal */ }
+            try
+            {
+                await Task.Delay(Timeout.Infinite, linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                ReceiveTokenWasCanceled = cancellationToken.IsCancellationRequested;
+            }
             throw new AhpTransportException("closed");
         }
 

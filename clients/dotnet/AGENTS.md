@@ -11,7 +11,7 @@ are in [`RELEASING.md`](../../RELEASING.md).
 | `src/AgentHostProtocol.Abstractions/Generated/*.generated.cs` | **Generated** wire types. Do not edit. |
 | `src/AgentHostProtocol.Abstractions/Json/`, `Transport/` | Hand-written serialization support (`AhpUnion`, `UnionConverter`, `WireEnumConverter`, `StringOrMarkdown`) and the `ITransport` / `IAhpSerializer` seams. |
 | `src/AgentHostProtocol/` | `AhpClient`, the reducers, the default `SystemTextJsonAhpSerializer`, subscriptions, and the `Hosts/` multi-host runtime. |
-| `src/AgentHostProtocol.WebSockets/` | `ClientWebSocket`-based transport. |
+| `src/AgentHostProtocol/WebSocketTransport.cs` | `ClientWebSocket`-based transport. |
 | `tests/AgentHostProtocol.Tests/` | xUnit tests, including the shared reducer-fixture conformance suite. |
 | `examples/` | Runnable console samples. |
 

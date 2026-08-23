@@ -10,14 +10,12 @@ examples run on `net8.0`.
 
 ```bash
 dotnet add package Microsoft.AgentHostProtocol
-dotnet add package Microsoft.AgentHostProtocol.WebSockets   # ClientWebSocket transport
 ```
 
 | Package | Use it for |
 | --- | --- |
 | `Microsoft.AgentHostProtocol.Abstractions` | Wire types + reducers' data contracts + the `ITransport` / `IAhpSerializer` interfaces. No I/O, no dependencies. Reference this alone to parse / construct AHP messages or implement a transport. |
-| `Microsoft.AgentHostProtocol` | The async `AhpClient`, the pure reducers, the default System.Text.Json serializer, and the `MultiHostClient`. |
-| `Microsoft.AgentHostProtocol.WebSockets` | A `System.Net.WebSockets.ClientWebSocket`-based `ITransport`. |
+| `Microsoft.AgentHostProtocol` | The async `AhpClient`, pure reducers, default System.Text.Json serializer, `ClientWebSocket` transport, and `MultiHostClient`. |
 
 (`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
 consumers add the two packages above.)
@@ -26,7 +24,6 @@ consumers add the two packages above.)
 
 ```csharp
 using Microsoft.AgentHostProtocol;
-using Microsoft.AgentHostProtocol.WebSockets;
 
 // The client takes ownership of the transport and disposes it on shutdown,
 // so dispose the client (not the transport).

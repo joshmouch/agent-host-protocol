@@ -49,7 +49,7 @@ want to validate fragment JSON without consuming it.
 | TypeScript | `typescript/vX.Y.Z` | `clients/typescript/pipeline.yml` (Azure DevOps) | npm (`@microsoft/agent-host-protocol`) via ESRP. |
 | Swift      | `vX.Y.Z` (bare)     | `.github/workflows/publish-swift.yml` | SwiftPM resolves the tag directly. |
 | Go         | `clients/go/vX.Y.Z` | `.github/workflows/publish-go.yml` | Go module proxy resolves the tag directly. |
-| .NET       | `dotnet/vX.Y.Z`     | maintainer-owned pipeline (see below) | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`, `.WebSockets`). |
+| .NET       | `dotnet/vX.Y.Z`     | maintainer-owned pipeline (see below) | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`). |
 
 > **Why Swift gets the bare semver tag namespace:** SwiftPM only resolves
 > packages by matching plain `X.Y.Z` / `vX.Y.Z` git tags at the manifest's
@@ -188,7 +188,7 @@ trigger started the run.
 5. Tag: `git tag dotnet/v0.X.Y && git push origin dotnet/v0.X.Y`.
 6. Publish the libraries (`Microsoft.AgentHostProtocol`,
    `Microsoft.AgentHostProtocol.Abstractions`,
-   `Microsoft.AgentHostProtocol.WebSockets`) to NuGet.org. This client does
+   `Microsoft.AgentHostProtocol.Abstractions`) to NuGet.org. This client does
    not ship its own publish automation — the maintainers wire the
    `dotnet pack` + `dotnet nuget push` step into their own release pipeline,
    the same way the Kotlin and TypeScript packages publish through the signed
