@@ -143,7 +143,8 @@ context's hundreds of implementation-detail properties public API.
 Custom values passed through `IAhpSerializer` need their own metadata when
 reflection is disabled. Add the application's context to the options before
 constructing the serializer; the serializer copies and freezes the options and
-adds the AHP context:
+adds the AHP context. Protocol camel-case naming and null handling remain fixed;
+other caller settings and resolvers are preserved:
 
 ```csharp
 var options = new JsonSerializerOptions();
@@ -151,8 +152,16 @@ options.TypeInfoResolverChain.Add(MyApplicationJsonContext.Default);
 var serializer = new SystemTextJsonAhpSerializer(options);
 ```
 
-CI publishes and runs `tests/AgentHostProtocol.AotSmoke` as a native executable
-with `JsonSerializerIsReflectionEnabledByDefault=false`.
+This includes non-null application-defined values returned from
+`SetServerRequestHandler`: the serializer resolves metadata for the value's
+runtime type because the handler contract returns `object`. A null handler
+result is emitted as JSON `null` without requiring metadata for `object`.
+
+CI packs both libraries, restores `tests/AgentHostProtocol.AotSmoke` from those
+local NuGet packages, and runs it as a native executable with
+`JsonSerializerIsReflectionEnabledByDefault=false`. The smoke covers
+initialization, reconnect replay, subscriptions and reducers, custom generic
+requests and notifications, and typed and raw inbound request handling.
 
 ## Releasing
 

@@ -1,0 +1,5 @@
+{
+  "type": "fixed",
+  "message": "The .NET client now preserves protocol wire settings with custom JSON metadata, serializes inbound request handler results without reflection, and validates packed packages through broader Native AOT flows.",
+  "targets": ["dotnet"]
+}
