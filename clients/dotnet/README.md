@@ -17,8 +17,8 @@ dotnet add package Microsoft.AgentHostProtocol
 | `Microsoft.AgentHostProtocol.Abstractions` | Wire types + reducers' data contracts + the `ITransport` / `IAhpSerializer` interfaces. No I/O, no dependencies. Reference this alone to parse / construct AHP messages or implement a transport. |
 | `Microsoft.AgentHostProtocol` | The async `AhpClient`, pure reducers, default System.Text.Json serializer, `ClientWebSocket` transport, and `MultiHostClient`. |
 
-(`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
-consumers add the two packages above.)
+`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
+consumers only add the main package.
 
 ## Quickstart
 
@@ -63,16 +63,28 @@ services.AddAgentHostProtocol(cfg => cfg.DefaultRequestTimeout = TimeSpan.FromSe
 
 That registers `IAhpSerializer`, `IClientIdStore`, `MultiHostClient`, and an
 `IAhpClientFactory` as singletons. Because a client needs a live transport,
-resolve the factory and call `ConnectAsync(transport)`:
+resolve the factory and call `Connect(transport)`:
 
 ```csharp
 var factory = provider.GetRequiredService<IAhpClientFactory>();
-await using var client = await factory.ConnectAsync(transport);
+await using var client = factory.Connect(transport);
 ```
 
 The `MultiHostClient` singleton is disposed by the container on shutdown. The
 `configureClient` options apply to the factory path; `MultiHostClient` hosts are
 configured per host via `HostConfig.ClientConfig`.
+
+`ClientConfig.TimeProvider` controls request timeouts, keep-alive scheduling,
+reconnect backoff, and host timestamps. It defaults to `TimeProvider.System`;
+tests can supply a fake provider to advance these behaviors without wall-clock
+delays.
+
+`MultiHostClient.EventsForHost` and `MultiHostClient.Subscriptions` preserve
+resource continuity across reconnects. A replay is delivered as
+`SubscriptionEventAction` values; when the server must replace replay with fresh
+state, each returned resource is delivered as a `SubscriptionEventSnapshot`
+before the host reports `Connected`. Consumers should replace that resource's
+local reducer state with the snapshot before processing later actions.
 
 ## Observability
 
@@ -118,6 +130,29 @@ default is `SystemTextJsonAhpSerializer` (System.Text.Json). An alternative
 implementation can swap the engine or decorate it with JSON-Schema validation
 (against the schemas the repository generates under `schema/`) without changing
 the client or transport.
+
+### Native AOT and trimming
+
+The `net8.0` assets are trim- and Native AOT-compatible. The generator emits
+System.Text.Json metadata for the complete generated protocol model. The
+default serializer uses that metadata for JSON-RPC framing, discriminated
+unions, snapshots, and wire enums without enabling reflection serialization.
+`AhpJsonMetadata.Default` exposes the resolver without making the generated
+context's hundreds of implementation-detail properties public API.
+
+Custom values passed through `IAhpSerializer` need their own metadata when
+reflection is disabled. Add the application's context to the options before
+constructing the serializer; the serializer copies and freezes the options and
+adds the AHP context:
+
+```csharp
+var options = new JsonSerializerOptions();
+options.TypeInfoResolverChain.Add(MyApplicationJsonContext.Default);
+var serializer = new SystemTextJsonAhpSerializer(options);
+```
+
+CI publishes and runs `tests/AgentHostProtocol.AotSmoke` as a native executable
+with `JsonSerializerIsReflectionEnabledByDefault=false`.
 
 ## Releasing
 

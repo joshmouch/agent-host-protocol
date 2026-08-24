@@ -908,13 +908,22 @@ internal sealed class ToolInputConverter : JsonConverter<ToolInput>
         {
             return new ToolInput { Inline = reader.GetString() };
         }
-        return new ToolInput { ContentRef = JsonSerializer.Deserialize<ContentRef>(ref reader, options) };
+        return new ToolInput
+        {
+            ContentRef = JsonSerializer.Deserialize(
+                ref reader,
+                AhpJsonTypeInfo.Get<ContentRef>(options))
+        };
     }
 
     public override void Write(Utf8JsonWriter writer, ToolInput value, JsonSerializerOptions options)
     {
         if (value.Inline is not null) { writer.WriteStringValue(value.Inline); return; }
-        if (value.ContentRef is not null) { JsonSerializer.Serialize(writer, value.ContentRef, options); return; }
+        if (value.ContentRef is not null)
+        {
+            JsonSerializer.Serialize(writer, value.ContentRef, AhpJsonTypeInfo.Get<ContentRef>(options));
+            return;
+        }
         writer.WriteNullValue();
     }
 }`;
@@ -1285,57 +1294,57 @@ internal sealed class SnapshotStateConverter : JsonConverter<SnapshotState>
             root.TryGetProperty("origin", out _) &&
             root.TryGetProperty("sessions", out _))
         {
-            result.AutomationRun = root.Deserialize<AutomationRunState>(options);
+            result.AutomationRun = root.Deserialize(AhpJsonTypeInfo.Get<AutomationRunState>(options));
         }
         else if (root.TryGetProperty("automations", out _))
         {
-            result.Automations = root.Deserialize<AutomationCatalogState>(options);
+            result.Automations = root.Deserialize(AhpJsonTypeInfo.Get<AutomationCatalogState>(options));
         }
         else if (root.TryGetProperty("turns", out _))
         {
-            result.Chat = root.Deserialize<ChatState>(options);
+            result.Chat = root.Deserialize(AhpJsonTypeInfo.Get<ChatState>(options));
         }
         else if (root.TryGetProperty("lifecycle", out _))
         {
             // SessionState is discriminated on its required \`lifecycle\` field.
             // (It no longer carries \`summary\`; that field was removed when the
             // session state was flattened.)
-            result.Session = root.Deserialize<SessionState>(options);
+            result.Session = root.Deserialize(AhpJsonTypeInfo.Get<SessionState>(options));
         }
         else if (root.TryGetProperty("content", out _))
         {
-            result.Terminal = root.Deserialize<TerminalState>(options);
+            result.Terminal = root.Deserialize(AhpJsonTypeInfo.Get<TerminalState>(options));
         }
         else if (root.TryGetProperty("status", out _) && root.TryGetProperty("files", out _))
         {
-            result.Changeset = root.Deserialize<ChangesetState>(options);
+            result.Changeset = root.Deserialize(AhpJsonTypeInfo.Get<ChangesetState>(options));
         }
         else if (root.TryGetProperty("root", out _) && root.TryGetProperty("recursive", out _))
         {
-            result.ResourceWatch = root.Deserialize<ResourceWatchState>(options);
+            result.ResourceWatch = root.Deserialize(AhpJsonTypeInfo.Get<ResourceWatchState>(options));
         }
         else if (root.TryGetProperty("annotations", out _))
         {
-            result.Annotations = root.Deserialize<AnnotationsState>(options);
+            result.Annotations = root.Deserialize(AhpJsonTypeInfo.Get<AnnotationsState>(options));
         }
         else
         {
-            result.Root = root.Deserialize<RootState>(options);
+            result.Root = root.Deserialize(AhpJsonTypeInfo.Get<RootState>(options));
         }
         return result;
     }
 
     public override void Write(Utf8JsonWriter writer, SnapshotState value, JsonSerializerOptions options)
     {
-        if (value.AutomationRun is not null) { JsonSerializer.Serialize(writer, value.AutomationRun, options); return; }
-        if (value.Automations is not null) { JsonSerializer.Serialize(writer, value.Automations, options); return; }
-        if (value.Chat is not null) { JsonSerializer.Serialize(writer, value.Chat, options); return; }
-        if (value.Session is not null) { JsonSerializer.Serialize(writer, value.Session, options); return; }
-        if (value.Terminal is not null) { JsonSerializer.Serialize(writer, value.Terminal, options); return; }
-        if (value.Changeset is not null) { JsonSerializer.Serialize(writer, value.Changeset, options); return; }
-        if (value.ResourceWatch is not null) { JsonSerializer.Serialize(writer, value.ResourceWatch, options); return; }
-        if (value.Annotations is not null) { JsonSerializer.Serialize(writer, value.Annotations, options); return; }
-        if (value.Root is not null) { JsonSerializer.Serialize(writer, value.Root, options); return; }
+        if (value.AutomationRun is not null) { JsonSerializer.Serialize(writer, value.AutomationRun, AhpJsonTypeInfo.Get<AutomationRunState>(options)); return; }
+        if (value.Automations is not null) { JsonSerializer.Serialize(writer, value.Automations, AhpJsonTypeInfo.Get<AutomationCatalogState>(options)); return; }
+        if (value.Chat is not null) { JsonSerializer.Serialize(writer, value.Chat, AhpJsonTypeInfo.Get<ChatState>(options)); return; }
+        if (value.Session is not null) { JsonSerializer.Serialize(writer, value.Session, AhpJsonTypeInfo.Get<SessionState>(options)); return; }
+        if (value.Terminal is not null) { JsonSerializer.Serialize(writer, value.Terminal, AhpJsonTypeInfo.Get<TerminalState>(options)); return; }
+        if (value.Changeset is not null) { JsonSerializer.Serialize(writer, value.Changeset, AhpJsonTypeInfo.Get<ChangesetState>(options)); return; }
+        if (value.ResourceWatch is not null) { JsonSerializer.Serialize(writer, value.ResourceWatch, AhpJsonTypeInfo.Get<ResourceWatchState>(options)); return; }
+        if (value.Annotations is not null) { JsonSerializer.Serialize(writer, value.Annotations, AhpJsonTypeInfo.Get<AnnotationsState>(options)); return; }
+        if (value.Root is not null) { JsonSerializer.Serialize(writer, value.Root, AhpJsonTypeInfo.Get<RootState>(options)); return; }
         writer.WriteNullValue();
     }
 }`;
@@ -2436,19 +2445,19 @@ internal sealed class JsonRpcMessageConverter : JsonConverter<JsonRpcMessage>
         var msg = new JsonRpcMessage();
         if (hasMethod && hasId)
         {
-            msg.Request = root.Deserialize<JsonRpcRequest>(options);
+            msg.Request = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcRequest>(options));
         }
         else if (hasMethod)
         {
-            msg.Notification = root.Deserialize<JsonRpcNotification>(options);
+            msg.Notification = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcNotification>(options));
         }
         else if (hasError)
         {
-            msg.ErrorResponse = root.Deserialize<JsonRpcErrorResponse>(options);
+            msg.ErrorResponse = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcErrorResponse>(options));
         }
         else if (hasResult)
         {
-            msg.SuccessResponse = root.Deserialize<JsonRpcSuccessResponse>(options);
+            msg.SuccessResponse = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcSuccessResponse>(options));
         }
         else
         {
@@ -2459,10 +2468,10 @@ internal sealed class JsonRpcMessageConverter : JsonConverter<JsonRpcMessage>
 
     public override void Write(Utf8JsonWriter writer, JsonRpcMessage value, JsonSerializerOptions options)
     {
-        if (value.Request is not null) { JsonSerializer.Serialize(writer, value.Request, options); return; }
-        if (value.SuccessResponse is not null) { JsonSerializer.Serialize(writer, value.SuccessResponse, options); return; }
-        if (value.ErrorResponse is not null) { JsonSerializer.Serialize(writer, value.ErrorResponse, options); return; }
-        if (value.Notification is not null) { JsonSerializer.Serialize(writer, value.Notification, options); return; }
+        if (value.Request is not null) { JsonSerializer.Serialize(writer, value.Request, AhpJsonTypeInfo.Get<JsonRpcRequest>(options)); return; }
+        if (value.SuccessResponse is not null) { JsonSerializer.Serialize(writer, value.SuccessResponse, AhpJsonTypeInfo.Get<JsonRpcSuccessResponse>(options)); return; }
+        if (value.ErrorResponse is not null) { JsonSerializer.Serialize(writer, value.ErrorResponse, AhpJsonTypeInfo.Get<JsonRpcErrorResponse>(options)); return; }
+        if (value.Notification is not null) { JsonSerializer.Serialize(writer, value.Notification, AhpJsonTypeInfo.Get<JsonRpcNotification>(options)); return; }
         writer.WriteNullValue();
     }
 }
@@ -2648,6 +2657,89 @@ function generateTelemetryFile(project: Project): string {
   return `${fileHeader()}\n${body.join('\n')}\n`;
 }
 
+function generateJsonSerializerContext(generatedFiles: readonly string[]): string {
+  const serializableTypes = new Set<string>(['Dictionary<string, string>', 'StringOrMarkdown']);
+  const declaration =
+    /^public\s+(?:(?:sealed|abstract|readonly|partial)\s+)*(?:record(?:\s+(?:class|struct))?|class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+
+  for (const source of generatedFiles) {
+    for (const match of source.matchAll(declaration)) {
+      serializableTypes.add(match[1]);
+    }
+  }
+
+  const attributes = [...serializableTypes]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => `[JsonSerializable(typeof(${name}))]`)
+    .join('\n');
+
+  return `${fileHeader()}
+${attributes}
+[JsonSourceGenerationOptions(
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
+    DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    GenerationMode = JsonSourceGenerationMode.Metadata)]
+internal partial class AgentHostProtocolJsonContext : JsonSerializerContext
+{
+}
+`;
+}
+
+function generateReducerMetadata(project: Project): string {
+  const actionTypes = new Set<string>();
+  for (const variant of ACTION_VARIANTS) {
+    const typeName = variant.tsInterface === '_merged_'
+      ? 'SessionToolCallConfirmedAction'
+      : variant.tsInterface === '_merged_chat_'
+        ? 'ChatToolCallConfirmedAction'
+        : variant.tsInterface === '_hand_written_session_truncated_'
+          ? 'SessionTruncatedAction'
+          : variant.tsInterface === '_hand_written_session_toolcallcontent_'
+            ? 'SessionToolCallContentChangedAction'
+            : variant.tsInterface === '_hand_written_session_action_'
+              ? `${variant.variantName}Action`
+              : stripIPrefix(variant.tsInterface);
+    actionTypes.add(typeName);
+  }
+
+  const cases = [...actionTypes]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => `            case ${name} value:\n                actionType = value.Type;\n                return true;`)
+    .join('\n');
+  const actionTypeEnum = findEnum(project, 'ActionType');
+  if (!actionTypeEnum) {
+    throw new Error('ActionType enum not found');
+  }
+  const wireCases = actionTypeEnum.getMembers()
+    .map((member) => [member.getName(), String(member.getValue())] as const)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, wire]) => `            ActionType.${name} => ${JSON.stringify(wire)},`)
+    .join('\n');
+
+  return `${fileHeader()}
+internal static class GeneratedActionMetadata
+{
+    public static bool TryGetActionType(object action, out ActionType actionType)
+    {
+        switch (action)
+        {
+${cases}
+            default:
+                actionType = default;
+                return false;
+        }
+    }
+
+    public static string GetWireName(ActionType actionType) =>
+        actionType switch
+        {
+${wireCases}
+            _ => throw new ArgumentOutOfRangeException(nameof(actionType)),
+        };
+}
+`;
+}
+
 // ─── Main Entry Point ────────────────────────────────────────────────────────
 
 export function generateCSharpPackage(project: Project, outputDir: string): void {
@@ -2666,12 +2758,32 @@ export function generateCSharpPackage(project: Project, outputDir: string): void
   const srcDir = path.join(outputDir, 'src', 'AgentHostProtocol.Abstractions', 'Generated');
   fs.mkdirSync(srcDir, { recursive: true });
 
-  fs.writeFileSync(path.join(srcDir, 'State.generated.cs'), generateStateFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Actions.generated.cs'), generateActionsFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Commands.generated.cs'), generateCommandsFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Notifications.generated.cs'), generateNotificationsFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Errors.generated.cs'), generateErrorsFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Messages.generated.cs'), generateMessagesFile());
-  fs.writeFileSync(path.join(srcDir, 'Version.generated.cs'), generateVersionFile(project));
-  fs.writeFileSync(path.join(srcDir, 'Telemetry.generated.cs'), generateTelemetryFile(project));
+  const state = generateStateFile(project);
+  const actions = generateActionsFile(project);
+  const commands = generateCommandsFile(project);
+  const notifications = generateNotificationsFile(project);
+  const errors = generateErrorsFile(project);
+  const messages = generateMessagesFile();
+  const version = generateVersionFile(project);
+  const telemetry = generateTelemetryFile(project);
+
+  fs.writeFileSync(path.join(srcDir, 'State.generated.cs'), state);
+  fs.writeFileSync(path.join(srcDir, 'Actions.generated.cs'), actions);
+  fs.writeFileSync(path.join(srcDir, 'Commands.generated.cs'), commands);
+  fs.writeFileSync(path.join(srcDir, 'Notifications.generated.cs'), notifications);
+  fs.writeFileSync(path.join(srcDir, 'Errors.generated.cs'), errors);
+  fs.writeFileSync(path.join(srcDir, 'Messages.generated.cs'), messages);
+  fs.writeFileSync(path.join(srcDir, 'Version.generated.cs'), version);
+  fs.writeFileSync(path.join(srcDir, 'Telemetry.generated.cs'), telemetry);
+  fs.writeFileSync(
+    path.join(srcDir, 'JsonSerializerContext.generated.cs'),
+    generateJsonSerializerContext([state, actions, commands, notifications, errors, messages]),
+  );
+
+  const runtimeGeneratedDir = path.join(outputDir, 'src', 'AgentHostProtocol', 'Generated');
+  fs.mkdirSync(runtimeGeneratedDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(runtimeGeneratedDir, 'ActionMetadata.generated.cs'),
+    generateReducerMetadata(project),
+  );
 }

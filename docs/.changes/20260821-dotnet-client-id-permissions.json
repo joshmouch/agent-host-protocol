@@ -1,0 +1,5 @@
+{
+  "type": "security",
+  "message": "The .NET `FileClientIdStore` now establishes owner-only Unix permissions before writing client-ID bytes and fails closed when it cannot do so.",
+  "targets": ["dotnet"]
+}

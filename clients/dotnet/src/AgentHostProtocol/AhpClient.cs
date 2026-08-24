@@ -52,8 +52,14 @@ public sealed class KeepAlivePolicy
     /// Periodically send a transport-level ping. Mirrors Swift
     /// <c>.ping(interval:timeout:)</c>.
     /// </summary>
-    public static KeepAlivePolicy Ping(TimeSpan interval, TimeSpan timeout) =>
-        new(isEnabled: true, interval: interval, timeout: timeout);
+    public static KeepAlivePolicy Ping(TimeSpan interval, TimeSpan timeout)
+    {
+        if (interval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(interval), interval, "Keep-alive interval must be positive.");
+        if (timeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Keep-alive timeout must be positive.");
+        return new(isEnabled: true, interval: interval, timeout: timeout);
+    }
 
     /// <summary>
     /// Convenience for the common WebSocket ping policy (30 s interval, 5 s
@@ -73,6 +79,13 @@ public sealed class ClientConfig
     public TimeSpan DefaultRequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Supplies time for request timeouts, keep-alive scheduling, reconnect
+    /// backoff, and host timestamps. Defaults to <see cref="System.TimeProvider.System"/>.
+    /// Override in tests to advance time deterministically.
+    /// </summary>
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+
+    /// <summary>
     /// Capacity of each subscription's event channel. Excess events are dropped
     /// on a full channel (mirrors Go's <c>SubscriptionBuffer</c>). Defaults to 256.
     /// </summary>
@@ -87,6 +100,20 @@ public sealed class ClientConfig
 
     /// <summary>Returns a config with sensible defaults (30 s timeout, 256-message buffer).</summary>
     public static ClientConfig Default => new();
+
+    internal static ClientConfig Snapshot(ClientConfig? config)
+    {
+        var source = config ?? Default;
+        return new ClientConfig
+        {
+            DefaultRequestTimeout = source.DefaultRequestTimeout,
+            TimeProvider = source.TimeProvider ?? TimeProvider.System,
+            SubscriptionBufferCapacity = source.SubscriptionBufferCapacity > 0
+                ? source.SubscriptionBufferCapacity
+                : 256,
+            KeepAlive = source.KeepAlive ?? KeepAlivePolicy.Disabled,
+        };
+    }
 }
 
 // ─── Connection state ──────────────────────────────────────────────────────────
@@ -226,11 +253,16 @@ public sealed class AhpClient : IAhpClient
     {
         public JsonRpcMessage Message { get; }
         public TaskCompletionSource<bool>? Sent { get; }
+        public CancellationToken CancellationToken { get; }
 
-        public OutboundMessage(JsonRpcMessage message, TaskCompletionSource<bool>? sent = null)
+        public OutboundMessage(
+            JsonRpcMessage message,
+            TaskCompletionSource<bool>? sent = null,
+            CancellationToken cancellationToken = default)
         {
             Message = message;
             Sent = sent;
+            CancellationToken = cancellationToken;
         }
     }
 
@@ -254,14 +286,15 @@ public sealed class AhpClient : IAhpClient
         // `startKeepAliveIfNeeded()` guard (`case .ping` + `as? AHPKeepAliveTransport`).
         if (_cfg.KeepAlive.IsEnabled && _transport is IKeepAliveTransport pingTransport)
         {
-            _keepAliveTask = Task.Run(() => RunKeepAliveAsync(pingTransport));
+            _keepAliveTask = RunKeepAliveAsync(pingTransport);
         }
     }
 
     /// <summary>
     /// Wires <paramref name="transport"/> to a new <see cref="AhpClient"/> and
     /// starts the background reader / writer tasks. The client owns the transport
-    /// from this point.
+    /// from this point. The configuration is snapshotted; subsequent changes to
+    /// <paramref name="config"/> do not affect the connected client.
     /// </summary>
     public static AhpClient Connect(
         ITransport transport,
@@ -269,8 +302,7 @@ public sealed class AhpClient : IAhpClient
         IAhpSerializer? serializer = null)
     {
         Guard.ThrowIfNull(transport, nameof(transport));
-        var cfg = config ?? ClientConfig.Default;
-        if (cfg.SubscriptionBufferCapacity <= 0) cfg.SubscriptionBufferCapacity = 256;
+        var cfg = ClientConfig.Snapshot(config);
         return new AhpClient(transport, cfg, serializer ?? SystemTextJsonAhpSerializer.Default);
     }
 
@@ -472,7 +504,10 @@ public sealed class AhpClient : IAhpClient
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(policy.Interval, ct).ConfigureAwait(false);
+                await TimeProviderCompatibility.DelayAsync(
+                    _cfg.TimeProvider,
+                    policy.Interval,
+                    ct).ConfigureAwait(false);
                 if (ct.IsCancellationRequested) return;
                 await pingTransport.SendPingAsync(policy.Timeout, ct).ConfigureAwait(false);
             }
@@ -496,27 +531,28 @@ public sealed class AhpClient : IAhpClient
 
     // ── Writer loop ───────────────────────────────────────────────────────
 
-    // The client routes all JSON through the injected IAhpSerializer, whose
-    // contract is [RequiresUnreferencedCode]/[RequiresDynamicCode] (the default
-    // SystemTextJsonAhpSerializer is reflection-based). The trim/AOT unsafety is
-    // declared at that contract; re-declaring it on this internal loop — or
-    // propagating the attribute up through the constructor / Connect() / the
-    // entire client + multi-host public surface — is out of scope here, so the
-    // serializer-call warnings are suppressed at the call site with that
-    // contract named as the owner.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task RunWriterAsync()
     {
         try
         {
             await foreach (var item in _outbound.Reader.ReadAllAsync(_lifetimeCts.Token).ConfigureAwait(false))
             {
+                if (item.CancellationToken.IsCancellationRequested)
+                {
+                    item.Sent?.TrySetCanceled(item.CancellationToken);
+                    continue;
+                }
+
                 var frame = _serializer.EncodeMessage(item.Message);
+                if (item.CancellationToken.IsCancellationRequested)
+                {
+                    item.Sent?.TrySetCanceled(item.CancellationToken);
+                    continue;
+                }
                 try
                 {
+                    // Canceling ClientWebSocket.SendAsync aborts the shared connection,
+                    // so message cancellation only prevents writes that have not started.
                     await _transport.SendAsync(frame, _lifetimeCts.Token).ConfigureAwait(false);
                     item.Sent?.TrySetResult(true);
                 }
@@ -545,13 +581,6 @@ public sealed class AhpClient : IAhpClient
 
     // ── Reader loop ───────────────────────────────────────────────────────
 
-    // See RunWriterAsync: JSON decode goes through the [RequiresUnreferencedCode]/
-    // [RequiresDynamicCode] IAhpSerializer, which owns the trim/AOT-unsafety
-    // declaration.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task RunReaderAsync()
     {
         try
@@ -654,12 +683,6 @@ public sealed class AhpClient : IAhpClient
     /// handler is installed, otherwise the handler's result (or its thrown error).
     /// Mirrors the TS client's <c>handleServerRequest</c>.
     /// </summary>
-    // See RunWriterAsync: the handler's result serialize goes through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task HandleServerRequestAsync(JsonRpcRequest req)
     {
         var handler = _serverRequestHandler;
@@ -715,12 +738,6 @@ public sealed class AhpClient : IAhpClient
         catch { /* shutting down — best effort */ }
     }
 
-    // See RunWriterAsync: the per-notification deserialize calls go through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private void HandleNotification(JsonRpcNotification n)
     {
         if (n.Params is null) return;
@@ -821,12 +838,6 @@ public sealed class AhpClient : IAhpClient
     /// would be non-null.
     /// </para>
     /// </summary>
-    // See RunWriterAsync: param serialize + result deserialize go through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     public async Task<TResult?> RequestAsync<TParams, TResult>(
         string method,
         TParams parameters,
@@ -843,6 +854,17 @@ public sealed class AhpClient : IAhpClient
         // result would be thrown away immediately. Must run BEFORE the id is
         // minted and the pending entry is registered.
         cancellationToken.ThrowIfCancellationRequested();
+
+        // Validate and arm the timeout before minting an id or registering pending
+        // state. If a provider rejects the duration, no bookkeeping can leak.
+        using var timeoutCts = _cfg.DefaultRequestTimeout > TimeSpan.Zero
+            ? TimeProviderCompatibility.CreateCancellationTokenSource(
+                _cfg.TimeProvider,
+                _cfg.DefaultRequestTimeout)
+            : null;
+        using var requestCts = timeoutCts is null
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         // Gate the span-name string-build on HasListeners so the no-listener path
         // stays allocation-free; the method goes in the span name (OTel "{op} {target}")
@@ -885,7 +907,7 @@ public sealed class AhpClient : IAhpClient
 
             try
             {
-                await SendMessageAsync(req, cancellationToken).ConfigureAwait(false);
+                await SendMessageAsync(req, requestCts.Token).ConfigureAwait(false);
             }
             catch
             {
@@ -894,15 +916,9 @@ public sealed class AhpClient : IAhpClient
             }
             AhpTelemetry.MessagesSent.Add(1, new KeyValuePair<string, object?>(AhpTelemetryNames.AttrMessageKind, AhpTelemetryNames.MessageKindRequest));
 
-            // Always apply the configured default timeout when positive, composing it
-            // with any caller-supplied cancellation token.
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            if (_cfg.DefaultRequestTimeout > TimeSpan.Zero)
-                linkedCts.CancelAfter(_cfg.DefaultRequestTimeout);
-
             try
             {
-                var resultEl = await tcs.Task.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                var resultEl = await tcs.Task.WaitAsync(requestCts.Token).ConfigureAwait(false);
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 outcome = AhpTelemetryNames.OutcomeOk;
                 if (resultEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -944,12 +960,6 @@ public sealed class AhpClient : IAhpClient
     /// <summary>
     /// Sends a JSON-RPC notification (fire-and-forget).
     /// </summary>
-    // See RunWriterAsync: param serialize goes through the
-    // [RequiresUnreferencedCode]/[RequiresDynamicCode] IAhpSerializer contract.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     public async Task NotifyAsync<TParams>(
         string method,
         TParams parameters,
@@ -978,7 +988,7 @@ public sealed class AhpClient : IAhpClient
     private async Task SendMessageAsync(JsonRpcMessage msg, CancellationToken cancellationToken)
     {
         var sentTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var item = new OutboundMessage(msg, sentTcs);
+        var item = new OutboundMessage(msg, sentTcs, cancellationToken);
 
         try
         {
@@ -1026,9 +1036,16 @@ public sealed class AhpClient : IAhpClient
 
         // The protocol requires a result for `initialize`; a null/empty result is
         // a protocol violation, surfaced loudly rather than returned as null.
-        return await RequestAsync<InitializeParams, InitializeResult>("initialize", @params, cancellationToken)
+        var result = await RequestAsync<InitializeParams, InitializeResult>("initialize", @params, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new AhpRpcException(JsonRpcErrorCodes.InternalError, "ahp: initialize returned no result");
+        if (!versions.Contains(result.ProtocolVersion))
+        {
+            throw new AhpTransportException(
+                "protocol",
+                $"ahp: server selected unoffered protocol version '{result.ProtocolVersion}'");
+        }
+        return result;
     }
 
     /// <summary>Re-establishes a dropped connection via the <c>reconnect</c> flow.</summary>
@@ -1340,10 +1357,6 @@ public sealed class AhpClient : IAhpClient
     // Decode the raw params into the typed record and dispatch to the matching
     // handler. An unset method rejects with MethodNotFound so the peer sees the
     // same reply as the no-handler path.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "JSON goes through the [RequiresUnreferencedCode] IAhpSerializer, which declares the reflection unsafety on its contract.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "JSON goes through the [RequiresDynamicCode] IAhpSerializer, which declares the AOT unsafety on its contract.")]
     private async Task<object?> DispatchResourceRequestAsync(
         ResourceRequestHandlers handlers, string method, JsonElement? prms)
     {

@@ -28,12 +28,10 @@ public sealed class AhpTransportException : AhpException
 {
     /// <summary>
     /// Classifies the failure. Mirrors the Go <c>TransportError.Kind</c> field, whose
-    /// vocabulary is <c>"closed"</c>, <c>"io"</c>, and <c>"protocol"</c>. This client
-    /// raises <c>"closed"</c> and <c>"io"</c>; it deliberately does not raise
-    /// <c>"protocol"</c> — where Go surfaces a protocol error on a frame it cannot
-    /// decode, this client skips the malformed frame and resyncs (counted by the
-    /// <c>ahp.client.frames.malformed</c> metric). A <c>"protocol"</c> value may still
-    /// be observed if a server reports one.
+    /// vocabulary is <c>"closed"</c>, <c>"io"</c>, and <c>"protocol"</c>.
+    /// Malformed frames are skipped and counted by the
+    /// <c>ahp.client.frames.malformed</c> metric, while handshake violations such
+    /// as selecting an unoffered protocol version raise <c>"protocol"</c>.
     /// </summary>
     public string Kind { get; }
 

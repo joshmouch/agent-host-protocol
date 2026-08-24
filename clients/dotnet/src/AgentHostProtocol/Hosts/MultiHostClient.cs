@@ -25,9 +25,11 @@ internal sealed class HostEntry : IDisposable
     // Published reference, read lock-free via CurrentClient. A reference read is
     // atomic; `volatile` supplies the visibility a lock would otherwise provide.
     private volatile AhpClient? _client;
+    private TaskCompletionSource<AhpClient?> _clientReady =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
-    private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset _updatedAt;
 
     // ── Swift-parity observable per-host state (guarded by _gate) ──────────
     // Session summaries are keyed by their `Resource` URI so add/remove/change
@@ -38,12 +40,14 @@ internal sealed class HostEntry : IDisposable
     private List<AgentInfo> _agents = new();
     private long? _activeSessions;
     private readonly List<string> _subscriptions;
+    private readonly TimeProvider _timeProvider;
     private long _serverSeq;
     private DateTimeOffset? _lastConnectedAt;
     private ulong _generation;
 
     public CancellationTokenSource LifetimeCts { get; } = new();
     public Task SupervisorTask { get; set; } = Task.CompletedTask;
+    public SemaphoreSlim ConnectionGate { get; } = new(1, 1);
 
     /// <summary>Task for the fire-and-forget pump loop started in OpenHostAsync.</summary>
     public Task PumpTask { get; set; } = Task.CompletedTask;
@@ -152,6 +156,7 @@ internal sealed class HostEntry : IDisposable
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         LifetimeCts.Dispose();
+        ConnectionGate.Dispose();
         _manualReconnect.Dispose();
         // EndAttempt normally disposes the per-attempt CTS, but a teardown that
         // interrupts an in-flight attempt may leave one set; dispose it too.
@@ -165,6 +170,8 @@ internal sealed class HostEntry : IDisposable
     public HostEntry(HostId id, HostConfig config, string clientId)
     {
         Id = id; Config = config; ClientId = clientId;
+        _timeProvider = config.ClientConfig?.TimeProvider ?? TimeProvider.System;
+        _updatedAt = _timeProvider.GetUtcNow();
         // Seed the replay subscription set from the normalized config so it
         // survives reconnects (mirrors Swift HostRuntime seeding `subscriptions`
         // from `config.initialSubscriptions`).
@@ -184,12 +191,72 @@ internal sealed class HostEntry : IDisposable
     {
         // _protoVer is read together with _state/_updatedAt by Snapshot(), so the
         // write stays under the lock; the _client write is a volatile publish.
-        lock (_gate) { _client = client; _protoVer = protoVer; }
+        lock (_gate)
+        {
+            _client = client;
+            _protoVer = protoVer;
+            if (client is null)
+            {
+                if (_clientReady.Task.IsCompleted)
+                    _clientReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            else
+            {
+                _clientReady.TrySetResult(client);
+            }
+        }
+    }
+
+    public async Task<AhpClient> WaitForClientAsync(CancellationToken cancellationToken)
+    {
+        Task<AhpClient?> ready;
+        lock (_gate)
+        {
+            if (_client is { } client) return client;
+            if (_state.Kind is not HostStateKind.Connecting and not HostStateKind.Reconnecting)
+                throw new HostNotConnectedException(Id);
+            ready = _clientReady.Task;
+        }
+
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            LifetimeCts.Token);
+        return await ready.WaitAsync(linkedCts.Token).ConfigureAwait(false)
+            ?? throw new HostNotConnectedException(Id);
     }
 
     public void SetState(HostState state)
     {
-        lock (_gate) { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
+        lock (_gate)
+        {
+            _state = state;
+            _updatedAt = _timeProvider.GetUtcNow();
+            if (_client is null)
+            {
+                if (state.Kind is HostStateKind.Connecting or HostStateKind.Reconnecting)
+                {
+                    if (_clientReady.Task.IsCompleted)
+                        _clientReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+                else
+                {
+                    _clientReady.TrySetResult(null);
+                }
+            }
+        }
+    }
+
+    public void BeginReconnect(HostState state)
+    {
+        lock (_gate)
+        {
+            _state = state;
+            _updatedAt = _timeProvider.GetUtcNow();
+            _client = null;
+            _protoVer = "";
+            if (_clientReady.Task.IsCompleted)
+                _clientReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
     }
 
     /// <summary>An immutable, consistent snapshot of this host's public state.</summary>
@@ -241,7 +308,7 @@ internal sealed class HostEntry : IDisposable
         lock (_gate)
         {
             _generation += 1;
-            _lastConnectedAt = DateTimeOffset.UtcNow;
+            _lastConnectedAt = _timeProvider.GetUtcNow();
             _serverSeq = serverSeq;
             if (root is not null)
             {
@@ -322,6 +389,43 @@ internal sealed class HostEntry : IDisposable
     public void RemoveSubscription(string uri)
     {
         lock (_gate) { _subscriptions.Remove(uri); }
+    }
+
+    /// <summary>Drops URIs that the server could not resume.</summary>
+    public void RemoveSubscriptions(IEnumerable<string> uris)
+    {
+        lock (_gate)
+        {
+            foreach (var uri in uris) _subscriptions.Remove(uri);
+        }
+    }
+
+    /// <summary>Advances the last observed server sequence without moving it backward.</summary>
+    public void AdvanceServerSeq(long serverSeq)
+    {
+        lock (_gate)
+        {
+            if (serverSeq > _serverSeq) _serverSeq = serverSeq;
+        }
+    }
+
+    /// <summary>Applies root actions represented by the public host snapshot.</summary>
+    public bool ApplyRootAction(StateAction action)
+    {
+        lock (_gate)
+        {
+            switch (action.Value)
+            {
+                case RootAgentsChangedAction agents:
+                    _agents = new List<AgentInfo>(agents.Agents);
+                    return true;
+                case RootActiveSessionsChangedAction sessions:
+                    _activeSessions = sessions.ActiveSessions;
+                    return true;
+                default:
+                    return false;
+            }
+        }
     }
 }
 
@@ -429,7 +533,9 @@ public sealed class MultiHostClient : IMultiHostClient
     /// <summary>
     /// Registers <paramref name="config"/>, opens its initial transport, runs the
     /// <c>initialize</c> handshake, and starts the reconnect supervisor. Returns a
-    /// fresh <see cref="HostHandle"/> snapshot.
+    /// fresh <see cref="HostHandle"/> snapshot. The configuration is snapshotted;
+    /// subsequent changes to its nested client configuration or collection values
+    /// do not affect reconnects.
     /// </summary>
     public async Task<HostHandle> AddHostAsync(
         HostConfig config,
@@ -440,6 +546,9 @@ public sealed class MultiHostClient : IMultiHostClient
         if (config.TransportFactory is null)
             throw new ArgumentException($"HostConfig.TransportFactory is required for {config.Id}.", nameof(config));
 
+        // Take ownership of all caller-mutable state before the first await.
+        var ownedConfig = config.Snapshot(config.ClientId ?? "");
+
         // After shutdown, adding a host is rejected with HostShutDownException
         // carrying the would-be host id (mirrors Swift `add` throwing
         // `.hostShutDown(id)` once `didShutDown`).
@@ -448,44 +557,29 @@ public sealed class MultiHostClient : IMultiHostClient
             if (_didShutDown) throw new HostShutDownException(config.Id);
         }
 
-        var policy = config.ReconnectPolicy ?? ReconnectPolicy.Default;
-        var initialSubs = config.InitialSubscriptions is { Count: > 0 }
-            ? config.InitialSubscriptions
-            : new[] { ProtocolVersion.RootResourceUri };
-        var protoVersions = config.ProtocolVersions is { Count: > 0 }
-            ? config.ProtocolVersions
-            : ProtocolVersion.Supported;
-
         // Resolve or mint a clientId.
-        var clientId = config.ClientId;
+        var clientId = ownedConfig.ClientId;
         if (string.IsNullOrEmpty(clientId))
         {
-            clientId = await _store.LoadAsync(config.Id, cancellationToken).ConfigureAwait(false);
+            clientId = await _store.LoadAsync(ownedConfig.Id, cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrEmpty(clientId))
                 clientId = GenerateClientId();
         }
-        await _store.StoreAsync(config.Id, clientId!, cancellationToken).ConfigureAwait(false);
+        await _store.StoreAsync(ownedConfig.Id, clientId!, cancellationToken).ConfigureAwait(false);
 
-        var normalizedConfig = new HostConfig
-        {
-            Id = config.Id,
-            Label = config.Label,
-            ClientId = clientId,
-            InitialSubscriptions = initialSubs,
-            ClientConfig = config.ClientConfig,
-            TransportFactory = config.TransportFactory,
-            ReconnectPolicy = policy,
-            ProtocolVersions = protoVersions,
-        };
+        var normalizedConfig = ownedConfig.Snapshot(clientId!);
 
-        var entry = new HostEntry(config.Id, normalizedConfig, clientId!);
+        var entry = new HostEntry(ownedConfig.Id, normalizedConfig, clientId!);
 
         // Atomic add-if-absent: TryAdd is the check-then-act done correctly,
         // with no separate lock and no race window. Duplicate ids surface the
         // typed DuplicateHostException carrying the offending id (mirrors Swift
         // `add` throwing `.duplicateHost(id)`).
-        if (!_hosts.TryAdd(config.Id.ToString(), entry))
-            throw new DuplicateHostException(config.Id);
+        if (!_hosts.TryAdd(ownedConfig.Id.ToString(), entry))
+        {
+            entry.Dispose();
+            throw new DuplicateHostException(ownedConfig.Id);
+        }
 
         // Initial connect; on failure remove the host and propagate.
         try
@@ -495,7 +589,11 @@ public sealed class MultiHostClient : IMultiHostClient
         catch (Exception ex)
         {
             SetHostState(entry, new HostState { Kind = HostStateKind.Failed, Error = ex });
-            _hosts.TryRemove(entry.Id.ToString(), out _);
+            if (_hosts.TryRemove(entry.Id.ToString(), out _))
+            {
+                entry.LifetimeCts.Cancel();
+                entry.Dispose();
+            }
             throw;
         }
 
@@ -560,10 +658,18 @@ public sealed class MultiHostClient : IMultiHostClient
         FinishPerHostListeners(id.ToString());
 
         entry!.LifetimeCts.Cancel();
-        var client = entry.CurrentClient;
-        if (client is not null)
+        await entry.ConnectionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
         {
-            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            var client = entry.CurrentClient;
+            if (client is not null)
+            {
+                try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            }
+        }
+        finally
+        {
+            entry.ConnectionGate.Release();
         }
         try { await entry.SupervisorTask.ConfigureAwait(false); } catch { }
         try { await entry.PumpTask.ConfigureAwait(false); } catch (OperationCanceledException) { } catch { }
@@ -632,10 +738,18 @@ public sealed class MultiHostClient : IMultiHostClient
             // cancellation and exits rather than blocking on its manual-reconnect
             // wait forever.
             entry.SignalManualReconnect();
-            var client = entry.CurrentClient;
-            if (client is not null)
+            await entry.ConnectionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+            try
             {
-                try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                var client = entry.CurrentClient;
+                if (client is not null)
+                {
+                    try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                }
+            }
+            finally
+            {
+                entry.ConnectionGate.Release();
             }
         }
 
@@ -670,83 +784,215 @@ public sealed class MultiHostClient : IMultiHostClient
 
     private async Task OpenHostAsync(HostEntry entry, CancellationToken cancellationToken, bool isReconnect = false)
     {
-        SetHostState(entry, new HostState { Kind = HostStateKind.Connecting });
-
-        var transport = await entry.Config.TransportFactory!(entry.Id, cancellationToken).ConfigureAwait(false);
-        var client = AhpClient.Connect(
-            transport,
-            entry.Config.ClientConfig,
-            null);
-
-        // On a reconnect with a known serverSeq, issue the AHP `reconnect` command
-        // (clientId + lastSeenServerSeq) so the host REPLAYS the actions missed
-        // while disconnected, instead of re-initializing from scratch. Mirrors
-        // Swift's HostRuntime reconnect path. Falls back to a fresh `initialize`
-        // on the still-live client if the host can't replay (errors / non-replay).
-        if (isReconnect)
-        {
-            var snap = entry.Snapshot();
-            ReconnectResult? reconnectResult = null;
-            try
-            {
-                reconnectResult = await client.ReconnectAsync(
-                    snap.ClientId, snap.ServerSeq, entry.Config.InitialSubscriptions, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
-            {
-                // Host does not support `reconnect` (or it errored) — fall through
-                // to a fresh `initialize` on the still-live client below. A
-                // cancellation (shutdown/dispose) is NOT swallowed: it propagates
-                // so the supervisor tears down promptly instead of blocking on a
-                // fallback initialize.
-            }
-            if (reconnectResult?.Value is ReconnectReplayResult replay)
-            {
-                entry.SetClient(client, snap.ProtocolVersion);
-                _ = ApplyReconnectReplay(entry, replay);
-                await SeedSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
-                SetHostState(entry, new HostState { Kind = HostStateKind.Connected });
-                NotifyPerHostSnapshot(entry);
-                NotifyPerHostSummaries(entry);
-                entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
-                return;
-            }
-        }
-
-        InitializeResult result;
+        CancellationTokenSource? linkedCts = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            entry.LifetimeCts.Token);
+        var attempt = new OpenHostAttempt();
+        var openTask = OpenHostCoreAsync(entry, isReconnect, attempt, linkedCts.Token);
         try
         {
-            result = await client.InitializeAsync(
+            await openTask.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
+        {
+            if (!attempt.TryAbandon())
+            {
+                // Installation has committed under ConnectionGate. Let its
+                // synchronous replay/snapshot publication finish before the
+                // supervisor can launch a replacement attempt.
+                await openTask.ConfigureAwait(false);
+                return;
+            }
+            if (openTask.IsCompleted)
+            {
+                await openTask.ConfigureAwait(false);
+                return;
+            }
+            _ = ObserveAbandonedOpenHostAsync(openTask, linkedCts);
+            linkedCts = null;
+            throw;
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+        }
+    }
+
+    private async Task OpenHostCoreAsync(
+        HostEntry entry,
+        bool isReconnect,
+        OpenHostAttempt attempt,
+        CancellationToken cancellationToken)
+    {
+        SetHostState(entry, new HostState { Kind = HostStateKind.Connecting });
+
+        var transport = await entry.Config.TransportFactory(entry.Id, cancellationToken).ConfigureAwait(false);
+        AhpClient? client = null;
+        var installed = false;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            client = AhpClient.Connect(
+                transport,
+                entry.Config.ClientConfig,
+                null);
+            transport = null;
+            // Register before the first handshake request so notifications that
+            // race initialize/reconnect are buffered rather than discarded.
+            var stream = client.CreateEventStream();
+
+            // On a reconnect with a known serverSeq, issue the AHP `reconnect` command
+            // (clientId + lastSeenServerSeq) so the host REPLAYS the actions missed
+            // while disconnected, instead of re-initializing from scratch. Mirrors
+            // Swift's HostRuntime reconnect path. Falls back to a fresh `initialize`
+            // on the still-live client if the host rejects reconnect.
+            var subscriptions = entry.Config.InitialSubscriptions;
+            if (isReconnect)
+            {
+                var snap = entry.Snapshot();
+                subscriptions = snap.Subscriptions;
+                ReconnectResult? reconnectResult = null;
+                try
+                {
+                    reconnectResult = await client.ReconnectAsync(
+                        snap.ClientId, snap.ServerSeq, subscriptions, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Host does not support `reconnect` (or it errored) — fall through
+                    // to a fresh `initialize` on the still-live client below. A
+                    // cancellation (shutdown/dispose) is NOT swallowed: it propagates
+                    // so the supervisor tears down promptly instead of blocking on a
+                    // fallback initialize.
+                }
+
+                if (reconnectResult?.Value is ReconnectReplayResult replay)
+                {
+                    var summaries = await FetchSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await entry.ConnectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        attempt.BeginCommit(cancellationToken);
+                        InstallOpenHost(entry, client, snap.ProtocolVersion, stream,
+                            () =>
+                            {
+                                if (summaries is not null) entry.SeedSessionSummaries(summaries);
+                                ApplyReconnectReplay(entry, replay);
+                            });
+                        installed = true;
+                    }
+                    finally
+                    {
+                        entry.ConnectionGate.Release();
+                    }
+                    return;
+                }
+
+                if (reconnectResult?.Value is ReconnectSnapshotResult snapshot)
+                {
+                    var summaries = await FetchSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await entry.ConnectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        attempt.BeginCommit(cancellationToken);
+                        InstallOpenHost(entry, client, snap.ProtocolVersion, stream,
+                            () =>
+                            {
+                                if (summaries is not null) entry.SeedSessionSummaries(summaries);
+                                ApplyReconnectSnapshot(entry, snapshot);
+                            });
+                        installed = true;
+                    }
+                    finally
+                    {
+                        entry.ConnectionGate.Release();
+                    }
+                    return;
+                }
+            }
+
+            var result = await client.InitializeAsync(
                 entry.ClientId,
                 entry.Config.ProtocolVersions,
-                entry.Config.InitialSubscriptions,
+                subscriptions,
                 cancellationToken)
                 .ConfigureAwait(false);
+
+            // Extract the root-state snapshot (agents + activeSessions) that the
+            // server returned for the root channel, mirroring the
+            // `init1.snapshots.first(where: resource == RootResourceURI)` block in
+            // Swift's completeHandshake.
+            var root = ExtractRootSnapshot(result.Snapshots);
+            var initialSummaries = await FetchSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            await entry.ConnectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                attempt.BeginCommit(cancellationToken);
+                InstallOpenHost(entry, client, result.ProtocolVersion, stream,
+                    () =>
+                    {
+                        if (initialSummaries is not null) entry.SeedSessionSummaries(initialSummaries);
+                        entry.ApplyConnected(root, result.ServerSeq);
+                    });
+                installed = true;
+            }
+            finally
+            {
+                entry.ConnectionGate.Release();
+            }
+        }
+        finally
+        {
+            if (!installed)
+            {
+                if (client is not null)
+                {
+                    try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                }
+                else if (transport is not null)
+                {
+                    try { await transport.CloseAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                    try { await transport.DisposeAsync().ConfigureAwait(false); } catch { }
+                }
+            }
+        }
+    }
+
+    private static async Task ObserveAbandonedOpenHostAsync(
+        Task openTask,
+        CancellationTokenSource linkedCts)
+    {
+        try { await openTask.ConfigureAwait(false); }
+        catch { }
+        finally { linkedCts.Dispose(); }
+    }
+
+    private void InstallOpenHost(
+        HostEntry entry,
+        AhpClient client,
+        string protocolVersion,
+        EventStream stream,
+        Action applyHandshake)
+    {
+        entry.SetClient(client, protocolVersion);
+        try
+        {
+            applyHandshake();
+            CompleteOpenHost(entry, stream);
         }
         catch
         {
-            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+            entry.SetClient(null, "");
             throw;
         }
+    }
 
-        entry.SetClient(client, result.ProtocolVersion);
-
-        // Extract the root-state snapshot (agents + activeSessions) that the
-        // server returned for the root channel, mirroring the
-        // `init1.snapshots.first(where: resource == RootResourceURI)` block in
-        // Swift's completeHandshake.
-        var root = ExtractRootSnapshot(result);
-        var generation = entry.ApplyConnected(root, result.ServerSeq);
-
-        // Opportunistic `listSessions` seed. Cheap on first connect; kept in
-        // sync by notifications afterward. Non-fatal: a host that doesn't
-        // answer (or is slow) leaves the cache untouched, exactly like Swift's
-        // `try? await client.request("listSessions", ...)`. We bound the wait
-        // with a short timeout so hosts that never answer don't stall the
-        // connect (the default request timeout is 30s).
-        await SeedSessionSummariesAsync(entry, client, cancellationToken).ConfigureAwait(false);
-
+    private void CompleteOpenHost(HostEntry entry, EventStream stream)
+    {
         SetHostState(entry, new HostState { Kind = HostStateKind.Connected });
 
         // Emit a post-connect snapshot + summary list to per-host stream
@@ -755,10 +1001,9 @@ public sealed class MultiHostClient : IMultiHostClient
         // Swift's hostSnapshots / sessionSummaries watchers.
         NotifyPerHostSnapshot(entry);
         NotifyPerHostSummaries(entry);
-        _ = generation; // bumped for parity; surfaced via HostHandle.Generation
 
         // Fan events out to subscribers.
-        entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, client));
+        entry.PumpTask = Task.Run(() => PumpEventsAsync(entry, stream));
     }
 
     /// <summary>
@@ -767,14 +1012,25 @@ public sealed class MultiHostClient : IMultiHostClient
     /// every replayed action out exactly like the live pump (host-state mirror +
     /// global subscription fan-in + per-(host,uri) listeners) so consumers that
     /// subscribed before the drop observe the actions missed while disconnected.
-    /// <c>Missing</c> URIs are left for the next subscribe cycle.
+    /// URIs in <c>Missing</c> are pruned from the reconnect subscription set.
     /// </summary>
     private ulong ApplyReconnectReplay(HostEntry entry, ReconnectReplayResult replay)
     {
-        var lastSeq = entry.Snapshot().ServerSeq;
+        var initialSeq = entry.Snapshot().ServerSeq;
+        var previousSeq = initialSeq;
         if (replay.Actions is { } seqScan)
-            foreach (var env in seqScan) if (env.ServerSeq > lastSeq) lastSeq = env.ServerSeq;
-        var generation = entry.ApplyConnected(null, lastSeq);
+        {
+            foreach (var env in seqScan)
+            {
+                if (env.ServerSeq <= previousSeq)
+                    throw new AhpTransportException(
+                        "protocol",
+                        $"ahp: reconnect replay sequence {env.ServerSeq} did not advance past {previousSeq}");
+                previousSeq = env.ServerSeq;
+            }
+        }
+
+        var generation = entry.ApplyConnected(null, initialSeq);
 
         if (replay.Actions is { } actions)
         {
@@ -782,6 +1038,9 @@ public sealed class MultiHostClient : IMultiHostClient
             {
                 var evt = new SubscriptionEventAction(env);
                 ApplyEventToHostState(entry, evt);
+                if (env.Channel == ProtocolVersion.RootResourceUri)
+                    entry.ApplyRootAction(env.Action);
+                entry.AdvanceServerSeq(env.ServerSeq);
                 var hostEv = new HostSubscriptionEvent(entry.Id, env.Channel, evt);
                 List<Channel<HostSubscriptionEvent>>? channels;
                 lock (_subsLock)
@@ -795,53 +1054,95 @@ public sealed class MultiHostClient : IMultiHostClient
                 BroadcastPerResourceEvent(entry.Id, env.Channel, evt);
             }
         }
+        entry.RemoveSubscriptions(replay.Missing);
         return generation;
     }
 
     /// <summary>
-    /// Pulls the <see cref="RootState"/> out of the root-channel snapshot in an
-    /// <see cref="InitializeResult"/>, or null if no root snapshot is present.
+    /// Applies a reconnect snapshot without issuing a second initialize. The
+    /// every returned resource snapshot is published before the host transitions
+    /// to connected. The subscription set is retained because stateless
+    /// subscriptions intentionally have no snapshot.
     /// </summary>
-    private static RootState? ExtractRootSnapshot(InitializeResult result)
+    private ulong ApplyReconnectSnapshot(HostEntry entry, ReconnectSnapshotResult result)
     {
-        if (result.Snapshots is null) return null;
-        foreach (var snap in result.Snapshots)
+        var lastSeq = entry.Snapshot().ServerSeq;
+        foreach (var snapshot in result.Snapshots)
         {
-            if (snap.Resource == ProtocolVersion.RootResourceUri && snap.State?.Root is { } root)
+            if (snapshot.FromSeq > lastSeq) lastSeq = snapshot.FromSeq;
+        }
+        var generation = entry.ApplyConnected(ExtractRootSnapshot(result.Snapshots), lastSeq);
+        foreach (var snapshot in result.Snapshots)
+        {
+            var evt = new SubscriptionEventSnapshot(snapshot);
+            var hostEv = new HostSubscriptionEvent(entry.Id, snapshot.Resource, evt);
+            List<Channel<HostSubscriptionEvent>>? channels;
+            lock (_subsLock)
+            {
+                channels = _subChannels.Count == 0
+                    ? null
+                    : new List<Channel<HostSubscriptionEvent>>(_subChannels);
+            }
+            if (channels is not null)
+                foreach (var ch in channels) ch.Writer.TryWrite(hostEv);
+            BroadcastPerResourceEvent(entry.Id, snapshot.Resource, evt);
+        }
+        return generation;
+    }
+
+    /// <summary>Pulls root state out of a snapshot collection, if present.</summary>
+    private static RootState? ExtractRootSnapshot(IReadOnlyList<Snapshot>? snapshots)
+    {
+        if (snapshots is null) return null;
+        foreach (var snapshot in snapshots)
+        {
+            if (snapshot.Resource == ProtocolVersion.RootResourceUri && snapshot.State?.Root is { } root)
                 return root;
         }
         return null;
     }
 
     /// <summary>
-    /// Issues a best-effort <c>listSessions</c> on the root channel and seeds the
-    /// host's summary cache. Bounded by a short timeout and fully non-fatal —
-    /// failures/timeouts leave the cache as-is.
+    /// Issues a best-effort <c>listSessions</c> on the root channel. The caller
+    /// applies the returned summaries only after the connection attempt commits.
+    /// Bounded by a short timeout and fully non-fatal.
     /// </summary>
-    private static async Task SeedSessionSummariesAsync(HostEntry entry, AhpClient client, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<SessionSummary>?> FetchSessionSummariesAsync(
+        HostEntry entry,
+        AhpClient client,
+        CancellationToken cancellationToken)
     {
         try
         {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(750));
+            using var timeout = TimeProviderCompatibility.CreateCancellationTokenSource(
+                entry.Config.ClientConfig!.TimeProvider,
+                TimeSpan.FromMilliseconds(750));
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                timeout.Token);
             var listed = await client.RequestAsync<ListSessionsParams, ListSessionsResult>(
                 "listSessions",
                 new ListSessionsParams { Channel = ProtocolVersion.RootResourceUri },
                 timeoutCts.Token)
                 .ConfigureAwait(false);
-            if (listed?.Items is { } items)
-                entry.SeedSessionSummaries(items);
+            return listed?.Items is { } items
+                ? new List<SessionSummary>(items)
+                : null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
             // Non-fatal: host did not answer listSessions in time, or returned
             // an error. Cache stays as-is (matches Swift `try?`).
+            return null;
         }
     }
 
-    private async Task PumpEventsAsync(HostEntry entry, AhpClient client)
+    private async Task PumpEventsAsync(HostEntry entry, EventStream stream)
     {
-        var stream = client.CreateEventStream();
         try
         {
             // Pass the lifetime token so a shutdown/removal (LifetimeCts.Cancel)
@@ -855,6 +1156,11 @@ public sealed class MultiHostClient : IMultiHostClient
                 // observer reading the next snapshot sees the post-event state
                 // (mirrors the ordering in Swift HostRuntime.handleEvent).
                 var summaryTouched = ApplyEventToHostState(entry, ev.Event);
+                var rootTouched = ev.Event is SubscriptionEventAction rootAction
+                    && rootAction.Envelope.Channel == ProtocolVersion.RootResourceUri
+                    && entry.ApplyRootAction(rootAction.Envelope.Action);
+                if (ev.Event is SubscriptionEventAction action)
+                    entry.AdvanceServerSeq(action.Envelope.ServerSeq);
 
                 var hostEv = new HostSubscriptionEvent(entry.Id, ev.Channel, ev.Event);
                 List<Channel<HostSubscriptionEvent>>? channels;
@@ -874,9 +1180,12 @@ public sealed class MultiHostClient : IMultiHostClient
 
                 // A session-summary-shaped notification advanced the cache:
                 // re-yield the snapshot + summary list to per-host listeners.
-                if (summaryTouched)
+                if (summaryTouched || rootTouched)
                 {
                     NotifyPerHostSnapshot(entry);
+                }
+                if (summaryTouched)
+                {
                     NotifyPerHostSummaries(entry);
                 }
             }
@@ -925,9 +1234,32 @@ public sealed class MultiHostClient : IMultiHostClient
             if (ct.IsCancellationRequested) return;
 
             // Tear the old client down before reconnecting (whether it dropped
-            // or we're forcing a manual reconnect).
-            try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
-            entry.SetClient(null, "");
+            // or we're forcing a manual reconnect). Serialize replacement with
+            // subscribe/unsubscribe, then drain the old event pump so reconnect
+            // snapshots the final sequence observed on that connection.
+            try
+            {
+                await entry.ConnectionGate.WaitAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            try
+            {
+                var oldPump = entry.PumpTask;
+                BeginReconnect(entry, new HostState
+                {
+                    Kind = HostStateKind.Reconnecting,
+                    Attempt = 1,
+                });
+                try { await client.ShutdownAsync(CancellationToken.None).ConfigureAwait(false); } catch { }
+                try { await oldPump.ConfigureAwait(false); } catch (OperationCanceledException) { } catch { }
+            }
+            finally
+            {
+                entry.ConnectionGate.Release();
+            }
 
             // A manual reconnect bypasses the reconnect policy entirely — even a
             // `.disabled` policy reconnects on explicit request. A spontaneous
@@ -952,12 +1284,25 @@ public sealed class MultiHostClient : IMultiHostClient
             while (true)
             {
                 if (ct.IsCancellationRequested) return;
-                SetHostState(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt });
 
+                Task? backoffTask = null;
                 if (!immediate)
                 {
                     var delay = policy.BackoffFor(attempt);
-                    try { await Task.Delay(delay, ct).ConfigureAwait(false); }
+                    backoffTask = TimeProviderCompatibility.DelayAsync(
+                        entry.Config.ClientConfig!.TimeProvider,
+                        delay,
+                        ct);
+                }
+
+                // Publish Reconnecting only after the backoff timer is armed. Tests
+                // and observers can then advance a fake TimeProvider without racing
+                // timer registration.
+                SetHostState(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt });
+
+                if (backoffTask is not null)
+                {
+                    try { await backoffTask.ConfigureAwait(false); }
                     catch (OperationCanceledException) { return; }
                 }
                 immediate = false;
@@ -1031,7 +1376,17 @@ public sealed class MultiHostClient : IMultiHostClient
     private void SetHostState(HostEntry entry, HostState state)
     {
         entry.SetState(state);
+        PublishHostState(entry, state);
+    }
 
+    private void BeginReconnect(HostEntry entry, HostState state)
+    {
+        entry.BeginReconnect(state);
+        PublishHostState(entry, state);
+    }
+
+    private void PublishHostState(HostEntry entry, HostState state)
+    {
         BroadcastHostEvent(new HostEvent(entry.Id, state));
 
         // A state transition is an observable change for hostSnapshots
@@ -1426,12 +1781,11 @@ public sealed class MultiHostClient : IMultiHostClient
         Guard.ThrowIfNull(uri, nameof(uri));
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
             throw new UnknownHostException(host);
-        var client = entry.CurrentClient;
-        if (client is null)
-            throw new HostNotConnectedException(host);
-        var sub = client.AttachSubscription(uri);
-        try
+
+        while (true)
         {
+            var client = await entry.WaitForClientAsync(cancellationToken).ConfigureAwait(false);
+
             // Issue the subscribe RPC; track the URI for replay on success. The
             // protocol mandates a result; a null result is a protocol violation
             // surfaced loudly rather than returned as null.
@@ -1440,21 +1794,29 @@ public sealed class MultiHostClient : IMultiHostClient
                 new SubscribeParams { Channel = uri },
                 cancellationToken).ConfigureAwait(false)
                 ?? throw new AhpRpcException(JsonRpcErrorCodes.InternalError, "ahp: subscribe returned no result");
-            entry.AppendSubscription(uri);
-            return result;
-        }
-        catch
-        {
-            sub.Dispose();
-            throw;
+
+            await entry.ConnectionGate.WaitAsync(entry.LifetimeCts.Token).ConfigureAwait(false);
+            try
+            {
+                if (ReferenceEquals(client, entry.CurrentClient))
+                {
+                    entry.AppendSubscription(uri);
+                    return result;
+                }
+            }
+            finally
+            {
+                entry.ConnectionGate.Release();
+            }
+            // The connection changed after the old host acknowledged. Repeat the
+            // RPC on the replacement before reporting success.
         }
     }
 
     /// <summary>
     /// Unsubscribes from <paramref name="uri"/> on <paramref name="host"/>, sending
-    /// the <c>unsubscribe</c> notification, closing the host client's local
-    /// subscriptions for the URI, and dropping the URI from the replay set so it is
-    /// no longer re-subscribed across reconnects. Throws
+    /// the <c>unsubscribe</c> notification and dropping the URI from the replay set
+    /// so it is no longer re-subscribed across reconnects. Throws
     /// <see cref="UnknownHostException"/> if no such host is registered, or
     /// <see cref="HostNotConnectedException"/> if the host has no live connection.
     /// Mirrors Swift's <c>unsubscribe(host:uri:)</c>.
@@ -1478,15 +1840,31 @@ public sealed class MultiHostClient : IMultiHostClient
         Guard.ThrowIfNull(uri, nameof(uri));
         if (!_hosts.TryGetValue(host.ToString(), out var entry))
             throw new UnknownHostException(host);
-        var client = entry.CurrentClient;
-        if (client is null)
-            throw new HostNotConnectedException(host);
 
-        // Send the unsubscribe RPC + close the host client's local per-URI
-        // subscriptions, then forget the URI for replay. Order matches Swift's
-        // handleUnsubscribe (RPC first, then removeSubscription).
-        await client.UnsubscribeAsync(uri, cancellationToken).ConfigureAwait(false);
-        entry.RemoveSubscription(uri);
+        while (true)
+        {
+            var client = await entry.WaitForClientAsync(cancellationToken).ConfigureAwait(false);
+
+            // Send the unsubscribe RPC, then forget the URI for replay. Order
+            // matches Swift's handleUnsubscribe (RPC first, then removeSubscription).
+            await client.UnsubscribeAsync(uri, cancellationToken).ConfigureAwait(false);
+
+            await entry.ConnectionGate.WaitAsync(entry.LifetimeCts.Token).ConfigureAwait(false);
+            try
+            {
+                if (ReferenceEquals(client, entry.CurrentClient))
+                {
+                    entry.RemoveSubscription(uri);
+                    return;
+                }
+            }
+            finally
+            {
+                entry.ConnectionGate.Release();
+            }
+            // The connection changed after the old host acknowledged. Repeat the
+            // notification on the replacement before reporting success.
+        }
     }
 
     /// <summary>
@@ -1504,6 +1882,24 @@ public sealed class MultiHostClient : IMultiHostClient
         public PerResourceListener(string uri, Channel<SubscriptionEvent> channel)
         {
             Uri = uri; Channel = channel;
+        }
+    }
+
+    internal sealed class OpenHostAttempt
+    {
+        private const int Active = 0;
+        private const int Committing = 1;
+        private const int Abandoned = 2;
+        private int _state;
+
+        public bool TryAbandon() =>
+            Interlocked.CompareExchange(ref _state, Abandoned, Active) == Active;
+
+        public void BeginCommit(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.CompareExchange(ref _state, Committing, Active) != Active)
+                throw new OperationCanceledException(cancellationToken);
         }
     }
 }

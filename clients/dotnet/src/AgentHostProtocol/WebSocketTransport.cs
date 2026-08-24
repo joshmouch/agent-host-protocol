@@ -40,15 +40,17 @@ public sealed class WebSocketTransportOptions
 /// </summary>
 public sealed class WebSocketTransport : ITransport
 {
-    private readonly ClientWebSocket _ws;
+    private readonly WebSocket _ws;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly long _maxMessageBytes;
     private int _disposed;
 
+    internal long MaxMessageBytes => _maxMessageBytes;
+
     // Receive buffer: 64 KiB initial, grows as needed.
     private byte[] _receiveBuffer = new byte[64 * 1024];
 
-    private WebSocketTransport(ClientWebSocket ws, long maxMessageBytes)
+    internal WebSocketTransport(WebSocket ws, long maxMessageBytes)
     {
         _ws = ws;
         _maxMessageBytes = maxMessageBytes;
@@ -68,18 +70,32 @@ public sealed class WebSocketTransport : ITransport
         WebSocketTransportOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        return await ConnectCoreAsync(
+            uri,
+            options,
+            static (ws, target, ct) => ws.ConnectAsync(target, ct),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    internal static async Task<WebSocketTransport> ConnectCoreAsync(
+        Uri uri,
+        WebSocketTransportOptions? options,
+        Func<ClientWebSocket, Uri, CancellationToken, Task> connectAsync,
+        CancellationToken cancellationToken)
+    {
+        var configureSocket = options?.ConfigureSocket;
+        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
         var ws = new ClientWebSocket();
         try
         {
-            options?.ConfigureSocket?.Invoke(ws);
-            await ws.ConnectAsync(uri, cancellationToken).ConfigureAwait(false);
+            configureSocket?.Invoke(ws);
+            await connectAsync(ws, uri, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
             ws.Dispose();
             throw;
         }
-        var maxBytes = options?.MaxMessageBytes ?? (32L * 1024 * 1024);
         return new WebSocketTransport(ws, maxBytes);
     }
 

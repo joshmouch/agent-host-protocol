@@ -28,12 +28,32 @@ public sealed class HostConfig
     /// <summary>Tunes the underlying <see cref="AhpClient"/> driver.</summary>
     public ClientConfig? ClientConfig { get; init; }
 
-    /// <summary>Opens a transport for this host. Required.</summary>
-    public HostTransportFactory? TransportFactory { get; init; }
+    /// <summary>
+    /// Opens a transport for this host. Required — declared with the C#
+    /// <c>required</c> modifier so callers cannot accidentally omit the
+    /// connection factory.
+    /// </summary>
+    public required HostTransportFactory TransportFactory { get; init; }
 
     /// <summary>Controls reconnect behaviour on drops. Defaults to <see cref="ReconnectPolicy.Default"/>.</summary>
     public ReconnectPolicy? ReconnectPolicy { get; init; }
 
     /// <summary>Protocol versions advertised on <c>initialize</c>. Defaults to <see cref="ProtocolVersion.Supported"/>.</summary>
     public IReadOnlyList<string>? ProtocolVersions { get; init; }
+
+    internal HostConfig Snapshot(string clientId) => new()
+    {
+        Id = Id,
+        Label = Label,
+        ClientId = clientId,
+        InitialSubscriptions = InitialSubscriptions is { Count: > 0 }
+            ? new List<string>(InitialSubscriptions)
+            : new[] { ProtocolVersion.RootResourceUri },
+        ClientConfig = Microsoft.AgentHostProtocol.ClientConfig.Snapshot(ClientConfig),
+        TransportFactory = TransportFactory,
+        ReconnectPolicy = ReconnectPolicy ?? Microsoft.AgentHostProtocol.Hosts.ReconnectPolicy.Default,
+        ProtocolVersions = ProtocolVersions is { Count: > 0 }
+            ? new List<string>(ProtocolVersions)
+            : new List<string>(ProtocolVersion.Supported),
+    };
 }

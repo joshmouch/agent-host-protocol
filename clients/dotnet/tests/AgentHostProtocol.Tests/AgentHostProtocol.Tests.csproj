@@ -29,6 +29,7 @@
          3.x keeps plain `dotnet test` working against the MTP host. -->
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="8.0.0" />
     <!-- ServiceCollection + BuildServiceProvider for the AddAgentHostProtocol tests
          (the shipping library references only the Abstractions). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />

@@ -4,9 +4,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Microsoft.AgentHostProtocol;
 
@@ -42,17 +42,6 @@ public abstract class UnionConverter<T> : JsonConverter<T>
     }
 
     /// <inheritdoc />
-    // root.Deserialize(variantType, options) resolves the payload type at runtime
-    // from the variant map — genuinely trim/AOT-unsafe. The unsafety is already
-    // declared on the public contract (IAhpSerializer is [RequiresUnreferencedCode]/
-    // [RequiresDynamicCode]); this converter is reachable ONLY through that
-    // serializer. JsonConverter<T>.Read in the base is not annotated, so the
-    // requirement cannot be re-declared via [RequiresUnreferencedCode] here (it
-    // would trip IL2046) — the suppression points back to the contract that owns it.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Reached only via the [RequiresUnreferencedCode] IAhpSerializer; the base JsonConverter<T>.Read cannot carry the attribute.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Reached only via the [RequiresDynamicCode] IAhpSerializer; the base JsonConverter<T>.Read cannot carry the attribute.")]
     public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null)
@@ -74,7 +63,8 @@ public abstract class UnionConverter<T> : JsonConverter<T>
         var result = new T();
         if (disc is not null && _variants.TryGetValue(disc, out Type? variantType))
         {
-            result.Value = root.Deserialize(variantType, options);
+            JsonTypeInfo typeInfo = options.GetTypeInfo(variantType);
+            result.Value = JsonSerializer.Deserialize(root, typeInfo);
         }
         else if (_allowUnknown)
         {
@@ -91,14 +81,6 @@ public abstract class UnionConverter<T> : JsonConverter<T>
     }
 
     /// <inheritdoc />
-    // JsonSerializer.Serialize(writer, inner, inner.GetType(), options) serializes
-    // by the boxed runtime type — genuinely trim/AOT-unsafe, for the same reason
-    // as Read above. Declared on the IAhpSerializer contract; suppressed here
-    // because the base JsonConverter<T>.Write is not annotated.
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Reached only via the [RequiresUnreferencedCode] IAhpSerializer; the base JsonConverter<T>.Write cannot carry the attribute.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "Reached only via the [RequiresDynamicCode] IAhpSerializer; the base JsonConverter<T>.Write cannot carry the attribute.")]
     public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options)
     {
         object? inner = value?.Value;
@@ -117,6 +99,7 @@ public abstract class UnionConverter<T> : JsonConverter<T>
 
         // Serialize by the runtime type so every property (including the
         // variant's own discriminator field) is written.
-        JsonSerializer.Serialize(writer, inner, inner.GetType(), options);
+        JsonTypeInfo typeInfo = options.GetTypeInfo(inner.GetType());
+        JsonSerializer.Serialize(writer, inner, typeInfo);
     }
 }

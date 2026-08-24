@@ -18,14 +18,14 @@ public sealed class MultiHostStateMirror
     // The per-resource maps key by HostedResourceKey (host + URI value type) so a
     // host id and a URI compose into one collision-free key with value equality —
     // no ad-hoc tuple delimiter to confuse with reserved URI characters.
-    private readonly ConcurrentDictionary<string, RootState> _roots = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<HostId, RootState> _roots = new();
     private readonly ConcurrentDictionary<HostedResourceKey, SessionState> _sessions = new();
     private readonly ConcurrentDictionary<HostedResourceKey, ChatState> _chats = new();
     private readonly ConcurrentDictionary<HostedResourceKey, TerminalState> _terminals = new();
     private readonly ConcurrentDictionary<HostedResourceKey, ChangesetState> _changesets = new();
 
     /// <summary>Stores <paramref name="root"/> for <paramref name="hostId"/>.</summary>
-    public void PutRoot(string hostId, RootState root)
+    public void PutRoot(HostId hostId, RootState root)
     {
         Guard.ThrowIfNull(hostId, nameof(hostId));
         Guard.ThrowIfNull(root, nameof(root));
@@ -33,11 +33,11 @@ public sealed class MultiHostStateMirror
     }
 
     /// <summary>Returns the root snapshot for <paramref name="hostId"/>, or (default, false) if absent.</summary>
-    public (RootState? Value, bool Found) Root(string hostId) =>
+    public (RootState? Value, bool Found) Root(HostId hostId) =>
         _roots.TryGetValue(hostId, out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a session snapshot under (hostId, uri).</summary>
-    public void PutSession(string hostId, string uri, SessionState state)
+    public void PutSession(HostId hostId, string uri, SessionState state)
     {
         Guard.ThrowIfNull(hostId, nameof(hostId));
         Guard.ThrowIfNull(uri, nameof(uri));
@@ -46,11 +46,11 @@ public sealed class MultiHostStateMirror
     }
 
     /// <summary>Returns the session snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (SessionState? Value, bool Found) Session(string hostId, string uri) =>
+    public (SessionState? Value, bool Found) Session(HostId hostId, string uri) =>
         _sessions.TryGetValue(new HostedResourceKey(hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a chat snapshot under (hostId, uri).</summary>
-    public void PutChat(string hostId, string uri, ChatState state)
+    public void PutChat(HostId hostId, string uri, ChatState state)
     {
         Guard.ThrowIfNull(hostId, nameof(hostId));
         Guard.ThrowIfNull(uri, nameof(uri));
@@ -59,11 +59,11 @@ public sealed class MultiHostStateMirror
     }
 
     /// <summary>Returns the chat snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (ChatState? Value, bool Found) Chat(string hostId, string uri) =>
+    public (ChatState? Value, bool Found) Chat(HostId hostId, string uri) =>
         _chats.TryGetValue(new HostedResourceKey(hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a terminal snapshot under (hostId, uri).</summary>
-    public void PutTerminal(string hostId, string uri, TerminalState state)
+    public void PutTerminal(HostId hostId, string uri, TerminalState state)
     {
         Guard.ThrowIfNull(hostId, nameof(hostId));
         Guard.ThrowIfNull(uri, nameof(uri));
@@ -72,11 +72,11 @@ public sealed class MultiHostStateMirror
     }
 
     /// <summary>Returns the terminal snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (TerminalState? Value, bool Found) Terminal(string hostId, string uri) =>
+    public (TerminalState? Value, bool Found) Terminal(HostId hostId, string uri) =>
         _terminals.TryGetValue(new HostedResourceKey(hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Stores a changeset snapshot under (hostId, uri).</summary>
-    public void PutChangeset(string hostId, string uri, ChangesetState state)
+    public void PutChangeset(HostId hostId, string uri, ChangesetState state)
     {
         Guard.ThrowIfNull(hostId, nameof(hostId));
         Guard.ThrowIfNull(uri, nameof(uri));
@@ -85,21 +85,21 @@ public sealed class MultiHostStateMirror
     }
 
     /// <summary>Returns the changeset snapshot at (hostId, uri), or (default, false) if absent.</summary>
-    public (ChangesetState? Value, bool Found) Changeset(string hostId, string uri) =>
+    public (ChangesetState? Value, bool Found) Changeset(HostId hostId, string uri) =>
         _changesets.TryGetValue(new HostedResourceKey(hostId, uri), out var v) ? (v, true) : (default, false);
 
     /// <summary>Removes every snapshot belonging to <paramref name="hostId"/>.</summary>
-    public void DropHost(string hostId)
+    public void DropHost(HostId hostId)
     {
         _roots.TryRemove(hostId, out _);
-        foreach (var k in _sessions.Keys) if (k.HostId.ToString() == hostId) _sessions.TryRemove(k, out _);
-        foreach (var k in _chats.Keys) if (k.HostId.ToString() == hostId) _chats.TryRemove(k, out _);
-        foreach (var k in _terminals.Keys) if (k.HostId.ToString() == hostId) _terminals.TryRemove(k, out _);
-        foreach (var k in _changesets.Keys) if (k.HostId.ToString() == hostId) _changesets.TryRemove(k, out _);
+        foreach (var k in _sessions.Keys) if (k.HostId.Equals(hostId)) _sessions.TryRemove(k, out _);
+        foreach (var k in _chats.Keys) if (k.HostId.Equals(hostId)) _chats.TryRemove(k, out _);
+        foreach (var k in _terminals.Keys) if (k.HostId.Equals(hostId)) _terminals.TryRemove(k, out _);
+        foreach (var k in _changesets.Keys) if (k.HostId.Equals(hostId)) _changesets.TryRemove(k, out _);
     }
 
     /// <summary>Removes the snapshot at (hostId, uri) across every resource kind.</summary>
-    public void DropResource(string hostId, string uri)
+    public void DropResource(HostId hostId, string uri)
     {
         var key = new HostedResourceKey(hostId, uri);
         _sessions.TryRemove(key, out _);

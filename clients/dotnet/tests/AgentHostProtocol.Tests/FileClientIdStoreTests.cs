@@ -9,6 +9,7 @@
 
 using System;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol.Hosts;
 using Xunit;
@@ -140,6 +141,44 @@ public sealed class FileClientIdStoreTests : IDisposable
                 | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
             Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, permBits);
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [UnsupportedOSPlatform("windows")]
+    public async Task FileClientIdStore_TempFileIsOwnerOnlyBeforeContentIsWrittenOnUnix(
+        bool useNetStandardNativeCreation)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var inspected = false;
+        var store = new FileClientIdStore(_tempDir, tempPath =>
+            AssertOwnerOnlyEmptyTempFile(tempPath, ref inspected), useNetStandardNativeCreation);
+
+        await store.StoreAsync(new HostId("h"), "sensitive-client-id", TestContext.Current.CancellationToken);
+
+        Assert.True(inspected);
+        Assert.Equal(
+            "sensitive-client-id",
+            await store.LoadAsync(new HostId("h"), TestContext.Current.CancellationToken));
+    }
+
+    [UnsupportedOSPlatform("windows")]
+    private static void AssertOwnerOnlyEmptyTempFile(string tempPath, ref bool inspected)
+    {
+        inspected = true;
+        Assert.Equal(0, new FileInfo(tempPath).Length);
+
+        var mode = File.GetUnixFileMode(tempPath);
+        var permissionBits = mode & (
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute
+            | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute);
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, permissionBits);
     }
 
     // ── F: directory path is actually a file ──────────────────────────────────

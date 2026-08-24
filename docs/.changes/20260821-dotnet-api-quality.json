@@ -1,0 +1,5 @@
+{
+  "type": "changed",
+  "message": "The .NET client now supports trimming and Native AOT through generated JSON metadata, snapshots caller-owned configuration, freezes serializer options, validates protocol negotiation, restores live reconnect state correctly, enforces valid `StringOrMarkdown` values, and consistently uses value-semantic `HostId` APIs.",
+  "targets": ["dotnet"]
+}

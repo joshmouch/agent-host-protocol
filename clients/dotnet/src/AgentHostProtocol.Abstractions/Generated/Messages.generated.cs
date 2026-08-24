@@ -103,19 +103,19 @@ internal sealed class JsonRpcMessageConverter : JsonConverter<JsonRpcMessage>
         var msg = new JsonRpcMessage();
         if (hasMethod && hasId)
         {
-            msg.Request = root.Deserialize<JsonRpcRequest>(options);
+            msg.Request = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcRequest>(options));
         }
         else if (hasMethod)
         {
-            msg.Notification = root.Deserialize<JsonRpcNotification>(options);
+            msg.Notification = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcNotification>(options));
         }
         else if (hasError)
         {
-            msg.ErrorResponse = root.Deserialize<JsonRpcErrorResponse>(options);
+            msg.ErrorResponse = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcErrorResponse>(options));
         }
         else if (hasResult)
         {
-            msg.SuccessResponse = root.Deserialize<JsonRpcSuccessResponse>(options);
+            msg.SuccessResponse = root.Deserialize(AhpJsonTypeInfo.Get<JsonRpcSuccessResponse>(options));
         }
         else
         {
@@ -126,10 +126,10 @@ internal sealed class JsonRpcMessageConverter : JsonConverter<JsonRpcMessage>
 
     public override void Write(Utf8JsonWriter writer, JsonRpcMessage value, JsonSerializerOptions options)
     {
-        if (value.Request is not null) { JsonSerializer.Serialize(writer, value.Request, options); return; }
-        if (value.SuccessResponse is not null) { JsonSerializer.Serialize(writer, value.SuccessResponse, options); return; }
-        if (value.ErrorResponse is not null) { JsonSerializer.Serialize(writer, value.ErrorResponse, options); return; }
-        if (value.Notification is not null) { JsonSerializer.Serialize(writer, value.Notification, options); return; }
+        if (value.Request is not null) { JsonSerializer.Serialize(writer, value.Request, AhpJsonTypeInfo.Get<JsonRpcRequest>(options)); return; }
+        if (value.SuccessResponse is not null) { JsonSerializer.Serialize(writer, value.SuccessResponse, AhpJsonTypeInfo.Get<JsonRpcSuccessResponse>(options)); return; }
+        if (value.ErrorResponse is not null) { JsonSerializer.Serialize(writer, value.ErrorResponse, AhpJsonTypeInfo.Get<JsonRpcErrorResponse>(options)); return; }
+        if (value.Notification is not null) { JsonSerializer.Serialize(writer, value.Notification, AhpJsonTypeInfo.Get<JsonRpcNotification>(options)); return; }
         writer.WriteNullValue();
     }
 }

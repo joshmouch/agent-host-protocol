@@ -4,7 +4,6 @@
 #nullable enable
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace Microsoft.AgentHostProtocol;
@@ -20,8 +19,6 @@ namespace Microsoft.AgentHostProtocol;
 public interface IAhpSerializer
 {
     /// <summary>Serializes <paramref name="value"/> to a JSON string.</summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     string Serialize<T>(T value);
 
     /// <summary>
@@ -30,18 +27,12 @@ public interface IAhpSerializer
     /// undisposed-document leak that <c>JsonDocument.Parse(Serialize(x)).RootElement</c>
     /// incurs). The returned element owns its backing memory and is safe to retain.
     /// </summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     JsonElement SerializeToElement<T>(T value);
 
     /// <summary>Deserializes a JSON string into <typeparamref name="T"/>.</summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     T Deserialize<T>(string json);
 
     /// <summary>Deserializes UTF-8 JSON bytes into <typeparamref name="T"/>.</summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     T Deserialize<T>(ReadOnlySpan<byte> utf8Json);
 
     /// <summary>
@@ -52,36 +43,14 @@ public interface IAhpSerializer
     /// <c>Deserialize&lt;T&gt;(element.GetRawText())</c> on hot paths (inbound
     /// notifications, request results) where the element is already in hand.
     /// </summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     T Deserialize<T>(JsonElement element);
 
     /// <summary>
     /// Decodes a transport frame into a <see cref="JsonRpcMessage"/>, picking the
     /// correct variant (request / notification / success / error) from its shape.
     /// </summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     JsonRpcMessage DecodeMessage(TransportMessage message);
 
     /// <summary>Encodes a <see cref="JsonRpcMessage"/> into a text transport frame.</summary>
-    [RequiresUnreferencedCode(SerializerTrimWarnings.UnreferencedCode)]
-    [RequiresDynamicCode(SerializerTrimWarnings.DynamicCode)]
     TransportMessage EncodeMessage(JsonRpcMessage message);
-}
-
-/// <summary>
-/// Shared <see cref="RequiresUnreferencedCodeAttribute"/> /
-/// <see cref="RequiresDynamicCodeAttribute"/> messages for the serializer seam.
-/// The default <c>SystemTextJsonAhpSerializer</c> is reflection-based (source-gen
-/// is deferred per <c>docs/decisions/serialization.md</c>), so every
-/// (de)serialization entry point declares the trim/AOT unsafety on the contract.
-/// </summary>
-internal static class SerializerTrimWarnings
-{
-    public const string UnreferencedCode =
-        "JSON (de)serialization here is reflection-based and may reference types that cannot be statically analyzed when trimming. Provide a JsonSerializerContext or preserve the wire types.";
-
-    public const string DynamicCode =
-        "JSON (de)serialization here is reflection-based and may require runtime code generation under Native AOT. Use System.Text.Json source generation for AOT.";
 }

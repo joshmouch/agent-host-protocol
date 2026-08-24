@@ -29,6 +29,12 @@ public sealed class HostId : IEquatable<HostId>
     /// <inheritdoc />
     public override int GetHashCode() => StringComparer.Ordinal.GetHashCode(_value);
 
+    /// <summary>Returns <c>true</c> when both host IDs have the same ordinal value.</summary>
+    public static bool operator ==(HostId? left, HostId? right) => Equals(left, right);
+
+    /// <summary>Returns <c>true</c> when the host IDs have different ordinal values.</summary>
+    public static bool operator !=(HostId? left, HostId? right) => !Equals(left, right);
+
     /// <summary>Implicit conversion from string.</summary>
     public static implicit operator HostId(string s) => new(s);
 }

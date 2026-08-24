@@ -3,6 +3,7 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Microsoft.AgentHostProtocol;
 
@@ -16,29 +17,34 @@ namespace Microsoft.AgentHostProtocol;
 /// </summary>
 public static class AhpJson
 {
-    /// <summary>The canonical serializer options used by the default serializer.</summary>
-    public static readonly JsonSerializerOptions Options = new()
-    {
-        // Most wire names are camelCase(PropertyName); generated types carry an
-        // explicit [JsonPropertyName] only where they aren't.
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        // Optional fields opt into omission per-property via
-        // [JsonIgnore(WhenWritingNull)]; the global default stays Never so
-        // required fields still serialize their null/zero values.
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
-    };
+    /// <summary>The canonical, read-only serializer options used by the default serializer.</summary>
+    public static readonly JsonSerializerOptions Options = CreateOptions();
 
-    static AhpJson()
+    internal static JsonSerializerOptions CreateOptions(JsonSerializerOptions? source = null)
     {
-        // Freeze the shared options so consumer mutation fails fast rather than
-        // poisoning the global wire config. IL2026/IL3050: populateMissingResolver
-        // wires the reflection-based default resolver (this library targets
-        // reflection-based STJ until a JsonSerializerContext lands, per
-        // docs/decisions/serialization.md).
-#pragma warning disable IL2026, IL3050
-        Options.MakeReadOnly(populateMissingResolver: true);
-#pragma warning restore IL2026, IL3050
+        JsonSerializerOptions options = source is null
+            ? new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+            }
+            : new JsonSerializerOptions(source);
+
+        options.TypeInfoResolverChain.Insert(0, AhpJsonMetadata.Default);
+        if (CreateReflectionFallback() is { } reflectionResolver)
+        {
+            options.TypeInfoResolverChain.Add(reflectionResolver);
+        }
+        options.MakeReadOnly();
+        return options;
     }
+
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "The reflection resolver is unreachable when System.Text.Json reflection is disabled; Native AOT substitutes IsReflectionEnabledByDefault with false.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "The reflection resolver is unreachable when System.Text.Json reflection is disabled; Native AOT substitutes IsReflectionEnabledByDefault with false.")]
+    private static DefaultJsonTypeInfoResolver? CreateReflectionFallback() =>
+        JsonSerializer.IsReflectionEnabledByDefault ? new DefaultJsonTypeInfoResolver() : null;
 }
 
 /// <summary>
@@ -52,73 +58,62 @@ public sealed class SystemTextJsonAhpSerializer : IAhpSerializer
     private readonly JsonSerializerOptions _options;
 
     /// <summary>Creates the serializer.</summary>
-    /// <param name="options">Override options; defaults to <see cref="AhpJson.Options"/>.</param>
+    /// <param name="options">
+    /// Override options; defaults to <see cref="AhpJson.Options"/>. Custom options
+    /// are copied, extended with the generated AHP metadata, and frozen so later
+    /// caller mutation cannot change serializer behavior while requests are in
+    /// flight. Add a custom <see cref="System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver"/>
+    /// to serialize non-AHP types when reflection is disabled.
+    /// </param>
     public SystemTextJsonAhpSerializer(JsonSerializerOptions? options = null)
     {
-        _options = options ?? AhpJson.Options;
+        if (options is null)
+        {
+            _options = AhpJson.Options;
+            return;
+        }
+
+        _options = AhpJson.CreateOptions(options);
     }
 
     /// <summary>A shared, reusable instance using the default options.</summary>
     public static SystemTextJsonAhpSerializer Default { get; } = new();
 
-    // This serializer is the reflection-based System.Text.Json path (source-gen
-    // deferred per docs/decisions/serialization.md), so every (de)serialize entry
-    // point is genuinely trim/AOT-unsafe: STJ may need types that cannot be
-    // statically analyzed (under trimming) or runtime code generation (under
-    // Native AOT). The reflection unsafety is declared on the contract via these
-    // attributes, matching the same attributes on the IAhpSerializer interface —
-    // the honest interim state until a JsonSerializerContext lands. (The messages
-    // mirror IAhpSerializer's SerializerTrimWarnings; the trim analyzer only
-    // requires the attribute to be PRESENT on both, not message-identical, and
-    // that constant is internal to the Abstractions assembly.)
-    private const string TrimUnreferencedCode =
-        "JSON (de)serialization here is reflection-based and may reference types that cannot be statically analyzed when trimming. Provide a JsonSerializerContext or preserve the wire types.";
-    private const string TrimDynamicCode =
-        "JSON (de)serialization here is reflection-based and may require runtime code generation under Native AOT. Use System.Text.Json source generation for AOT.";
+    /// <inheritdoc />
+    public string Serialize<T>(T value) => JsonSerializer.Serialize(value, GetTypeInfo<T>());
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
-    public string Serialize<T>(T value) => JsonSerializer.Serialize(value, _options);
-
-    /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public JsonElement SerializeToElement<T>(T value) =>
-        JsonSerializer.SerializeToElement(value, _options);
+        JsonSerializer.SerializeToElement(value, GetTypeInfo<T>());
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public T Deserialize<T>(string json) =>
-        JsonSerializer.Deserialize<T>(json, _options)
+        JsonSerializer.Deserialize(json, GetTypeInfo<T>())
         ?? throw new JsonException($"Deserialized null for {typeof(T).Name}");
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public T Deserialize<T>(ReadOnlySpan<byte> utf8Json) =>
-        JsonSerializer.Deserialize<T>(utf8Json, _options)
+        JsonSerializer.Deserialize(utf8Json, GetTypeInfo<T>())
         ?? throw new JsonException($"Deserialized null for {typeof(T).Name}");
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public T Deserialize<T>(JsonElement element) =>
-        element.Deserialize<T>(_options)
+        JsonSerializer.Deserialize(element, GetTypeInfo<T>())
         ?? throw new JsonException($"Deserialized null for {typeof(T).Name}");
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public JsonRpcMessage DecodeMessage(TransportMessage message) =>
         message.Frame == TransportFrame.Text
             ? Deserialize<JsonRpcMessage>(message.Text ?? string.Empty)
             : Deserialize<JsonRpcMessage>(message.Binary.Span);
 
     /// <inheritdoc />
-    [RequiresUnreferencedCode(TrimUnreferencedCode)]
-    [RequiresDynamicCode(TrimDynamicCode)]
     public TransportMessage EncodeMessage(JsonRpcMessage message) =>
         TransportMessage.FromText(Serialize(message));
+
+    private JsonTypeInfo<T> GetTypeInfo<T>() =>
+        _options.GetTypeInfo(typeof(T)) as JsonTypeInfo<T>
+        ?? throw new NotSupportedException(
+            $"No JSON metadata is registered for {typeof(T)}. "
+            + $"Add a JsonSerializerContext for custom types to {nameof(JsonSerializerOptions.TypeInfoResolverChain)}.");
 }
