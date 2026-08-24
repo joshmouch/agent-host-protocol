@@ -72,6 +72,26 @@ public sealed class ApiQualityTests
     }
 
     [Fact]
+    public void SystemTextJsonAhpSerializer_EnforcesProtocolWireSettings()
+    {
+        var serializer = new SystemTextJsonAhpSerializer(new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        });
+
+        string json = serializer.Serialize(new InitializeParams
+        {
+            Channel = ProtocolVersion.RootResourceUri,
+            ProtocolVersions = new List<string> { ProtocolVersion.Current },
+            ClientId = "wire-settings",
+        });
+
+        Assert.Contains("\"clientId\":\"wire-settings\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"client_id\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StringOrMarkdown_FactoriesRejectNull()
     {
         Assert.Throws<ArgumentNullException>(() => StringOrMarkdown.FromPlain(null!));

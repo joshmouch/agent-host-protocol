@@ -11,10 +11,15 @@
     <IsPackable>false</IsPackable>
     <IsPublishable>true</IsPublishable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <UsePackedPackages Condition="'$(UsePackedPackages)' == ''">false</UsePackedPackages>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(UsePackedPackages)' != 'true'">
     <ProjectReference Include="../../src/AgentHostProtocol/AgentHostProtocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UsePackedPackages)' == 'true'">
+    <PackageReference Include="Microsoft.AgentHostProtocol" Version="$(Version)" />
   </ItemGroup>
 
 </Project>

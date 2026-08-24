@@ -23,13 +23,14 @@ public static class AhpJson
     internal static JsonSerializerOptions CreateOptions(JsonSerializerOptions? source = null)
     {
         JsonSerializerOptions options = source is null
-            ? new JsonSerializerOptions
-            {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-                DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-            }
+            ? new JsonSerializerOptions()
             : new JsonSerializerOptions(source);
 
+        // These settings define the AHP wire contract. Caller options may add
+        // resolvers, converters, encoders, and other behavior, but cannot change
+        // generated property names or required-null handling.
+        options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.DefaultIgnoreCondition = JsonIgnoreCondition.Never;
         options.TypeInfoResolverChain.Insert(0, AhpJsonMetadata.Default);
         if (CreateReflectionFallback() is { } reflectionResolver)
         {
@@ -55,14 +56,17 @@ public static class AhpJson
 /// </summary>
 public sealed class SystemTextJsonAhpSerializer : IAhpSerializer
 {
+    private static readonly JsonElement s_jsonNull = CreateJsonNull();
     private readonly JsonSerializerOptions _options;
 
     /// <summary>Creates the serializer.</summary>
     /// <param name="options">
-    /// Override options; defaults to <see cref="AhpJson.Options"/>. Custom options
+    /// Custom options; defaults to <see cref="AhpJson.Options"/>. Custom options
     /// are copied, extended with the generated AHP metadata, and frozen so later
     /// caller mutation cannot change serializer behavior while requests are in
-    /// flight. Add a custom <see cref="System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver"/>
+    /// flight. The AHP camel-case naming and null-handling settings are always
+    /// enforced. Add a custom
+    /// <see cref="System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver"/>
     /// to serialize non-AHP types when reflection is disabled.
     /// </param>
     public SystemTextJsonAhpSerializer(JsonSerializerOptions? options = null)
@@ -80,11 +84,33 @@ public sealed class SystemTextJsonAhpSerializer : IAhpSerializer
     public static SystemTextJsonAhpSerializer Default { get; } = new();
 
     /// <inheritdoc />
-    public string Serialize<T>(T value) => JsonSerializer.Serialize(value, GetTypeInfo<T>());
+    public string Serialize<T>(T value)
+    {
+        if (typeof(T) != typeof(object))
+        {
+            return JsonSerializer.Serialize(value, GetTypeInfo<T>());
+        }
+
+        return value is null
+            ? "null"
+            : JsonSerializer.Serialize(value, GetTypeInfo(value.GetType()));
+    }
 
     /// <inheritdoc />
-    public JsonElement SerializeToElement<T>(T value) =>
-        JsonSerializer.SerializeToElement(value, GetTypeInfo<T>());
+    public JsonElement SerializeToElement<T>(T value)
+    {
+        if (typeof(T) != typeof(object))
+        {
+            return JsonSerializer.SerializeToElement(value, GetTypeInfo<T>());
+        }
+
+        if (value is not null)
+        {
+            return JsonSerializer.SerializeToElement(value, GetTypeInfo(value.GetType()));
+        }
+
+        return s_jsonNull;
+    }
 
     /// <inheritdoc />
     public T Deserialize<T>(string json) =>
@@ -112,8 +138,20 @@ public sealed class SystemTextJsonAhpSerializer : IAhpSerializer
         TransportMessage.FromText(Serialize(message));
 
     private JsonTypeInfo<T> GetTypeInfo<T>() =>
-        _options.GetTypeInfo(typeof(T)) as JsonTypeInfo<T>
+        GetTypeInfo(typeof(T)) as JsonTypeInfo<T>
         ?? throw new NotSupportedException(
             $"No JSON metadata is registered for {typeof(T)}. "
             + $"Add a JsonSerializerContext for custom types to {nameof(JsonSerializerOptions.TypeInfoResolverChain)}.");
+
+    private JsonTypeInfo GetTypeInfo(Type type) =>
+        _options.GetTypeInfo(type)
+        ?? throw new NotSupportedException(
+            $"No JSON metadata is registered for {type}. "
+            + $"Add a JsonSerializerContext for custom types to {nameof(JsonSerializerOptions.TypeInfoResolverChain)}.");
+
+    private static JsonElement CreateJsonNull()
+    {
+        using JsonDocument document = JsonDocument.Parse("null");
+        return document.RootElement.Clone();
+    }
 }
