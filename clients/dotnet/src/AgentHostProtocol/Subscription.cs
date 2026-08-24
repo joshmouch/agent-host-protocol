@@ -30,6 +30,17 @@ public sealed class SubscriptionEventAction : SubscriptionEvent
     public SubscriptionEventAction(ActionEnvelope envelope) => Envelope = envelope;
 }
 
+/// <summary>A point-in-time snapshot delivered when reconnect replaces replay with fresh state.</summary>
+public sealed class SubscriptionEventSnapshot : SubscriptionEvent
+{
+    /// <summary>The resource snapshot from the server.</summary>
+    public Snapshot Snapshot { get; }
+
+    /// <summary>Creates a new snapshot event.</summary>
+    public SubscriptionEventSnapshot(Snapshot snapshot) =>
+        Snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
+}
+
 /// <summary>Mirrors the <c>root/sessionAdded</c> notification.</summary>
 public sealed class SubscriptionEventSessionAdded : SubscriptionEvent
 {

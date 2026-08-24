@@ -2658,7 +2658,7 @@ function generateTelemetryFile(project: Project): string {
 }
 
 function generateJsonSerializerContext(generatedFiles: readonly string[]): string {
-  const serializableTypes = new Set<string>(['StringOrMarkdown']);
+  const serializableTypes = new Set<string>(['Dictionary<string, string>', 'StringOrMarkdown']);
   const declaration =
     /^public\s+(?:(?:sealed|abstract|readonly|partial)\s+)*(?:record(?:\s+(?:class|struct))?|class|struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
 

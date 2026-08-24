@@ -56,6 +56,8 @@ public sealed class KeepAlivePolicy
     {
         if (interval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(interval), interval, "Keep-alive interval must be positive.");
+        if (timeout <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Keep-alive timeout must be positive.");
         return new(isEnabled: true, interval: interval, timeout: timeout);
     }
 
@@ -542,6 +544,11 @@ public sealed class AhpClient : IAhpClient
                 }
 
                 var frame = _serializer.EncodeMessage(item.Message);
+                if (item.CancellationToken.IsCancellationRequested)
+                {
+                    item.Sent?.TrySetCanceled(item.CancellationToken);
+                    continue;
+                }
                 try
                 {
                     // Canceling ClientWebSocket.SendAsync aborts the shared connection,

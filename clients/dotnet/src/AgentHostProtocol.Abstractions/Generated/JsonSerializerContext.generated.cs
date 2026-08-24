@@ -185,6 +185,7 @@ namespace Microsoft.AgentHostProtocol;
 [JsonSerializable(typeof(CustomizationLoadState))]
 [JsonSerializable(typeof(CustomizationLoadStatus))]
 [JsonSerializable(typeof(CustomizationType))]
+[JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(DirectoryCustomization))]
 [JsonSerializable(typeof(DirectoryEntry))]
 [JsonSerializable(typeof(DispatchActionParams))]

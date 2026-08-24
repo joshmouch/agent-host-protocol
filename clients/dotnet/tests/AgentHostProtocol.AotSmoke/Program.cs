@@ -1,4 +1,7 @@
 using Microsoft.AgentHostProtocol;
+using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
 
 var serializer = SystemTextJsonAhpSerializer.Default;
 
@@ -60,12 +63,64 @@ Require(
     AhpJson.Options.GetTypeInfo(typeof(ActionEnvelope)) is not null,
     "Generated metadata is missing ActionEnvelope.");
 
-Console.WriteLine("Native AOT serialization smoke test passed.");
+var pingTransport = new PingLoopbackTransport(serializer);
+await using (var pingClient = AhpClient.Connect(pingTransport))
+{
+    await pingClient.PingAsync();
+    await pingClient.ShutdownAsync();
+}
+Require(pingTransport.PingReceived, "PingAsync did not send a ping request.");
+
+Console.WriteLine("Native AOT serialization and client ping smoke test passed.");
 
 static void Require(bool condition, string message)
 {
     if (!condition)
     {
         throw new InvalidOperationException(message);
+    }
+}
+
+sealed class PingLoopbackTransport(IAhpSerializer serializer) : ITransport
+{
+    private readonly Channel<TransportMessage> _responses = Channel.CreateUnbounded<TransportMessage>();
+
+    public bool PingReceived { get; private set; }
+
+    public ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default)
+    {
+        var request = serializer.DecodeMessage(message).Request
+            ?? throw new InvalidOperationException("Expected a JSON-RPC request.");
+        if (request.Method != "ping")
+        {
+            throw new InvalidOperationException($"Expected ping, received {request.Method}.");
+        }
+
+        PingReceived = true;
+        using var nullDocument = System.Text.Json.JsonDocument.Parse("null");
+        var response = new JsonRpcMessage
+        {
+            SuccessResponse = new JsonRpcSuccessResponse
+            {
+                Id = request.Id,
+                Result = nullDocument.RootElement.Clone(),
+            },
+        };
+        return _responses.Writer.WriteAsync(serializer.EncodeMessage(response), cancellationToken);
+    }
+
+    public ValueTask<TransportMessage> ReceiveAsync(CancellationToken cancellationToken = default) =>
+        _responses.Reader.ReadAsync(cancellationToken);
+
+    public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+    {
+        _responses.Writer.TryComplete();
+        return default;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _responses.Writer.TryComplete();
+        return default;
     }
 }

@@ -1096,12 +1096,16 @@ public sealed class ClientTests
     }
 
     [Fact]
-    public void KeepAlive_RejectsNonPositiveInterval()
+    public void KeepAlive_RejectsNonPositiveIntervalAndTimeout()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             KeepAlivePolicy.Ping(TimeSpan.Zero, TimeSpan.FromSeconds(1)));
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             KeepAlivePolicy.Ping(TimeSpan.FromSeconds(-1), TimeSpan.FromSeconds(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KeepAlivePolicy.Ping(TimeSpan.FromSeconds(1), TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KeepAlivePolicy.Ping(TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(-1)));
     }
 
     // D: keep-alive ping failure — a failed ping is treated as a transport failure:

@@ -176,6 +176,41 @@ public sealed class FixRegressionTests
     }
 
     [Fact]
+    public async Task RequestTimeout_DuringSerialization_SkipsTransportSend()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var transport = new CountingTransport();
+        var serializer = new BlockingEncodeSerializer();
+        await using var client = AhpClient.Connect(
+            transport,
+            new ClientConfig
+            {
+                DefaultRequestTimeout = TimeSpan.FromSeconds(30),
+                TimeProvider = timeProvider,
+            },
+            serializer);
+
+        var request = client.RequestAsync<object?, object?>(
+            "slow-serialization",
+            null,
+            TestContext.Current.CancellationToken);
+        await serializer.EncodeStarted.WaitAsync(TestContext.Current.CancellationToken);
+
+        try
+        {
+            timeProvider.Advance(TimeSpan.FromSeconds(30));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+        }
+        finally
+        {
+            serializer.ReleaseEncode();
+        }
+        await client.NotifyAsync("after-timeout", new { }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, transport.SendAttempts);
+    }
+
+    [Fact]
     public async Task InvalidRequestTimeout_DoesNotRegisterPendingRequest()
     {
         var (clientSide, _) = MemTransport.CreatePair();
@@ -1098,5 +1133,77 @@ public sealed class FixRegressionTests
         }
 
         public ValueTask DisposeAsync() => CloseAsync();
+    }
+
+    private sealed class CountingTransport : ITransport
+    {
+        private readonly TaskCompletionSource _closed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _sendAttempts;
+
+        public int SendAttempts => Volatile.Read(ref _sendAttempts);
+
+        public ValueTask SendAsync(
+            TransportMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref _sendAttempts);
+            return ValueTask.CompletedTask;
+        }
+
+        public async ValueTask<TransportMessage> ReceiveAsync(
+            CancellationToken cancellationToken = default)
+        {
+            await _closed.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            throw new TransportClosedException();
+        }
+
+        public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+        {
+            _closed.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => CloseAsync();
+    }
+
+    private sealed class BlockingEncodeSerializer : IAhpSerializer
+    {
+        private readonly ManualResetEventSlim _releaseEncode = new(initialState: false);
+        private readonly TaskCompletionSource _encodeStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _encodeCount;
+
+        public Task EncodeStarted => _encodeStarted.Task;
+
+        public void ReleaseEncode() => _releaseEncode.Set();
+
+        public string Serialize<T>(T value) => SystemTextJsonAhpSerializer.Default.Serialize(value);
+
+        public JsonElement SerializeToElement<T>(T value) =>
+            SystemTextJsonAhpSerializer.Default.SerializeToElement(value);
+
+        public T Deserialize<T>(string json) =>
+            SystemTextJsonAhpSerializer.Default.Deserialize<T>(json);
+
+        public T Deserialize<T>(ReadOnlySpan<byte> utf8Json) =>
+            SystemTextJsonAhpSerializer.Default.Deserialize<T>(utf8Json);
+
+        public T Deserialize<T>(JsonElement element) =>
+            SystemTextJsonAhpSerializer.Default.Deserialize<T>(element);
+
+        public JsonRpcMessage DecodeMessage(TransportMessage message) =>
+            SystemTextJsonAhpSerializer.Default.DecodeMessage(message);
+
+        public TransportMessage EncodeMessage(JsonRpcMessage message)
+        {
+            if (Interlocked.Increment(ref _encodeCount) == 1)
+            {
+                _encodeStarted.TrySetResult();
+                _releaseEncode.Wait(TestContext.Current.CancellationToken);
+            }
+
+            return SystemTextJsonAhpSerializer.Default.EncodeMessage(message);
+        }
     }
 }

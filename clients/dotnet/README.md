@@ -79,6 +79,13 @@ reconnect backoff, and host timestamps. It defaults to `TimeProvider.System`;
 tests can supply a fake provider to advance these behaviors without wall-clock
 delays.
 
+`MultiHostClient.EventsForHost` and `MultiHostClient.Subscriptions` preserve
+resource continuity across reconnects. A replay is delivered as
+`SubscriptionEventAction` values; when the server must replace replay with fresh
+state, each returned resource is delivered as a `SubscriptionEventSnapshot`
+before the host reports `Connected`. Consumers should replace that resource's
+local reducer state with the snapshot before processing later actions.
+
 ## Observability
 
 The client emits OpenTelemetry-native traces and metrics via `System.Diagnostics`
