@@ -17,7 +17,6 @@ import type { AgentInfo, ModelSelection, SessionModelInfo } from '../channels-ro
 import type { CreateSessionParams } from '../channels-session/commands.js';
 import type { AgentSelection } from '../channels-session/state.js';
 import type {
-  AutomationCreateRequestedAction,
   AutomationRemovedAction,
   AutomationSetAction,
   AutomationUpdateRequestedAction,
