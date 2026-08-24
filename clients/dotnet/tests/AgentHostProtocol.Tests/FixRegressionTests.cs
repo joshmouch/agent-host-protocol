@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol.Hosts;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Microsoft.AgentHostProtocol.Tests;
@@ -91,14 +92,106 @@ public sealed class FixRegressionTests
         });
         meterListener.Start();
 
-        var (clientSide, _) = MemTransport.CreatePair();   // server never replies
-        var cfg = new ClientConfig { DefaultRequestTimeout = TimeSpan.FromMilliseconds(50) };
+        var timeProvider = new FakeTimeProvider();
+        var (clientSide, serverSide) = MemTransport.CreatePair();   // server never replies
+        var cfg = new ClientConfig
+        {
+            DefaultRequestTimeout = TimeSpan.FromSeconds(30),
+            TimeProvider = timeProvider,
+        };
         await using var client = AhpClient.Connect(clientSide, cfg);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            client.RequestAsync<object?, object?>("noop", null, TestContext.Current.CancellationToken));
+        var request = client.RequestAsync<object?, object?>(
+            "noop",
+            null,
+            TestContext.Current.CancellationToken);
+        await serverSide.ReceiveAsync(TestContext.Current.CancellationToken);
+        timeProvider.Advance(TimeSpan.FromSeconds(30));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
 
         Assert.True(sawTimeout, "request.duration should carry ahp.outcome=timeout when the default timeout fires");
+    }
+
+    [Fact]
+    public async Task RequestTimeout_DoesNotCancelActiveTransportSend()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var transport = new ControlledSendTransport();
+        await using var client = AhpClient.Connect(
+            transport,
+            new ClientConfig
+            {
+                DefaultRequestTimeout = TimeSpan.FromSeconds(30),
+                TimeProvider = timeProvider,
+            });
+
+        var request = client.RequestAsync<object?, object?>(
+            "slow-send",
+            null,
+            TestContext.Current.CancellationToken);
+        await transport.FirstSendStarted.WaitAsync(TestContext.Current.CancellationToken);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(30));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+        Assert.False(transport.FirstSendCanceled.IsCompleted);
+
+        transport.ReleaseFirstSend();
+        await client.NotifyAsync("after-timeout", new { }, TestContext.Current.CancellationToken);
+        Assert.Equal(2, transport.SendAttempts);
+    }
+
+    [Fact]
+    public async Task RequestTimeout_SkipsCanceledQueuedSend()
+    {
+        var timeProvider = new FakeTimeProvider();
+        var transport = new ControlledSendTransport();
+        await using var client = AhpClient.Connect(
+            transport,
+            new ClientConfig
+            {
+                DefaultRequestTimeout = TimeSpan.FromSeconds(30),
+                TimeProvider = timeProvider,
+            });
+
+        var firstSend = client.NotifyAsync(
+            "blocking-send",
+            new { },
+            TestContext.Current.CancellationToken);
+        await transport.FirstSendStarted.WaitAsync(TestContext.Current.CancellationToken);
+
+        var request = client.RequestAsync<object?, object?>(
+            "queued-request",
+            null,
+            TestContext.Current.CancellationToken);
+        timeProvider.Advance(TimeSpan.FromSeconds(30));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+
+        transport.ReleaseFirstSend();
+        await firstSend;
+        await client.NotifyAsync("after-timeout", new { }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, transport.SendAttempts);
+    }
+
+    [Fact]
+    public async Task InvalidRequestTimeout_DoesNotRegisterPendingRequest()
+    {
+        var (clientSide, _) = MemTransport.CreatePair();
+        await using var client = AhpClient.Connect(
+            clientSide,
+            new ClientConfig { DefaultRequestTimeout = TimeSpan.MaxValue });
+        var nextRequestId = client.NextRequestId;
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            client.RequestAsync<object?, object?>(
+                "invalid-timeout",
+                null,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, client.PendingRequestCount);
+        Assert.Equal(nextRequestId, client.NextRequestId);
     }
 
     // ── Pre-existing fix: HostEntry.ApplySummaryChange is copy-on-write, so a snapshot
@@ -950,5 +1043,60 @@ public sealed class FixRegressionTests
         Assert.Same(answers, part.Request.Answers);
         Assert.True(part.Request.Answers!.ContainsKey("q1"));
         Assert.Equal("pick one (again)", part.Request.Message);
+    }
+
+    private sealed class ControlledSendTransport : ITransport
+    {
+        private readonly TaskCompletionSource _firstSendStarted =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _firstSendCanceled =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _releaseFirstSend =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _closed =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _sendAttempts;
+
+        public Task FirstSendStarted => _firstSendStarted.Task;
+
+        public Task FirstSendCanceled => _firstSendCanceled.Task;
+
+        public int SendAttempts => Volatile.Read(ref _sendAttempts);
+
+        public void ReleaseFirstSend() => _releaseFirstSend.TrySetResult();
+
+        public async ValueTask SendAsync(
+            TransportMessage message,
+            CancellationToken cancellationToken = default)
+        {
+            if (Interlocked.Increment(ref _sendAttempts) != 1)
+                return;
+
+            _firstSendStarted.TrySetResult();
+            try
+            {
+                await _releaseFirstSend.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                _firstSendCanceled.TrySetResult();
+                throw;
+            }
+        }
+
+        public async ValueTask<TransportMessage> ReceiveAsync(
+            CancellationToken cancellationToken = default)
+        {
+            await _closed.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            throw new TransportClosedException();
+        }
+
+        public ValueTask CloseAsync(CancellationToken cancellationToken = default)
+        {
+            _closed.TrySetResult();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => CloseAsync();
     }
 }

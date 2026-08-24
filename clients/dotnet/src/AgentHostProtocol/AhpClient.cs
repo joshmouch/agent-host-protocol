@@ -52,8 +52,12 @@ public sealed class KeepAlivePolicy
     /// Periodically send a transport-level ping. Mirrors Swift
     /// <c>.ping(interval:timeout:)</c>.
     /// </summary>
-    public static KeepAlivePolicy Ping(TimeSpan interval, TimeSpan timeout) =>
-        new(isEnabled: true, interval: interval, timeout: timeout);
+    public static KeepAlivePolicy Ping(TimeSpan interval, TimeSpan timeout)
+    {
+        if (interval <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(interval), interval, "Keep-alive interval must be positive.");
+        return new(isEnabled: true, interval: interval, timeout: timeout);
+    }
 
     /// <summary>
     /// Convenience for the common WebSocket ping policy (30 s interval, 5 s
@@ -71,6 +75,13 @@ public sealed class ClientConfig
     /// response. Zero disables the timeout. Defaults to 30 seconds.
     /// </summary>
     public TimeSpan DefaultRequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Supplies time for request timeouts, keep-alive scheduling, reconnect
+    /// backoff, and host timestamps. Defaults to <see cref="System.TimeProvider.System"/>.
+    /// Override in tests to advance time deterministically.
+    /// </summary>
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>
     /// Capacity of each subscription's event channel. Excess events are dropped
@@ -94,6 +105,7 @@ public sealed class ClientConfig
         return new ClientConfig
         {
             DefaultRequestTimeout = source.DefaultRequestTimeout,
+            TimeProvider = source.TimeProvider ?? TimeProvider.System,
             SubscriptionBufferCapacity = source.SubscriptionBufferCapacity > 0
                 ? source.SubscriptionBufferCapacity
                 : 256,
@@ -239,11 +251,16 @@ public sealed class AhpClient : IAhpClient
     {
         public JsonRpcMessage Message { get; }
         public TaskCompletionSource<bool>? Sent { get; }
+        public CancellationToken CancellationToken { get; }
 
-        public OutboundMessage(JsonRpcMessage message, TaskCompletionSource<bool>? sent = null)
+        public OutboundMessage(
+            JsonRpcMessage message,
+            TaskCompletionSource<bool>? sent = null,
+            CancellationToken cancellationToken = default)
         {
             Message = message;
             Sent = sent;
+            CancellationToken = cancellationToken;
         }
     }
 
@@ -267,7 +284,7 @@ public sealed class AhpClient : IAhpClient
         // `startKeepAliveIfNeeded()` guard (`case .ping` + `as? AHPKeepAliveTransport`).
         if (_cfg.KeepAlive.IsEnabled && _transport is IKeepAliveTransport pingTransport)
         {
-            _keepAliveTask = Task.Run(() => RunKeepAliveAsync(pingTransport));
+            _keepAliveTask = RunKeepAliveAsync(pingTransport);
         }
     }
 
@@ -485,7 +502,10 @@ public sealed class AhpClient : IAhpClient
         {
             while (!ct.IsCancellationRequested)
             {
-                await Task.Delay(policy.Interval, ct).ConfigureAwait(false);
+                await TimeProviderCompatibility.DelayAsync(
+                    _cfg.TimeProvider,
+                    policy.Interval,
+                    ct).ConfigureAwait(false);
                 if (ct.IsCancellationRequested) return;
                 await pingTransport.SendPingAsync(policy.Timeout, ct).ConfigureAwait(false);
             }
@@ -515,9 +535,17 @@ public sealed class AhpClient : IAhpClient
         {
             await foreach (var item in _outbound.Reader.ReadAllAsync(_lifetimeCts.Token).ConfigureAwait(false))
             {
+                if (item.CancellationToken.IsCancellationRequested)
+                {
+                    item.Sent?.TrySetCanceled(item.CancellationToken);
+                    continue;
+                }
+
                 var frame = _serializer.EncodeMessage(item.Message);
                 try
                 {
+                    // Canceling ClientWebSocket.SendAsync aborts the shared connection,
+                    // so message cancellation only prevents writes that have not started.
                     await _transport.SendAsync(frame, _lifetimeCts.Token).ConfigureAwait(false);
                     item.Sent?.TrySetResult(true);
                 }
@@ -820,6 +848,17 @@ public sealed class AhpClient : IAhpClient
         // minted and the pending entry is registered.
         cancellationToken.ThrowIfCancellationRequested();
 
+        // Validate and arm the timeout before minting an id or registering pending
+        // state. If a provider rejects the duration, no bookkeeping can leak.
+        using var timeoutCts = _cfg.DefaultRequestTimeout > TimeSpan.Zero
+            ? TimeProviderCompatibility.CreateCancellationTokenSource(
+                _cfg.TimeProvider,
+                _cfg.DefaultRequestTimeout)
+            : null;
+        using var requestCts = timeoutCts is null
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         // Gate the span-name string-build on HasListeners so the no-listener path
         // stays allocation-free; the method goes in the span name (OTel "{op} {target}")
         // and as the rpc.method tag.
@@ -861,7 +900,7 @@ public sealed class AhpClient : IAhpClient
 
             try
             {
-                await SendMessageAsync(req, cancellationToken).ConfigureAwait(false);
+                await SendMessageAsync(req, requestCts.Token).ConfigureAwait(false);
             }
             catch
             {
@@ -870,15 +909,9 @@ public sealed class AhpClient : IAhpClient
             }
             AhpTelemetry.MessagesSent.Add(1, new KeyValuePair<string, object?>(AhpTelemetryNames.AttrMessageKind, AhpTelemetryNames.MessageKindRequest));
 
-            // Always apply the configured default timeout when positive, composing it
-            // with any caller-supplied cancellation token.
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            if (_cfg.DefaultRequestTimeout > TimeSpan.Zero)
-                linkedCts.CancelAfter(_cfg.DefaultRequestTimeout);
-
             try
             {
-                var resultEl = await tcs.Task.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                var resultEl = await tcs.Task.WaitAsync(requestCts.Token).ConfigureAwait(false);
                 activity?.SetStatus(ActivityStatusCode.Ok);
                 outcome = AhpTelemetryNames.OutcomeOk;
                 if (resultEl.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -948,7 +981,7 @@ public sealed class AhpClient : IAhpClient
     private async Task SendMessageAsync(JsonRpcMessage msg, CancellationToken cancellationToken)
     {
         var sentTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var item = new OutboundMessage(msg, sentTcs);
+        var item = new OutboundMessage(msg, sentTcs, cancellationToken);
 
         try
         {

@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "`ClientConfig.TimeProvider` enables deterministic request timeout, keep-alive, reconnect scheduling, and host timestamps.",
+  "targets": ["dotnet"]
+}

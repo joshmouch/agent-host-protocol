@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Microsoft.AgentHostProtocol.Tests;
@@ -1050,22 +1051,24 @@ public sealed class ClientTests
     public async Task KeepAlive_PingsWhenCapable()
     {
         var transport = new PingCountingTransport();
+        var timeProvider = new FakeTimeProvider();
         var client = AhpClient.Connect(
             transport,
             new ClientConfig
             {
+                TimeProvider = timeProvider,
                 KeepAlive = KeepAlivePolicy.Enabled(
-                    interval: TimeSpan.FromMilliseconds(10),
-                    timeout: TimeSpan.FromMilliseconds(10)),
+                    interval: TimeSpan.FromSeconds(10),
+                    timeout: TimeSpan.FromSeconds(10)),
             });
 
-        // The ping loop runs from construction; wait until it has pinged at least
-        // twice (proving the loop repeats, not just fires once).
-        await WaitUntilAsync(
-            () => transport.PingCount >= 2,
-            because: "keep-alive loop should issue repeated pings on a capable transport");
+        timeProvider.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, await transport.ReadPingCountAsync(TestContext.Current.CancellationToken));
 
-        Assert.True(transport.PingCount >= 2, $"expected >=2 pings, got {transport.PingCount}");
+        timeProvider.Advance(TimeSpan.FromSeconds(10));
+        Assert.Equal(2, await transport.ReadPingCountAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(2, transport.PingCount);
 
         await client.ShutdownAsync(TestContext.Current.CancellationToken);
     }
@@ -1076,15 +1079,29 @@ public sealed class ClientTests
     public async Task KeepAlive_DisabledByConfig()
     {
         var transport = new PingCountingTransport();
+        var timeProvider = new FakeTimeProvider();
         var client = AhpClient.Connect(
             transport,
-            new ClientConfig { KeepAlive = KeepAlivePolicy.Disabled });
+            new ClientConfig
+            {
+                TimeProvider = timeProvider,
+                KeepAlive = KeepAlivePolicy.Disabled,
+            });
 
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        timeProvider.Advance(TimeSpan.FromDays(1));
 
         Assert.Equal(0, transport.PingCount);
 
         await client.ShutdownAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public void KeepAlive_RejectsNonPositiveInterval()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KeepAlivePolicy.Ping(TimeSpan.Zero, TimeSpan.FromSeconds(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            KeepAlivePolicy.Ping(TimeSpan.FromSeconds(-1), TimeSpan.FromSeconds(1)));
     }
 
     // D: keep-alive ping failure — a failed ping is treated as a transport failure:
@@ -1094,20 +1111,19 @@ public sealed class ClientTests
     public async Task KeepAlive_DisconnectsOnPingFailure()
     {
         var transport = new PingCountingTransport(failPing: true);
+        var timeProvider = new FakeTimeProvider();
         var client = AhpClient.Connect(
             transport,
             new ClientConfig
             {
+                TimeProvider = timeProvider,
                 KeepAlive = KeepAlivePolicy.Enabled(
-                    interval: TimeSpan.FromMilliseconds(10),
-                    timeout: TimeSpan.FromMilliseconds(10)),
+                    interval: TimeSpan.FromSeconds(10),
+                    timeout: TimeSpan.FromSeconds(10)),
             });
 
-        // The first ping throws; the client must observe that as a transport failure
-        // and transition to Disconnected.
-        await WaitUntilAsync(
-            () => client.ConnectionState == ConnectionState.Disconnected,
-            because: "a ping failure should tear the client down");
+        timeProvider.Advance(TimeSpan.FromSeconds(10));
+        await transport.Closed.WaitAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(ConnectionState.Disconnected, client.ConnectionState);
         // The teardown closes the transport exactly once.
@@ -1137,6 +1153,7 @@ internal sealed class PingCountingTransport : IKeepAliveTransport
     private readonly bool _failPing;
     private readonly TaskCompletionSource _closedTcs =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Channel<int> _pingCounts = Channel.CreateUnbounded<int>();
     private int _pings;
     private int _closes;
     private int _closed;
@@ -1148,6 +1165,11 @@ internal sealed class PingCountingTransport : IKeepAliveTransport
 
     /// <summary>The number of times <see cref="CloseAsync"/> transitioned to closed.</summary>
     public int CloseCount => Volatile.Read(ref _closes);
+
+    public Task Closed => _closedTcs.Task;
+
+    public ValueTask<int> ReadPingCountAsync(CancellationToken cancellationToken) =>
+        _pingCounts.Reader.ReadAsync(cancellationToken);
 
     public ValueTask SendAsync(TransportMessage message, CancellationToken cancellationToken = default)
     {
@@ -1177,7 +1199,8 @@ internal sealed class PingCountingTransport : IKeepAliveTransport
     public ValueTask SendPingAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
     {
         if (Volatile.Read(ref _closed) == 1) throw new AhpTransportException("closed");
-        Interlocked.Increment(ref _pings);
+        var count = Interlocked.Increment(ref _pings);
+        _pingCounts.Writer.TryWrite(count);
         if (_failPing) throw new AhpTransportException("io", "ping failed");
         return ValueTask.CompletedTask;
     }

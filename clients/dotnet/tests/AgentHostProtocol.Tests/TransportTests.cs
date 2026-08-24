@@ -262,6 +262,7 @@ public sealed class TransportTests
 
         Assert.Equal(256, config.SubscriptionBufferCapacity);
         Assert.Equal(TimeSpan.FromSeconds(30), config.DefaultRequestTimeout);
+        Assert.Same(TimeProvider.System, config.TimeProvider);
         Assert.False(config.KeepAlive.IsEnabled);
         Assert.Same(KeepAlivePolicy.Disabled, config.KeepAlive);
     }

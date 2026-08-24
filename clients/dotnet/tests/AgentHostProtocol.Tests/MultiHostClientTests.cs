@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Text.Json;          // mirror/client tests that build wire payloads
 using Microsoft.AgentHostProtocol;
 using Microsoft.AgentHostProtocol.Hosts;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Microsoft.AgentHostProtocol.Tests;
@@ -2022,6 +2023,7 @@ public sealed class MultiHostClientTests
     public async Task MultiHost_StateDuringBackoffAfterDrop_IsReconnecting()
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var timeProvider = new FakeTimeProvider();
         var m = new MultiHostClient();
         await using var _mh = m;
 
@@ -2050,8 +2052,7 @@ public sealed class MultiHostClientTests
             Id = new HostId("drop"),
             Label = "Drop",
             TransportFactory = factory,
-            // Long backoff so there is a generous window to observe Reconnecting
-            // during the sleep (SuperviseAsync sets Reconnecting BEFORE the sleep).
+            ClientConfig = new ClientConfig { TimeProvider = timeProvider },
             ReconnectPolicy = new ReconnectPolicy
             {
                 InitialBackoff = TimeSpan.FromSeconds(5),
@@ -2067,6 +2068,11 @@ public sealed class MultiHostClientTests
         // the (long) backoff; the state must read Reconnecting during that sleep.
         await WaitForHostStateAsync(m, new HostId("drop"), s => s.Kind == HostStateKind.Reconnecting, cts.Token, 8000);
         Assert.Equal(HostStateKind.Reconnecting, m.Host(new HostId("drop"))!.State.Kind);
+        Assert.Equal(1, Volatile.Read(ref attempts));
+
+        timeProvider.Advance(TimeSpan.FromSeconds(5));
+        await WaitUntilAsync(() => Volatile.Read(ref attempts) == 2, cts.Token);
+        Assert.Equal(2, Volatile.Read(ref attempts));
     }
 
     // ── 28. MultiHostClient shutdown is idempotent ─────────────────────────

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AgentHostProtocol.Hosts;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Microsoft.AgentHostProtocol.Tests;
@@ -31,11 +32,18 @@ public sealed class ApiQualityTests
     [Fact]
     public async Task AhpClient_ConnectSnapshotsCallerConfiguration()
     {
-        var config = new ClientConfig { SubscriptionBufferCapacity = 1 };
+        var originalTimeProvider = new FakeTimeProvider();
+        var config = new ClientConfig
+        {
+            SubscriptionBufferCapacity = 1,
+            TimeProvider = originalTimeProvider,
+        };
+        var snapshot = ClientConfig.Snapshot(config);
         var (clientSide, _) = MemTransport.CreatePair();
         await using var client = AhpClient.Connect(clientSide, config);
 
         config.SubscriptionBufferCapacity = 2;
+        config.TimeProvider = new FakeTimeProvider();
         using var subscription = client.AttachSubscription("ahp-test://snapshot");
         var progress = new ProgressParams { Channel = "ahp-test://snapshot", ProgressToken = "token" };
         subscription.TrySend(new SubscriptionEventProgress(progress));
@@ -43,6 +51,7 @@ public sealed class ApiQualityTests
 
         Assert.True(subscription.Events.TryRead(out _));
         Assert.False(subscription.Events.TryRead(out _));
+        Assert.Same(originalTimeProvider, snapshot.TimeProvider);
     }
 
     [Fact]
@@ -86,7 +95,12 @@ public sealed class ApiQualityTests
     {
         var subscriptions = new List<string> { "ahp-test://one" };
         var protocolVersions = new List<string> { "2026-01-01" };
-        var clientConfig = new ClientConfig { SubscriptionBufferCapacity = 1 };
+        var timeProvider = new FakeTimeProvider();
+        var clientConfig = new ClientConfig
+        {
+            SubscriptionBufferCapacity = 1,
+            TimeProvider = timeProvider,
+        };
         var config = new HostConfig
         {
             Id = new HostId("host-a"),
@@ -104,5 +118,6 @@ public sealed class ApiQualityTests
         Assert.Equal("ahp-test://one", Assert.Single(snapshot.InitialSubscriptions!));
         Assert.Equal("2026-01-01", Assert.Single(snapshot.ProtocolVersions!));
         Assert.Equal(1, snapshot.ClientConfig!.SubscriptionBufferCapacity);
+        Assert.Same(timeProvider, snapshot.ClientConfig.TimeProvider);
     }
 }

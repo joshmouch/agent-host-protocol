@@ -74,6 +74,11 @@ The `MultiHostClient` singleton is disposed by the container on shutdown. The
 `configureClient` options apply to the factory path; `MultiHostClient` hosts are
 configured per host via `HostConfig.ClientConfig`.
 
+`ClientConfig.TimeProvider` controls request timeouts, keep-alive scheduling,
+reconnect backoff, and host timestamps. It defaults to `TimeProvider.System`;
+tests can supply a fake provider to advance these behaviors without wall-clock
+delays.
+
 ## Observability
 
 The client emits OpenTelemetry-native traces and metrics via `System.Diagnostics`

@@ -27,7 +27,7 @@ internal sealed class HostEntry : IDisposable
     private volatile AhpClient? _client;
     private HostState _state = new() { Kind = HostStateKind.Disconnected };
     private string _protoVer = "";
-    private DateTimeOffset _updatedAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset _updatedAt;
 
     // ── Swift-parity observable per-host state (guarded by _gate) ──────────
     // Session summaries are keyed by their `Resource` URI so add/remove/change
@@ -38,6 +38,7 @@ internal sealed class HostEntry : IDisposable
     private List<AgentInfo> _agents = new();
     private long? _activeSessions;
     private readonly List<string> _subscriptions;
+    private readonly TimeProvider _timeProvider;
     private long _serverSeq;
     private DateTimeOffset? _lastConnectedAt;
     private ulong _generation;
@@ -167,6 +168,8 @@ internal sealed class HostEntry : IDisposable
     public HostEntry(HostId id, HostConfig config, string clientId)
     {
         Id = id; Config = config; ClientId = clientId;
+        _timeProvider = config.ClientConfig?.TimeProvider ?? TimeProvider.System;
+        _updatedAt = _timeProvider.GetUtcNow();
         // Seed the replay subscription set from the normalized config so it
         // survives reconnects (mirrors Swift HostRuntime seeding `subscriptions`
         // from `config.initialSubscriptions`).
@@ -191,7 +194,7 @@ internal sealed class HostEntry : IDisposable
 
     public void SetState(HostState state)
     {
-        lock (_gate) { _state = state; _updatedAt = DateTimeOffset.UtcNow; }
+        lock (_gate) { _state = state; _updatedAt = _timeProvider.GetUtcNow(); }
     }
 
     /// <summary>An immutable, consistent snapshot of this host's public state.</summary>
@@ -243,7 +246,7 @@ internal sealed class HostEntry : IDisposable
         lock (_gate)
         {
             _generation += 1;
-            _lastConnectedAt = DateTimeOffset.UtcNow;
+            _lastConnectedAt = _timeProvider.GetUtcNow();
             _serverSeq = serverSeq;
             if (root is not null)
             {
@@ -910,8 +913,12 @@ public sealed class MultiHostClient : IMultiHostClient
     {
         try
         {
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(750));
+            using var timeout = TimeProviderCompatibility.CreateCancellationTokenSource(
+                entry.Config.ClientConfig!.TimeProvider,
+                TimeSpan.FromMilliseconds(750));
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken,
+                timeout.Token);
             var listed = await client.RequestAsync<ListSessionsParams, ListSessionsResult>(
                 "listSessions",
                 new ListSessionsParams { Channel = ProtocolVersion.RootResourceUri },
@@ -1071,12 +1078,25 @@ public sealed class MultiHostClient : IMultiHostClient
             while (true)
             {
                 if (ct.IsCancellationRequested) return;
-                SetHostState(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt });
 
+                Task? backoffTask = null;
                 if (!immediate)
                 {
                     var delay = policy.BackoffFor(attempt);
-                    try { await Task.Delay(delay, ct).ConfigureAwait(false); }
+                    backoffTask = TimeProviderCompatibility.DelayAsync(
+                        entry.Config.ClientConfig!.TimeProvider,
+                        delay,
+                        ct);
+                }
+
+                // Publish Reconnecting only after the backoff timer is armed. Tests
+                // and observers can then advance a fake TimeProvider without racing
+                // timer registration.
+                SetHostState(entry, new HostState { Kind = HostStateKind.Reconnecting, Attempt = attempt });
+
+                if (backoffTask is not null)
+                {
+                    try { await backoffTask.ConfigureAwait(false); }
                     catch (OperationCanceledException) { return; }
                 }
                 immediate = false;
