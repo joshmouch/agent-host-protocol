@@ -31,6 +31,21 @@ When the client receives an `ActionEnvelope` from the server:
 
 4. Recompute `optimisticState` from `confirmedState` + remaining `pendingActions`.
 
+### Final-state actions settle completed effects
+
+For an action that declares final state, such as
+`session/isArchivedChanged`, a non-rejected envelope means the host's declared
+archive authority completed the transition. A host MUST NOT emit a successful
+final-state envelope merely because it queued provider work. Provider failure
+instead produces the same correlated envelope with `rejectionReason`, leaving
+confirmed state unchanged and causing the initiating client to remove its
+optimistic prediction.
+
+An integration that intentionally exposes asynchronous intent needs a distinct
+requested/lifecycle action whose state model represents queued, running,
+completed, and failed work. It must not reinterpret acceptance of an existing
+final-state action as acceptance of intent.
+
 ## Example
 
 ```

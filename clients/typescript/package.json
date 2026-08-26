@@ -44,6 +44,10 @@
     "./ws": {
       "import": "./dist/ws/index.js",
       "types": "./dist/ws/index.d.ts"
+    },
+    "./conformance/archive-state": {
+      "import": "./dist/conformance/archive-state/index.js",
+      "types": "./dist/conformance/archive-state/index.d.ts"
     }
   },
   "scripts": {

@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "Fail-closed archive-state convergence conformance package, final-state settlement semantics, and a canonical protocol release/lifecycle registry.",
+  "targets": ["spec", "typescript"]
+}
