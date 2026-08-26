@@ -778,6 +778,12 @@ public sealed class RootState
     /// <summary>Available agent backends and their models</summary>
     public required List<AgentInfo> Agents { get; set; }
 
+    /// <summary>Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HostCapabilities? Capabilities { get; set; }
+
     /// <summary>Number of active (non-disposed) sessions on the server</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? ActiveSessions { get; set; }

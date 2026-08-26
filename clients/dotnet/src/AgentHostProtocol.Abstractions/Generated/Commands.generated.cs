@@ -174,12 +174,6 @@ public sealed record InitializeResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Implementation? ServerInfo { get; init; }
 
-    /// <summary>Optional capabilities implemented by this host authority. Clients MUST
-    /// check these presence-gated declarations before using the corresponding
-    /// optional host behavior.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public HostCapabilities? Capabilities { get; init; }
-
     /// <summary>Snapshots for each `initialSubscriptions` URI</summary>
     public required List<Snapshot> Snapshots { get; init; }
 

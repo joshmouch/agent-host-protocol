@@ -1255,6 +1255,12 @@ data class RootState(
      */
     val agents: List<AgentInfo>,
     /**
+     * Optional capabilities implemented by this host authority. Clients MUST
+     * check these presence-gated declarations before using the corresponding
+     * optional host behavior.
+     */
+    val capabilities: HostCapabilities? = null,
+    /**
      * Number of active (non-disposed) sessions on the server
      */
     val activeSessions: Long? = null,

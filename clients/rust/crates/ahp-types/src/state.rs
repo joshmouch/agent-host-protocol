@@ -1548,6 +1548,11 @@ pub struct ProtectedResourceMetadata {
 pub struct RootState {
     /// Available agent backends and their models
     pub agents: Vec<AgentInfo>,
+    /// Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<HostCapabilities>,
     /// Number of active (non-disposed) sessions on the server
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_sessions: Option<i64>,

@@ -149,10 +149,6 @@ type InitializeResult struct {
 	// identifies the negotiated protocol, `serverInfo` identifies the host
 	// software behind it.
 	ServerInfo *Implementation `json:"serverInfo,omitempty"`
-	// Optional capabilities implemented by this host authority. Clients MUST
-	// check these presence-gated declarations before using the corresponding
-	// optional host behavior.
-	Capabilities *HostCapabilities `json:"capabilities,omitempty"`
 	// Snapshots for each `initialSubscriptions` URI
 	Snapshots []Snapshot `json:"snapshots"`
 	// Suggested default directory for remote filesystem browsing

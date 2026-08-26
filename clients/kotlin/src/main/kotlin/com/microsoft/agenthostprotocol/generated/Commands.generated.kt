@@ -346,12 +346,6 @@ data class InitializeResult(
      */
     val serverInfo: Implementation? = null,
     /**
-     * Optional capabilities implemented by this host authority. Clients MUST
-     * check these presence-gated declarations before using the corresponding
-     * optional host behavior.
-     */
-    val capabilities: HostCapabilities? = null,
-    /**
      * Snapshots for each `initialSubscriptions` URI
      */
     val snapshots: List<Snapshot>,

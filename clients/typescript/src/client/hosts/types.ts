@@ -8,7 +8,7 @@ import type { URI } from '../../types/common/state.js';
 import type { AgentInfo } from '../../types/channels-root/state.js';
 import type { TerminalInfo } from '../../types/channels-terminal/state.js';
 import type { SessionSummary } from '../../types/channels-session/state.js';
-import type { AutomationCapabilities, HostCapabilities } from '../../types/common/commands.js';
+import type { AutomationCapabilities } from '../../types/common/commands.js';
 import type { ListSessionsParams } from '../../types/channels-root/commands.js';
 import type { ClientEvent, SubscriptionEvent } from '../events.js';
 import { AhpClientError } from '../error.js';
@@ -197,8 +197,6 @@ export interface HostHandle {
   readonly defaultDirectory: string | null;
   /** Automation support advertised by the host. */
   readonly automations: AutomationCapabilities | null;
-  /** Optional capabilities advertised by the host during `initialize`. */
-  readonly capabilities: HostCapabilities | null;
   /** Agents currently advertised by the host (mirrored from root state). */
   readonly agents: readonly AgentInfo[];
   /** Active session count from root state, when present. */

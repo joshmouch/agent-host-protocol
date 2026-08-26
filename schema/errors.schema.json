@@ -539,6 +539,10 @@
           },
           "description": "Available agent backends and their models"
         },
+        "capabilities": {
+          "$ref": "#/$defs/HostCapabilities",
+          "description": "Optional capabilities implemented by this host authority. Clients MUST\ncheck these presence-gated declarations before using the corresponding\noptional host behavior."
+        },
         "activeSessions": {
           "type": "number",
           "description": "Number of active (non-disposed) sessions on the server"
@@ -563,6 +567,57 @@
       "required": [
         "agents"
       ]
+    },
+    "HostCapabilities": {
+      "type": "object",
+      "description": "Optional capabilities implemented by an AHP host authority.",
+      "properties": {
+        "sessionCatalog": {
+          "$ref": "#/$defs/SessionCatalogCapabilities",
+          "description": "Optional features of the host's root-level session catalog."
+        }
+      }
+    },
+    "SessionCatalogCapabilities": {
+      "type": "object",
+      "description": "Optional features supported by the host's `listSessions` catalog and\nsession-summary mutations. Each field is presence-gated: absence means a\nclient MUST NOT depend on that behavior.",
+      "properties": {
+        "complete": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "The host accepts `listSessions.catalogScope: \"all\"` and returns every\nauthorized provider session instead of applying its configured UI\nvisibility or recency window."
+        },
+        "providers": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "The host accepts the `listSessions.providers` selection input."
+        },
+        "operators": {
+          "$ref": "#/$defs/SessionCatalogOperatorCapabilities",
+          "description": "Generic ordered-selection operators supported by this catalog."
+        },
+        "pinning": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "Session summaries project `SessionStatus.IsPinned` and the host accepts\nthe `session/isPinnedChanged` action."
+        }
+      }
+    },
+    "SessionCatalogOperatorCapabilities": {
+      "type": "object",
+      "description": "Selection operators supported by a host's session catalog.",
+      "properties": {
+        "sort": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "The host accepts `listSessions.operators.sort`."
+        },
+        "limit": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "The host accepts the query-wide `listSessions.operators.limit`."
+        }
+      }
     },
     "AgentInfo": {
       "type": "object",
@@ -5799,10 +5854,6 @@
           "$ref": "#/$defs/Implementation",
           "description": "Optional identity of the server implementation (name and version).\nInformational only — see {@link Implementation} for how it may and may not\nbe used. Whereas {@link InitializeResult.protocolVersion | `protocolVersion`}\nidentifies the negotiated protocol, `serverInfo` identifies the host\nsoftware behind it."
         },
-        "capabilities": {
-          "$ref": "#/$defs/HostCapabilities",
-          "description": "Optional capabilities implemented by this host authority. Clients MUST\ncheck these presence-gated declarations before using the corresponding\noptional host behavior."
-        },
         "snapshots": {
           "type": "array",
           "items": {
@@ -5839,57 +5890,6 @@
         "serverSeq",
         "snapshots"
       ]
-    },
-    "HostCapabilities": {
-      "type": "object",
-      "description": "Optional capabilities implemented by an AHP host authority.",
-      "properties": {
-        "sessionCatalog": {
-          "$ref": "#/$defs/SessionCatalogCapabilities",
-          "description": "Optional features of the host's root-level session catalog."
-        }
-      }
-    },
-    "SessionCatalogCapabilities": {
-      "type": "object",
-      "description": "Optional features supported by the host's `listSessions` catalog and\nsession-summary mutations. Each field is presence-gated: absence means a\nclient MUST NOT depend on that behavior.",
-      "properties": {
-        "complete": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "The host accepts `listSessions.catalogScope: \"all\"` and returns every\nauthorized provider session instead of applying its configured UI\nvisibility or recency window."
-        },
-        "providers": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "The host accepts the `listSessions.providers` selection input."
-        },
-        "operators": {
-          "$ref": "#/$defs/SessionCatalogOperatorCapabilities",
-          "description": "Generic ordered-selection operators supported by this catalog."
-        },
-        "pinning": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "Session summaries project `SessionStatus.IsPinned` and the host accepts\nthe `session/isPinnedChanged` action."
-        }
-      }
-    },
-    "SessionCatalogOperatorCapabilities": {
-      "type": "object",
-      "description": "Selection operators supported by a host's session catalog.",
-      "properties": {
-        "sort": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "The host accepts `listSessions.operators.sort`."
-        },
-        "limit": {
-          "type": "object",
-          "additionalProperties": {},
-          "description": "The host accepts the query-wide `listSessions.operators.limit`."
-        }
-      }
     },
     "AutomationCapabilities": {
       "type": "object",

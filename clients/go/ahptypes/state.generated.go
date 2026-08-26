@@ -614,6 +614,10 @@ type ProtectedResourceMetadata struct {
 type RootState struct {
 	// Available agent backends and their models
 	Agents []AgentInfo `json:"agents"`
+	// Optional capabilities implemented by this host authority. Clients MUST
+	// check these presence-gated declarations before using the corresponding
+	// optional host behavior.
+	Capabilities *HostCapabilities `json:"capabilities,omitempty"`
 	// Number of active (non-disposed) sessions on the server
 	ActiveSessions *int64 `json:"activeSessions,omitempty"`
 	// Known terminals on the server. Subscribe to individual terminal URIs for full state.

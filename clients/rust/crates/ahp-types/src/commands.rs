@@ -255,11 +255,6 @@ pub struct InitializeResult {
     /// software behind it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_info: Option<Implementation>,
-    /// Optional capabilities implemented by this host authority. Clients MUST
-    /// check these presence-gated declarations before using the corresponding
-    /// optional host behavior.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub capabilities: Option<HostCapabilities>,
     /// Snapshots for each `initialSubscriptions` URI
     pub snapshots: Vec<Snapshot>,
     /// Suggested default directory for remote filesystem browsing

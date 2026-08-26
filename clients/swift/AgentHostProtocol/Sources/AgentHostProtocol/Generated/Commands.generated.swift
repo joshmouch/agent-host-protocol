@@ -310,10 +310,6 @@ public struct InitializeResult: Codable, Sendable {
     /// identifies the negotiated protocol, `serverInfo` identifies the host
     /// software behind it.
     public var serverInfo: Implementation?
-    /// Optional capabilities implemented by this host authority. Clients MUST
-    /// check these presence-gated declarations before using the corresponding
-    /// optional host behavior.
-    public var capabilities: HostCapabilities?
     /// Snapshots for each `initialSubscriptions` URI
     public var snapshots: [Snapshot]
     /// Suggested default directory for remote filesystem browsing
@@ -343,7 +339,6 @@ public struct InitializeResult: Codable, Sendable {
         protocolVersion: String,
         serverSeq: Int,
         serverInfo: Implementation? = nil,
-        capabilities: HostCapabilities? = nil,
         snapshots: [Snapshot],
         defaultDirectory: String? = nil,
         completionTriggerCharacters: [String]? = nil,
@@ -354,7 +349,6 @@ public struct InitializeResult: Codable, Sendable {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
         self.serverInfo = serverInfo
-        self.capabilities = capabilities
         self.snapshots = snapshots
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters

@@ -1220,6 +1220,10 @@ public struct ProtectedResourceMetadata: Codable, Sendable {
 public struct RootState: Codable, Sendable {
     /// Available agent backends and their models
     public var agents: [AgentInfo]
+    /// Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.
+    public var capabilities: HostCapabilities?
     /// Number of active (non-disposed) sessions on the server
     public var activeSessions: Int?
     /// Known terminals on the server. Subscribe to individual terminal URIs for full state.
@@ -1233,6 +1237,7 @@ public struct RootState: Codable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case agents
+        case capabilities
         case activeSessions
         case terminals
         case config
@@ -1241,12 +1246,14 @@ public struct RootState: Codable, Sendable {
 
     public init(
         agents: [AgentInfo],
+        capabilities: HostCapabilities? = nil,
         activeSessions: Int? = nil,
         terminals: [TerminalInfo]? = nil,
         config: RootConfigState? = nil,
         meta: [String: AnyCodable]? = nil
     ) {
         self.agents = agents
+        self.capabilities = capabilities
         self.activeSessions = activeSessions
         self.terminals = terminals
         self.config = config
