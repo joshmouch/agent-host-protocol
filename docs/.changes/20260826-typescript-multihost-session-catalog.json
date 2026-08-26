@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "`MultiHostClient.listSessions` returns complete cursor-safe host-qualified session results.",
+  "targets": ["typescript"]
+}

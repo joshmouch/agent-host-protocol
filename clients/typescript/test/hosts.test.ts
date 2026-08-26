@@ -26,7 +26,7 @@ import type {
 import type { SessionSummary } from '../src/types/channels-session/state.js';
 import type { AgentInfo } from '../src/types/channels-root/state.js';
 import type { InitializeResult } from '../src/types/common/commands.js';
-import type { ListSessionsResult } from '../src/types/channels-root/commands.js';
+import type { ListSessionsParams, ListSessionsResult } from '../src/types/channels-root/commands.js';
 import { ReconnectResultType } from '../src/types/common/commands.js';
 import type { ReconnectResult } from '../src/types/common/commands.js';
 
@@ -36,6 +36,7 @@ import {
   HostNotConnectedError,
   HostReconnectedError,
   HostShutDownError,
+  HostSessionCursorError,
   HostWaitTimeoutError,
   InMemoryClientIdStore,
   MultiHostClient,
@@ -98,6 +99,7 @@ interface FakeHostState {
   agents: AgentInfo[];
   sessions: SessionSummary[];
   requestMethods?: string[];
+  listSessions?: (params: ListSessionsParams) => ListSessionsResult;
   /** Optional callback invoked once after the first request is handled (init or reconnect). */
   injectAfterInit?: (server: AhpTransport) => void | Promise<void>;
 }
@@ -198,7 +200,9 @@ function handleRequest(req: JsonRpcRequest, state: FakeHostState): unknown {
       // Default: reply with an empty replay so the supervisor moves on.
       return { type: ReconnectResultType.Replay, actions: [], missing: [] } satisfies ReconnectResult;
     case 'listSessions':
-      return buildListResult(state);
+      return state.listSessions
+        ? state.listSessions(req.params as ListSessionsParams)
+        : buildListResult(state);
     case 'subscribe': {
       // Minimal `SubscribeResult` — snapshot omitted (stateless channels
       // are valid). The fake server doesn't enforce real subscriptions.
@@ -662,6 +666,84 @@ test('waitForHosts reports the selected hosts still pending at its deadline', as
       (err: unknown) => err instanceof HostWaitTimeoutError
         && err.timeoutMs === 5
         && err.hostIds.join(',') === 'hanging',
+    );
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('listSessions walks every selected host cursor and preserves host-qualified identity', async () => {
+  const firstParams: ListSessionsParams[] = [];
+  const first = makeFakeState({
+    listSessions: params => {
+      firstParams.push(params);
+      return params.cursor === undefined
+        ? { items: [makeSummary('copilot:/shared', 'First page', 2_000)], nextCursor: 'page-2' }
+        : { items: [makeSummary('copilot:/second', 'Second page', 1_000)] };
+    },
+  });
+  const second = makeFakeState({ sessions: [makeSummary('copilot:/shared', 'Other host', 3_000)] });
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({ id: 'first', label: 'First', prefetchSessionSummaries: false, transportFactory: makeBasicFactory(first) });
+    await multi.addHost({ id: 'second', label: 'Second', prefetchSessionSummaries: false, transportFactory: makeBasicFactory(second) });
+    await multi.waitForHosts(['first', 'second'], { timeoutMs: 2_000 });
+
+    const sessions = await multi.listSessions(['first', 'second'], {
+      catalogScope: 'all',
+      providers: ['copilot'],
+      limit: 1,
+      operators: { sort: [{ field: 'modifiedAt', direction: 'desc' }] },
+    });
+
+    assert.deepEqual(
+      sessions.map(item => [item.hostId, item.hostLabel, item.summary.resource]),
+      [
+        ['first', 'First', 'copilot:/shared'],
+        ['first', 'First', 'copilot:/second'],
+        ['second', 'Second', 'copilot:/shared'],
+      ],
+    );
+    assert.deepEqual(firstParams, [
+      {
+        channel: ROOT,
+        catalogScope: 'all',
+        providers: ['copilot'],
+        limit: 1,
+        operators: { sort: [{ field: 'modifiedAt', direction: 'desc' }] },
+      },
+      {
+        channel: ROOT,
+        catalogScope: 'all',
+        providers: ['copilot'],
+        limit: 1,
+        operators: { sort: [{ field: 'modifiedAt', direction: 'desc' }] },
+        cursor: 'page-2',
+      },
+    ]);
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('listSessions rejects a repeated host cursor', async () => {
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'loop',
+      label: 'Loop',
+      prefetchSessionSummaries: false,
+      transportFactory: makeBasicFactory(makeFakeState({
+        listSessions: () => ({ items: [], nextCursor: 'same' }),
+      })),
+    });
+    await multi.waitForHosts(['loop'], { timeoutMs: 2_000 });
+
+    await assert.rejects(
+      multi.listSessions(['loop']),
+      (err: unknown) => err instanceof HostSessionCursorError
+        && err.hostId === 'loop'
+        && err.cursor === 'same',
     );
   } finally {
     await multi.shutdown();

@@ -15,6 +15,7 @@ import {
   DuplicateHostError,
   generateClientId,
   HostShutDownError,
+  ROOT_RESOURCE_URI,
   resolveConfig,
   type HostConfig,
   type HostEvent,
@@ -23,9 +24,10 @@ import {
   type HostSubscriptionEvent,
   type HostedAgent,
   type HostedSessionSummary,
+  type MultiHostListSessionsParams,
   type WaitForHostsOptions,
 } from './types.js';
-import { HostMultiError, HostWaitTimeoutError, isConnected, isFailed, UnknownHostError } from './types.js';
+import { HostMultiError, HostNotConnectedError, HostSessionCursorError, HostWaitTimeoutError, isConnected, isFailed, UnknownHostError } from './types.js';
 import { HostRuntime, snapshotHandle } from './runtime.js';
 import {
   InMemoryClientIdStore,
@@ -314,6 +316,56 @@ export class MultiHostClient {
     } finally {
       await events.return?.();
     }
+  }
+
+  /**
+   * List complete request-scoped session result sets from selected hosts.
+   *
+   * Each host is queried concurrently and paginated independently through its
+   * generation-checked {@link HostClientHandle}. The underlying
+   * {@link AhpClient} owns each request deadline. Empty or repeated cursors are
+   * rejected with {@link HostSessionCursorError}; reconnects surface through
+   * the handle instead of silently mixing pages from two connections.
+   *
+   * Results preserve caller host order and per-host page order. This method
+   * does not apply a cross-host sort or limit: consumers that filter for safety
+   * first can make that global decision over the returned
+   * {@link HostedSessionSummary} values.
+   */
+  async listSessions(
+    hostIds: readonly HostId[],
+    params: MultiHostListSessionsParams = {},
+  ): Promise<HostedSessionSummary[]> {
+    this.assertOpen();
+    const selected = [...new Set(hostIds)];
+    const byHost = await Promise.all(selected.map(async hostId => {
+      const runtime = this.hosts.get(hostId);
+      if (!runtime) throw new UnknownHostError(hostId);
+      const client = this.client(hostId);
+      if (!client) throw new HostNotConnectedError(hostId);
+      const rows: HostedSessionSummary[] = [];
+      const seenCursors = new Set<string>();
+      let cursor: string | undefined;
+      do {
+        const result = await client.request('listSessions', {
+          channel: ROOT_RESOURCE_URI as 'ahp-root://',
+          ...params,
+          ...(cursor === undefined ? {} : { cursor }),
+        });
+        for (const summary of result.items) {
+          rows.push({ hostId, hostLabel: runtime.shared.label, summary });
+        }
+        cursor = result.nextCursor;
+        if (cursor !== undefined) {
+          if (cursor.length === 0 || seenCursors.has(cursor)) {
+            throw new HostSessionCursorError(hostId, cursor);
+          }
+          seenCursors.add(cursor);
+        }
+      } while (cursor !== undefined);
+      return rows;
+    }));
+    return byHost.flat();
   }
 
   /**

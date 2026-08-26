@@ -9,6 +9,7 @@ import type { AgentInfo } from '../../types/channels-root/state.js';
 import type { TerminalInfo } from '../../types/channels-terminal/state.js';
 import type { SessionSummary } from '../../types/channels-session/state.js';
 import type { AutomationCapabilities } from '../../types/common/commands.js';
+import type { ListSessionsParams } from '../../types/channels-root/commands.js';
 import type { ClientEvent, SubscriptionEvent } from '../events.js';
 import { AhpClientError } from '../error.js';
 import type { ClientIdStore } from './client-id-store.js';
@@ -302,6 +303,13 @@ export interface WaitForHostsOptions {
   readonly signal?: AbortSignal;
 }
 
+/**
+ * Request-scoped inputs for {@link MultiHostClient.listSessions}. The client
+ * owns the root channel and pagination cursor so a call always walks one
+ * complete, cursor-safe result set on every selected host.
+ */
+export type MultiHostListSessionsParams = Omit<ListSessionsParams, 'channel' | 'cursor'>;
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 /**
@@ -341,6 +349,19 @@ export class HostWaitTimeoutError extends HostMultiError {
     this.name = 'HostWaitTimeoutError';
     this.hostIds = [...hostIds];
     this.timeoutMs = timeoutMs;
+  }
+}
+
+/** A host returned an empty or repeated cursor while listing sessions. */
+export class HostSessionCursorError extends HostMultiError {
+  readonly hostId: HostId;
+  readonly cursor: string;
+
+  constructor(hostId: HostId, cursor: string) {
+    super(`host "${hostId}" returned an empty or repeated listSessions cursor`);
+    this.name = 'HostSessionCursorError';
+    this.hostId = hostId;
+    this.cursor = cursor;
   }
 }
 
