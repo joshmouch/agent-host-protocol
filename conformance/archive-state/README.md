@@ -23,7 +23,7 @@ new implementations.
 | `microsoft/vscode:code-agent-host` | Codex | `provider` | VS Code | Required first row. The provider query is Codex app-server `thread/list` for the exact thread. |
 | `microsoft/vscode:code-agent-host` | Claude | `host` | VS Code | Required row and currently red/GAP until the soft AHP state survives the declared host restart/reopen boundary. Claude has no `IAgent.onArchivedChanged` hook. |
 | `microsoft/vscode:code-agent-host` | Copilot | `host` | VS Code | Required row and currently red/GAP until the soft AHP state survives the declared host restart/reopen boundary. Copilot has no `IAgent.onArchivedChanged` hook. |
-| `joshmouch/ahp-host` | Grok ACP/CLI | `host` | ahp-host/Grok adopter | Required row and currently red/GAP: the host bit is in-memory and `AgentBackend` has no archive hook. Passing requires restart durability or a newly declared provider-native contract. |
+| `joshmouch/ahp-host` | Grok ACP/CLI | `host` | ahp-host/Grok adopter | Passing host-authority row: archive state is persisted atomically, and `reopenAndQueryArchived` constructs a fresh host/authority and performs a fresh backend catalog query. Native Grok provider archive remains explicitly unsupported (`archive: false`); ACP close/delete are not reclassified as archive. |
 | `OpenAgency/main/pods/ahp-host` | Prototype adapters | Non-runnable prototype | OpenAgency | Inventory-only target. It is not counted as a production or passing row. |
 | Conflux AHP proof/conformance targets | Proof/prototype adapters | Non-runnable prototype | Conflux | Inventory-only target. Proof mirrors and generated conformance artifacts are not runnable production host rows. |
 
