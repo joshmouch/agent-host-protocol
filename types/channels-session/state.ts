@@ -50,7 +50,7 @@ export const enum SessionLifecycle {
  * @category Session State
  * @nonexhaustive
  */
-export const enum SessionStatus {
+export enum SessionStatus {
   /** Session is idle — no turn is active. */
   Idle = 1,
   /** Session ended with an error. */
@@ -63,6 +63,8 @@ export const enum SessionStatus {
   IsRead = 1 << 5,
   /** The session has been archived by the client. */
   IsArchived = 1 << 6,
+  /** The client has pinned the session for persistent visibility. */
+  IsPinned = 1 << 7,
 }
 
 /**

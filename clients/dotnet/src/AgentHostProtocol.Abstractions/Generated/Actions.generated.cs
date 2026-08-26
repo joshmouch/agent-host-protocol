@@ -125,6 +125,8 @@ public enum ActionType
     SessionIsReadChanged,
     [WireValue("session/isArchivedChanged")]
     SessionIsArchivedChanged,
+    [WireValue("session/isPinnedChanged")]
+    SessionIsPinnedChanged,
     [WireValue("session/activityChanged")]
     SessionActivityChanged,
     [WireValue("session/changesetsChanged")]
@@ -632,6 +634,18 @@ public sealed record SessionIsArchivedChangedAction
 
     /// <summary>Whether the session is archived</summary>
     public bool IsArchived { get; init; }
+}
+
+/// <summary>The pinned state of the session changed.
+///
+/// Dispatched by a client to pin a session for persistent visibility or to
+/// unpin it. Pinning is orthogonal to activity, read, and archived state.</summary>
+public sealed record SessionIsPinnedChangedAction
+{
+    public ActionType Type { get; init; }
+
+    /// <summary>Whether the session is pinned</summary>
+    public bool IsPinned { get; init; }
 }
 
 /// <summary>The activity description of the session changed.
@@ -2573,6 +2587,7 @@ internal sealed class StateActionConverter : UnionConverter<StateAction>
         ["session/reasoning"] = typeof(SessionReasoningAction),
         ["session/isReadChanged"] = typeof(SessionIsReadChangedAction),
         ["session/isArchivedChanged"] = typeof(SessionIsArchivedChangedAction),
+        ["session/isPinnedChanged"] = typeof(SessionIsPinnedChangedAction),
         ["session/activityChanged"] = typeof(SessionActivityChangedAction),
         ["session/changesetsChanged"] = typeof(SessionChangesetsChangedAction),
         ["session/serverToolsChanged"] = typeof(SessionServerToolsChangedAction),

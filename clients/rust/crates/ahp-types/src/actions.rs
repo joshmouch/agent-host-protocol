@@ -86,6 +86,7 @@ pub enum ActionType {
     ChatTurnsLoaded,
     SessionIsReadChanged,
     SessionIsArchivedChanged,
+    SessionIsPinnedChanged,
     SessionActivityChanged,
     SessionChangesetsChanged,
     SessionConfigChanged,
@@ -232,6 +233,7 @@ impl serde::Serialize for ActionType {
             Self::ChatTurnsLoaded => serializer.serialize_str("chat/turnsLoaded"),
             Self::SessionIsReadChanged => serializer.serialize_str("session/isReadChanged"),
             Self::SessionIsArchivedChanged => serializer.serialize_str("session/isArchivedChanged"),
+            Self::SessionIsPinnedChanged => serializer.serialize_str("session/isPinnedChanged"),
             Self::SessionActivityChanged => serializer.serialize_str("session/activityChanged"),
             Self::SessionChangesetsChanged => serializer.serialize_str("session/changesetsChanged"),
             Self::SessionConfigChanged => serializer.serialize_str("session/configChanged"),
@@ -360,6 +362,7 @@ impl<'de> serde::Deserialize<'de> for ActionType {
             "chat/turnsLoaded" => Self::ChatTurnsLoaded,
             "session/isReadChanged" => Self::SessionIsReadChanged,
             "session/isArchivedChanged" => Self::SessionIsArchivedChanged,
+            "session/isPinnedChanged" => Self::SessionIsPinnedChanged,
             "session/activityChanged" => Self::SessionActivityChanged,
             "session/changesetsChanged" => Self::SessionChangesetsChanged,
             "session/configChanged" => Self::SessionConfigChanged,
@@ -1118,6 +1121,17 @@ pub struct SessionIsReadChangedAction {
 pub struct SessionIsArchivedChangedAction {
     /// Whether the session is archived
     pub is_archived: bool,
+}
+
+/// The pinned state of the session changed.
+///
+/// Dispatched by a client to pin a session for persistent visibility or to
+/// unpin it. Pinning is orthogonal to activity, read, and archived state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionIsPinnedChangedAction {
+    /// Whether the session is pinned
+    pub is_pinned: bool,
 }
 
 /// The activity description of the session changed.
@@ -2251,6 +2265,8 @@ pub enum StateAction {
     SessionIsReadChanged(SessionIsReadChangedAction),
     #[serde(rename = "session/isArchivedChanged")]
     SessionIsArchivedChanged(SessionIsArchivedChangedAction),
+    #[serde(rename = "session/isPinnedChanged")]
+    SessionIsPinnedChanged(SessionIsPinnedChangedAction),
     #[serde(rename = "session/activityChanged")]
     SessionActivityChanged(SessionActivityChangedAction),
     #[serde(rename = "session/changesetsChanged")]

@@ -106,6 +106,8 @@ public struct SessionStatus: OptionSet, Codable, Sendable, Hashable {
     public static let isRead = SessionStatus(rawValue: 32)
     /// The session has been archived by the client.
     public static let isArchived = SessionStatus(rawValue: 64)
+    /// The client has pinned the session for persistent visibility.
+    public static let isPinned = SessionStatus(rawValue: 128)
 }
 
 /// Discriminant for {@link ChatOrigin} — how a chat came into existence.

@@ -65,6 +65,8 @@ public enum SessionStatus : uint
     IsRead = 32,
     /// <summary>The session has been archived by the client.</summary>
     IsArchived = 64,
+    /// <summary>The client has pinned the session for persistent visibility.</summary>
+    IsPinned = 128,
 }
 
 /// <summary>Discriminant describing the durable provenance of a session.</summary>

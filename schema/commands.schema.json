@@ -7529,6 +7529,23 @@
         "isArchived"
       ]
     },
+    "SessionIsPinnedChangedAction": {
+      "type": "object",
+      "description": "The pinned state of the session changed.\n\nDispatched by a client to pin a session for persistent visibility or to\nunpin it. Pinning is orthogonal to activity, read, and archived state.",
+      "properties": {
+        "type": {
+          "const": "session/isPinnedChanged"
+        },
+        "isPinned": {
+          "type": "boolean",
+          "description": "Whether the session is pinned"
+        }
+      },
+      "required": [
+        "type",
+        "isPinned"
+      ]
+    },
     "SessionActivityChangedAction": {
       "type": "object",
       "description": "The activity description of the session changed.\n\nDispatched by the server to indicate what the session is currently doing\n(e.g. running a tool, thinking). Clear activity by setting it to `undefined`.",
@@ -9620,6 +9637,9 @@
           "$ref": "#/$defs/SessionIsArchivedChangedAction"
         },
         {
+          "$ref": "#/$defs/SessionIsPinnedChangedAction"
+        },
+        {
           "$ref": "#/$defs/SessionActivityChangedAction"
         },
         {
@@ -10020,7 +10040,8 @@
         8,
         24,
         32,
-        64
+        64,
+        128
       ],
       "type": "number",
       "description": "Bitset of summary-level session status flags.\n\nUse bitwise checks instead of equality for non-terminal activity. For example,\n`status & SessionStatus.InProgress` matches both ordinary in-progress turns\nand turns that are paused waiting for input."

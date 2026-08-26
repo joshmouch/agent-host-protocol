@@ -62,6 +62,7 @@ public enum ActionType: Codable, Sendable, Equatable {
     case chatTurnsLoaded
     case sessionIsReadChanged
     case sessionIsArchivedChanged
+    case sessionIsPinnedChanged
     case sessionActivityChanged
     case sessionChangesetsChanged
     case sessionConfigChanged
@@ -165,6 +166,7 @@ public enum ActionType: Codable, Sendable, Equatable {
         case "chat/turnsLoaded": self = .chatTurnsLoaded
         case "session/isReadChanged": self = .sessionIsReadChanged
         case "session/isArchivedChanged": self = .sessionIsArchivedChanged
+        case "session/isPinnedChanged": self = .sessionIsPinnedChanged
         case "session/activityChanged": self = .sessionActivityChanged
         case "session/changesetsChanged": self = .sessionChangesetsChanged
         case "session/configChanged": self = .sessionConfigChanged
@@ -268,6 +270,7 @@ public enum ActionType: Codable, Sendable, Equatable {
         case .chatTurnsLoaded: try container.encode("chat/turnsLoaded")
         case .sessionIsReadChanged: try container.encode("session/isReadChanged")
         case .sessionIsArchivedChanged: try container.encode("session/isArchivedChanged")
+        case .sessionIsPinnedChanged: try container.encode("session/isPinnedChanged")
         case .sessionActivityChanged: try container.encode("session/activityChanged")
         case .sessionChangesetsChanged: try container.encode("session/changesetsChanged")
         case .sessionConfigChanged: try container.encode("session/configChanged")
@@ -1290,6 +1293,20 @@ public struct SessionIsArchivedChangedAction: Codable, Sendable {
     ) {
         self.type = type
         self.isArchived = isArchived
+    }
+}
+
+public struct SessionIsPinnedChangedAction: Codable, Sendable {
+    public var type: ActionType
+    /// Whether the session is pinned
+    public var isPinned: Bool
+
+    public init(
+        type: ActionType,
+        isPinned: Bool
+    ) {
+        self.type = type
+        self.isPinned = isPinned
     }
 }
 
@@ -2424,6 +2441,7 @@ public enum StateAction: Codable, Sendable {
     case chatReasoning(ChatReasoningAction)
     case sessionIsReadChanged(SessionIsReadChangedAction)
     case sessionIsArchivedChanged(SessionIsArchivedChangedAction)
+    case sessionIsPinnedChanged(SessionIsPinnedChangedAction)
     case sessionActivityChanged(SessionActivityChangedAction)
     case sessionChangesetsChanged(SessionChangesetsChangedAction)
     case sessionServerToolsChanged(SessionServerToolsChangedAction)
@@ -2562,6 +2580,8 @@ public enum StateAction: Codable, Sendable {
             self = .sessionIsReadChanged(try SessionIsReadChangedAction(from: decoder))
         case "session/isArchivedChanged":
             self = .sessionIsArchivedChanged(try SessionIsArchivedChangedAction(from: decoder))
+        case "session/isPinnedChanged":
+            self = .sessionIsPinnedChanged(try SessionIsPinnedChangedAction(from: decoder))
         case "session/activityChanged":
             self = .sessionActivityChanged(try SessionActivityChangedAction(from: decoder))
         case "session/changesetsChanged":
@@ -2731,6 +2751,7 @@ public enum StateAction: Codable, Sendable {
         case .chatReasoning(let v): try v.encode(to: encoder)
         case .sessionIsReadChanged(let v): try v.encode(to: encoder)
         case .sessionIsArchivedChanged(let v): try v.encode(to: encoder)
+        case .sessionIsPinnedChanged(let v): try v.encode(to: encoder)
         case .sessionActivityChanged(let v): try v.encode(to: encoder)
         case .sessionChangesetsChanged(let v): try v.encode(to: encoder)
         case .sessionServerToolsChanged(let v): try v.encode(to: encoder)

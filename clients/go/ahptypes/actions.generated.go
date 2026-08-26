@@ -75,6 +75,7 @@ const (
 	ActionTypeChatTurnsLoaded                    ActionType = "chat/turnsLoaded"
 	ActionTypeSessionIsReadChanged               ActionType = "session/isReadChanged"
 	ActionTypeSessionIsArchivedChanged           ActionType = "session/isArchivedChanged"
+	ActionTypeSessionIsPinnedChanged             ActionType = "session/isPinnedChanged"
 	ActionTypeSessionActivityChanged             ActionType = "session/activityChanged"
 	ActionTypeSessionChangesetsChanged           ActionType = "session/changesetsChanged"
 	ActionTypeSessionConfigChanged               ActionType = "session/configChanged"
@@ -837,6 +838,16 @@ type SessionIsArchivedChangedAction struct {
 	Type ActionType `json:"type"`
 	// Whether the session is archived
 	IsArchived bool `json:"isArchived"`
+}
+
+// The pinned state of the session changed.
+//
+// Dispatched by a client to pin a session for persistent visibility or to
+// unpin it. Pinning is orthogonal to activity, read, and archived state.
+type SessionIsPinnedChangedAction struct {
+	Type ActionType `json:"type"`
+	// Whether the session is pinned
+	IsPinned bool `json:"isPinned"`
 }
 
 // The activity description of the session changed.
@@ -1702,6 +1713,7 @@ func (*ChatTruncatedAction) isStateAction()                      {}
 func (*ChatTurnsLoadedAction) isStateAction()                    {}
 func (*SessionIsReadChangedAction) isStateAction()               {}
 func (*SessionIsArchivedChangedAction) isStateAction()           {}
+func (*SessionIsPinnedChangedAction) isStateAction()             {}
 func (*SessionActivityChangedAction) isStateAction()             {}
 func (*SessionChangesetsChangedAction) isStateAction()           {}
 func (*SessionServerToolsChangedAction) isStateAction()          {}
@@ -2009,6 +2021,12 @@ func (u *StateAction) UnmarshalJSON(data []byte) error {
 		u.Value = &value
 	case "session/isArchivedChanged":
 		var value SessionIsArchivedChangedAction
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		u.Value = &value
+	case "session/isPinnedChanged":
+		var value SessionIsPinnedChangedAction
 		if err := json.Unmarshal(data, &value); err != nil {
 			return err
 		}

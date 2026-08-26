@@ -53,6 +53,8 @@ const (
 	SessionStatusIsRead SessionStatus = 32
 	// The session has been archived by the client.
 	SessionStatusIsArchived SessionStatus = 64
+	// The client has pinned the session for persistent visibility.
+	SessionStatusIsPinned SessionStatus = 128
 )
 
 // Has reports whether every flag in other is also set in s.

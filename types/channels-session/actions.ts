@@ -157,6 +157,22 @@ export interface SessionIsArchivedChangedAction {
 }
 
 /**
+ * The pinned state of the session changed.
+ *
+ * Dispatched by a client to pin a session for persistent visibility or to
+ * unpin it. Pinning is orthogonal to activity, read, and archived state.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionIsPinnedChangedAction {
+  type: ActionType.SessionIsPinnedChanged;
+  /** Whether the session is pinned */
+  isPinned: boolean;
+}
+
+/**
  * The activity description of the session changed.
  *
  * Dispatched by the server to indicate what the session is currently doing

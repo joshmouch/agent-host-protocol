@@ -52,7 +52,7 @@ function awaitsUser(request: SessionInputRequest): boolean {
  * entries clears the input-needed-specific bit. Since `InputNeeded` implies
  * {@link SessionStatus.InProgress}, an unblocked turn falls back to
  * `InProgress` while an already-idle session stays idle. Orthogonal flags
- * (`IsRead` / `IsArchived`) are preserved.
+ * (`IsRead` / `IsArchived` / `IsPinned`) are preserved.
  */
 function withInputNeededStatus(status: SessionStatus, inputNeeded: readonly SessionInputRequest[]): SessionStatus {
   if (inputNeeded.some(awaitsUser)) {
@@ -211,6 +211,12 @@ export function sessionReducer(state: SessionState, action: SessionAction, log?:
       return {
         ...state,
         status: withStatusFlag(state.status, SessionStatus.IsArchived, action.isArchived),
+      };
+
+    case ActionType.SessionIsPinnedChanged:
+      return {
+        ...state,
+        status: withStatusFlag(state.status, SessionStatus.IsPinned, action.isPinned),
       };
 
     case ActionType.SessionActivityChanged:

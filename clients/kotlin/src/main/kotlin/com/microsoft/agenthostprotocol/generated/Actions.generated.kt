@@ -85,6 +85,7 @@ value class ActionType(val rawValue: String) {
         val CHAT_TURNS_LOADED: ActionType = ActionType("chat/turnsLoaded")
         val SESSION_IS_READ_CHANGED: ActionType = ActionType("session/isReadChanged")
         val SESSION_IS_ARCHIVED_CHANGED: ActionType = ActionType("session/isArchivedChanged")
+        val SESSION_IS_PINNED_CHANGED: ActionType = ActionType("session/isPinnedChanged")
         val SESSION_ACTIVITY_CHANGED: ActionType = ActionType("session/activityChanged")
         val SESSION_CHANGESETS_CHANGED: ActionType = ActionType("session/changesetsChanged")
         val SESSION_CONFIG_CHANGED: ActionType = ActionType("session/configChanged")
@@ -803,6 +804,15 @@ data class SessionIsArchivedChangedAction(
      * Whether the session is archived
      */
     val isArchived: Boolean
+)
+
+@Serializable
+data class SessionIsPinnedChangedAction(
+    val type: ActionType,
+    /**
+     * Whether the session is pinned
+     */
+    val isPinned: Boolean
 )
 
 @Serializable
@@ -1609,6 +1619,7 @@ sealed interface StateAction
 @JvmInline value class StateActionChatReasoning(val value: ChatReasoningAction) : StateAction
 @JvmInline value class StateActionSessionIsReadChanged(val value: SessionIsReadChangedAction) : StateAction
 @JvmInline value class StateActionSessionIsArchivedChanged(val value: SessionIsArchivedChangedAction) : StateAction
+@JvmInline value class StateActionSessionIsPinnedChanged(val value: SessionIsPinnedChangedAction) : StateAction
 @JvmInline value class StateActionSessionActivityChanged(val value: SessionActivityChangedAction) : StateAction
 @JvmInline value class StateActionSessionChangesetsChanged(val value: SessionChangesetsChangedAction) : StateAction
 @JvmInline value class StateActionSessionServerToolsChanged(val value: SessionServerToolsChangedAction) : StateAction
@@ -1720,6 +1731,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             "chat/reasoning" -> StateActionChatReasoning(input.json.decodeFromJsonElement(ChatReasoningAction.serializer(), element))
             "session/isReadChanged" -> StateActionSessionIsReadChanged(input.json.decodeFromJsonElement(SessionIsReadChangedAction.serializer(), element))
             "session/isArchivedChanged" -> StateActionSessionIsArchivedChanged(input.json.decodeFromJsonElement(SessionIsArchivedChangedAction.serializer(), element))
+            "session/isPinnedChanged" -> StateActionSessionIsPinnedChanged(input.json.decodeFromJsonElement(SessionIsPinnedChangedAction.serializer(), element))
             "session/activityChanged" -> StateActionSessionActivityChanged(input.json.decodeFromJsonElement(SessionActivityChangedAction.serializer(), element))
             "session/changesetsChanged" -> StateActionSessionChangesetsChanged(input.json.decodeFromJsonElement(SessionChangesetsChangedAction.serializer(), element))
             "session/serverToolsChanged" -> StateActionSessionServerToolsChanged(input.json.decodeFromJsonElement(SessionServerToolsChangedAction.serializer(), element))
@@ -1824,6 +1836,7 @@ internal object StateActionSerializer : KSerializer<StateAction> {
             is StateActionChatReasoning -> output.json.encodeToJsonElement(ChatReasoningAction.serializer(), value.value)
             is StateActionSessionIsReadChanged -> output.json.encodeToJsonElement(SessionIsReadChangedAction.serializer(), value.value)
             is StateActionSessionIsArchivedChanged -> output.json.encodeToJsonElement(SessionIsArchivedChangedAction.serializer(), value.value)
+            is StateActionSessionIsPinnedChanged -> output.json.encodeToJsonElement(SessionIsPinnedChangedAction.serializer(), value.value)
             is StateActionSessionActivityChanged -> output.json.encodeToJsonElement(SessionActivityChangedAction.serializer(), value.value)
             is StateActionSessionChangesetsChanged -> output.json.encodeToJsonElement(SessionChangesetsChangedAction.serializer(), value.value)
             is StateActionSessionServerToolsChanged -> output.json.encodeToJsonElement(SessionServerToolsChangedAction.serializer(), value.value)

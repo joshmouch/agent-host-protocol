@@ -6133,7 +6133,8 @@
         8,
         24,
         32,
-        64
+        64,
+        128
       ],
       "type": "number",
       "description": "Bitset of summary-level session status flags.\n\nUse bitwise checks instead of equality for non-terminal activity. For example,\n`status & SessionStatus.InProgress` matches both ordinary in-progress turns\nand turns that are paused waiting for input."

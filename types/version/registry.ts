@@ -106,6 +106,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.SessionMcpServerStopRequested]: '0.5.2',
   [ActionType.SessionIsReadChanged]: '0.1.0',
   [ActionType.SessionIsArchivedChanged]: '0.1.0',
+  [ActionType.SessionIsPinnedChanged]: '1.0.0',
   [ActionType.SessionActivityChanged]: '0.1.0',
   [ActionType.SessionChangesetsChanged]: '0.2.0',
   [ActionType.SessionConfigChanged]: '0.1.0',

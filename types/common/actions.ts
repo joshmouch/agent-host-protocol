@@ -40,6 +40,7 @@ import type {
   SessionMcpServerStopRequestedAction,
   SessionIsReadChangedAction,
   SessionIsArchivedChangedAction,
+  SessionIsPinnedChangedAction,
   SessionActivityChangedAction,
   SessionChangesetsChangedAction,
   SessionConfigChangedAction,
@@ -194,6 +195,7 @@ export const enum ActionType {
   ChatTurnsLoaded = 'chat/turnsLoaded',
   SessionIsReadChanged = 'session/isReadChanged',
   SessionIsArchivedChanged = 'session/isArchivedChanged',
+  SessionIsPinnedChanged = 'session/isPinnedChanged',
   SessionActivityChanged = 'session/activityChanged',
   SessionChangesetsChanged = 'session/changesetsChanged',
   SessionConfigChanged = 'session/configChanged',
@@ -298,6 +300,7 @@ export type StateAction =
   | SessionMcpServerStopRequestedAction
   | SessionIsReadChangedAction
   | SessionIsArchivedChangedAction
+  | SessionIsPinnedChangedAction
   | SessionActivityChangedAction
   | SessionChangesetsChangedAction
   | SessionConfigChangedAction

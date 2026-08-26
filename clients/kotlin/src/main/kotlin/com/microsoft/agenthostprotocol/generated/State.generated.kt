@@ -166,6 +166,10 @@ value class SessionStatus(val rawValue: UInt) {
          * The session has been archived by the client.
          */
         val IS_ARCHIVED: SessionStatus = SessionStatus(64u)
+        /**
+         * The client has pinned the session for persistent visibility.
+         */
+        val IS_PINNED: SessionStatus = SessionStatus(128u)
     }
 }
 

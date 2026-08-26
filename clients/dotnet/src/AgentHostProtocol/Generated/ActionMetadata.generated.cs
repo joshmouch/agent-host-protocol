@@ -241,6 +241,9 @@ internal static class GeneratedActionMetadata
             case SessionIsArchivedChangedAction value:
                 actionType = value.Type;
                 return true;
+            case SessionIsPinnedChangedAction value:
+                actionType = value.Type;
+                return true;
             case SessionIsReadChangedAction value:
                 actionType = value.Type;
                 return true;
@@ -441,6 +444,7 @@ internal static class GeneratedActionMetadata
             ActionType.SessionInputNeededRemoved => "session/inputNeededRemoved",
             ActionType.SessionInputNeededSet => "session/inputNeededSet",
             ActionType.SessionIsArchivedChanged => "session/isArchivedChanged",
+            ActionType.SessionIsPinnedChanged => "session/isPinnedChanged",
             ActionType.SessionIsReadChanged => "session/isReadChanged",
             ActionType.SessionMcpServerStartRequested => "session/mcpServerStartRequested",
             ActionType.SessionMcpServerStateChanged => "session/mcpServerStateChanged",

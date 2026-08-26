@@ -100,6 +100,8 @@ impl SessionStatus {
     pub const IsRead: SessionStatus = SessionStatus(32);
     /// The session has been archived by the client.
     pub const IsArchived: SessionStatus = SessionStatus(64);
+    /// The client has pinned the session for persistent visibility.
+    pub const IsPinned: SessionStatus = SessionStatus(128);
 
     /// The raw `u32` bitset value (every set bit, known or not).
     #[inline]

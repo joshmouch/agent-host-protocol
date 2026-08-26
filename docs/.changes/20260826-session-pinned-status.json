@@ -1,0 +1,4 @@
+{
+  "type": "added",
+  "message": "First-class pinned session state through `SessionStatus.IsPinned` and `session/isPinnedChanged`."
+}
