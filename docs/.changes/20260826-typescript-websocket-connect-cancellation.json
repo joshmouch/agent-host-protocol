@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "`WebSocketTransport.connect` accepts cancellation and connection-timeout options.",
+  "targets": ["typescript"]
+}

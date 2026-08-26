@@ -10,6 +10,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { TransportError } from '../src/client/index.js';
+import { WebSocketTransport } from '../src/ws/index.js';
 
 type Listener = (ev: unknown) => void;
 
@@ -51,12 +52,37 @@ class MockWebSocket {
   }
 }
 
+class OpeningMockWebSocket extends MockWebSocket {
+  static instances: OpeningMockWebSocket[] = [];
+
+  override readyState: number = MockWebSocket.CONNECTING;
+  closeCount = 0;
+
+  constructor(_url: string | URL, _protocols?: string | string[]) {
+    super();
+    OpeningMockWebSocket.instances.push(this);
+  }
+
+  override close(): void {
+    this.closeCount++;
+    this.readyState = MockWebSocket.CLOSED;
+  }
+}
+
+async function withOpeningMock<T>(run: () => Promise<T>): Promise<T> {
+  const target = globalThis as { WebSocket?: typeof WebSocket };
+  const original = target.WebSocket;
+  OpeningMockWebSocket.instances = [];
+  target.WebSocket = OpeningMockWebSocket as unknown as typeof WebSocket;
+  try {
+    return await run();
+  } finally {
+    target.WebSocket = original;
+  }
+}
+
 async function makeTransport(): Promise<{ ws: MockWebSocket; transport: import('../src/ws/index.js').WebSocketTransport }> {
   const ws = new MockWebSocket();
-  // Stash the mock as the global WebSocket constructor briefly so
-  // fromSocket() accepts it via the OPEN check. We then reset to avoid
-  // leaking the override.
-  const { WebSocketTransport } = await import('../src/ws/index.js');
   return { ws, transport: WebSocketTransport.fromSocket(ws as unknown as WebSocket) };
 }
 
@@ -99,4 +125,63 @@ test('lastClose reflects the wasClean flag from the close event', async () => {
   assert.equal(info.code, 1006);
   assert.equal(info.wasClean, false);
   assert.equal(info.reason, 'gone');
+});
+
+test('connect does not construct a socket when its signal is already aborted', async () => {
+  await withOpeningMock(async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('stop'));
+
+    await assert.rejects(
+      WebSocketTransport.connect('ws://example.invalid', { signal: controller.signal }),
+      (err: unknown) => err instanceof TransportError && err.message.includes('cancelled'),
+    );
+    assert.equal(OpeningMockWebSocket.instances.length, 0);
+  });
+});
+
+test('connect cancellation closes a socket that is still opening', async () => {
+  await withOpeningMock(async () => {
+    const controller = new AbortController();
+    const connecting = WebSocketTransport.connect('ws://example.invalid', { signal: controller.signal });
+    const socket = OpeningMockWebSocket.instances[0];
+    assert.ok(socket);
+
+    controller.abort();
+
+    await assert.rejects(
+      connecting,
+      (err: unknown) => err instanceof TransportError && err.message.includes('cancelled'),
+    );
+    assert.equal(socket.closeCount, 1);
+  });
+});
+
+test('connect timeout closes a socket that never opens', async () => {
+  await withOpeningMock(async () => {
+    const connecting = WebSocketTransport.connect('ws://example.invalid', { timeoutMs: 5 });
+    const socket = OpeningMockWebSocket.instances[0];
+    assert.ok(socket);
+
+    await assert.rejects(
+      connecting,
+      (err: unknown) => err instanceof TransportError && err.message.includes('timed out after 5ms'),
+    );
+    assert.equal(socket.closeCount, 1);
+  });
+});
+
+test('connect resolves an opened socket before its timeout', async () => {
+  await withOpeningMock(async () => {
+    const connecting = WebSocketTransport.connect('ws://example.invalid', { timeoutMs: 50 });
+    const socket = OpeningMockWebSocket.instances[0];
+    assert.ok(socket);
+
+    socket.readyState = MockWebSocket.OPEN;
+    socket.fire('open', {});
+
+    const transport = await connecting;
+    assert.equal(transport.bufferedAmount, 0);
+    assert.equal(socket.closeCount, 0);
+  });
 });

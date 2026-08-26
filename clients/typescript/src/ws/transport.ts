@@ -24,6 +24,18 @@ export interface WebSocketTransportOptions {
    * the main extension points.
    */
   protocols?: string | string[];
+  /**
+   * Cancels the connection attempt while the socket is still opening. An
+   * already-aborted signal prevents the underlying WebSocket from being
+   * constructed. Cancellation closes a socket that is still connecting.
+   */
+  signal?: AbortSignal;
+  /**
+   * Maximum time to wait for the socket to emit `open`, in milliseconds.
+   * Omit (or set to `0`) to leave the connection attempt without a transport-
+   * level deadline. Request deadlines remain owned by {@link AhpClient}.
+   */
+  timeoutMs?: number;
 }
 
 /** Information about a transport close. */
@@ -63,6 +75,15 @@ export class WebSocketTransport implements AhpTransport {
    */
   static connect(url: string | URL, options: WebSocketTransportOptions = {}): Promise<WebSocketTransport> {
     return new Promise((resolve, reject) => {
+      const timeoutMs = options.timeoutMs ?? 0;
+      if (options.signal?.aborted) {
+        reject(new TransportError('io', 'websocket connection was cancelled', { cause: options.signal.reason }));
+        return;
+      }
+      if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
+        reject(new TransportError('io', 'websocket connection timeout must be a finite non-negative number'));
+        return;
+      }
       const SocketCtor = (globalThis as { WebSocket?: typeof WebSocket }).WebSocket;
       if (!SocketCtor) {
         reject(new TransportError('io', 'global WebSocket is not available; install or polyfill it'));
@@ -78,26 +99,46 @@ export class WebSocketTransport implements AhpTransport {
         return;
       }
 
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       const cleanup = () => {
+        if (timeout !== undefined) clearTimeout(timeout);
         socket.removeEventListener('open', onOpen);
         socket.removeEventListener('error', onErrorBeforeOpen);
         socket.removeEventListener('close', onCloseBeforeOpen);
+        options.signal?.removeEventListener('abort', onAbort);
+      };
+      const fail = (error: TransportError) => {
+        cleanup();
+        try {
+          socket.close();
+        } catch {
+          // best-effort cancellation of a socket that never opened
+        }
+        reject(error);
       };
       const onOpen = () => {
         cleanup();
         resolve(new WebSocketTransport(socket));
       };
       const onErrorBeforeOpen = () => {
-        cleanup();
-        reject(new TransportError('io', 'websocket failed to open'));
+        fail(new TransportError('io', 'websocket failed to open'));
       };
       const onCloseBeforeOpen = (ev: CloseEvent) => {
         cleanup();
         reject(new TransportError('closed', `websocket closed before open (code=${ev.code})`));
       };
+      const onAbort = () => {
+        fail(new TransportError('io', 'websocket connection was cancelled', { cause: options.signal?.reason }));
+      };
       socket.addEventListener('open', onOpen);
       socket.addEventListener('error', onErrorBeforeOpen);
       socket.addEventListener('close', onCloseBeforeOpen);
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+      if (timeoutMs > 0) {
+        timeout = setTimeout(() => {
+          fail(new TransportError('io', `websocket connection timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }
     });
   }
 
