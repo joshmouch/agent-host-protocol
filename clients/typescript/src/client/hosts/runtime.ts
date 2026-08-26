@@ -35,7 +35,7 @@ import type { AsyncBroadcastQueue } from '../async-queue.js';
 import { rootReducer } from '../../types/channels-root/reducer.js';
 import type { RootAction } from '../../types/action-origin.generated.js';
 import type { StateAction } from '../../types/common/actions.js';
-import type { AutomationCapabilities } from '../../types/common/commands.js';
+import type { AutomationCapabilities, HostCapabilities } from '../../types/common/commands.js';
 import {
   HostNotConnectedError,
   HostShutDownError,
@@ -72,6 +72,7 @@ export interface HostShared {
   serverSeq: number;
   defaultDirectory: string | null;
   automations: AutomationCapabilities | null;
+  capabilities: HostCapabilities | null;
   rootState: RootState;
   subscriptions: URI[];
   completionTriggerCharacters: string[];
@@ -103,6 +104,7 @@ export function makeInitialShared(
     serverSeq: 0,
     defaultDirectory: null,
     automations: null,
+    capabilities: null,
     rootState: { agents: [] },
     subscriptions: [...config.initialSubscriptions],
     completionTriggerCharacters: [],
@@ -126,6 +128,7 @@ export function snapshotHandle(shared: HostShared): HostHandle {
     serverSeq: shared.serverSeq,
     defaultDirectory: shared.defaultDirectory,
     automations: shared.automations,
+    capabilities: shared.capabilities,
     agents: [...shared.rootState.agents],
     activeSessions: shared.rootState.activeSessions ?? null,
     terminals: shared.rootState.terminals ? [...shared.rootState.terminals] : null,
@@ -573,6 +576,7 @@ export class HostRuntime {
         let initProtocolVersion: string | null = null;
         let initDefaultDirectory: string | null = null;
         let initAutomations = this.shared.automations;
+        let initCapabilities = this.shared.capabilities;
         let initCompletionTriggers: string[] = [];
 
         if (canReconnect) {
@@ -608,6 +612,7 @@ export class HostRuntime {
             initProtocolVersion = initResult.protocolVersion;
             initDefaultDirectory = initResult.defaultDirectory ?? null;
             initAutomations = initResult.automations ?? null;
+            initCapabilities = initResult.capabilities ?? null;
             initCompletionTriggers = initResult.completionTriggerCharacters ?? [];
           }
         } else {
@@ -625,6 +630,7 @@ export class HostRuntime {
           initProtocolVersion = initResult.protocolVersion;
           initDefaultDirectory = initResult.defaultDirectory ?? null;
           initAutomations = initResult.automations ?? null;
+          initCapabilities = initResult.capabilities ?? null;
           initCompletionTriggers = initResult.completionTriggerCharacters ?? [];
         }
 
@@ -693,6 +699,7 @@ export class HostRuntime {
           if (initProtocolVersion) this.shared.protocolVersion = initProtocolVersion;
           this.shared.defaultDirectory = initDefaultDirectory;
           this.shared.automations = initAutomations;
+          this.shared.capabilities = initCapabilities;
           this.shared.completionTriggerCharacters = [...initCompletionTriggers];
         }
         if (summaries !== null) {

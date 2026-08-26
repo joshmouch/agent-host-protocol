@@ -1628,7 +1628,8 @@ function generateActionsFile(project: Project): string {
 const COMMAND_ENUMS = ['ReconnectResultType', 'ChatSourceKind', 'ContentEncoding', 'CompletionItemKind', 'ResourceType', 'ResourceWriteMode'];
 
 const COMMAND_STRUCTS = [
-  'InitializeParams', 'InitializeResult', 'ClientCapabilities', 'AutomationCapabilities',
+  'InitializeParams', 'InitializeResult', 'ClientCapabilities', 'HostCapabilities',
+  'SessionCatalogCapabilities', 'SessionCatalogOperatorCapabilities', 'AutomationCapabilities',
   'AutomationCreateCapability',
   'AutomationScheduleCapabilities',
   'AutomationRunCancellationCapability',

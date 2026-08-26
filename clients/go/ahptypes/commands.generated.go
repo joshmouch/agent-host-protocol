@@ -149,6 +149,10 @@ type InitializeResult struct {
 	// identifies the negotiated protocol, `serverInfo` identifies the host
 	// software behind it.
 	ServerInfo *Implementation `json:"serverInfo,omitempty"`
+	// Optional capabilities implemented by this host authority. Clients MUST
+	// check these presence-gated declarations before using the corresponding
+	// optional host behavior.
+	Capabilities *HostCapabilities `json:"capabilities,omitempty"`
 	// Snapshots for each `initialSubscriptions` URI
 	Snapshots []Snapshot `json:"snapshots"`
 	// Suggested default directory for remote filesystem browsing
@@ -193,6 +197,37 @@ type ClientCapabilities struct {
 	// capability is declared. Clients that omit it MUST treat
 	// App-bearing tool calls as ordinary MCP tool calls.
 	McpApps map[string]json.RawMessage `json:"mcpApps,omitempty"`
+}
+
+// Optional capabilities implemented by an AHP host authority.
+type HostCapabilities struct {
+	// Optional features of the host's root-level session catalog.
+	SessionCatalog *SessionCatalogCapabilities `json:"sessionCatalog,omitempty"`
+}
+
+// Optional features supported by the host's `listSessions` catalog and
+// session-summary mutations. Each field is presence-gated: absence means a
+// client MUST NOT depend on that behavior.
+type SessionCatalogCapabilities struct {
+	// The host accepts `listSessions.catalogScope: "all"` and returns every
+	// authorized provider session instead of applying its configured UI
+	// visibility or recency window.
+	Complete map[string]json.RawMessage `json:"complete,omitempty"`
+	// The host accepts the `listSessions.providers` selection input.
+	Providers map[string]json.RawMessage `json:"providers,omitempty"`
+	// Generic ordered-selection operators supported by this catalog.
+	Operators *SessionCatalogOperatorCapabilities `json:"operators,omitempty"`
+	// Session summaries project `SessionStatus.IsPinned` and the host accepts
+	// the `session/isPinnedChanged` action.
+	Pinning map[string]json.RawMessage `json:"pinning,omitempty"`
+}
+
+// Selection operators supported by a host's session catalog.
+type SessionCatalogOperatorCapabilities struct {
+	// The host accepts `listSessions.operators.sort`.
+	Sort map[string]json.RawMessage `json:"sort,omitempty"`
+	// The host accepts the query-wide `listSessions.operators.limit`.
+	Limit map[string]json.RawMessage `json:"limit,omitempty"`
 }
 
 // Automation features supported by this host authority.

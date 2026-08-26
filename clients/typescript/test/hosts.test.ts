@@ -25,7 +25,7 @@ import type {
 } from '../src/types/common/messages.js';
 import type { SessionSummary } from '../src/types/channels-session/state.js';
 import type { AgentInfo } from '../src/types/channels-root/state.js';
-import type { InitializeResult } from '../src/types/common/commands.js';
+import type { HostCapabilities, InitializeResult } from '../src/types/common/commands.js';
 import type { ListSessionsParams, ListSessionsResult } from '../src/types/channels-root/commands.js';
 import { ReconnectResultType } from '../src/types/common/commands.js';
 import type { ReconnectResult } from '../src/types/common/commands.js';
@@ -98,6 +98,7 @@ test('host config defaults and preserves offered protocol versions', () => {
 interface FakeHostState {
   agents: AgentInfo[];
   sessions: SessionSummary[];
+  capabilities?: HostCapabilities;
   requestMethods?: string[];
   listSessions?: (params: ListSessionsParams) => ListSessionsResult;
   /** Optional callback invoked once after the first request is handled (init or reconnect). */
@@ -132,6 +133,7 @@ function buildInitResult(state: FakeHostState): InitializeResult {
   return {
     protocolVersion: PROTOCOL_VERSION,
     serverSeq: 0,
+    ...(state.capabilities === undefined ? {} : { capabilities: state.capabilities }),
     snapshots: [
       {
         resource: ROOT,
@@ -436,6 +438,38 @@ test('prefetchSessionSummaries false connects without listing sessions', async (
     });
     await waitUntil(() => multi.host('catalog-client')?.state.status === 'connected');
     assert.equal(requestMethods.includes('listSessions'), false);
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('host snapshots retain initialize session-catalog capabilities', async () => {
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'capabilities',
+      label: 'Capabilities',
+      transportFactory: makeBasicFactory(makeFakeState({
+        capabilities: {
+          sessionCatalog: {
+            complete: {},
+            providers: {},
+            operators: { sort: {}, limit: {} },
+            pinning: {},
+          },
+        },
+      })),
+    });
+    const ready = await multi.waitForHosts(['capabilities'], { timeoutMs: 2_000 });
+
+    assert.deepEqual(ready.get('capabilities')?.capabilities, {
+      sessionCatalog: {
+        complete: {},
+        providers: {},
+        operators: { sort: {}, limit: {} },
+        pinning: {},
+      },
+    });
   } finally {
     await multi.shutdown();
   }

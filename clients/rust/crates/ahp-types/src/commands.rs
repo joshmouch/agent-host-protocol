@@ -255,6 +255,11 @@ pub struct InitializeResult {
     /// software behind it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_info: Option<Implementation>,
+    /// Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<HostCapabilities>,
     /// Snapshots for each `initialSubscriptions` URI
     pub snapshots: Vec<Snapshot>,
     /// Suggested default directory for remote filesystem browsing
@@ -307,6 +312,50 @@ pub struct ClientCapabilities {
     /// App-bearing tool calls as ordinary MCP tool calls.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_apps: Option<JsonObject>,
+}
+
+/// Optional capabilities implemented by an AHP host authority.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HostCapabilities {
+    /// Optional features of the host's root-level session catalog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_catalog: Option<SessionCatalogCapabilities>,
+}
+
+/// Optional features supported by the host's `listSessions` catalog and
+/// session-summary mutations. Each field is presence-gated: absence means a
+/// client MUST NOT depend on that behavior.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCatalogCapabilities {
+    /// The host accepts `listSessions.catalogScope: "all"` and returns every
+    /// authorized provider session instead of applying its configured UI
+    /// visibility or recency window.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub complete: Option<JsonObject>,
+    /// The host accepts the `listSessions.providers` selection input.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub providers: Option<JsonObject>,
+    /// Generic ordered-selection operators supported by this catalog.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operators: Option<SessionCatalogOperatorCapabilities>,
+    /// Session summaries project `SessionStatus.IsPinned` and the host accepts
+    /// the `session/isPinnedChanged` action.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pinning: Option<JsonObject>,
+}
+
+/// Selection operators supported by a host's session catalog.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionCatalogOperatorCapabilities {
+    /// The host accepts `listSessions.operators.sort`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<JsonObject>,
+    /// The host accepts the query-wide `listSessions.operators.limit`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<JsonObject>,
 }
 
 /// Automation features supported by this host authority.

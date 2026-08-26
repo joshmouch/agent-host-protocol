@@ -346,6 +346,12 @@ data class InitializeResult(
      */
     val serverInfo: Implementation? = null,
     /**
+     * Optional capabilities implemented by this host authority. Clients MUST
+     * check these presence-gated declarations before using the corresponding
+     * optional host behavior.
+     */
+    val capabilities: HostCapabilities? = null,
+    /**
      * Snapshots for each `initialSubscriptions` URI
      */
     val snapshots: List<Snapshot>,
@@ -399,6 +405,49 @@ data class ClientCapabilities(
      * App-bearing tool calls as ordinary MCP tool calls.
      */
     val mcpApps: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class HostCapabilities(
+    /**
+     * Optional features of the host's root-level session catalog.
+     */
+    val sessionCatalog: SessionCatalogCapabilities? = null
+)
+
+@Serializable
+data class SessionCatalogCapabilities(
+    /**
+     * The host accepts `listSessions.catalogScope: "all"` and returns every
+     * authorized provider session instead of applying its configured UI
+     * visibility or recency window.
+     */
+    val complete: Map<String, JsonElement>? = null,
+    /**
+     * The host accepts the `listSessions.providers` selection input.
+     */
+    val providers: Map<String, JsonElement>? = null,
+    /**
+     * Generic ordered-selection operators supported by this catalog.
+     */
+    val operators: SessionCatalogOperatorCapabilities? = null,
+    /**
+     * Session summaries project `SessionStatus.IsPinned` and the host accepts
+     * the `session/isPinnedChanged` action.
+     */
+    val pinning: Map<String, JsonElement>? = null
+)
+
+@Serializable
+data class SessionCatalogOperatorCapabilities(
+    /**
+     * The host accepts `listSessions.operators.sort`.
+     */
+    val sort: Map<String, JsonElement>? = null,
+    /**
+     * The host accepts the query-wide `listSessions.operators.limit`.
+     */
+    val limit: Map<String, JsonElement>? = null
 )
 
 @Serializable

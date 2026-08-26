@@ -310,6 +310,10 @@ public struct InitializeResult: Codable, Sendable {
     /// identifies the negotiated protocol, `serverInfo` identifies the host
     /// software behind it.
     public var serverInfo: Implementation?
+    /// Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.
+    public var capabilities: HostCapabilities?
     /// Snapshots for each `initialSubscriptions` URI
     public var snapshots: [Snapshot]
     /// Suggested default directory for remote filesystem browsing
@@ -339,6 +343,7 @@ public struct InitializeResult: Codable, Sendable {
         protocolVersion: String,
         serverSeq: Int,
         serverInfo: Implementation? = nil,
+        capabilities: HostCapabilities? = nil,
         snapshots: [Snapshot],
         defaultDirectory: String? = nil,
         completionTriggerCharacters: [String]? = nil,
@@ -349,6 +354,7 @@ public struct InitializeResult: Codable, Sendable {
         self.protocolVersion = protocolVersion
         self.serverSeq = serverSeq
         self.serverInfo = serverInfo
+        self.capabilities = capabilities
         self.snapshots = snapshots
         self.defaultDirectory = defaultDirectory
         self.completionTriggerCharacters = completionTriggerCharacters
@@ -376,6 +382,58 @@ public struct ClientCapabilities: Codable, Sendable {
         mcpApps: [String: AnyCodable]? = nil
     ) {
         self.mcpApps = mcpApps
+    }
+}
+
+public struct HostCapabilities: Codable, Sendable {
+    /// Optional features of the host's root-level session catalog.
+    public var sessionCatalog: SessionCatalogCapabilities?
+
+    public init(
+        sessionCatalog: SessionCatalogCapabilities? = nil
+    ) {
+        self.sessionCatalog = sessionCatalog
+    }
+}
+
+public struct SessionCatalogCapabilities: Codable, Sendable {
+    /// The host accepts `listSessions.catalogScope: "all"` and returns every
+    /// authorized provider session instead of applying its configured UI
+    /// visibility or recency window.
+    public var complete: [String: AnyCodable]?
+    /// The host accepts the `listSessions.providers` selection input.
+    public var providers: [String: AnyCodable]?
+    /// Generic ordered-selection operators supported by this catalog.
+    public var operators: SessionCatalogOperatorCapabilities?
+    /// Session summaries project `SessionStatus.IsPinned` and the host accepts
+    /// the `session/isPinnedChanged` action.
+    public var pinning: [String: AnyCodable]?
+
+    public init(
+        complete: [String: AnyCodable]? = nil,
+        providers: [String: AnyCodable]? = nil,
+        operators: SessionCatalogOperatorCapabilities? = nil,
+        pinning: [String: AnyCodable]? = nil
+    ) {
+        self.complete = complete
+        self.providers = providers
+        self.operators = operators
+        self.pinning = pinning
+    }
+}
+
+public struct SessionCatalogOperatorCapabilities: Codable, Sendable {
+    /// The host accepts `listSessions.operators.sort`.
+    public var sort: [String: AnyCodable]?
+    /// The host accepts the query-wide `listSessions.operators.limit`.
+    public var limit: [String: AnyCodable]?
+
+    public init(
+        sort: [String: AnyCodable]? = nil,
+        limit: [String: AnyCodable]? = nil
+    ) {
+        self.sort = sort
+        self.limit = limit
     }
 }
 

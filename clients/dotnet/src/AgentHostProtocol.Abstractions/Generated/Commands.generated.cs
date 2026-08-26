@@ -174,6 +174,12 @@ public sealed record InitializeResult
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Implementation? ServerInfo { get; init; }
 
+    /// <summary>Optional capabilities implemented by this host authority. Clients MUST
+    /// check these presence-gated declarations before using the corresponding
+    /// optional host behavior.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public HostCapabilities? Capabilities { get; init; }
+
     /// <summary>Snapshots for each `initialSubscriptions` URI</summary>
     public required List<Snapshot> Snapshots { get; init; }
 
@@ -259,6 +265,51 @@ public sealed record ClientCapabilities
     /// App-bearing tool calls as ordinary MCP tool calls.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, JsonElement>? McpApps { get; init; }
+}
+
+/// <summary>Optional capabilities implemented by an AHP host authority.</summary>
+public sealed record HostCapabilities
+{
+    /// <summary>Optional features of the host's root-level session catalog.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionCatalogCapabilities? SessionCatalog { get; init; }
+}
+
+/// <summary>Optional features supported by the host's `listSessions` catalog and
+/// session-summary mutations. Each field is presence-gated: absence means a
+/// client MUST NOT depend on that behavior.</summary>
+public sealed record SessionCatalogCapabilities
+{
+    /// <summary>The host accepts `listSessions.catalogScope: "all"` and returns every
+    /// authorized provider session instead of applying its configured UI
+    /// visibility or recency window.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Complete { get; init; }
+
+    /// <summary>The host accepts the `listSessions.providers` selection input.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Providers { get; init; }
+
+    /// <summary>Generic ordered-selection operators supported by this catalog.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionCatalogOperatorCapabilities? Operators { get; init; }
+
+    /// <summary>Session summaries project `SessionStatus.IsPinned` and the host accepts
+    /// the `session/isPinnedChanged` action.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Pinning { get; init; }
+}
+
+/// <summary>Selection operators supported by a host's session catalog.</summary>
+public sealed record SessionCatalogOperatorCapabilities
+{
+    /// <summary>The host accepts `listSessions.operators.sort`.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Sort { get; init; }
+
+    /// <summary>The host accepts the query-wide `listSessions.operators.limit`.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, JsonElement>? Limit { get; init; }
 }
 
 /// <summary>Automation features supported by this host authority.

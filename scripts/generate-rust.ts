@@ -1699,7 +1699,9 @@ const COMMAND_ENUMS = ['ReconnectResultType', 'ChatSourceKind', 'ContentEncoding
 
 const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; rustName?: string }[] = [
   { name: 'InitializeParams' }, { name: 'InitializeResult' },
-  { name: 'ClientCapabilities' }, { name: 'AutomationCapabilities' },
+  { name: 'ClientCapabilities' }, { name: 'HostCapabilities' },
+  { name: 'SessionCatalogCapabilities' }, { name: 'SessionCatalogOperatorCapabilities' },
+  { name: 'AutomationCapabilities' },
   { name: 'AutomationCreateCapability' },
   { name: 'AutomationScheduleCapabilities' },
   { name: 'AutomationRunCancellationCapability' },

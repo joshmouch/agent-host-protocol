@@ -248,6 +248,12 @@ export interface InitializeResult {
    * software behind it.
    */
   serverInfo?: Implementation;
+  /**
+   * Optional capabilities implemented by this host authority. Clients MUST
+   * check these presence-gated declarations before using the corresponding
+   * optional host behavior.
+   */
+  capabilities?: HostCapabilities;
   /** Snapshots for each `initialSubscriptions` URI */
   snapshots: Snapshot[];
   /** Suggested default directory for remote filesystem browsing */
@@ -284,6 +290,43 @@ export interface InitializeResult {
    * @see {@link /guide/automations | Automations Guide}
    */
   automations?: AutomationCapabilities;
+}
+
+/** Optional capabilities implemented by an AHP host authority. */
+export interface HostCapabilities {
+  /** Optional features of the host's root-level session catalog. */
+  sessionCatalog?: SessionCatalogCapabilities;
+}
+
+/**
+ * Optional features supported by the host's `listSessions` catalog and
+ * session-summary mutations. Each field is presence-gated: absence means a
+ * client MUST NOT depend on that behavior.
+ */
+export interface SessionCatalogCapabilities {
+  /**
+   * The host accepts `listSessions.catalogScope: "all"` and returns every
+   * authorized provider session instead of applying its configured UI
+   * visibility or recency window.
+   */
+  complete?: Record<string, never>;
+  /** The host accepts the `listSessions.providers` selection input. */
+  providers?: Record<string, never>;
+  /** Generic ordered-selection operators supported by this catalog. */
+  operators?: SessionCatalogOperatorCapabilities;
+  /**
+   * Session summaries project `SessionStatus.IsPinned` and the host accepts
+   * the `session/isPinnedChanged` action.
+   */
+  pinning?: Record<string, never>;
+}
+
+/** Selection operators supported by a host's session catalog. */
+export interface SessionCatalogOperatorCapabilities {
+  /** The host accepts `listSessions.operators.sort`. */
+  sort?: Record<string, never>;
+  /** The host accepts the query-wide `listSessions.operators.limit`. */
+  limit?: Record<string, never>;
 }
 
 /**

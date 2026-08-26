@@ -2081,6 +2081,9 @@ const COMMAND_STRUCTS: { name: string; omitDiscriminants?: boolean; csName?: str
   // record or those fields reference a non-existent type (CS0246).
   { name: 'Implementation' },
   { name: 'ClientCapabilities' },
+  { name: 'HostCapabilities' },
+  { name: 'SessionCatalogCapabilities' },
+  { name: 'SessionCatalogOperatorCapabilities' },
   { name: 'AutomationCapabilities' },
   { name: 'AutomationCreateCapability' },
   { name: 'AutomationScheduleCapabilities' },
