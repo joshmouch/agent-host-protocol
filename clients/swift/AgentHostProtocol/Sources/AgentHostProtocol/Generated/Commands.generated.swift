@@ -784,6 +784,34 @@ public struct DisposeChatParams: Codable, Sendable {
     }
 }
 
+public struct ListSessionsOperators: Codable, Sendable {
+    /// Sort keys in priority order. Omitted retains the server's default order.
+    public var sort: [ListSessionsSort]?
+    /// Maximum total rows in the query result before pagination.
+    public var limit: Int?
+
+    public init(
+        sort: [ListSessionsSort]? = nil,
+        limit: Int? = nil
+    ) {
+        self.sort = sort
+        self.limit = limit
+    }
+}
+
+public struct ListSessionsSort: Codable, Sendable {
+    public var field: String
+    public var direction: String
+
+    public init(
+        field: String,
+        direction: String
+    ) {
+        self.field = field
+        self.direction = direction
+    }
+}
+
 public struct ListSessionsParams: Codable, Sendable {
     /// Channel URI this command targets.
     public var channel: String
@@ -799,24 +827,49 @@ public struct ListSessionsParams: Codable, Sendable {
     /// as opaque — do not parse, modify, or persist them across connections. An
     /// unrecognised cursor SHOULD be rejected with an `InvalidParams` error.
     public var cursor: String?
+    /// Which host-known sessions participate in this catalog query.
+    ///
+    /// `configured` (the default) preserves the host's user-facing visibility
+    /// policy. `all` includes every session the client is authorized to list,
+    /// including sessions outside a configured recency window. This never
+    /// bypasses authorization or provider access controls.
+    public var catalogScope: String?
+    /// Optional provider ids to include. Servers that implement this filter SHOULD
+    /// apply it before provider metadata and session-database reads, so clients can
+    /// inspect one large provider catalog without paying to materialize unrelated
+    /// providers. Omitted means every provider.
+    public var providers: [String]?
+    /// Ordered selection applied to the complete matching catalog before ordinary
+    /// cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+    /// only the maximum size of one response page.
+    public var operators: ListSessionsOperators?
 
     enum CodingKeys: String, CodingKey {
         case channel
         case meta = "_meta"
         case limit
         case cursor
+        case catalogScope
+        case providers
+        case operators
     }
 
     public init(
         channel: String,
         meta: [String: AnyCodable]? = nil,
         limit: Int? = nil,
-        cursor: String? = nil
+        cursor: String? = nil,
+        catalogScope: String? = nil,
+        providers: [String]? = nil,
+        operators: ListSessionsOperators? = nil
     ) {
         self.channel = channel
         self.meta = meta
         self.limit = limit
         self.cursor = cursor
+        self.catalogScope = catalogScope
+        self.providers = providers
+        self.operators = operators
     }
 }
 

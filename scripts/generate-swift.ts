@@ -1637,7 +1637,7 @@ const COMMAND_STRUCTS = [
   'SubscribeParams', 'SubscribeView', 'SubscriptionDeliveryOptions', 'SubscribeResult',
   'CreateSessionParams', 'DisposeSessionParams',
   'CreateChatParams', 'DisposeChatParams',
-  'ListSessionsParams', 'ListSessionsResult',
+  'ListSessionsOperators', 'ListSessionsSort', 'ListSessionsParams', 'ListSessionsResult',
   'ResourceReadParams', 'ResourceReadResult',
   'ResourceWriteParams', 'ResourceWriteResult',
   'ResourceListParams', 'ResourceListResult', 'DirectoryEntry',

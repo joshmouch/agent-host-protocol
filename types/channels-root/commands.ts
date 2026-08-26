@@ -56,12 +56,41 @@ export type { SessionConfigPropertySchema, SessionConfigSchema } from '../channe
 export interface ListSessionsParams extends BaseParams, PaginatedParams {
   channel: 'ahp-root://';
   /**
+   * Which host-known sessions participate in this catalog query.
+   *
+   * `configured` (the default) preserves the host's user-facing visibility
+   * policy. `all` includes every session the client is authorized to list,
+   * including sessions outside a configured recency window. This never
+   * bypasses authorization or provider access controls.
+   */
+  catalogScope?: 'configured' | 'all';
+  /**
    * Optional provider ids to include. Servers that implement this filter SHOULD
    * apply it before provider metadata and session-database reads, so clients can
    * inspect one large provider catalog without paying to materialize unrelated
    * providers. Omitted means every provider.
    */
   providers?: string[];
+  /**
+   * Ordered selection applied to the complete matching catalog before ordinary
+   * cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+   * only the maximum size of one response page.
+   */
+  operators?: ListSessionsOperators;
+}
+
+/** Generic ordered-selection operators for a session catalog query. */
+export interface ListSessionsOperators {
+  /** Sort keys in priority order. Omitted retains the server's default order. */
+  sort?: ListSessionsSort[];
+  /** Maximum total rows in the query result before pagination. */
+  limit?: number;
+}
+
+/** One scalar `SessionSummary` sort key. */
+export interface ListSessionsSort {
+  field: 'modifiedAt' | 'createdAt' | 'title' | 'provider' | 'resource' | 'project';
+  direction: 'asc' | 'desc';
 }
 
 /** Result of the `listSessions` command. */

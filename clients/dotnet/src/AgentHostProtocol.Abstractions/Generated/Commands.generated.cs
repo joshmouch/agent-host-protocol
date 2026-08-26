@@ -632,6 +632,26 @@ public sealed record DisposeChatParams
     public Dictionary<string, JsonElement>? Meta { get; init; }
 }
 
+/// <summary>Generic ordered-selection operators for a session catalog query.</summary>
+public sealed record ListSessionsOperators
+{
+    /// <summary>Sort keys in priority order. Omitted retains the server's default order.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<ListSessionsSort>? Sort { get; init; }
+
+    /// <summary>Maximum total rows in the query result before pagination.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? Limit { get; init; }
+}
+
+/// <summary>One scalar `SessionSummary` sort key.</summary>
+public sealed record ListSessionsSort
+{
+    public required string Field { get; init; }
+
+    public required string Direction { get; init; }
+}
+
 /// <summary>Returns a list of session summaries. Used to populate session lists and sidebars.
 ///
 /// The session list is **not** part of the state tree because it can be arbitrarily
@@ -667,12 +687,27 @@ public sealed record ListSessionsParams
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Cursor { get; init; }
 
+    /// <summary>Which host-known sessions participate in this catalog query.
+    ///
+    /// `configured` (the default) preserves the host's user-facing visibility
+    /// policy. `all` includes every session the client is authorized to list,
+    /// including sessions outside a configured recency window. This never
+    /// bypasses authorization or provider access controls.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? CatalogScope { get; init; }
+
     /// <summary>Optional provider ids to include. Servers that implement this filter SHOULD
     /// apply it before provider metadata and session-database reads, so clients can
     /// inspect one large provider catalog without paying to materialize unrelated
     /// providers. Omitted means every provider.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? Providers { get; init; }
+
+    /// <summary>Ordered selection applied to the complete matching catalog before ordinary
+    /// cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+    /// only the maximum size of one response page.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ListSessionsOperators? Operators { get; init; }
 }
 
 /// <summary>Result of the `listSessions` command.</summary>

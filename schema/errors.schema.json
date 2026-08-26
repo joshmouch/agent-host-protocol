@@ -6564,16 +6564,73 @@
           "type": "string",
           "description": "Opaque pagination cursor from a previous {@link PaginatedResult.nextCursor}.\nOmit to fetch the first page. Cursors are server-defined and MUST be treated\nas opaque — do not parse, modify, or persist them across connections. An\nunrecognised cursor SHOULD be rejected with an `InvalidParams` error."
         },
+        "catalogScope": {
+          "type": "string",
+          "enum": [
+            "configured",
+            "all"
+          ],
+          "description": "Which host-known sessions participate in this catalog query.\n\n`configured` (the default) preserves the host's user-facing visibility\npolicy. `all` includes every session the client is authorized to list,\nincluding sessions outside a configured recency window. This never\nbypasses authorization or provider access controls."
+        },
         "providers": {
           "type": "array",
           "items": {
             "type": "string"
           },
           "description": "Optional provider ids to include. Servers that implement this filter SHOULD\napply it before provider metadata and session-database reads, so clients can\ninspect one large provider catalog without paying to materialize unrelated\nproviders. Omitted means every provider."
+        },
+        "operators": {
+          "$ref": "#/$defs/ListSessionsOperators",
+          "description": "Ordered selection applied to the complete matching catalog before ordinary\ncursor pagination. This is distinct from `PaginatedParams.limit`, which is\nonly the maximum size of one response page."
         }
       },
       "required": [
         "channel"
+      ]
+    },
+    "ListSessionsOperators": {
+      "type": "object",
+      "description": "Generic ordered-selection operators for a session catalog query.",
+      "properties": {
+        "sort": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ListSessionsSort"
+          },
+          "description": "Sort keys in priority order. Omitted retains the server's default order."
+        },
+        "limit": {
+          "type": "number",
+          "description": "Maximum total rows in the query result before pagination."
+        }
+      }
+    },
+    "ListSessionsSort": {
+      "type": "object",
+      "description": "One scalar `SessionSummary` sort key.",
+      "properties": {
+        "field": {
+          "type": "string",
+          "enum": [
+            "modifiedAt",
+            "createdAt",
+            "title",
+            "provider",
+            "resource",
+            "project"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        }
+      },
+      "required": [
+        "field",
+        "direction"
       ]
     },
     "ListSessionsResult": {

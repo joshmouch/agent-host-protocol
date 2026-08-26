@@ -506,6 +506,20 @@ type DisposeChatParams struct {
 	Meta map[string]json.RawMessage `json:"_meta,omitempty"`
 }
 
+// Generic ordered-selection operators for a session catalog query.
+type ListSessionsOperators struct {
+	// Sort keys in priority order. Omitted retains the server's default order.
+	Sort []ListSessionsSort `json:"sort,omitempty"`
+	// Maximum total rows in the query result before pagination.
+	Limit *int64 `json:"limit,omitempty"`
+}
+
+// One scalar `SessionSummary` sort key.
+type ListSessionsSort struct {
+	Field     string `json:"field"`
+	Direction string `json:"direction"`
+}
+
 // Returns a list of session summaries. Used to populate session lists and sidebars.
 //
 // The session list is **not** part of the state tree because it can be arbitrarily
@@ -533,6 +547,22 @@ type ListSessionsParams struct {
 	// as opaque — do not parse, modify, or persist them across connections. An
 	// unrecognised cursor SHOULD be rejected with an `InvalidParams` error.
 	Cursor *string `json:"cursor,omitempty"`
+	// Which host-known sessions participate in this catalog query.
+	//
+	// `configured` (the default) preserves the host's user-facing visibility
+	// policy. `all` includes every session the client is authorized to list,
+	// including sessions outside a configured recency window. This never
+	// bypasses authorization or provider access controls.
+	CatalogScope *string `json:"catalogScope,omitempty"`
+	// Optional provider ids to include. Servers that implement this filter SHOULD
+	// apply it before provider metadata and session-database reads, so clients can
+	// inspect one large provider catalog without paying to materialize unrelated
+	// providers. Omitted means every provider.
+	Providers []string `json:"providers,omitempty"`
+	// Ordered selection applied to the complete matching catalog before ordinary
+	// cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+	// only the maximum size of one response page.
+	Operators *ListSessionsOperators `json:"operators,omitempty"`
 }
 
 // Result of the `listSessions` command.

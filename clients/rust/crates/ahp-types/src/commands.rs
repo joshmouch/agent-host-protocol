@@ -709,6 +709,26 @@ pub struct DisposeChatParams {
     pub meta: Option<JsonObject>,
 }
 
+/// Generic ordered-selection operators for a session catalog query.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSessionsOperators {
+    /// Sort keys in priority order. Omitted retains the server's default order.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<Vec<ListSessionsSort>>,
+    /// Maximum total rows in the query result before pagination.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<i64>,
+}
+
+/// One scalar `SessionSummary` sort key.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSessionsSort {
+    pub field: String,
+    pub direction: String,
+}
+
 /// Returns a list of session summaries. Used to populate session lists and sidebars.
 ///
 /// The session list is **not** part of the state tree because it can be arbitrarily
@@ -741,6 +761,25 @@ pub struct ListSessionsParams {
     /// unrecognised cursor SHOULD be rejected with an `InvalidParams` error.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
+    /// Which host-known sessions participate in this catalog query.
+    ///
+    /// `configured` (the default) preserves the host's user-facing visibility
+    /// policy. `all` includes every session the client is authorized to list,
+    /// including sessions outside a configured recency window. This never
+    /// bypasses authorization or provider access controls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_scope: Option<String>,
+    /// Optional provider ids to include. Servers that implement this filter SHOULD
+    /// apply it before provider metadata and session-database reads, so clients can
+    /// inspect one large provider catalog without paying to materialize unrelated
+    /// providers. Omitted means every provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub providers: Option<Vec<String>>,
+    /// Ordered selection applied to the complete matching catalog before ordinary
+    /// cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+    /// only the maximum size of one response page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operators: Option<ListSessionsOperators>,
 }
 
 /// Result of the `listSessions` command.

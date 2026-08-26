@@ -717,6 +717,24 @@ data class DisposeChatParams(
 )
 
 @Serializable
+data class ListSessionsOperators(
+    /**
+     * Sort keys in priority order. Omitted retains the server's default order.
+     */
+    val sort: List<ListSessionsSort>? = null,
+    /**
+     * Maximum total rows in the query result before pagination.
+     */
+    val limit: Long? = null
+)
+
+@Serializable
+data class ListSessionsSort(
+    val field: String,
+    val direction: String
+)
+
+@Serializable
 data class ListSessionsParams(
     /**
      * Channel URI this command targets.
@@ -740,7 +758,29 @@ data class ListSessionsParams(
      * as opaque — do not parse, modify, or persist them across connections. An
      * unrecognised cursor SHOULD be rejected with an `InvalidParams` error.
      */
-    val cursor: String? = null
+    val cursor: String? = null,
+    /**
+     * Which host-known sessions participate in this catalog query.
+     *
+     * `configured` (the default) preserves the host's user-facing visibility
+     * policy. `all` includes every session the client is authorized to list,
+     * including sessions outside a configured recency window. This never
+     * bypasses authorization or provider access controls.
+     */
+    val catalogScope: String? = null,
+    /**
+     * Optional provider ids to include. Servers that implement this filter SHOULD
+     * apply it before provider metadata and session-database reads, so clients can
+     * inspect one large provider catalog without paying to materialize unrelated
+     * providers. Omitted means every provider.
+     */
+    val providers: List<String>? = null,
+    /**
+     * Ordered selection applied to the complete matching catalog before ordinary
+     * cursor pagination. This is distinct from `PaginatedParams.limit`, which is
+     * only the maximum size of one response page.
+     */
+    val operators: ListSessionsOperators? = null
 )
 
 @Serializable
