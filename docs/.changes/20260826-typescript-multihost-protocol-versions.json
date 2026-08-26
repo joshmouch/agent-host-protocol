@@ -1,0 +1,4 @@
+{
+  "type": "added",
+  "message": "TypeScript `MultiHostClient` host configs can offer a host-scoped protocol-version list for rolling upgrades."
+}

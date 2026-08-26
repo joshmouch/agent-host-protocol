@@ -53,11 +53,32 @@ import {
   type HostSubscriptionEvent,
   type HostTransportFactory,
 } from '../src/client/hosts/index.js';
+import { resolveConfig } from '../src/client/hosts/types.js';
 
 import { PROTOCOL_VERSION } from '../src/types/version/registry.js';
 import { SessionStatus } from '../src/types/channels-session/state.js';
 
 const ROOT = 'ahp-root://' as const;
+
+test('host config defaults and preserves offered protocol versions', () => {
+  assert.deepEqual(resolveConfig({
+    id: 'default-version',
+    label: 'Default Version',
+    transportFactory: async () => { throw new Error('unused'); },
+  }).protocolVersions, [PROTOCOL_VERSION]);
+  assert.deepEqual(resolveConfig({
+    id: 'rolling-upgrade',
+    label: 'Rolling Upgrade',
+    protocolVersions: ['1.0.0', '0.8.0'],
+    transportFactory: async () => { throw new Error('unused'); },
+  }).protocolVersions, ['1.0.0', '0.8.0']);
+  assert.throws(() => resolveConfig({
+    id: 'empty-versions',
+    label: 'Empty Versions',
+    protocolVersions: [],
+    transportFactory: async () => { throw new Error('unused'); },
+  }), /must offer at least one protocol version/u);
+});
 
 // ─── Fake host harness ───────────────────────────────────────────────────────
 

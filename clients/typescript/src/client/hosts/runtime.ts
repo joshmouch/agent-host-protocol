@@ -28,7 +28,6 @@ import type { SessionSummary } from '../../types/channels-session/state.js';
 import type {
   SessionSummaryChangedParams,
 } from '../../types/channels-root/notifications.js';
-import { PROTOCOL_VERSION } from '../../types/version/registry.js';
 import { AhpClient, type DispatchHandle } from '../client.js';
 import type { ClientEvent } from '../events.js';
 import { RpcError } from '../error.js';
@@ -598,7 +597,7 @@ export class HostRuntime {
             const initResult = await raceWithAbort(
               client.initialize({
                 clientId: this.shared.clientId,
-                protocolVersions: [PROTOCOL_VERSION],
+                protocolVersions: [...this.config.protocolVersions],
                 initialSubscriptions: prior.subscriptions,
               }),
               cancelSignal,
@@ -615,7 +614,7 @@ export class HostRuntime {
           const initResult = await raceWithAbort(
             client.initialize({
               clientId: this.shared.clientId,
-              protocolVersions: [PROTOCOL_VERSION],
+              protocolVersions: [...this.config.protocolVersions],
               initialSubscriptions: prior.subscriptions,
             }),
             cancelSignal,

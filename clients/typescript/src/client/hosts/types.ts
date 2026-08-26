@@ -15,6 +15,7 @@ import type { ClientIdStore } from './client-id-store.js';
 import type { HostTransportFactory } from './factory.js';
 import { defaultReconnectPolicy, type ReconnectPolicy } from './policy.js';
 import type { AhpClientConfig } from '../client.js';
+import { PROTOCOL_VERSION } from '../../types/version/registry.js';
 
 /**
  * Opaque, consumer-supplied identifier for a host registered with
@@ -80,6 +81,14 @@ export interface HostConfig {
   /** Optional explicit `clientId` to send on `initialize` / `reconnect`. */
   readonly clientId?: string;
   /**
+   * Protocol versions offered to this host during `initialize`, in preference
+   * order. Defaults to the SDK's current {@link PROTOCOL_VERSION}.
+   *
+   * This is host-scoped because one multi-host client can bridge independently
+   * deployed servers during a rolling protocol upgrade.
+   */
+  readonly protocolVersions?: readonly string[];
+  /**
    * URIs to include in the `initialize` handshake. Defaults to
    * `['ahp-root://']` so root state is always tracked.
    */
@@ -102,6 +111,7 @@ export interface ResolvedHostConfig {
   readonly id: HostId;
   readonly label: string;
   readonly clientId: string | null;
+  readonly protocolVersions: readonly string[];
   readonly initialSubscriptions: readonly URI[];
   readonly clientConfig: AhpClientConfig;
   readonly transportFactory: HostTransportFactory;
@@ -118,10 +128,15 @@ export const ROOT_RESOURCE_URI: URI = 'ahp-root://';
  * @internal
  */
 export function resolveConfig(config: HostConfig): ResolvedHostConfig {
+  const protocolVersions = config.protocolVersions ?? [PROTOCOL_VERSION];
+  if (protocolVersions.length === 0) {
+    throw new Error(`host ${JSON.stringify(config.id)} must offer at least one protocol version`);
+  }
   return {
     id: config.id,
     label: config.label,
     clientId: config.clientId ?? null,
+    protocolVersions: [...protocolVersions],
     initialSubscriptions: config.initialSubscriptions
       ? [...config.initialSubscriptions]
       : [ROOT_RESOURCE_URI],
