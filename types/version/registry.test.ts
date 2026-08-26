@@ -15,8 +15,10 @@ import assert from 'node:assert/strict';
 
 import {
   ACTION_INTRODUCED_IN,
+  PROTOCOL_RELEASES,
   PROTOCOL_VERSION,
   SUPPORTED_PROTOCOL_VERSIONS,
+  actionLifecycle,
   compareProtocolVersions,
   isActionKnownToVersion,
 } from './registry.js';
@@ -58,6 +60,25 @@ test('SUPPORTED_PROTOCOL_VERSIONS is strictly descending', () => {
 test('SUPPORTED_PROTOCOL_VERSIONS has no duplicates', () => {
   const set = new Set(SUPPORTED_PROTOCOL_VERSIONS);
   assert.equal(set.size, SUPPORTED_PROTOCOL_VERSIONS.length);
+});
+
+test('current and negotiable versions derive from the canonical release roster', () => {
+  assert.equal(PROTOCOL_VERSION, PROTOCOL_RELEASES[0].version);
+  assert.deepEqual(
+    [...SUPPORTED_PROTOCOL_VERSIONS],
+    PROTOCOL_RELEASES
+      .filter(release => release.negotiable)
+      .map(release => release.version),
+  );
+});
+
+test('action lifecycle retains introduction independently from later lifecycle facts', () => {
+  assert.deepEqual(actionLifecycle(ActionType.SessionIsArchivedChanged), {
+    introduced: ACTION_INTRODUCED_IN[ActionType.SessionIsArchivedChanged],
+    changed: undefined,
+    deprecated: undefined,
+    removed: undefined,
+  });
 });
 
 test('chat/turnResume is available starting in protocol 1.0.0', () => {

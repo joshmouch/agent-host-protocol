@@ -1,9 +1,8 @@
 /**
  * Shared helper for the protocol type generators: read the
- * `PROTOCOL_VERSION` string and the `SUPPORTED_PROTOCOL_VERSIONS` array
- * from `types/version/registry.ts` using ts-morph AST traversal so the
- * Rust/Kotlin/Swift generators don't each re-derive them from source
- * text.
+ * canonical `PROTOCOL_RELEASES` roster from `types/version/registry.ts` using
+ * ts-morph AST traversal. Current and supported versions derive from that one
+ * roster, so generators never require parallel literals.
  *
  * Returns plain strings for downstream code-emit. Throws if either
  * symbol is missing or has an unexpected shape so that a refactor of
@@ -11,7 +10,7 @@
  * producing stale or empty output.
  */
 
-import { Node, Project, SyntaxKind } from 'ts-morph';
+import { Node, Project } from 'ts-morph';
 
 /** Parsed values from `types/version/registry.ts`. */
 export interface ProtocolVersions {
@@ -27,7 +26,7 @@ export interface ProtocolVersions {
 /**
  * Read the protocol version constants from `types/version/registry.ts`.
  * Throws if the registry source file is not present in `project`, or if
- * either constant is missing, malformed, or violates the ordering
+ * the roster is missing, malformed, or violates the ordering
  * invariant. Callers building a partial ts-morph project must include
  * `types/version/registry.ts` among the source files.
  */
@@ -41,26 +40,26 @@ export function readProtocolVersions(project: Project): ProtocolVersions {
     );
   }
 
-  let current: string | undefined;
-  let supported: string[] | undefined;
+  let releases: ProtocolRelease[] | undefined;
 
   for (const decl of sf.getVariableDeclarations()) {
-    const name = decl.getName();
-    if (name === 'PROTOCOL_VERSION') {
-      current = stringLiteralValue(decl.getInitializer());
-    } else if (name === 'SUPPORTED_PROTOCOL_VERSIONS') {
-      supported = stringArrayValues(decl.getInitializer());
+    if (decl.getName() === 'PROTOCOL_RELEASES') {
+      releases = protocolReleaseValues(decl.getInitializer());
     }
   }
 
-  if (!current) {
+  if (!releases || releases.length === 0) {
     throw new Error(
-      'readProtocolVersions: PROTOCOL_VERSION missing or not a string literal',
+      'readProtocolVersions: PROTOCOL_RELEASES missing or empty',
     );
   }
+  const current = releases[0].version;
+  const supported = releases
+    .filter(release => release.negotiable)
+    .map(release => release.version);
   if (!supported || supported.length === 0) {
     throw new Error(
-      'readProtocolVersions: SUPPORTED_PROTOCOL_VERSIONS missing or empty',
+      'readProtocolVersions: PROTOCOL_RELEASES has no negotiable versions',
     );
   }
   if (supported[0] !== current) {
@@ -73,6 +72,11 @@ export function readProtocolVersions(project: Project): ProtocolVersions {
   return { current, supported };
 }
 
+interface ProtocolRelease {
+  readonly version: string;
+  readonly negotiable: boolean;
+}
+
 /** Extracts the literal string from a `'x'` / `"x"` initializer. */
 function stringLiteralValue(init: Node | undefined): string | undefined {
   if (!init) return undefined;
@@ -82,43 +86,30 @@ function stringLiteralValue(init: Node | undefined): string | undefined {
   return undefined;
 }
 
-/**
- * Extracts string-literal elements from an array initializer, unwrapping
- * `Object.freeze([...])` and `[...] as const` shapes since both are
- * common ways to declare a readonly array in TypeScript.
- */
-function stringArrayValues(init: Node | undefined): string[] | undefined {
+/** Extract the canonical array of `{ version, negotiable }` literals. */
+function protocolReleaseValues(init: Node | undefined): ProtocolRelease[] | undefined {
   if (!init) return undefined;
 
   let arr: Node = init;
-
-  // Object.freeze([...]) → unwrap to the array argument.
-  if (Node.isCallExpression(arr)) {
-    const callee = arr.getExpression().getText();
-    if (callee === 'Object.freeze') {
-      const [first] = arr.getArguments();
-      if (first) arr = first;
-    }
-  }
-
-  // `[...] as const` → unwrap to the inner expression.
   if (Node.isAsExpression(arr)) {
     arr = arr.getExpression();
   }
 
   if (!Node.isArrayLiteralExpression(arr)) return undefined;
 
-  const values: string[] = [];
+  const values: ProtocolRelease[] = [];
   for (const el of arr.getElements()) {
-    if (
-      el.getKind() === SyntaxKind.StringLiteral ||
-      el.getKind() === SyntaxKind.NoSubstitutionTemplateLiteral
-    ) {
-      // Cast is safe: kind check above guarantees the literal-value method exists.
-      values.push((el as unknown as { getLiteralValue(): string }).getLiteralValue());
-    } else {
-      return undefined;
-    }
+    if (!Node.isObjectLiteralExpression(el)) return undefined;
+    const versionProperty = el.getProperty('version');
+    const negotiableProperty = el.getProperty('negotiable');
+    if (!Node.isPropertyAssignment(versionProperty)
+      || !Node.isPropertyAssignment(negotiableProperty)) return undefined;
+    const version = stringLiteralValue(versionProperty.getInitializer());
+    const negotiableInitializer = negotiableProperty.getInitializer();
+    if (!version || !negotiableInitializer) return undefined;
+    const negotiableText = negotiableInitializer.getText();
+    if (negotiableText !== 'true' && negotiableText !== 'false') return undefined;
+    values.push({ version, negotiable: negotiableText === 'true' });
   }
   return values;
 }

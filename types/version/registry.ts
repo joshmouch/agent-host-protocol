@@ -11,11 +11,37 @@ import type { ServerNotificationMap } from '../messages.js';
 // ─── Protocol Version Constants ──────────────────────────────────────────────
 
 /**
+ * Every protocol release known to this source tree. This is the one literal
+ * release roster: current, negotiable, and historical version types derive
+ * from it instead of maintaining parallel string unions.
+ */
+export const PROTOCOL_RELEASES = [
+  { version: '1.0.0', negotiable: true },
+  { version: '0.8.0', negotiable: true },
+  { version: '0.7.0', negotiable: true },
+  { version: '0.6.0', negotiable: true },
+  { version: '0.5.2', negotiable: true },
+  { version: '0.5.1', negotiable: true },
+  { version: '0.5.0', negotiable: false },
+  { version: '0.4.0', negotiable: false },
+  { version: '0.3.0', negotiable: false },
+  { version: '0.2.0', negotiable: false },
+  { version: '0.1.0', negotiable: false },
+] as const;
+
+export type ProtocolVersion = typeof PROTOCOL_RELEASES[number]['version'];
+export type NegotiableProtocolVersion = Extract<
+  typeof PROTOCOL_RELEASES[number],
+  { readonly negotiable: true }
+>['version'];
+
+/**
  * The current protocol version that new code speaks.
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION: NegotiableProtocolVersion =
+  PROTOCOL_RELEASES[0].version;
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -33,14 +59,24 @@ export const PROTOCOL_VERSION = '1.0.0';
  * `release-metadata.json` files are validated against this list by
  * `scripts/verify-release-metadata.ts`.
  */
-export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-  '1.0.0',
-  '0.8.0',
-  '0.7.0',
-  '0.6.0',
-  '0.5.2',
-  '0.5.1',
-]);
+export const SUPPORTED_PROTOCOL_VERSIONS: readonly NegotiableProtocolVersion[] =
+  Object.freeze(
+    PROTOCOL_RELEASES
+      .filter((release): release is Extract<typeof PROTOCOL_RELEASES[number], { readonly negotiable: true }> => release.negotiable)
+      .map(release => release.version),
+  );
+
+/**
+ * Lifecycle facts for a versioned protocol feature. Historical changes remain
+ * represented after deprecation or removal so conformance code can classify
+ * old negotiated versions deliberately.
+ */
+export interface ProtocolFeatureLifecycle {
+  readonly introduced: ProtocolVersion;
+  readonly changed?: readonly ProtocolVersion[];
+  readonly deprecated?: ProtocolVersion;
+  readonly removed?: ProtocolVersion;
+}
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
 
@@ -79,7 +115,7 @@ export function compareProtocolVersions(a: string, b: string): number {
  *
  * Versions are SemVer `MAJOR.MINOR.PATCH` strings (see `PROTOCOL_VERSION`).
  */
-export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string } = {
+export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: ProtocolVersion } = {
   [ActionType.RootAgentsChanged]: '0.1.0',
   [ActionType.RootActiveSessionsChanged]: '0.1.0',
   [ActionType.SessionReady]: '0.1.0',
@@ -179,6 +215,32 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
   [ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
+/** Versioned semantic changes retained independently from introduction. */
+export const ACTION_CHANGED_IN: Partial<{
+  readonly [K in StateAction['type']]: readonly ProtocolVersion[];
+}> = {};
+
+/** Deprecated action subjects retained until and after their replacement. */
+export const ACTION_DEPRECATED_IN: Partial<{
+  readonly [K in StateAction['type']]: ProtocolVersion;
+}> = {};
+
+/** Removed action subjects retained so old versions remain classifiable. */
+export const ACTION_REMOVED_IN: Partial<{
+  readonly [K in StateAction['type']]: ProtocolVersion;
+}> = {};
+
+export function actionLifecycle(
+  type: StateAction['type'],
+): ProtocolFeatureLifecycle {
+  return {
+    introduced: ACTION_INTRODUCED_IN[type],
+    changed: ACTION_CHANGED_IN[type],
+    deprecated: ACTION_DEPRECATED_IN[type],
+    removed: ACTION_REMOVED_IN[type],
+  };
+}
+
 /**
  * Returns whether the given action type is known to the specified protocol version.
  */
@@ -203,7 +265,7 @@ export type ProtocolNotificationMethod = Exclude<keyof ServerNotificationMap, 'a
  *
  * Versions are SemVer `MAJOR.MINOR.PATCH` strings (see `PROTOCOL_VERSION`).
  */
-export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMethod]: string } = {
+export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMethod]: ProtocolVersion } = {
   'root/sessionAdded': '0.1.0',
   'root/sessionRemoved': '0.1.0',
   'root/sessionSummaryChanged': '0.1.0',
@@ -213,6 +275,29 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
   'otlp/exportTraces': '0.2.0',
   'otlp/exportMetrics': '0.2.0',
 };
+
+export const NOTIFICATION_CHANGED_IN: Partial<{
+  readonly [K in ProtocolNotificationMethod]: readonly ProtocolVersion[];
+}> = {};
+
+export const NOTIFICATION_DEPRECATED_IN: Partial<{
+  readonly [K in ProtocolNotificationMethod]: ProtocolVersion;
+}> = {};
+
+export const NOTIFICATION_REMOVED_IN: Partial<{
+  readonly [K in ProtocolNotificationMethod]: ProtocolVersion;
+}> = {};
+
+export function notificationLifecycle(
+  method: ProtocolNotificationMethod,
+): ProtocolFeatureLifecycle {
+  return {
+    introduced: NOTIFICATION_INTRODUCED_IN[method],
+    changed: NOTIFICATION_CHANGED_IN[method],
+    deprecated: NOTIFICATION_DEPRECATED_IN[method],
+    removed: NOTIFICATION_REMOVED_IN[method],
+  };
+}
 
 /**
  * Returns whether the given notification method is known to the specified
