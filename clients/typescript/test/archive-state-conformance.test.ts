@@ -39,6 +39,7 @@ function providerRow(
   return {
     identity: {
       implementationId: 'test/host',
+      clientImplementationId: 'test/client',
       providerId: 'test/provider',
       deploymentId: 'fixture-1',
     },
@@ -183,6 +184,17 @@ test('host authority cannot be constructed without a restart durability boundary
   assert.throws(
     () => defineArchiveStateConformanceRow(row),
     /requires a durabilityBoundary/,
+  );
+});
+
+test('client implementation identity is required independently from host identity', () => {
+  const row = providerRow();
+  assert.throws(
+    () => defineArchiveStateConformanceRow({
+      ...row,
+      identity: { ...row.identity, clientImplementationId: '' },
+    }),
+    /requires implementationId, clientImplementationId, and providerId/,
   );
 });
 

@@ -46,6 +46,8 @@ export interface ArchiveStateProtocolApplicability {
 export interface ArchiveStateImplementationIdentity {
   /** Stable executable/source implementation, never a profile or account. */
   readonly implementationId: string;
+  /** Client/reconciler implementation exercised by this row. */
+  readonly clientImplementationId: string;
   readonly providerId: string;
   /** Optional coverage instance of the implementation. */
   readonly deploymentId?: string;
@@ -273,8 +275,12 @@ export function classifyArchiveStateProtocolVersion(
 export function defineArchiveStateConformanceRow(
   row: ArchiveStateConformanceRow,
 ): ArchiveStateConformanceRow {
-  if (!row.identity.implementationId || !row.identity.providerId) {
-    throw new Error('archive-state row requires implementationId and providerId');
+  if (!row.identity.implementationId
+    || !row.identity.clientImplementationId
+    || !row.identity.providerId) {
+    throw new Error(
+      'archive-state row requires implementationId, clientImplementationId, and providerId',
+    );
   }
   if (row.applicability.requiredAction !== ARCHIVE_STATE_ACTION) {
     throw new Error(`archive-state row requires ${ARCHIVE_STATE_ACTION}`);

@@ -13,10 +13,13 @@ providers as a second authority.
 
 ## Row identity and matrix
 
-`implementationId` identifies executable source. `deploymentId` distinguishes
-profiles, accounts, machines, and managed instances of the same executable.
-Several deployments of one executable are coverage instances of one row, not
-new implementations.
+`implementationId` identifies host executable source.
+`clientImplementationId` independently identifies the client/reconciler used to
+dispatch and project the transition. `deploymentId` distinguishes profiles,
+accounts, machines, and managed instances of the same host executable. Several
+deployments of one executable are coverage instances of one row, not new
+implementations. Host/provider authority results and client reconciliation
+results therefore remain orthogonal and cannot be inferred from each other.
 
 | Host implementation candidate | Provider candidate | Authority | Row owner | Current gate |
 | --- | --- | --- | --- | --- |
@@ -29,6 +32,19 @@ new implementations.
 
 Grok deployments that invoke `joshmouch/ahp-host` are instances of that one
 implementation row. They are not separate “Grok host” implementations.
+
+The current client coverage matrix is separate from the authority matrix:
+
+| Client implementation | Required projections | Current gate |
+| --- | --- | --- |
+| `microsoft/agent-host-protocol:typescript-client` | Exact settlement correlation, optimistic rollback, confirmed-state rebasing, and lossless reconnect feed | `dispatchAndWait` supplies exact settlement correlation. The generic optimistic reconciler and lossless reconnect feed remain a contribution target. |
+| `microsoft/vscode:agent-host-protocol-client` | Exact settlement correlation, `AgentSubscription` rollback/rebase/replay, and VS Code UI projection | Required VS Code integration row. VS Code-specific observables, URI mapping, reference counting, transport, and editor integration remain in VS Code. |
+
+AI Fleet dogfoods the TypeScript SDK client against both production host
+implementations. Codex/VS Code Desktop dogfoods the VS Code client against the
+VS Code host and, where transport/discovery supports it, `joshmouch/ahp-host`.
+The shared runner compares exact settlement, rollback, and reconnect behavior;
+it does not turn authority verification into a client responsibility.
 
 ## Adapter API
 
@@ -46,7 +62,8 @@ Their handwritten source lives under
 types from the same package and never requires a sibling checkout. Every
 adapter supplies:
 
-1. One stable `implementationId`, an optional `deploymentId`, and a provider
+1. One stable host `implementationId`, one stable
+   `clientImplementationId`, an optional `deploymentId`, and a provider
    identity.
 2. An explicit negotiated-version applicability declaration. For each member
    of canonical `SUPPORTED_PROTOCOL_VERSIONS`, the runner offers that singleton,
