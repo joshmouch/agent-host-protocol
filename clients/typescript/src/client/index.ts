@@ -8,6 +8,7 @@ export { AhpClient, Subscription } from './client.js';
 export { createResourceRequestHandler } from './client.js';
 export type {
   AhpClientConfig,
+  ActionSettlementOptions,
   DispatchHandle,
   ResourceRequestHandlers,
   ServerRequestHandler,
@@ -15,6 +16,8 @@ export type {
 } from './client.js';
 export type { ClientEvent, ClosedReason, ConnectionState, SubscriptionEvent } from './events.js';
 export {
+  ActionSettlementCancelledError,
+  ActionSettlementTimeoutError,
   AhpClientError,
   ClientClosedError,
   RpcError,

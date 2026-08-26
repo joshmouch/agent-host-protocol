@@ -65,6 +65,25 @@ export class RpcTimeoutError extends AhpClientError {
   }
 }
 
+/** Waiting for the authoritative action envelope exceeded its local deadline. */
+export class ActionSettlementTimeoutError extends AhpClientError {
+  readonly timeoutMs: number;
+
+  constructor(timeoutMs: number) {
+    super(`Action settlement timed out after ${timeoutMs}ms`);
+    this.name = 'ActionSettlementTimeoutError';
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/** Waiting for the authoritative action envelope was cancelled by the caller. */
+export class ActionSettlementCancelledError extends AhpClientError {
+  constructor(options?: { cause?: unknown }) {
+    super('Action settlement was cancelled', options);
+    this.name = 'ActionSettlementCancelledError';
+  }
+}
+
 /** Kinds of {@link TransportError}. */
 export type TransportErrorKind = 'closed' | 'io' | 'protocol';
 

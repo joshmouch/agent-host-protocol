@@ -28,7 +28,11 @@ import type { SessionSummary } from '../../types/channels-session/state.js';
 import type {
   SessionSummaryChangedParams,
 } from '../../types/channels-root/notifications.js';
-import { AhpClient, type DispatchHandle } from '../client.js';
+import {
+  AhpClient,
+  type ActionSettlementOptions,
+  type DispatchHandle,
+} from '../client.js';
 import type { ClientEvent } from '../events.js';
 import { RpcError } from '../error.js';
 import type { AsyncBroadcastQueue } from '../async-queue.js';
@@ -427,6 +431,20 @@ export class HostRuntime {
     const client = this.shared.currentClient;
     if (!client) throw new HostNotConnectedError(this.shared.id);
     return client.dispatch(channel, action, clientSeq);
+  }
+
+  /** Dispatch and await the exact settlement envelope on the current client. */
+  async dispatchAndWait(
+    channel: URI,
+    action: StateAction,
+    options?: ActionSettlementOptions,
+  ): Promise<ActionEnvelope> {
+    if (this.shared.shutdownReason !== null) {
+      throw new HostShutDownError(this.shared.id);
+    }
+    const client = this.shared.currentClient;
+    if (!client) throw new HostNotConnectedError(this.shared.id);
+    return client.dispatchAndWait(channel, action, options);
   }
 
   // ─── Supervisor loop ───────────────────────────────────────────────────────

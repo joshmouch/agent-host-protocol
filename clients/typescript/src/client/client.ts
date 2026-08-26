@@ -77,6 +77,9 @@ import { JsonRpcErrorCodes } from '../types/common/errors.js';
 import { AsyncBroadcastQueue } from './async-queue.js';
 import type { ClientEvent, ConnectionState, SubscriptionEvent } from './events.js';
 import {
+  ActionSettlementCancelledError,
+  ActionSettlementTimeoutError,
+  AhpClientError,
   ClientClosedError,
   RpcError,
   RpcTimeoutError,
@@ -165,6 +168,14 @@ export interface DispatchHandle {
   readonly clientSeq: number;
 }
 
+/** Local controls for {@link AhpClient.dispatchAndWait}. */
+export interface ActionSettlementOptions {
+  /** Maximum wait for the matching action envelope. Defaults to requestTimeoutMs. */
+  readonly timeoutMs?: number;
+  /** Cancels only this wait; it does not close the client connection. */
+  readonly signal?: AbortSignal;
+}
+
 /**
  * Handler for inbound server-initiated requests. Should return a value
  * matching the corresponding `ServerCommandMap[M]['result']`, or throw an
@@ -246,6 +257,7 @@ export class AhpClient {
 
   private nextRequestId = 1;
   private nextClientSeq = 1;
+  private logicalClientId: string | null = null;
   private state: ConnectionState = { status: 'idle' };
   private receiveLoop: Promise<void> | null = null;
   private serverRequestHandler: ServerRequestHandler | null = null;
@@ -361,7 +373,9 @@ export class AhpClient {
         : {}),
       ...(args.locale !== undefined ? { locale: args.locale } : {}),
     };
-    return this.request('initialize', params);
+    const result = await this.request('initialize', params);
+    this.logicalClientId = args.clientId;
+    return result;
   }
 
   /** Re-establish a dropped connection. */
@@ -376,7 +390,9 @@ export class AhpClient {
       lastSeenServerSeq: args.lastSeenServerSeq,
       subscriptions: [...args.subscriptions],
     };
-    return this.request('reconnect', params);
+    const result = await this.request('reconnect', params);
+    this.logicalClientId = args.clientId;
+    return result;
   }
 
   /**
@@ -461,6 +477,72 @@ export class AhpClient {
     const params: DispatchActionParams = { channel, clientSeq: seq, action };
     this.notify('dispatchAction', params);
     return { clientSeq: seq };
+  }
+
+  /**
+   * Dispatch an action and wait for its one authoritative settlement envelope.
+   *
+   * Correlation uses only the dispatched `clientSeq`, this connection's
+   * initialized `clientId`, and the exact channel. Accepted and rejected
+   * actions both resolve with their existing {@link ActionEnvelope}; callers
+   * inspect `rejectionReason` instead of inventing a second receipt protocol.
+   */
+  async dispatchAndWait(
+    channel: URI,
+    action: StateAction,
+    options: ActionSettlementOptions = {},
+  ): Promise<ActionEnvelope> {
+    this.assertOpen();
+    const clientId = this.logicalClientId;
+    if (clientId === null) {
+      throw new AhpClientError(
+        'dispatchAndWait requires a successful initialize or reconnect handshake',
+      );
+    }
+    if (options.signal?.aborted) {
+      throw new ActionSettlementCancelledError({ cause: options.signal.reason });
+    }
+
+    // Attach before dispatch because broadcast readers intentionally do not
+    // replay earlier events.
+    const events = this.events();
+    const timeoutMs = options.timeoutMs ?? this.requestTimeoutMs;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let abortListener: (() => void) | undefined;
+    const interrupted = new Promise<never>((_resolve, reject) => {
+      if (timeoutMs > 0) {
+        timer = setTimeout(
+          () => reject(new ActionSettlementTimeoutError(timeoutMs)),
+          timeoutMs,
+        );
+      }
+      if (options.signal) {
+        abortListener = () => reject(
+          new ActionSettlementCancelledError({ cause: options.signal?.reason }),
+        );
+        options.signal.addEventListener('abort', abortListener, { once: true });
+      }
+    });
+
+    try {
+      const { clientSeq } = this.dispatch(channel, action);
+      while (true) {
+        const next = await Promise.race([events.next(), interrupted]);
+        if (next.done) throw new ClientClosedError('client closed before action settlement');
+        const event = next.value;
+        if (event.channel !== channel || event.event.type !== 'action') continue;
+        const envelope = event.event.params;
+        if (envelope.origin?.clientId !== clientId) continue;
+        if (envelope.origin.clientSeq !== clientSeq) continue;
+        return envelope;
+      }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      if (abortListener && options.signal) {
+        options.signal.removeEventListener('abort', abortListener);
+      }
+      await events.return?.();
+    }
   }
 
   /**

@@ -5,9 +5,9 @@
  */
 
 import type { URI } from '../../types/common/state.js';
-import type { StateAction } from '../../types/common/actions.js';
+import type { ActionEnvelope, StateAction } from '../../types/common/actions.js';
 import type { SubscribeResult } from '../../types/common/commands.js';
-import type { DispatchHandle } from '../client.js';
+import type { ActionSettlementOptions, DispatchHandle } from '../client.js';
 import { AsyncBroadcastQueue } from '../async-queue.js';
 import { HostClientHandle } from './host-client-handle.js';
 import {
@@ -408,6 +408,18 @@ export class MultiHostClient {
     const runtime = this.hosts.get(hostId);
     if (!runtime) throw new UnknownHostError(hostId);
     return runtime.dispatch(channel, action, clientSeq);
+  }
+
+  /** Convenience: dispatch and await the exact settlement on one host. */
+  async dispatchAndWait(
+    hostId: HostId,
+    channel: URI,
+    action: StateAction,
+    options?: ActionSettlementOptions,
+  ): Promise<ActionEnvelope> {
+    const runtime = this.hosts.get(hostId);
+    if (!runtime) throw new UnknownHostError(hostId);
+    return runtime.dispatchAndWait(channel, action, options);
   }
 
   /**

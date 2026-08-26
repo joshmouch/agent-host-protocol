@@ -14,7 +14,12 @@
 import type { CommandMap } from '../../types/common/messages.js';
 import type { StateAction } from '../../types/common/actions.js';
 import type { URI } from '../../types/common/state.js';
-import type { AhpClient, DispatchHandle } from '../client.js';
+import type {
+  ActionSettlementOptions,
+  AhpClient,
+  DispatchHandle,
+} from '../client.js';
+import type { ActionEnvelope } from '../../types/common/actions.js';
 import {
   HostReconnectedError,
   HostShutDownError,
@@ -81,6 +86,16 @@ export class HostClientHandle {
   dispatch(channel: URI, action: StateAction, clientSeq?: number): DispatchHandle {
     this.checkAlive();
     return this.client.dispatch(channel, action, clientSeq);
+  }
+
+  /** Dispatch and await the exact settlement envelope on this generation. */
+  async dispatchAndWait(
+    channel: URI,
+    action: StateAction,
+    options?: ActionSettlementOptions,
+  ): Promise<ActionEnvelope> {
+    this.checkAlive();
+    return this.client.dispatchAndWait(channel, action, options);
   }
 
   /**

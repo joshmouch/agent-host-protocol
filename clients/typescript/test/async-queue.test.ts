@@ -44,6 +44,14 @@ test('return() detaches a reader and trims unreachable entries', async () => {
   assert.equal((await pending).value, 2);
 });
 
+test('return() terminates an already-pending next()', async () => {
+  const q = new AsyncBroadcastQueue<number>();
+  const reader = q.reader();
+  const pending = reader.next();
+  await reader.return!();
+  assert.equal((await pending).done, true);
+});
+
 test('close() terminates pending readers', async () => {
   const q = new AsyncBroadcastQueue<number>();
   const r = q.reader();

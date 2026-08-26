@@ -23,10 +23,18 @@ import type {
   JsonRpcRequest,
   JsonRpcSuccessResponse,
 } from '../src/types/common/messages.js';
+import type { ActionEnvelope, StateAction } from '../src/types/common/actions.js';
+import { ActionType } from '../src/types/common/actions.js';
 import type { SessionSummary } from '../src/types/channels-session/state.js';
 import type { AgentInfo } from '../src/types/channels-root/state.js';
-import type { InitializeResult } from '../src/types/common/commands.js';
-import type { ListSessionsParams, ListSessionsResult } from '../src/types/channels-root/commands.js';
+import type {
+  DispatchActionParams,
+  InitializeResult,
+} from '../src/types/common/commands.js';
+import type {
+  ListSessionsParams,
+  ListSessionsResult,
+} from '../src/types/channels-root/commands.js';
 import { ReconnectResultType } from '../src/types/common/commands.js';
 import type { ReconnectResult } from '../src/types/common/commands.js';
 
@@ -1101,6 +1109,81 @@ test('subscribe/unsubscribe/dispatch on an unknown host throws UnknownHostError'
       () => multi.dispatch('nope', ROOT, { type: 'noop' } as unknown as Parameters<typeof multi.dispatch>[2]),
       UnknownHostError,
     );
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('MultiHostClient and HostClientHandle expose exact action settlement', async () => {
+  let serverSeq = 0;
+  const factory: HostTransportFactory = async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.pair();
+    void (async () => {
+      let clientId = '';
+      while (true) {
+        const frame = await serverTransport.recv();
+        if (!frame) return;
+        if (frame.kind !== 'text') continue;
+        const message = JSON.parse(frame.text) as JsonRpcMessage;
+        if ('id' in message) {
+          const request = message as JsonRpcRequest;
+          if (request.method === 'initialize') {
+            clientId = (request.params as { clientId: string }).clientId;
+          }
+          await serverTransport.send(JSON.stringify({
+            jsonrpc: '2.0',
+            id: request.id,
+            result: handleRequest(request, makeFakeState()),
+          }));
+          continue;
+        }
+        if (!('method' in message) || message.method !== 'dispatchAction') continue;
+        const params = message.params as DispatchActionParams;
+        const envelope: ActionEnvelope = {
+          channel: params.channel,
+          action: params.action,
+          serverSeq: ++serverSeq,
+          origin: { clientId, clientSeq: params.clientSeq },
+        };
+        await serverTransport.send(JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'action',
+          params: envelope,
+        }));
+      }
+    })();
+    return clientTransport;
+  };
+
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'settlement',
+      label: 'settlement',
+      clientId: 'multi-origin',
+      transportFactory: factory,
+    });
+    await waitUntil(() => multi.client('settlement'));
+    const action = {
+      type: ActionType.SessionTitleChanged,
+      title: 'settled',
+    } as unknown as StateAction;
+    const fromMulti = await multi.dispatchAndWait(
+      'settlement',
+      'ahp-session:/multi',
+      action,
+      { timeoutMs: 100 },
+    );
+    assert.equal(fromMulti.origin?.clientId, 'multi-origin');
+
+    const handle = multi.client('settlement');
+    assert.ok(handle);
+    const fromHandle = await handle.dispatchAndWait(
+      'ahp-session:/handle',
+      action,
+      { timeoutMs: 100 },
+    );
+    assert.equal(fromHandle.origin?.clientId, 'multi-origin');
   } finally {
     await multi.shutdown();
   }

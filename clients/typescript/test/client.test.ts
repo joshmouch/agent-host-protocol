@@ -13,6 +13,8 @@ import assert from 'node:assert/strict';
 import {
   AhpClient,
   AhpStateMirror,
+  ActionSettlementCancelledError,
+  ActionSettlementTimeoutError,
   ClientClosedError,
   InMemoryTransport,
   RpcError,
@@ -74,6 +76,24 @@ function replyError(server: AhpTransport, id: number, code: number, message: str
 
 function pushNotification(server: AhpTransport, method: string, params: unknown): void {
   server.send(JSON.stringify({ jsonrpc: '2.0', method, params }));
+}
+
+async function initializeClient(
+  client: AhpClient,
+  server: AhpTransport,
+  clientId = 'demo',
+): Promise<void> {
+  const initializing = client.initialize({
+    clientId,
+    protocolVersions: ['0.8.0'],
+  });
+  const request = await readRequest(server);
+  reply(server, request.id, {
+    channel: ROOT,
+    protocolVersion: '0.8.0',
+    snapshots: [],
+  } satisfies InitializeResult);
+  await initializing;
 }
 
 test('initialize round-trip', async () => {
@@ -301,6 +321,88 @@ test('dispatch produces a dispatchAction notification and increments clientSeq',
   assert.equal(h3.clientSeq, 100);
   assert.equal(h4.clientSeq, 101);
 
+  await client.shutdown();
+});
+
+for (const rejectionReason of [undefined, 'provider refused'] as const) {
+  test(`dispatchAndWait resolves the exact ${rejectionReason ? 'rejected' : 'accepted'} envelope`, async () => {
+    const [c, s] = InMemoryTransport.pair();
+    const client = new AhpClient(c);
+    client.connect();
+    await initializeClient(client, s, 'origin-client');
+
+    const channel = 'ahp-session:/settlement' as const;
+    const action: StateAction = {
+      type: ActionType.SessionTitleChanged,
+      title: 'settled',
+    } as unknown as StateAction;
+    const settlement = client.dispatchAndWait(channel, action, { timeoutMs: 100 });
+    const dispatched = await readNotification(s);
+    const clientSeq = (dispatched.params as DispatchActionParams).clientSeq;
+
+    let resolved = false;
+    void settlement.then(() => { resolved = true; });
+    const concurrent: ActionEnvelope = {
+      channel,
+      action,
+      serverSeq: 1,
+      origin: { clientId: 'other-client', clientSeq },
+    };
+    pushNotification(s, 'action', concurrent);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(resolved, false, 'same-channel action from another client must not settle');
+
+    const exact: ActionEnvelope = {
+      channel,
+      action,
+      serverSeq: 2,
+      origin: { clientId: 'origin-client', clientSeq },
+      ...(rejectionReason === undefined ? {} : { rejectionReason }),
+    };
+    pushNotification(s, 'action', exact);
+    assert.deepEqual(await settlement, exact);
+    await client.shutdown();
+  });
+}
+
+test('dispatchAndWait has a typed local timeout', async () => {
+  const [c, s] = InMemoryTransport.pair();
+  const client = new AhpClient(c);
+  client.connect();
+  await initializeClient(client, s);
+  const settlement = client.dispatchAndWait(
+    'ahp-session:/timeout',
+    { type: ActionType.SessionTitleChanged, title: 'timeout' } as unknown as StateAction,
+    { timeoutMs: 5 },
+  );
+  await readNotification(s);
+  await assert.rejects(
+    settlement,
+    (error: unknown) => error instanceof ActionSettlementTimeoutError
+      && error.timeoutMs === 5,
+  );
+  await client.shutdown();
+});
+
+test('dispatchAndWait cancellation detaches only its event reader', async () => {
+  const [c, s] = InMemoryTransport.pair();
+  const client = new AhpClient(c);
+  client.connect();
+  await initializeClient(client, s);
+  const controller = new AbortController();
+  const settlement = client.dispatchAndWait(
+    'ahp-session:/cancel',
+    { type: ActionType.SessionTitleChanged, title: 'cancel' } as unknown as StateAction,
+    { signal: controller.signal, timeoutMs: 100 },
+  );
+  await readNotification(s);
+  controller.abort('test cancellation');
+  await assert.rejects(
+    settlement,
+    (error: unknown) => error instanceof ActionSettlementCancelledError,
+  );
+  assert.equal(client.connectionState.status, 'connected');
   await client.shutdown();
 });
 

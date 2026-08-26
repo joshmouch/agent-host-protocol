@@ -9,7 +9,7 @@ modern browsers and Node 21+ without additional runtime dependencies.
 
 ## Entry points
 
-The package exposes four subpath exports:
+The package exposes five subpath exports:
 
 | Import path | What it gives you |
 |---|---|
@@ -17,6 +17,7 @@ The package exposes four subpath exports:
 | `@microsoft/agent-host-protocol/client` | `AhpClient`, `Subscription`, `AhpStateMirror`, the `AhpTransport` interface, `InMemoryTransport`, and the error taxonomy. |
 | `@microsoft/agent-host-protocol/hosts`  | `MultiHostClient`, `HostClientHandle`, `ReconnectPolicy`, `ClientIdStore` (with `InMemoryClientIdStore`), `MultiHostStateMirror`, and the `Host*Error` family. Builds on `/client` to manage one or more host connections with reconnect, generation-checked handles, and fan-in events. |
 | `@microsoft/agent-host-protocol/ws`     | `WebSocketTransport` — an `AhpTransport` implementation backed by the global `WebSocket`. |
+| `@microsoft/agent-host-protocol/conformance/archive-state` | Data-driven archive/unarchive convergence contract and runner for host/provider adapters. |
 
 The split mirrors the Rust SDK (`ahp-types`, `ahp`, `ahp::hosts`,
 `ahp-ws`) — wire types and reducers are decoupled from the client,
@@ -60,6 +61,25 @@ client.dispatch(sessionUri, {
 } as unknown as ActionEnvelope['action']);
 ```
 
+When a caller needs the authoritative accepted or rejected settlement rather
+than fire-and-forget dispatch, use the handwritten runtime helper:
+
+```ts
+const envelope = await client.dispatchAndWait(sessionUri, action, {
+  signal,
+  timeoutMs: 5_000,
+});
+
+if (envelope.rejectionReason) {
+  // The normal AHP rejection envelope is the settlement; there is no second
+  // receipt or catalog-polling protocol.
+}
+```
+
+`dispatchAndWait` attaches its event reader before sending, then matches the
+returned `clientSeq`, the initialized client ID, and the exact channel. The
+same method is available through `HostClientHandle` and `MultiHostClient`.
+
 ## Pluggable transports
 
 `AhpClient` is transport-agnostic. Any framed message stream — a
@@ -99,6 +119,8 @@ state and call the reducers directly.
 |---|---|
 | `RpcError`           | JSON-RPC error response from the server. Carries `code`, `message`, `data`. |
 | `RpcTimeoutError`    | Client-side timeout fired before the server responded. Carries `method`, `timeoutMs`. Distinct from `RpcError`. |
+| `ActionSettlementTimeoutError` | No exactly correlated action envelope arrived before `dispatchAndWait`'s deadline. |
+| `ActionSettlementCancelledError` | The caller cancelled a `dispatchAndWait` wait without closing the connection. |
 | `TransportError`     | Failure of the underlying transport. `kind: 'closed' \| 'io' \| 'protocol'`. |
 | `ClientClosedError`  | Request was in flight when the client was shut down. |
 | `AhpClientError`     | Base class for every error this SDK throws — use `instanceof` to catch them all. |
