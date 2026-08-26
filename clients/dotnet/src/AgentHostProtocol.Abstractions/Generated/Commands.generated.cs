@@ -666,6 +666,13 @@ public sealed record ListSessionsParams
     /// unrecognised cursor SHOULD be rejected with an `InvalidParams` error.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Cursor { get; init; }
+
+    /// <summary>Optional provider ids to include. Servers that implement this filter SHOULD
+    /// apply it before provider metadata and session-database reads, so clients can
+    /// inspect one large provider catalog without paying to materialize unrelated
+    /// providers. Omitted means every provider.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? Providers { get; init; }
 }
 
 /// <summary>Result of the `listSessions` command.</summary>

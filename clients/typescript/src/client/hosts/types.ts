@@ -95,6 +95,13 @@ export interface HostConfig {
   readonly initialSubscriptions?: readonly URI[];
   /** Configuration forwarded to the underlying {@link AhpClient}. */
   readonly clientConfig?: AhpClientConfig;
+  /**
+   * Whether connecting should prefetch `listSessions` into the host mirror
+   * before publishing the connected state. Defaults to `true`. Catalog clients
+   * that immediately perform their own paged read can disable the duplicate
+   * potentially large catalog request.
+   */
+  readonly prefetchSessionSummaries?: boolean;
   /** Factory used to (re-)open a transport for this host. */
   readonly transportFactory: HostTransportFactory;
   /** Reconnect behaviour after an unexpected drop. */
@@ -114,6 +121,7 @@ export interface ResolvedHostConfig {
   readonly protocolVersions: readonly string[];
   readonly initialSubscriptions: readonly URI[];
   readonly clientConfig: AhpClientConfig;
+  readonly prefetchSessionSummaries: boolean;
   readonly transportFactory: HostTransportFactory;
   readonly reconnectPolicy: ReconnectPolicy;
 }
@@ -141,6 +149,7 @@ export function resolveConfig(config: HostConfig): ResolvedHostConfig {
       ? [...config.initialSubscriptions]
       : [ROOT_RESOURCE_URI],
     clientConfig: config.clientConfig ?? {},
+    prefetchSessionSummaries: config.prefetchSessionSummaries ?? true,
     transportFactory: config.transportFactory,
     reconnectPolicy: config.reconnectPolicy ?? defaultReconnectPolicy(),
   };

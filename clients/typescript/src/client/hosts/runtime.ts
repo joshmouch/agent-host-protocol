@@ -631,16 +631,18 @@ export class HostRuntime {
         // Refresh session summaries. Failures are non-fatal — we keep the
         // cache as-is and the next snapshot/notification will catch up.
         let summaries: ListSessionsResult | null = null;
-        try {
-          const res = await raceWithAbort(
-            client.request('listSessions', {
-              channel: ROOT_RESOURCE_URI as 'ahp-root://',
-            }),
-            cancelSignal,
-          );
-          if (res !== ABORTED) summaries = res;
-        } catch {
-          // Tolerate; the connect itself still succeeded.
+        if (this.config.prefetchSessionSummaries) {
+          try {
+            const res = await raceWithAbort(
+              client.request('listSessions', {
+                channel: ROOT_RESOURCE_URI as 'ahp-root://',
+              }),
+              cancelSignal,
+            );
+            if (res !== ABORTED) summaries = res;
+          } catch {
+            // Tolerate; the connect itself still succeeded.
+          }
         }
 
         if (cancelSignal.aborted) throw new Error('connect aborted');

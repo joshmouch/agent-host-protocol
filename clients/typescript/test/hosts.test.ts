@@ -72,6 +72,17 @@ test('host config defaults and preserves offered protocol versions', () => {
     protocolVersions: ['1.0.0', '0.8.0'],
     transportFactory: async () => { throw new Error('unused'); },
   }).protocolVersions, ['1.0.0', '0.8.0']);
+  assert.equal(resolveConfig({
+    id: 'default-prefetch',
+    label: 'Default Prefetch',
+    transportFactory: async () => { throw new Error('unused'); },
+  }).prefetchSessionSummaries, true);
+  assert.equal(resolveConfig({
+    id: 'catalog-client',
+    label: 'Catalog Client',
+    prefetchSessionSummaries: false,
+    transportFactory: async () => { throw new Error('unused'); },
+  }).prefetchSessionSummaries, false);
   assert.throws(() => resolveConfig({
     id: 'empty-versions',
     label: 'Empty Versions',
@@ -85,6 +96,7 @@ test('host config defaults and preserves offered protocol versions', () => {
 interface FakeHostState {
   agents: AgentInfo[];
   sessions: SessionSummary[];
+  requestMethods?: string[];
   /** Optional callback invoked once after the first request is handled (init or reconnect). */
   injectAfterInit?: (server: AhpTransport) => void | Promise<void>;
 }
@@ -153,6 +165,7 @@ async function driveFakeHost(server: AhpTransport, state: FakeHostState): Promis
     }
     if ('method' in msg && 'id' in msg) {
       const req = msg as JsonRpcRequest;
+      state.requestMethods?.push(req.method);
       const result = handleRequest(req, state);
       const resp: JsonRpcSuccessResponse = {
         jsonrpc: '2.0',
@@ -405,6 +418,23 @@ test('MultiHostClient.single connects and exposes a HostHandle snapshot', async 
 });
 
 // ─── addHost / removeHost lifecycle ─────────────────────────────────────────
+
+test('prefetchSessionSummaries false connects without listing sessions', async () => {
+  const requestMethods: string[] = [];
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'catalog-client',
+      label: 'Catalog Client',
+      prefetchSessionSummaries: false,
+      transportFactory: makeBasicFactory(makeFakeState({ requestMethods })),
+    });
+    await waitUntil(() => multi.host('catalog-client')?.state.status === 'connected');
+    assert.equal(requestMethods.includes('listSessions'), false);
+  } finally {
+    await multi.shutdown();
+  }
+});
 
 test('two hosts register and connect independently', async () => {
   const multi = new MultiHostClient();

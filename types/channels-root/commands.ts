@@ -55,6 +55,13 @@ export type { SessionConfigPropertySchema, SessionConfigSchema } from '../channe
  */
 export interface ListSessionsParams extends BaseParams, PaginatedParams {
   channel: 'ahp-root://';
+  /**
+   * Optional provider ids to include. Servers that implement this filter SHOULD
+   * apply it before provider metadata and session-database reads, so clients can
+   * inspect one large provider catalog without paying to materialize unrelated
+   * providers. Omitted means every provider.
+   */
+  providers?: string[];
 }
 
 /** Result of the `listSessions` command. */

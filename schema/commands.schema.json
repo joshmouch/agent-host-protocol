@@ -911,6 +911,13 @@
         "cursor": {
           "type": "string",
           "description": "Opaque pagination cursor from a previous {@link PaginatedResult.nextCursor}.\nOmit to fetch the first page. Cursors are server-defined and MUST be treated\nas opaque — do not parse, modify, or persist them across connections. An\nunrecognised cursor SHOULD be rejected with an `InvalidParams` error."
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional provider ids to include. Servers that implement this filter SHOULD\napply it before provider metadata and session-database reads, so clients can\ninspect one large provider catalog without paying to materialize unrelated\nproviders. Omitted means every provider."
         }
       },
       "required": [
