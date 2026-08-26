@@ -115,6 +115,11 @@ export class AsyncBroadcastQueue<T> implements AsyncIterable<T> {
     const detach = () => {
       if (!cursor.detached) {
         cursor.detached = true;
+        if (cursor.waiter) {
+          const waiter = cursor.waiter;
+          cursor.waiter = null;
+          waiter.resolve({ value: undefined as unknown as T, done: true });
+        }
         queue.cursors.delete(cursor);
         queue.trim();
       }

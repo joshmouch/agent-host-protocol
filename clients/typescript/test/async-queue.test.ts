@@ -68,6 +68,14 @@ test('next() after return() returns done immediately, even with unread buffer', 
   assert.equal(b.done, true);
 });
 
+test('return() terminates a pending next() call', async () => {
+  const q = new AsyncBroadcastQueue<number>();
+  const r = q.reader();
+  const pending = r.next();
+  await r.return!();
+  assert.equal((await pending).done, true);
+});
+
 test('bounded buffer drops oldest and fast-forwards laggards', async () => {
   const q = new AsyncBroadcastQueue<number>(2);
   const r = q.reader();

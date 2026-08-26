@@ -36,6 +36,7 @@ import {
   HostNotConnectedError,
   HostReconnectedError,
   HostShutDownError,
+  HostWaitTimeoutError,
   InMemoryClientIdStore,
   MultiHostClient,
   MultiHostStateMirror,
@@ -615,6 +616,52 @@ test('HostClientHandle after removeHost throws HostShutDownError', async () => {
     assert.throws(
       () => handle.checkAlive(),
       (err: unknown) => err instanceof HostShutDownError && err.hostId === 'rm',
+    );
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('waitForHosts resolves connected and failed outcomes together', async () => {
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'ready',
+      label: 'Ready',
+      transportFactory: makeBasicFactory(makeFakeState()),
+    });
+    await multi.addHost({
+      id: 'failed',
+      label: 'Failed',
+      reconnectPolicy: disabledPolicy(),
+      transportFactory: () => Promise.reject(new Error('unavailable')),
+    });
+
+    const outcomes = await multi.waitForHosts(['ready', 'failed'], { timeoutMs: 2_000 });
+
+    assert.deepEqual(
+      [...outcomes].map(([id, host]) => [id, host.state.status]),
+      [['ready', 'connected'], ['failed', 'failed']],
+    );
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('waitForHosts reports the selected hosts still pending at its deadline', async () => {
+  const multi = new MultiHostClient();
+  try {
+    await multi.addHost({
+      id: 'hanging',
+      label: 'Hanging',
+      transportFactory: () => new Promise(() => undefined),
+    });
+
+    await assert.rejects(
+      multi.waitForHosts(['hanging'], { timeoutMs: 5 }),
+      (err: unknown) => err instanceof HostWaitTimeoutError
+        && err.timeoutMs === 5
+        && err.hostIds.join(',') === 'hanging',
     );
   } finally {
     await multi.shutdown();

@@ -291,6 +291,17 @@ export interface HostedAgent {
   readonly agent: AgentInfo;
 }
 
+/** Options for {@link MultiHostClient.waitForHosts}. */
+export interface WaitForHostsOptions {
+  /**
+   * Maximum time to wait for every selected host to become `connected` or
+   * `failed`. Required so a host-readiness wait is bounded by construction.
+   */
+  readonly timeoutMs: number;
+  /** Optional cancellation signal for the complete selected-host wait. */
+  readonly signal?: AbortSignal;
+}
+
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 /**
@@ -317,6 +328,19 @@ export class UnknownHostError extends HostMultiError {
     super(`no host registered with id "${hostId}"`);
     this.name = 'UnknownHostError';
     this.hostId = hostId;
+  }
+}
+
+/** One or more selected hosts did not reach `connected` or `failed` in time. */
+export class HostWaitTimeoutError extends HostMultiError {
+  readonly hostIds: readonly HostId[];
+  readonly timeoutMs: number;
+
+  constructor(hostIds: readonly HostId[], timeoutMs: number) {
+    super(`hosts did not become connected or failed within ${timeoutMs}ms: ${hostIds.join(', ')}`);
+    this.name = 'HostWaitTimeoutError';
+    this.hostIds = [...hostIds];
+    this.timeoutMs = timeoutMs;
   }
 }
 

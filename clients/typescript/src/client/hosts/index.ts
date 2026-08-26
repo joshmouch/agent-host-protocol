@@ -28,6 +28,7 @@ export {
   HostNotConnectedError,
   HostReconnectedError,
   HostShutDownError,
+  HostWaitTimeoutError,
   UnknownHostError,
 } from './types.js';
 export type {
@@ -39,6 +40,7 @@ export type {
   HostSubscriptionEvent,
   HostedAgent,
   HostedSessionSummary,
+  WaitForHostsOptions,
 } from './types.js';
 
 export type { HostTransportFactory } from './factory.js';

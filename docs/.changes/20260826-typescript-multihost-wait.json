@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "`MultiHostClient.waitForHosts` provides a bounded selected-host readiness wait.",
+  "targets": ["typescript"]
+}

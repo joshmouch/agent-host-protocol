@@ -23,8 +23,9 @@ import {
   type HostSubscriptionEvent,
   type HostedAgent,
   type HostedSessionSummary,
+  type WaitForHostsOptions,
 } from './types.js';
-import { isConnected, isFailed, UnknownHostError } from './types.js';
+import { HostMultiError, HostWaitTimeoutError, isConnected, isFailed, UnknownHostError } from './types.js';
 import { HostRuntime, snapshotHandle } from './runtime.js';
 import {
   InMemoryClientIdStore,
@@ -239,6 +240,80 @@ export class MultiHostClient {
   /** Snapshot every registered host. Order is insertion order. */
   hostsSnapshot(): HostHandle[] {
     return Array.from(this.hosts.values(), r => snapshotHandle(r.shared));
+  }
+
+  /**
+   * Wait for every selected host to reach a terminal readiness state for the
+   * current connection attempt: either `connected` or `failed`.
+   *
+   * The returned map preserves the caller's host order and contains a fresh
+   * snapshot for each id. A `failed` snapshot is a completed outcome, not an
+   * exception, so callers can report every host failure together. Unknown or
+   * removed hosts throw {@link UnknownHostError}; expiration throws
+   * {@link HostWaitTimeoutError}. The required timeout keeps this wait bounded
+   * by construction.
+   */
+  async waitForHosts(
+    hostIds: readonly HostId[],
+    options: WaitForHostsOptions,
+  ): Promise<Map<HostId, HostHandle>> {
+    this.assertOpen();
+    if (!Number.isFinite(options.timeoutMs) || options.timeoutMs < 0) {
+      throw new RangeError('host wait timeout must be a finite non-negative number');
+    }
+    const selected = [...new Set(hostIds)];
+    for (const id of selected) {
+      if (!this.hosts.has(id)) throw new UnknownHostError(id);
+    }
+    const events = this.hostEventsQueue.reader();
+    const deadline = Date.now() + options.timeoutMs;
+    try {
+      while (true) {
+        this.assertOpen();
+        const snapshots = new Map<HostId, HostHandle>();
+        const pending: HostId[] = [];
+        for (const id of selected) {
+          const runtime = this.hosts.get(id);
+          if (!runtime) throw new UnknownHostError(id);
+          const snapshot = snapshotHandle(runtime.shared);
+          snapshots.set(id, snapshot);
+          if (snapshot.state.status !== 'connected' && snapshot.state.status !== 'failed') {
+            pending.push(id);
+          }
+        }
+        if (pending.length === 0) return snapshots;
+        if (options.signal?.aborted) {
+          throw options.signal.reason instanceof Error
+            ? options.signal.reason
+            : new HostMultiError('host wait was cancelled', { cause: options.signal?.reason });
+        }
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) throw new HostWaitTimeoutError(pending, options.timeoutMs);
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new HostWaitTimeoutError(pending, options.timeoutMs)),
+            remaining,
+          );
+          const onAbort = () => reject(
+            options.signal?.reason instanceof Error
+              ? options.signal.reason
+              : new HostMultiError('host wait was cancelled', { cause: options.signal?.reason }),
+          );
+          const cleanup = () => {
+            clearTimeout(timeout);
+            options.signal?.removeEventListener('abort', onAbort);
+          };
+          options.signal?.addEventListener('abort', onAbort, { once: true });
+          events.next().then(result => {
+            if (result.done) reject(new HostShutDownError('<multi-host client>'));
+            else resolve();
+          }, reject).finally(cleanup);
+        });
+      }
+    } finally {
+      await events.return?.();
+    }
   }
 
   /**
