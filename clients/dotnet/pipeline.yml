@@ -8,13 +8,13 @@ name: $(Date:yyyyMMdd)$(Rev:.r)
 #      Authenticode-signs their DLLs, packs them, author-signs the resulting
 #      .nupkg/.snupkg files through ESRP, and publishes them to NuGet.org.
 #
-# Manual runs publish by default as a hotfix escape hatch. Untick `publish` to
-# build, test, pack, and sign without pushing to NuGet.org.
+# Manual runs are signed dry runs by default. Tick `publish` only for a manual
+# hotfix publish; `dotnet/v*` tag-triggered runs publish automatically.
 parameters:
   - name: publish
-    displayName: Publish to NuGet.org (untick for a signed dry run)
+    displayName: Publish to NuGet.org on a manual run
     type: boolean
-    default: true
+    default: false
 
 trigger:
   branches:
@@ -41,7 +41,7 @@ extends:
     packageName: Microsoft.VisualStudioCode.AgentHostProtocol
     projectRootDirectory: $(Build.SourcesDirectory)/clients/dotnet
     packageOutputDirectory: $(Build.ArtifactStagingDirectory)/nuget
-    publishPackage: ${{ parameters.publish }}
+    publishPackage: ${{ or(parameters.publish, startsWith(variables['Build.SourceBranch'], 'refs/tags/dotnet/v')) }}
     nuGetServiceConnection: VisualStudioCode
     dotnetVersions:
       - 8.0.x
