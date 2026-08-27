@@ -1,0 +1,7 @@
+# Generators emit canonical LF output. Keep Windows checkouts from converting
+# committed generated files before drift checks regenerate them.
+clients/dotnet/src/**/Generated/*.generated.cs text eol=lf
+
+# Release metadata is generated as canonical JSON and compared byte-for-byte
+# apart from checkout line endings.
+clients/*/release-metadata.json text eol=lf
