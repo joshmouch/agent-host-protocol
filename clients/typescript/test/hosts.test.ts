@@ -25,6 +25,8 @@ import type {
 } from '../src/types/common/messages.js';
 import type { SessionSummary } from '../src/types/channels-session/state.js';
 import type { AgentInfo } from '../src/types/channels-root/state.js';
+import type { StateAction } from '../src/types/common/actions.js';
+import { ActionType } from '../src/types/common/actions.js';
 import type { InitializeResult } from '../src/types/common/commands.js';
 import type { ListSessionsResult } from '../src/types/channels-root/commands.js';
 import { ReconnectResultType } from '../src/types/common/commands.js';
@@ -378,6 +380,84 @@ test('MultiHostClient.single connects and exposes a HostHandle snapshot', async 
     assert.equal(snap.agents[0]?.provider, 'copilot');
     assert.equal(snap.protocolVersion, PROTOCOL_VERSION);
     assert.ok(snap.lastConnectedAt && snap.lastConnectedAt > 0);
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('managed subscription lease survives host reconnect and receives replay-generation events', async () => {
+  let serverSeq = 0;
+  const state = makeFakeState({
+    injectAfterInit: server => {
+      serverSeq += 1;
+      const envelope = {
+        channel: 'ahp-session:/managed-reconnect',
+        serverSeq,
+        action: {
+          type: ActionType.SessionTitleChanged,
+          title: `generation-${serverSeq}`,
+        } as unknown as StateAction,
+        origin: null,
+      };
+      return server.send(JSON.stringify({ jsonrpc: '2.0', method: 'action', params: envelope }));
+    },
+  });
+  const { multi } = await MultiHostClient.single({
+    id: 'managed',
+    label: 'Managed',
+    transportFactory: makeBasicFactory(state),
+    reconnectPolicy: immediateForeverPolicy(),
+  });
+  try {
+    await waitUntil(() => multi.host('managed')?.state.status === 'connected');
+    const initialGeneration = multi.host('managed')!.generation;
+    const lease = multi.acquireManagedSubscription(
+      'managed',
+      'ahp-session:/managed-reconnect',
+      'SessionEditor',
+    );
+    await lease.subscription.ready;
+
+    await multi.reconnectHost('managed');
+    await waitUntil(() => {
+      const host = multi.host('managed');
+      return host?.state.status === 'connected' && host.generation > initialGeneration
+        ? host.generation
+        : false;
+    });
+
+    assert.equal(lease.subscription.status, 'active');
+    assert.ok(lease.subscription.generation > initialGeneration);
+    const next = await lease.events.next();
+    assert.equal(next.value?.type, 'action');
+    if (next.value?.type === 'action') assert.ok(next.value.params.serverSeq > 1);
+    assert.deepEqual(multi.managedSubscriptions('managed').map(info => ({
+      uri: info.uri,
+      refCount: info.refCount,
+      generation: info.generation,
+    })), [{
+      uri: 'ahp-session:/managed-reconnect',
+      refCount: 1,
+      generation: lease.subscription.generation,
+    }]);
+    lease.release();
+  } finally {
+    await multi.shutdown();
+  }
+});
+
+test('managed and initial subscription ownership compose without premature unsubscribe', async () => {
+  const { multi } = await MultiHostClient.single({
+    id: 'shared-owner',
+    label: 'Shared owner',
+    transportFactory: makeBasicFactory(makeFakeState()),
+  });
+  try {
+    await waitUntil(() => multi.host('shared-owner')?.state.status === 'connected');
+    const lease = multi.acquireManagedSubscription('shared-owner', ROOT, 'RootInspector');
+    assert.equal((await lease.subscription.ready).snapshot?.resource, ROOT);
+    lease.release();
+    assert.ok(multi.host('shared-owner')?.subscriptions.includes(ROOT));
   } finally {
     await multi.shutdown();
   }

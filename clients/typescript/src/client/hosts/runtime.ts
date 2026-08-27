@@ -29,7 +29,7 @@ import type {
   SessionSummaryChangedParams,
 } from '../../types/channels-root/notifications.js';
 import { PROTOCOL_VERSION } from '../../types/version/registry.js';
-import { AhpClient, type DispatchHandle } from '../client.js';
+import { AhpClient, type DispatchHandle, type SubscribeOptions } from '../client.js';
 import type { ClientEvent } from '../events.js';
 import { RpcError } from '../error.js';
 import type { AsyncBroadcastQueue } from '../async-queue.js';
@@ -54,6 +54,11 @@ import {
   attemptsExhausted,
   delayWithJitter,
 } from './policy.js';
+import {
+  ManagedHostSubscriptionRegistry,
+  type ManagedHostSubscriptionInfo,
+  type ManagedHostSubscriptionLease,
+} from './managed-subscriptions.js';
 
 /**
  * Mutable per-host state read by the runtime, exposed read-only via
@@ -289,6 +294,9 @@ export class HostRuntime {
   readonly handleSource: HostClientHandleSource;
   private readonly fanOut: AsyncBroadcastQueue<HostSubscriptionEvent>;
   private readonly hostEvents: AsyncBroadcastQueue<HostEvent>;
+  readonly managedSubscriptions: ManagedHostSubscriptionRegistry;
+  private readonly manualSubscriptions: Set<URI>;
+  private readonly managedSubscriptionUris = new Set<URI>();
 
   private readonly shutdownController = new AbortController();
   private manualReconnectController = new AbortController();
@@ -311,6 +319,12 @@ export class HostRuntime {
     this.fanOut = fanOut;
     this.hostEvents = hostEvents;
     this.shared = makeInitialShared(config, resolvedClientId);
+    this.manualSubscriptions = new Set(this.shared.subscriptions);
+    this.managedSubscriptions = new ManagedHostSubscriptionRegistry(
+      this.shared.id,
+      uri => this.trackManagedSubscription(uri),
+      uri => this.untrackManagedSubscription(uri),
+    );
     this.handleSource = {
       hostId: this.shared.id,
       generation: this.shared.generation,
@@ -367,6 +381,20 @@ export class HostRuntime {
     // Also wake any reconnect waiter so a pending `reconnect()` call resolves.
     this.reconnectAck?.resolve();
     if (this.supervisorPromise) await this.supervisorPromise;
+    this.managedSubscriptions.close();
+  }
+
+  acquireManagedSubscription(
+    uri: URI,
+    owner: string,
+    options: SubscribeOptions = {},
+  ): ManagedHostSubscriptionLease {
+    if (this.shared.shutdownReason !== null) throw new HostShutDownError(this.shared.id);
+    return this.managedSubscriptions.acquire(uri, owner, options);
+  }
+
+  managedSubscriptionInfo(): ManagedHostSubscriptionInfo[] {
+    return this.managedSubscriptions.activeSubscriptions();
   }
 
   /**
@@ -388,11 +416,15 @@ export class HostRuntime {
     }
     const client = this.shared.currentClient;
     if (!client) {
-      this.trackSubscription(uri);
+      this.trackManualSubscription(uri);
       throw new HostNotConnectedError(this.shared.id);
     }
+    if (this.managedSubscriptionUris.has(uri)) {
+      this.trackManualSubscription(uri);
+      return this.managedSubscriptions.result(uri) ?? {};
+    }
     const { result } = await client.subscribe(uri);
-    this.trackSubscription(uri);
+    this.trackManualSubscription(uri);
     return result;
   }
 
@@ -402,12 +434,12 @@ export class HostRuntime {
    */
   async unsubscribe(uri: URI): Promise<void> {
     if (this.shared.shutdownReason !== null) {
-      this.untrackSubscription(uri);
+      this.untrackManualSubscription(uri);
       return;
     }
     const client = this.shared.currentClient;
-    this.untrackSubscription(uri);
-    if (client) await client.unsubscribe(uri);
+    this.untrackManualSubscription(uri);
+    if (client && !this.managedSubscriptionUris.has(uri)) await client.unsubscribe(uri);
   }
 
   /**
@@ -652,12 +684,27 @@ export class HostRuntime {
         let postReplaySubscriptions: string[] | null = null;
         const replayEnvelopes: ActionEnvelope[] = [];
         let snapshotPrunedSubscriptions: string[] | null = null;
+        const restoredSubscriptions = new Set<URI>();
+        const managedSnapshots = new Map<URI, SubscribeResult>();
+        const missingSubscriptions = new Set<URI>();
+
+        if (initSnapshots !== null) {
+          for (const uri of prior.subscriptions) restoredSubscriptions.add(uri);
+          for (const snapshot of initSnapshots) {
+            managedSnapshots.set(snapshot.resource, { snapshot });
+          }
+        }
 
         if (reconnectResult !== null) {
           if (reconnectResult.type === ReconnectResultType.Replay) {
             for (const env of reconnectResult.actions) replayEnvelopes.push(env);
+            for (const uri of prior.subscriptions) restoredSubscriptions.add(uri);
             if (reconnectResult.missing.length > 0) {
               const missing = new Set<string>(reconnectResult.missing);
+              for (const uri of reconnectResult.missing) {
+                missingSubscriptions.add(uri);
+                restoredSubscriptions.delete(uri);
+              }
               postReplaySubscriptions = this.shared.subscriptions.filter(u => !missing.has(u));
             }
           } else {
@@ -666,6 +713,13 @@ export class HostRuntime {
             // but are absent from the returned snapshot list.
             const surviving = new Set<string>(reconnectResult.snapshots.map(s => s.resource));
             const priorSet = new Set<string>(prior.subscriptions);
+            for (const snapshot of reconnectResult.snapshots) {
+              restoredSubscriptions.add(snapshot.resource);
+              managedSnapshots.set(snapshot.resource, { snapshot });
+            }
+            for (const uri of prior.subscriptions) {
+              if (!surviving.has(uri)) missingSubscriptions.add(uri);
+            }
             snapshotPrunedSubscriptions = this.shared.subscriptions.filter(
               u => surviving.has(u) || !priorSet.has(u),
             );
@@ -699,14 +753,43 @@ export class HostRuntime {
           for (const s of summaries.items) this.shared.sessionSummaries.set(s.resource, s);
         }
         if (postReplaySubscriptions !== null) {
-          this.shared.subscriptions = postReplaySubscriptions;
+          this.acceptServerSubscriptions(postReplaySubscriptions);
         } else if (snapshotPrunedSubscriptions !== null) {
-          this.shared.subscriptions = snapshotPrunedSubscriptions;
+          this.acceptServerSubscriptions(snapshotPrunedSubscriptions);
         }
 
         // Mirror the new generation + client into the shared handle source.
         this.handleSource.generation = this.shared.generation;
         this.handleSource.currentClient = client;
+
+        const generation = this.shared.generation;
+        this.managedSubscriptions.restore(
+          {
+            generation,
+            subscribe: (uri, options) => {
+              if (this.manualSubscriptions.has(uri)) {
+                return Promise.resolve(uri === ROOT_RESOURCE_URI
+                  ? { snapshot: { resource: uri, state: this.shared.rootState, fromSeq: this.shared.serverSeq } }
+                  : {});
+              }
+              return client.request('subscribe', {
+                channel: uri,
+                ...(options.delivery ? { delivery: options.delivery } : {}),
+                ...(options.view ? { view: options.view } : {}),
+              });
+            },
+            unsubscribe: uri => this.manualSubscriptions.has(uri)
+              ? Promise.resolve()
+              : client.unsubscribe(uri),
+          },
+          {
+            generation,
+            restored: restoredSubscriptions,
+            snapshots: managedSnapshots,
+            missing: missingSubscriptions,
+            replay: replayEnvelopes,
+          },
+        );
 
         // Replay missed envelopes through state mirror and fan-out.
         for (const env of replayEnvelopes) {
@@ -786,6 +869,7 @@ export class HostRuntime {
 
   private async tearDownClient(): Promise<void> {
     const prev = this.shared.currentClient;
+    this.managedSubscriptions.suspend(this.shared.generation);
     this.shared.currentClient = null;
     this.handleSource.currentClient = null;
     if (prev) {
@@ -819,6 +903,7 @@ export class HostRuntime {
         // No cache update; consumers observe via the event stream.
         break;
     }
+    this.managedSubscriptions.receive(event, this.shared.generation);
     this.fanOut.publish(tagClientEvent(this.shared.id, event));
   }
 
@@ -835,14 +920,39 @@ export class HostRuntime {
     // MultiHostStateMirror or their own store).
   }
 
-  private trackSubscription(uri: URI): void {
-    if (!this.shared.subscriptions.includes(uri)) {
-      this.shared.subscriptions.push(uri);
-    }
+  private trackManualSubscription(uri: URI): void {
+    this.manualSubscriptions.add(uri);
+    this.refreshSubscriptions();
   }
 
-  private untrackSubscription(uri: URI): void {
-    this.shared.subscriptions = this.shared.subscriptions.filter(u => u !== uri);
+  private untrackManualSubscription(uri: URI): void {
+    this.manualSubscriptions.delete(uri);
+    this.refreshSubscriptions();
+  }
+
+  private trackManagedSubscription(uri: URI): void {
+    this.managedSubscriptionUris.add(uri);
+    this.refreshSubscriptions();
+  }
+
+  private untrackManagedSubscription(uri: URI): void {
+    this.managedSubscriptionUris.delete(uri);
+    this.refreshSubscriptions();
+  }
+
+  private refreshSubscriptions(): void {
+    this.shared.subscriptions = [...new Set([
+      ...this.manualSubscriptions,
+      ...this.managedSubscriptionUris,
+    ])];
+  }
+
+  private acceptServerSubscriptions(subscriptions: readonly URI[]): void {
+    const accepted = new Set(subscriptions);
+    for (const uri of this.manualSubscriptions) {
+      if (!accepted.has(uri)) this.manualSubscriptions.delete(uri);
+    }
+    this.shared.subscriptions = [...subscriptions];
   }
 
   private transitionTo(state: HostState, lastError: Error | null): void {

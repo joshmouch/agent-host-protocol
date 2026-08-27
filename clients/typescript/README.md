@@ -234,6 +234,48 @@ For multi-host state, `MultiHostStateMirror` keys per-resource state
 by `(hostId, uri)` so URIs that legitimately collide across hosts
 (the normal case for session URIs) don't clobber each other.
 
+### Reconnect-stable subscription leases
+
+Use `acquireManagedSubscription` when a UI or service owner needs one logical
+subscription to survive transport replacement. The lease keeps its identity
+while the host moves through `reconnecting` and back to `active`; replay
+actions are delivered on `events`, replacement snapshots update `result`, and
+a resource rejected by the server's reconnect response moves to `missing` with
+a `HostSubscriptionMissingError`.
+
+```ts
+const lease = multi.acquireManagedSubscription(
+  'local',
+  sessionUri,
+  'SessionEditor',
+);
+
+const initial = await lease.subscription.ready;
+if (initial.snapshot) mirror.applySnapshot('local', initial.snapshot);
+
+const consume = (async () => {
+  for await (const event of lease.events) {
+    if (event.type === 'action') mirror.apply('local', event.params);
+  }
+})();
+
+// State changes expose `reconnecting`, restored generations, and failures.
+const observeLifecycle = (async () => {
+  for await (const update of lease.updates) {
+    console.log(update.status, update.generation, update.error);
+  }
+})();
+
+// Later, when SessionEditor closes:
+lease.release();
+await Promise.all([consume, observeLifecycle]);
+```
+
+Every inbound event and subscribe result is fenced by the transport generation
+that produced it. A late result from an abandoned connection cannot activate or
+overwrite a lease already restored on a newer generation. Releasing the final
+holder unsubscribes only on the current generation.
+
 ## Wire types
 
 The wire types under `src/types/` are generated from `types/*.ts` at the

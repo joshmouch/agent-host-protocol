@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "Multi-host managed subscription leases now survive reconnect through replay or snapshot restoration, with typed missing-resource reporting and transport-generation fencing.",
+  "targets": ["typescript"]
+}

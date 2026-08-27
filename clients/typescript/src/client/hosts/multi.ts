@@ -7,7 +7,7 @@
 import type { URI } from '../../types/common/state.js';
 import type { StateAction } from '../../types/common/actions.js';
 import type { SubscribeResult } from '../../types/common/commands.js';
-import type { DispatchHandle } from '../client.js';
+import type { DispatchHandle, SubscribeOptions } from '../client.js';
 import { AsyncBroadcastQueue } from '../async-queue.js';
 import { HostClientHandle } from './host-client-handle.js';
 import {
@@ -30,6 +30,10 @@ import {
   InMemoryClientIdStore,
   type ClientIdStore,
 } from './client-id-store.js';
+import type {
+  ManagedHostSubscriptionInfo,
+  ManagedHostSubscriptionLease,
+} from './managed-subscriptions.js';
 
 const DEFAULT_EVENT_BUFFER = 1024;
 
@@ -262,6 +266,29 @@ export class MultiHostClient {
     const runtime = this.hosts.get(hostId);
     if (!runtime) throw new UnknownHostError(hostId);
     return runtime.subscribe(uri);
+  }
+
+  /**
+   * Acquire a named logical subscription that remains valid when the host's
+   * transport is replaced. Replay actions and replacement snapshots restore
+   * the same lease; missing resources surface through its state/update stream.
+   */
+  acquireManagedSubscription(
+    hostId: HostId,
+    uri: URI,
+    owner: string,
+    options: SubscribeOptions = {},
+  ): ManagedHostSubscriptionLease {
+    const runtime = this.hosts.get(hostId);
+    if (!runtime) throw new UnknownHostError(hostId);
+    return runtime.acquireManagedSubscription(uri, owner, options);
+  }
+
+  /** Inspect managed subscription ownership and restoration state for a host. */
+  managedSubscriptions(hostId: HostId): ManagedHostSubscriptionInfo[] {
+    const runtime = this.hosts.get(hostId);
+    if (!runtime) throw new UnknownHostError(hostId);
+    return runtime.managedSubscriptionInfo();
   }
 
   /** Convenience: unsubscribe from `uri` on `hostId`. */

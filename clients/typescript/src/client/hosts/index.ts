@@ -59,3 +59,13 @@ export type { ClientIdStore } from './client-id-store.js';
 
 export { MultiHostStateMirror, hostedResourceKey } from './state-mirror.js';
 export type { HostedResourceKey } from './state-mirror.js';
+
+export { HostSubscriptionMissingError } from './managed-subscriptions.js';
+export type {
+  ManagedHostSubscription,
+  ManagedHostSubscriptionHolder,
+  ManagedHostSubscriptionInfo,
+  ManagedHostSubscriptionLease,
+  ManagedHostSubscriptionStatus,
+  ManagedHostSubscriptionUpdate,
+} from './managed-subscriptions.js';
