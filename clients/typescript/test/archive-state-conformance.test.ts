@@ -120,6 +120,12 @@ function providerRow(
       serverSessionArchived: confirmed,
       uiArchived: ui,
     }),
+    reconnectClientsAndReadProjection: async (_fixture: ArchiveStateFixture) => ({
+      writerClientArchived: confirmed,
+      observerClientArchived: confirmed,
+      serverSessionArchived: confirmed,
+      uiArchived: confirmed,
+    }),
     cleanup: async () => {},
   };
 }
@@ -131,6 +137,9 @@ test('provider row runs archive, rejection, rollback, convergence, and unarchive
   assert.equal(result.transitions.length, 12);
   assert.ok(result.transitions.every(
     transition => transition.authorityConvergence === 'immediate',
+  ));
+  assert.ok(result.transitions.every(
+    transition => transition.clientReconnectProjection === 'exact',
   ));
 });
 

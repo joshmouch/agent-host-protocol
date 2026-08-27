@@ -79,8 +79,8 @@ adapter supplies:
    `session/isArchivedChanged`. The runner derives its introduction version from
    `ACTION_INTRODUCED_IN`; rows do not copy a version literal.
 4. Fixture creation, optimistic dispatch, an envelope observer, AHP server
-   status, writer-client projection, observer-client projection, and an
-   optional UI projection.
+   status, writer-client projection, observer-client projection, a mandatory
+   reconnect of both client roles, and an optional UI projection.
 5. An authority-specific probe:
    - `provider` rows expose provider-request start/completion and queries for
      the exact resource. The runner records `immediate` when the first query
@@ -99,6 +99,8 @@ The generic runner asserts these as separate observations:
 - rejection carries `rejectionReason` and restores the initiating client to the
   last confirmed value;
 - success emits exactly one accepted transition;
+- both client roles reconnect without another archive dispatch and project the
+  confirmed state exactly;
 - provider convergence is classified without collapsing `delayed` into
   `immediate`, while host authority is exact across restart/reopen;
 - the applicable UI projection converges;

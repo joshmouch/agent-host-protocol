@@ -26,6 +26,7 @@ export interface ArchiveStateAcceptedTransitionResult {
   readonly negotiatedVersion: string;
   readonly requestedArchived: boolean;
   readonly authorityConvergence: ArchiveStateAuthorityConvergence;
+  readonly clientReconnectProjection: 'exact';
 }
 
 export class ArchiveStateAuthorityNeverConvergedError extends Error {
@@ -158,43 +159,50 @@ async function assertAcceptedTransition(
     server: requested,
     ui: requested,
   }, 'after-acceptance');
+  let authorityConvergence: ArchiveStateAuthorityConvergence;
   if (row.archiveAuthority.kind === 'host') {
     assertEqual(
       await row.archiveAuthority.reopenAndQueryArchived(fixture),
       requested,
       'restart/reopen host authority query',
     );
-    return {
-      negotiatedVersion,
-      requestedArchived: requested,
-      authorityConvergence: 'restart-exact',
-    };
+    authorityConvergence = 'restart-exact';
+  } else {
+    const immediate = await row.archiveAuthority.queryArchived(fixture);
+    if (immediate === requested) {
+      authorityConvergence = 'immediate';
+    } else {
+      await wait(row.delayedObservationMs);
+      const delayed = await row.archiveAuthority.queryArchived(fixture);
+      if (delayed !== requested) {
+        throw new ArchiveStateAuthorityNeverConvergedError({
+          negotiatedVersion,
+          requestedArchived: requested,
+          authorityConvergence: 'never-converged',
+          clientReconnectProjection: 'exact',
+        });
+      }
+      authorityConvergence = 'delayed';
+    }
   }
 
-  const immediate = await row.archiveAuthority.queryArchived(fixture);
-  if (immediate === requested) {
-    return {
-      negotiatedVersion,
-      requestedArchived: requested,
-      authorityConvergence: 'immediate',
-    };
-  }
-
-  await wait(row.delayedObservationMs);
-  const delayed = await row.archiveAuthority.queryArchived(fixture);
-  if (delayed === requested) {
-    return {
-      negotiatedVersion,
-      requestedArchived: requested,
-      authorityConvergence: 'delayed',
-    };
-  }
-
-  throw new ArchiveStateAuthorityNeverConvergedError({
+  assertProjection(
+    row,
+    await row.reconnectClientsAndReadProjection(fixture),
+    {
+      initiating: requested,
+      other: requested,
+      server: requested,
+      ui: requested,
+    },
+    'after-client-reconnect',
+  );
+  return {
     negotiatedVersion,
     requestedArchived: requested,
-    authorityConvergence: 'never-converged',
-  });
+    authorityConvergence,
+    clientReconnectProjection: 'exact',
+  };
 }
 
 async function runExactVersion(

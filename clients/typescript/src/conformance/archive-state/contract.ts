@@ -132,6 +132,14 @@ export interface ArchiveStateConformanceRow {
     isArchived: boolean,
   ): Promise<ArchiveStateTransitionProbe>;
   readProjection(fixture: ArchiveStateFixture): Promise<ArchiveStateProjection>;
+  /**
+   * Reconnect both client roles through their real reconnect paths and return
+   * the resulting projections. The writer and observer must not dispatch a
+   * second archive action while reconnecting.
+   */
+  reconnectClientsAndReadProjection(
+    fixture: ArchiveStateFixture,
+  ): Promise<ArchiveStateProjection>;
   cleanup(fixture: ArchiveStateFixture): Promise<void>;
 }
 

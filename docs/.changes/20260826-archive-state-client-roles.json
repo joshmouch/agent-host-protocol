@@ -1,5 +1,5 @@
 {
   "type": "changed",
-  "message": "Archive-state conformance rows now identify the sole writer and subscribed observer client implementations separately.",
+  "message": "Archive-state conformance rows now identify the sole writer and subscribed observer client implementations separately and require exact post-reconnect projections for both roles.",
   "targets": ["typescript"]
 }
