@@ -25,6 +25,7 @@
 //!
 //! let mut root = RootState {
 //!     agents: vec![],
+//!     capabilities: None,
 //!     active_sessions: None,
 //!     terminals: None,
 //!     config: None,
@@ -763,6 +764,10 @@ pub fn apply_action_to_session(state: &mut SessionState, action: &StateAction) -
         }
         StateAction::SessionIsArchivedChanged(a) => {
             state.status = with_status_flag(state.status, SessionStatus::IsArchived, a.is_archived);
+            ReduceOutcome::Applied
+        }
+        StateAction::SessionIsPinnedChanged(a) => {
+            state.status = with_status_flag(state.status, SessionStatus::IsPinned, a.is_pinned);
             ReduceOutcome::Applied
         }
         StateAction::SessionActivityChanged(a) => {
@@ -2409,6 +2414,7 @@ mod tests {
     fn root_reducer_handles_agents_changed() {
         let mut r = RootState {
             agents: Vec::new(),
+            capabilities: None,
             active_sessions: None,
             terminals: None,
             config: None,

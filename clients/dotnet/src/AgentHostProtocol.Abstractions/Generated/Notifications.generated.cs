@@ -276,6 +276,16 @@ public sealed record PartialSessionSummary
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Resource { get; init; }
 
+    /// <summary>Authoritative read-state evidence for this catalog row.
+    ///
+    /// New producers SHOULD provide this field. Its absence preserves the
+    /// version-1 projection: clients derive `read` when
+    /// {@link SessionStatus.IsRead} is set in {@link SessionMetadata.status} and
+    /// `unread` otherwise. When present, this field is authoritative and its
+    /// `read` / `unread` values MUST agree with that legacy status bit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionReadState? ReadState { get; init; }
+
     /// <summary>Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? CreatedAt { get; init; }

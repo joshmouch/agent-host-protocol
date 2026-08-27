@@ -103,6 +103,7 @@ SessionSummary {
   provider: string
   title: string
   status: number  // SessionStatus bitset
+  readState?: 'read' | 'unread' | 'unavailable' // catalog-row evidence; absent uses legacy status bit
   activity?: string
   createdAt: string   // ISO 8601, e.g. "2025-03-10T18:42:03.123Z"
   modifiedAt: string  // ISO 8601
@@ -132,8 +133,16 @@ The `status` bitset encodes both the session's activity state and metadata flags
 | `SessionStatus.InputNeeded` |  `24` | `(1 << 3) \| (1 << 4)` | A turn is active and either at least one user input request is open, or at least one tool call is awaiting user confirmation (pre- or post-execution). Includes the `InProgress` bit. |
 | `SessionStatus.IsRead`      |  `32` | `1 << 5`               | The client has viewed this session since its last modification. Cleared automatically when a new turn starts or an input request arrives. Toggled via `session/isReadChanged`.        |
 | `SessionStatus.IsArchived`  |  `64` | `1 << 6`               | The session has been archived by the client. Toggled via `session/isArchivedChanged`.                                                                                                 |
+| `SessionStatus.IsPinned`    | `128` | `1 << 7`               | The client has pinned the session for persistent visibility. Toggled via `session/isPinnedChanged`.                                                                                   |
 
 Bits 0–4 encode mutually-exclusive **activity** status (exactly one is set at a time). Bits 5+ encode orthogonal **metadata** flags that may be combined with any activity status via bitwise OR.
+
+`SessionSummary.readState` is the closed read-state projection for a session-list
+row. It is separate from session lifecycle because a complete catalog may include
+provider-native rows that the host has not adopted and therefore has never assigned
+a client read value. New producers provide `read`, `unread`, or `unavailable`;
+when the field is absent, version-1 clients and hosts continue to derive read state
+from `SessionStatus.IsRead`.
 
 For example, `(status & SessionStatus.InProgress) !== 0` is true for both `InProgress` and `InputNeeded`. A session that is idle, read, and archived has status `1 | 32 | 64 = 97`.
 

@@ -609,6 +609,10 @@ public fun sessionReducer(state: SessionState, action: StateAction): SessionStat
         status = withStatusFlag(state.status, SessionStatus.IS_ARCHIVED, action.value.isArchived),
     )
 
+    is StateActionSessionIsPinnedChanged -> state.copy(
+        status = withStatusFlag(state.status, SessionStatus.IS_PINNED, action.value.isPinned),
+    )
+
     is StateActionSessionActivityChanged -> state.copy(activity = action.value.activity)
 
     is StateActionSessionChangesetsChanged -> state.copy(changesets = action.value.changesets)

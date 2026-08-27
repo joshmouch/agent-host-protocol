@@ -753,7 +753,7 @@ function generateStructFromInterface(
 // ─── State File Generator ────────────────────────────────────────────────────
 
 const STATE_ENUMS = [
-  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
+  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus', 'SessionReadState',
   'ChatOriginKind', 'ChatInteractivity', 'ChatInputAnswerState', 'ChatInputAnswerValueKind', 'ChatInputQuestionKind',
   'ChatInputResponseKind', 'SessionInputRequestKind',
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',
@@ -1313,6 +1313,11 @@ pub enum ToolInput {
 
 function generateStateFile(project: Project): string {
   const lines: string[] = [GENERATED_HEADER];
+
+  // RootState references the host capability records emitted in commands.rs.
+  // Keep that cross-module ownership explicit instead of generating a second
+  // copy of the same protocol types in state.rs.
+  lines.push('use crate::commands::HostCapabilities;\n');
 
   lines.push('// ─── Enums ────────────────────────────────────────────────────────────\n');
   for (const enumName of STATE_ENUMS) {

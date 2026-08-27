@@ -223,6 +223,14 @@ public struct PartialSessionSummary: Codable, Sendable {
     public var annotations: AnnotationsSummary?
     /// Session URI
     public var resource: String?
+    /// Authoritative read-state evidence for this catalog row.
+    ///
+    /// New producers SHOULD provide this field. Its absence preserves the
+    /// version-1 projection: clients derive `read` when
+    /// {@link SessionStatus.IsRead} is set in {@link SessionMetadata.status} and
+    /// `unread` otherwise. When present, this field is authoritative and its
+    /// `read` / `unread` values MUST agree with that legacy status bit.
+    public var readState: SessionReadState?
     /// Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     public var createdAt: String?
     /// Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
@@ -248,6 +256,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         case workingDirectories
         case annotations
         case resource
+        case readState
         case createdAt
         case modifiedAt
         case changes
@@ -264,6 +273,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         workingDirectories: [String]? = nil,
         annotations: AnnotationsSummary? = nil,
         resource: String? = nil,
+        readState: SessionReadState? = nil,
         createdAt: String? = nil,
         modifiedAt: String? = nil,
         changes: ChangesSummary? = nil,
@@ -278,6 +288,7 @@ public struct PartialSessionSummary: Codable, Sendable {
         self.workingDirectories = workingDirectories
         self.annotations = annotations
         self.resource = resource
+        self.readState = readState
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
         self.changes = changes

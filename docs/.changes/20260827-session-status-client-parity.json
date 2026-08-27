@@ -1,0 +1,5 @@
+{
+  "type": "fixed",
+  "message": "Session pinned status actions now preserve reducer parity in every handwritten client.",
+  "targets": ["rust", "kotlin", "swift", "go", "dotnet"]
+}

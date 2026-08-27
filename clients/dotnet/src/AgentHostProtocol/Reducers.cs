@@ -687,6 +687,9 @@ public static class Reducers
             case SessionIsArchivedChangedAction a:
                 state.Status = WithStatusFlag(state.Status, SessionStatus.IsArchived, a.IsArchived);
                 return ReduceOutcome.Applied;
+            case SessionIsPinnedChangedAction a:
+                state.Status = WithStatusFlag(state.Status, SessionStatus.IsPinned, a.IsPinned);
+                return ReduceOutcome.Applied;
             case SessionActivityChangedAction a:
                 state.Activity = a.Activity;
                 return ReduceOutcome.Applied;
@@ -2465,6 +2468,7 @@ public static class Reducers
         "session/mcpServerStopRequested",
         "session/isReadChanged",
         "session/isArchivedChanged",
+        "session/isPinnedChanged",
         "session/configChanged",
         // Working-directory actions (post-#337), all four @clientDispatchable
         "session/workingDirectorySet",

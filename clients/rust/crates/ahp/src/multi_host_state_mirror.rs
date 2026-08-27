@@ -180,6 +180,7 @@ impl MultiHostStateMirror {
                 .entry(host.clone())
                 .or_insert_with(|| RootState {
                     agents: vec![],
+                    capabilities: None,
                     active_sessions: None,
                     terminals: None,
                     config: None,
