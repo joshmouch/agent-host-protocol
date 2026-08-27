@@ -1,0 +1,5 @@
+{
+  "type": "added",
+  "message": "`ManagedSubscriptionManager` provides shared named leases, initial event buffering, last-holder unsubscribe, and retry-safe failure cleanup.",
+  "targets": ["typescript"]
+}

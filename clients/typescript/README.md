@@ -14,7 +14,7 @@ The package exposes four subpath exports:
 | Import path | What it gives you |
 |---|---|
 | `@microsoft/agent-host-protocol`        | Wire types, actions, commands, reducers, version constants. No I/O. |
-| `@microsoft/agent-host-protocol/client` | `AhpClient`, `Subscription`, `AhpStateMirror`, the `AhpTransport` interface, `InMemoryTransport`, and the error taxonomy. |
+| `@microsoft/agent-host-protocol/client` | `AhpClient`, `Subscription`, `ManagedSubscriptionManager`, `AhpStateMirror`, the `AhpTransport` interface, `InMemoryTransport`, and the error taxonomy. |
 | `@microsoft/agent-host-protocol/hosts`  | `MultiHostClient`, `HostClientHandle`, `ReconnectPolicy`, `ClientIdStore` (with `InMemoryClientIdStore`), `MultiHostStateMirror`, and the `Host*Error` family. Builds on `/client` to manage one or more host connections with reconnect, generation-checked handles, and fan-in events. |
 | `@microsoft/agent-host-protocol/ws`     | `WebSocketTransport` — an `AhpTransport` implementation backed by the global `WebSocket`. |
 
@@ -78,6 +78,36 @@ class MyTransport implements AhpTransport {
 
 `InMemoryTransport.pair()` returns two connected halves that exchange
 text frames — handy for unit tests that don't need a real socket.
+
+## Shared subscription ownership
+
+`ManagedSubscriptionManager` coalesces concurrent consumers of the same URI
+onto one wire-level subscription. Each named lease receives an independent
+event iterator. The last release sends `unsubscribe`; failed subscriptions are
+cleaned up so the next acquire makes a fresh request.
+
+```ts
+import { ManagedSubscriptionManager } from '@microsoft/agent-host-protocol/client';
+
+const subscriptions = new ManagedSubscriptionManager(client);
+const lease = subscriptions.acquire(sessionUri, 'SessionEditor');
+
+const { snapshot } = await lease.subscription.ready;
+if (snapshot) mirror.applySnapshot(snapshot);
+const consume = (async () => {
+  for await (const event of lease.events) {
+    if (event.type === 'action') mirror.apply(event.params);
+  }
+})();
+
+// Later, when SessionEditor no longer needs the resource:
+lease.release();
+await consume;
+```
+
+Acquire the lease before awaiting `ready`: its event iterator is attached
+before the `subscribe` request is sent, so actions delivered during the
+snapshot round-trip remain ordered behind that snapshot instead of being lost.
 
 ## Reducers and state mirror
 
