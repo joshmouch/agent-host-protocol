@@ -74,8 +74,8 @@ function assertProjection(
   },
   phase: string,
 ): void {
-  assertEqual(actual.initiatingClientArchived, expected.initiating, `${phase}: initiating client`);
-  assertEqual(actual.otherClientArchived, expected.other, `${phase}: other client`);
+  assertEqual(actual.writerClientArchived, expected.initiating, `${phase}: writer client`);
+  assertEqual(actual.observerClientArchived, expected.other, `${phase}: observer client`);
   assertEqual(actual.serverSessionArchived, expected.server, `${phase}: AHP server session status`);
   if (row.uiProjection === 'required') {
     assertEqual(actual.uiArchived, expected.ui, `${phase}: UI projection`);

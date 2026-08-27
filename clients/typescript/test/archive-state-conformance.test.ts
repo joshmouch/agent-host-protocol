@@ -39,7 +39,10 @@ function providerRow(
   return {
     identity: {
       implementationId: 'test/host',
-      clientImplementationId: 'test/client',
+      clientImplementations: {
+        writer: 'test/writer-client',
+        observer: 'test/observer-client',
+      },
       providerId: 'test/provider',
       deploymentId: 'fixture-1',
     },
@@ -112,8 +115,8 @@ function providerRow(
       };
     },
     readProjection: async (_fixture: ArchiveStateFixture) => ({
-      initiatingClientArchived: initiating,
-      otherClientArchived: other,
+      writerClientArchived: initiating,
+      observerClientArchived: other,
       serverSessionArchived: confirmed,
       uiArchived: ui,
     }),
@@ -187,14 +190,37 @@ test('host authority cannot be constructed without a restart durability boundary
   );
 });
 
-test('client implementation identity is required independently from host identity', () => {
+test('writer and observer client identities are required independently from host identity', () => {
   const row = providerRow();
   assert.throws(
     () => defineArchiveStateConformanceRow({
       ...row,
-      identity: { ...row.identity, clientImplementationId: '' },
+      identity: {
+        ...row.identity,
+        clientImplementations: {
+          ...row.identity.clientImplementations,
+          observer: '',
+        },
+      },
     }),
-    /requires implementationId, clientImplementationId, and providerId/,
+    /requires exactly one non-empty writer and observer client implementation identity/,
+  );
+});
+
+test('unknown client roles fail row construction', () => {
+  const row = providerRow();
+  assert.throws(
+    () => defineArchiveStateConformanceRow({
+      ...row,
+      identity: {
+        ...row.identity,
+        clientImplementations: {
+          ...row.identity.clientImplementations,
+          other: 'test/unknown-client',
+        },
+      } as ArchiveStateConformanceRow['identity'],
+    }),
+    /requires exactly one non-empty writer and observer client implementation identity/,
   );
 });
 

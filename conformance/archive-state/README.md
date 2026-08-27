@@ -14,12 +14,17 @@ providers as a second authority.
 ## Row identity and matrix
 
 `implementationId` identifies host executable source.
-`clientImplementationId` independently identifies the client/reconciler used to
-dispatch and project the transition. `deploymentId` distinguishes profiles,
-accounts, machines, and managed instances of the same host executable. Several
-deployments of one executable are coverage instances of one row, not new
-implementations. Host/provider authority results and client reconciliation
-results therefore remain orthogonal and cannot be inferred from each other.
+`clientImplementations.writer` independently identifies the sole dispatching
+client/reconciler. `clientImplementations.observer` identifies the client that
+is already subscribed and projects that same transition without dispatching a
+second action. The closed role map rejects missing, empty, or unknown roles at
+row construction. Equal values prove two instances of one implementation;
+different values prove a cross-implementation pair. `deploymentId`
+distinguishes profiles, accounts, machines, and managed instances of the same
+host executable. Several deployments of one executable are coverage instances
+of one row, not new implementations. Host/provider authority results and client
+reconciliation results therefore remain orthogonal and cannot be inferred from
+each other.
 
 | Host implementation candidate | Provider candidate | Authority | Row owner | Current gate |
 | --- | --- | --- | --- | --- |
@@ -62,9 +67,10 @@ Their handwritten source lives under
 types from the same package and never requires a sibling checkout. Every
 adapter supplies:
 
-1. One stable host `implementationId`, one stable
-   `clientImplementationId`, an optional `deploymentId`, and a provider
-   identity.
+1. One stable host `implementationId`, the closed
+   `clientImplementations.{writer,observer}` role map, an optional
+   `deploymentId`, and a provider identity. Both clients subscribe before the
+   writer dispatches exactly one action.
 2. An explicit negotiated-version applicability declaration. For each member
    of canonical `SUPPORTED_PROTOCOL_VERSIONS`, the runner offers that singleton,
    performs the real initialize negotiation, and classifies the exact returned
@@ -73,7 +79,7 @@ adapter supplies:
    `session/isArchivedChanged`. The runner derives its introduction version from
    `ACTION_INTRODUCED_IN`; rows do not copy a version literal.
 4. Fixture creation, optimistic dispatch, an envelope observer, AHP server
-   status, initiating-client projection, other-client projection, and an
+   status, writer-client projection, observer-client projection, and an
    optional UI projection.
 5. An authority-specific probe:
    - `provider` rows expose provider-request start/completion and queries for

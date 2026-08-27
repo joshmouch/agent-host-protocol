@@ -46,20 +46,36 @@ export interface ArchiveStateProtocolApplicability {
 export interface ArchiveStateImplementationIdentity {
   /** Stable executable/source implementation, never a profile or account. */
   readonly implementationId: string;
-  /** Client/reconciler implementation exercised by this row. */
-  readonly clientImplementationId: string;
+  /**
+   * Client/reconciler implementations exercised in the sole-writer scenario.
+   * The writer dispatches the transition; the observer is already subscribed
+   * and must project that same transition without dispatching a second action.
+   */
+  readonly clientImplementations: ArchiveStateClientImplementations;
   readonly providerId: string;
   /** Optional coverage instance of the implementation. */
   readonly deploymentId?: string;
 }
+
+export const ARCHIVE_STATE_CLIENT_ROLES = [
+  'writer',
+  'observer',
+] as const;
+
+export type ArchiveStateClientRole =
+  typeof ARCHIVE_STATE_CLIENT_ROLES[number];
+
+export type ArchiveStateClientImplementations = {
+  readonly [K in ArchiveStateClientRole]: string;
+};
 
 export interface ArchiveStateFixture {
   readonly resource: string;
 }
 
 export interface ArchiveStateProjection {
-  readonly initiatingClientArchived: boolean;
-  readonly otherClientArchived: boolean;
+  readonly writerClientArchived: boolean;
+  readonly observerClientArchived: boolean;
   readonly serverSessionArchived: boolean;
   readonly uiArchived?: boolean;
 }
@@ -275,11 +291,24 @@ export function classifyArchiveStateProtocolVersion(
 export function defineArchiveStateConformanceRow(
   row: ArchiveStateConformanceRow,
 ): ArchiveStateConformanceRow {
-  if (!row.identity.implementationId
-    || !row.identity.clientImplementationId
-    || !row.identity.providerId) {
+  if (!row.identity.implementationId || !row.identity.providerId) {
     throw new Error(
-      'archive-state row requires implementationId, clientImplementationId, and providerId',
+      'archive-state row requires implementationId and providerId',
+    );
+  }
+  const clientRoleKeys = Object.keys(
+    row.identity.clientImplementations ?? {},
+  );
+  if (clientRoleKeys.length !== ARCHIVE_STATE_CLIENT_ROLES.length
+    || ARCHIVE_STATE_CLIENT_ROLES.some(role => (
+      !clientRoleKeys.includes(role)
+      || !row.identity.clientImplementations?.[role]
+    ))
+    || clientRoleKeys.some(role => !ARCHIVE_STATE_CLIENT_ROLES.includes(
+      role as ArchiveStateClientRole,
+    ))) {
+    throw new Error(
+      'archive-state row requires exactly one non-empty writer and observer client implementation identity',
     );
   }
   if (row.applicability.requiredAction !== ARCHIVE_STATE_ACTION) {
