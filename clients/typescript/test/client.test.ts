@@ -337,7 +337,12 @@ for (const rejectionReason of [undefined, 'provider refused'] as const) {
       title: 'settled',
     } as unknown as StateAction;
     const settlement = client.dispatchAndWait(channel, action, { timeoutMs: 100 });
+    const subscribe = await readRequest(s);
+    assert.equal(subscribe.method, 'subscribe');
+    assert.equal((subscribe.params as SubscribeParams).channel, channel);
+    reply(s, subscribe.id, { snapshot: undefined } satisfies SubscribeResult);
     const dispatched = await readNotification(s);
+    assert.equal(dispatched.method, 'dispatchAction');
     const clientSeq = (dispatched.params as DispatchActionParams).clientSeq;
 
     let resolved = false;
@@ -362,9 +367,113 @@ for (const rejectionReason of [undefined, 'provider refused'] as const) {
     };
     pushNotification(s, 'action', exact);
     assert.deepEqual(await settlement, exact);
+    const unsubscribe = await readNotification(s);
+    assert.equal(unsubscribe.method, 'unsubscribe');
+    assert.equal((unsubscribe.params as UnsubscribeParams).channel, channel);
     await client.shutdown();
   });
 }
+
+test('concurrent settlement waits share one exact-channel subscription lease', async () => {
+  const [c, s] = InMemoryTransport.pair();
+  const client = new AhpClient(c);
+  client.connect();
+  await initializeClient(client, s, 'origin-client');
+  const channel = 'ahp-session:/shared-settlement' as const;
+  const firstAction = {
+    type: ActionType.SessionTitleChanged,
+    title: 'first',
+  } as unknown as StateAction;
+  const secondAction = {
+    type: ActionType.SessionTitleChanged,
+    title: 'second',
+  } as unknown as StateAction;
+
+  const first = client.dispatchAndWait(channel, firstAction, { timeoutMs: 100 });
+  const second = client.dispatchAndWait(channel, secondAction, { timeoutMs: 100 });
+  const subscribe = await readRequest(s);
+  assert.equal(subscribe.method, 'subscribe');
+  assert.equal((subscribe.params as SubscribeParams).channel, channel);
+  reply(s, subscribe.id, { snapshot: undefined } satisfies SubscribeResult);
+
+  const firstDispatch = await readNotification(s);
+  const secondDispatch = await readNotification(s);
+  const firstSeq = (firstDispatch.params as DispatchActionParams).clientSeq;
+  const secondSeq = (secondDispatch.params as DispatchActionParams).clientSeq;
+  const firstEnvelope: ActionEnvelope = {
+    channel,
+    action: firstAction,
+    serverSeq: 1,
+    origin: { clientId: 'origin-client', clientSeq: firstSeq },
+  };
+  const secondEnvelope: ActionEnvelope = {
+    channel,
+    action: secondAction,
+    serverSeq: 2,
+    origin: { clientId: 'origin-client', clientSeq: secondSeq },
+  };
+  pushNotification(s, 'action', firstEnvelope);
+  assert.deepEqual(await first, firstEnvelope);
+  pushNotification(s, 'action', secondEnvelope);
+  assert.deepEqual(await second, secondEnvelope);
+
+  const unsubscribe = await readNotification(s);
+  assert.equal(unsubscribe.method, 'unsubscribe');
+  assert.equal((unsubscribe.params as UnsubscribeParams).channel, channel);
+  await client.shutdown();
+});
+
+test('dispatchAndWait reuses an initial exact-channel subscription without tearing it down', async () => {
+  const [c, s] = InMemoryTransport.pair();
+  const client = new AhpClient(c);
+  client.connect();
+  const channel = 'ahp-session:/initial-settlement' as const;
+  const initializing = client.initialize({
+    clientId: 'origin-client',
+    protocolVersions: ['0.8.0'],
+    initialSubscriptions: [channel],
+  });
+  const initialize = await readRequest(s);
+  reply(s, initialize.id, {
+    channel: ROOT,
+    protocolVersion: '0.8.0',
+    snapshots: [],
+  } satisfies InitializeResult);
+  await initializing;
+
+  const action = {
+    type: ActionType.SessionTitleChanged,
+    title: 'persistent',
+  } as unknown as StateAction;
+  const settlement = client.dispatchAndWait(channel, action, { timeoutMs: 100 });
+  const dispatched = await readNotification(s);
+  assert.equal(dispatched.method, 'dispatchAction');
+  const clientSeq = (dispatched.params as DispatchActionParams).clientSeq;
+  const envelope: ActionEnvelope = {
+    channel,
+    action,
+    serverSeq: 1,
+    origin: { clientId: 'origin-client', clientSeq },
+  };
+  pushNotification(s, 'action', envelope);
+  assert.deepEqual(await settlement, envelope);
+
+  // A second direct wait must also dispatch immediately. If the first wait had
+  // torn down the caller-owned subscription, this frame would instead be an
+  // unsubscribe or subscribe request.
+  const second = client.dispatchAndWait(channel, action, { timeoutMs: 100 });
+  const secondDispatch = await readNotification(s);
+  assert.equal(secondDispatch.method, 'dispatchAction');
+  const secondSeq = (secondDispatch.params as DispatchActionParams).clientSeq;
+  const secondEnvelope: ActionEnvelope = {
+    ...envelope,
+    serverSeq: 2,
+    origin: { clientId: 'origin-client', clientSeq: secondSeq },
+  };
+  pushNotification(s, 'action', secondEnvelope);
+  assert.deepEqual(await second, secondEnvelope);
+  await client.shutdown();
+});
 
 test('dispatchAndWait has a typed local timeout', async () => {
   const [c, s] = InMemoryTransport.pair();
@@ -376,12 +485,16 @@ test('dispatchAndWait has a typed local timeout', async () => {
     { type: ActionType.SessionTitleChanged, title: 'timeout' } as unknown as StateAction,
     { timeoutMs: 5 },
   );
+  const subscribe = await readRequest(s);
+  reply(s, subscribe.id, { snapshot: undefined } satisfies SubscribeResult);
   await readNotification(s);
   await assert.rejects(
     settlement,
     (error: unknown) => error instanceof ActionSettlementTimeoutError
       && error.timeoutMs === 5,
   );
+  const unsubscribe = await readNotification(s);
+  assert.equal(unsubscribe.method, 'unsubscribe');
   await client.shutdown();
 });
 
@@ -396,13 +509,45 @@ test('dispatchAndWait cancellation detaches only its event reader', async () => 
     { type: ActionType.SessionTitleChanged, title: 'cancel' } as unknown as StateAction,
     { signal: controller.signal, timeoutMs: 100 },
   );
+  const subscribe = await readRequest(s);
+  reply(s, subscribe.id, { snapshot: undefined } satisfies SubscribeResult);
   await readNotification(s);
   controller.abort('test cancellation');
   await assert.rejects(
     settlement,
     (error: unknown) => error instanceof ActionSettlementCancelledError,
   );
+  const unsubscribe = await readNotification(s);
+  assert.equal(unsubscribe.method, 'unsubscribe');
   assert.equal(client.connectionState.status, 'connected');
+  await client.shutdown();
+});
+
+test('dispatchAndWait cancellation bounds an in-flight settlement subscribe', async () => {
+  const [c, s] = InMemoryTransport.pair();
+  const client = new AhpClient(c, { requestTimeoutMs: 100 });
+  client.connect();
+  await initializeClient(client, s);
+  const controller = new AbortController();
+  const settlement = client.dispatchAndWait(
+    'ahp-session:/cancel-subscribe',
+    { type: ActionType.SessionTitleChanged, title: 'cancel' } as unknown as StateAction,
+    { signal: controller.signal, timeoutMs: 100 },
+  );
+  const subscribe = await readRequest(s);
+  assert.equal(subscribe.method, 'subscribe');
+  controller.abort('cancel pending subscribe');
+  await assert.rejects(
+    settlement,
+    (error: unknown) => error instanceof ActionSettlementCancelledError,
+  );
+
+  // A conformant server may still answer the already-sent request. The helper
+  // must then release the late subscription and must never dispatch the action.
+  reply(s, subscribe.id, { snapshot: undefined } satisfies SubscribeResult);
+  const unsubscribe = await readNotification(s);
+  assert.equal(unsubscribe.method, 'unsubscribe');
+  assert.equal((unsubscribe.params as UnsubscribeParams).channel, 'ahp-session:/cancel-subscribe');
   await client.shutdown();
 });
 

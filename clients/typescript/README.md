@@ -76,9 +76,13 @@ if (envelope.rejectionReason) {
 }
 ```
 
-`dispatchAndWait` attaches its event reader before sending, then matches the
-returned `clientSeq`, the initialized client ID, and the exact channel. The
-same method is available through `HostClientHandle` and `MultiHostClient`.
+`dispatchAndWait` attaches its event reader and establishes an exact-channel
+subscription before sending, because conformant hosts deliver session actions
+only to subscribers of that session URI. Concurrent waits share one temporary
+subscription lease, and a subscription already owned by initialize, reconnect,
+or the caller is never torn down by the helper. Settlement then matches the
+returned `clientSeq`, the initialized client ID, and the exact channel. The same
+method is available through `HostClientHandle` and `MultiHostClient`.
 
 ## Pluggable transports
 

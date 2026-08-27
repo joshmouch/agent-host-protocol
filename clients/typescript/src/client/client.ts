@@ -235,6 +235,11 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
+interface SettlementSubscriptionLeaseState {
+  references: number;
+  readonly established: Promise<SubscribeResult>;
+}
+
 // ─── Client ──────────────────────────────────────────────────────────────────
 
 /**
@@ -252,6 +257,10 @@ export class AhpClient {
 
   private readonly pending = new Map<number, PendingRequest>();
   private readonly subscriptions = new Map<URI, AsyncBroadcastQueue<SubscriptionEvent>>();
+  /** Server subscriptions owned by initialize/reconnect or explicit subscribe calls. */
+  private readonly persistentServerSubscriptions = new Set<URI>();
+  /** Temporary exact-channel subscriptions shared by concurrent settlement waits. */
+  private readonly settlementSubscriptionLeases = new Map<URI, SettlementSubscriptionLeaseState>();
   private readonly allEvents = new AsyncBroadcastQueue<ClientEvent>();
   private readonly stateQueue = new AsyncBroadcastQueue<ConnectionState>();
 
@@ -375,6 +384,10 @@ export class AhpClient {
     };
     const result = await this.request('initialize', params);
     this.logicalClientId = args.clientId;
+    this.persistentServerSubscriptions.clear();
+    for (const uri of args.initialSubscriptions ?? []) {
+      this.persistentServerSubscriptions.add(uri);
+    }
     return result;
   }
 
@@ -392,6 +405,10 @@ export class AhpClient {
     };
     const result = await this.request('reconnect', params);
     this.logicalClientId = args.clientId;
+    this.persistentServerSubscriptions.clear();
+    for (const uri of args.subscriptions) {
+      this.persistentServerSubscriptions.add(uri);
+    }
     return result;
   }
 
@@ -407,12 +424,19 @@ export class AhpClient {
   ): Promise<{ result: SubscribeResult; subscription: Subscription }> {
     const subscription = this.attachSubscription(uri);
     try {
+      const settlementLease = this.settlementSubscriptionLeases.get(uri);
+      if (settlementLease) {
+        const result = await settlementLease.established;
+        this.persistentServerSubscriptions.add(uri);
+        return { result, subscription };
+      }
       const params: SubscribeParams = {
         channel: uri,
         ...(options.delivery ? { delivery: options.delivery } : {}),
         ...(options.view ? { view: options.view } : {}),
       };
       const result = await this.request('subscribe', params);
+      this.persistentServerSubscriptions.add(uri);
       return { result, subscription };
     } catch (err) {
       await subscription.close();
@@ -446,14 +470,70 @@ export class AhpClient {
    */
   async unsubscribe(uri: URI): Promise<void> {
     if (this.isClosed()) return;
+    this.persistentServerSubscriptions.delete(uri);
     const queue = this.subscriptions.get(uri);
     if (queue) {
       this.subscriptions.delete(uri);
       queue.close();
     }
-    const params: UnsubscribeParams = { channel: uri };
-    this.notify('unsubscribe', params);
+    if (!this.settlementSubscriptionLeases.has(uri)) {
+      const params: UnsubscribeParams = { channel: uri };
+      this.notify('unsubscribe', params);
+    }
     return Promise.resolve();
+  }
+
+  /**
+   * Retain an exact-channel server subscription for one settlement wait.
+   * Concurrent waits share one subscribe request, and a caller-owned
+   * initialize/reconnect/subscribe subscription is never torn down here.
+   */
+  private async acquireSettlementSubscription(uri: URI): Promise<() => Promise<void>> {
+    if (this.persistentServerSubscriptions.has(uri)) {
+      return async () => {};
+    }
+
+    let state = this.settlementSubscriptionLeases.get(uri);
+    if (state) {
+      state.references++;
+    } else {
+      const params: SubscribeParams = {
+        channel: uri,
+        delivery: { maxLatencyMs: 0 },
+      };
+      state = {
+        references: 1,
+        established: this.request('subscribe', params),
+      };
+      this.settlementSubscriptionLeases.set(uri, state);
+    }
+
+    try {
+      await state.established;
+    } catch (error) {
+      state.references--;
+      if (state.references === 0
+        && this.settlementSubscriptionLeases.get(uri) === state) {
+        this.settlementSubscriptionLeases.delete(uri);
+      }
+      throw error;
+    }
+
+    let released = false;
+    return async () => {
+      if (released) return;
+      released = true;
+      state.references--;
+      if (state.references !== 0
+        || this.settlementSubscriptionLeases.get(uri) !== state) {
+        return;
+      }
+      this.settlementSubscriptionLeases.delete(uri);
+      if (!this.persistentServerSubscriptions.has(uri) && !this.isClosed()) {
+        const params: UnsubscribeParams = { channel: uri };
+        this.notify('unsubscribe', params);
+      }
+    };
   }
 
   /**
@@ -503,10 +583,13 @@ export class AhpClient {
       throw new ActionSettlementCancelledError({ cause: options.signal.reason });
     }
 
-    // Attach before dispatch because broadcast readers intentionally do not
-    // replay earlier events.
-    const events = this.events();
+    // Attach before acquiring the subscription because broadcast readers
+    // intentionally do not replay earlier events. Session actions are delivered
+    // only to exact-channel subscribers, so a direct settlement call owns a
+    // bounded subscription lease when the caller does not already have one.
     const timeoutMs = options.timeoutMs ?? this.requestTimeoutMs;
+    const events = this.events();
+    let releaseSubscription: (() => Promise<void>) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let abortListener: (() => void) | undefined;
     const interrupted = new Promise<never>((_resolve, reject) => {
@@ -523,8 +606,10 @@ export class AhpClient {
         options.signal.addEventListener('abort', abortListener, { once: true });
       }
     });
+    const acquiringSubscription = this.acquireSettlementSubscription(channel);
 
     try {
+      releaseSubscription = await Promise.race([acquiringSubscription, interrupted]);
       const { clientSeq } = this.dispatch(channel, action);
       while (true) {
         const next = await Promise.race([events.next(), interrupted]);
@@ -540,6 +625,14 @@ export class AhpClient {
       if (timer !== undefined) clearTimeout(timer);
       if (abortListener && options.signal) {
         options.signal.removeEventListener('abort', abortListener);
+      }
+      if (releaseSubscription) {
+        await releaseSubscription();
+      } else {
+        // A timeout/cancellation may win while the subscribe request remains
+        // in flight. Release its lease as soon as that request settles so a
+        // late success cannot leak a server subscription.
+        void acquiringSubscription.then(release => release(), noop);
       }
       await events.return?.();
     }
@@ -780,6 +873,8 @@ export class AhpClient {
 
     for (const queue of this.subscriptions.values()) queue.close();
     this.subscriptions.clear();
+    this.persistentServerSubscriptions.clear();
+    this.settlementSubscriptionLeases.clear();
     this.allEvents.close();
     this.stateQueue.close();
   }

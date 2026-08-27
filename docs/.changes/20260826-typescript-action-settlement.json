@@ -1,5 +1,5 @@
 {
   "type": "added",
-  "message": "Exact-correlated TypeScript action settlement helpers on AhpClient, HostClientHandle, and MultiHostClient with timeout and cancellation controls.",
+  "message": "Exact-correlated TypeScript action settlement helpers on AhpClient, HostClientHandle, and MultiHostClient with timeout, cancellation, and shared exact-channel subscription leases.",
   "targets": ["typescript"]
 }
