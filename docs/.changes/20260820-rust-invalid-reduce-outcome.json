@@ -1,5 +1,0 @@
-{
-  "type": "changed",
-  "message": "Rust reducers now return `ReduceOutcome::Invalid(ReduceError)` for malformed action data instead of panicking.",
-  "targets": ["rust"]
-}

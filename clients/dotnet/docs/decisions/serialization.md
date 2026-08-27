@@ -1,7 +1,8 @@
 # JSON serialization engine
 
 - **Status:** Accepted
-- **Scope:** `clients/dotnet` (the `Microsoft.AgentHostProtocol*` packages)
+- **Scope:** `clients/dotnet` (the
+  `Microsoft.VisualStudioCode.AgentHostProtocol*` packages)
 - **Audience:** maintainers of the .NET client. Repo-only; not shipped in any
   NuGet package.
 
@@ -104,7 +105,7 @@ Rationale, against the dimensions:
 ### Boundaries and deferred work
 
 - **Validation ("validated vs not"):** a future opt-in
-  `Microsoft.AgentHostProtocol.Validation` package will decorate
+  `Microsoft.VisualStudioCode.AgentHostProtocol.Validation` package will decorate
   `IAhpSerializer` and validate inbound frames against the repo's generated
   `schema/*.schema.json` using **JsonSchema.Net (json-everything, MIT)**. Kept
   out of the core so the default path stays zero-dependency and fast.

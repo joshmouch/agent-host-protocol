@@ -1,0 +1,160 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+# This Azure DevOps pipeline is the source of truth for publishing the signed
+# Microsoft.VisualStudioCode.AgentHostProtocol NuGet packages.
+#
+#   1. Push a `dotnet/vX.Y.Z` tag from the repo root.
+#   2. ADO validates the release metadata, builds and tests both libraries,
+#      Authenticode-signs their DLLs, packs them, author-signs the resulting
+#      .nupkg/.snupkg files through ESRP, and publishes them to NuGet.org.
+#
+# Manual runs publish by default as a hotfix escape hatch. Untick `publish` to
+# build, test, pack, and sign without pushing to NuGet.org.
+parameters:
+  - name: publish
+    displayName: Publish to NuGet.org (untick for a signed dry run)
+    type: boolean
+    default: true
+
+trigger:
+  branches:
+    exclude:
+      - "*"
+  tags:
+    include:
+      - dotnet/v*
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      # Temporary while the reusable NuGet template is under review. Switch
+      # this back to `main` before marking the AHP PR ready to merge.
+      ref: refs/heads/connor4312/nuget-package-template
+      endpoint: Monaco
+
+extends:
+  template: azure-pipelines/nuget-package/pipeline.yml@templates
+  parameters:
+    packageName: Microsoft.VisualStudioCode.AgentHostProtocol
+    projectRootDirectory: $(Build.SourcesDirectory)/clients/dotnet
+    packageOutputDirectory: $(Build.ArtifactStagingDirectory)/nuget
+    publishPackage: ${{ parameters.publish }}
+    nuGetServiceConnection: VisualStudioCode
+    dotnetVersions:
+      - 8.0.x
+      - 10.0.x
+    nodeVersion: 22.x
+    contentSigningFolder: $(Build.SourcesDirectory)/clients/dotnet/src
+    contentSigningPattern: "**/bin/Release/**/Microsoft.AgentHostProtocol*.dll"
+
+    buildSteps:
+      - script: npm ci
+        displayName: 📦 Install root dependencies
+
+      - bash: |
+          set -euo pipefail
+          REF="$(Build.SourceBranch)"
+          PACKAGE_VERSION=$(tr -d '[:space:]' < clients/dotnet/VERSION)
+          case "$REF" in
+            refs/tags/dotnet/v*)
+              TAG_VERSION="${REF#refs/tags/dotnet/v}"
+              if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+                echo "##vso[task.logissue type=error]Tag version ($TAG_VERSION) does not match clients/dotnet/VERSION ($PACKAGE_VERSION)."
+                exit 1
+              fi
+              if ! grep -qE "^## \[$TAG_VERSION\]" clients/dotnet/CHANGELOG.md; then
+                echo "##vso[task.logissue type=error]clients/dotnet/CHANGELOG.md is missing a '## [$TAG_VERSION]' entry. Move the Unreleased section under that heading before tagging."
+                exit 1
+              fi
+              echo "Publishing version $TAG_VERSION (from tag $REF)"
+              ;;
+            *)
+              echo "Manual run (no dotnet/v* tag) - skipping tag/VERSION cross-check."
+              ;;
+          esac
+        displayName: ✅ Verify tag matches .NET version
+
+      - script: npm run verify:release-metadata
+        displayName: ✅ Verify release metadata
+
+      - script: npm run verify:changelog
+        displayName: ✅ Verify CHANGELOG entry exists
+
+      - script: npm run generate:dotnet
+        displayName: 🛠 Generate .NET sources
+
+      - bash: |
+          set -euo pipefail
+          GENERATED_PATHS=(
+            clients/dotnet/src/AgentHostProtocol.Abstractions/Generated
+            clients/dotnet/src/AgentHostProtocol/Generated
+          )
+          if [ -n "$(git status --porcelain -- "${GENERATED_PATHS[@]}")" ]; then
+            echo "##vso[task.logissue type=error]Generated .NET sources are out of date. Run 'npm run generate:dotnet' and commit the result."
+            git status --porcelain -- "${GENERATED_PATHS[@]}"
+            git --no-pager diff -- "${GENERATED_PATHS[@]}"
+            exit 1
+          fi
+        displayName: ✅ Verify generated .NET is up to date
+
+      - script: dotnet restore AgentHostProtocol.slnx --source "$(NUGET_RESTORE_SOURCE)"
+        workingDirectory: clients/dotnet
+        displayName: 📦 Restore .NET solution
+
+      - script: dotnet format whitespace AgentHostProtocol.slnx --verify-no-changes --no-restore
+        workingDirectory: clients/dotnet
+        displayName: ✅ Verify .NET formatting
+
+      - script: >-
+          dotnet build AgentHostProtocol.slnx
+          --no-restore
+          --configuration Release
+          -p:ContinuousIntegrationBuild=true
+        workingDirectory: clients/dotnet
+        displayName: 🛠 Build .NET solution
+
+      - script: >-
+          dotnet tests/AgentHostProtocol.Tests/bin/Release/net8.0/AgentHostProtocol.Tests.dll
+          --timeout 5m
+          --long-running 30
+        workingDirectory: clients/dotnet
+        displayName: 🧪 Test .NET solution
+
+    packSteps:
+      - script: >-
+          dotnet pack AgentHostProtocol.slnx
+          --no-build
+          --no-restore
+          --configuration Release
+          --output "$(Build.ArtifactStagingDirectory)/nuget"
+          -p:ContinuousIntegrationBuild=true
+        workingDirectory: clients/dotnet
+        displayName: 📦 Pack signed .NET libraries
+
+      - script: >-
+          dotnet restore tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj
+          --runtime win-x64
+          --packages artifacts/package-consumer-cache
+          --source "$(Build.ArtifactStagingDirectory)/nuget"
+          --source "$(NUGET_RESTORE_SOURCE)"
+          -p:UsePackedPackages=true
+        workingDirectory: clients/dotnet
+        displayName: 📦 Restore Native AOT smoke test from packages
+
+      - script: >-
+          dotnet publish tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj
+          --no-restore
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --output artifacts/aot-smoke
+          -p:UsePackedPackages=true
+        workingDirectory: clients/dotnet
+        displayName: 🛠 Publish Native AOT smoke test
+
+      - script: artifacts\aot-smoke\AgentHostProtocol.AotSmoke.exe
+        workingDirectory: clients/dotnet
+        displayName: 🧪 Run Native AOT smoke test

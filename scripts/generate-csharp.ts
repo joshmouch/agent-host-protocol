@@ -1,6 +1,6 @@
 /**
  * C# / .NET Generator — Generates C# type definitions for the
- * `Microsoft.AgentHostProtocol.Abstractions` package from the
+ * `Microsoft.VisualStudioCode.AgentHostProtocol.Abstractions` package from the
  * TypeScript source of truth parsed via ts-morph.
  *
  * Output: clients/dotnet/src/AgentHostProtocol.Abstractions/Generated/

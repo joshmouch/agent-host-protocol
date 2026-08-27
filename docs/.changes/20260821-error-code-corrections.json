@@ -1,4 +1,7 @@
 {
   "type": "removed",
-  "message": "`ContentNotFound` is no longer an exported AHP error code; `-32006` remains reserved and unassigned."
+  "message": "`ContentNotFound` is no longer an exported AHP error code; `-32006` remains reserved and unassigned.",
+  "targets": [
+    "spec"
+  ]
 }

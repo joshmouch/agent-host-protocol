@@ -1,5 +1,0 @@
-{
-  "type": "fixed",
-  "message": "The .NET multi-host runtime now publishes reconnect snapshots, installs replacement clients before replay, commits replay cursors per applied action, and cannot be wedged by a non-cooperative transport factory.",
-  "targets": ["dotnet"]
-}

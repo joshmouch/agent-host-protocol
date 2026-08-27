@@ -49,7 +49,7 @@ want to validate fragment JSON without consuming it.
 | TypeScript | `typescript/vX.Y.Z` | `clients/typescript/pipeline.yml` (Azure DevOps) | npm (`@microsoft/agent-host-protocol`) via ESRP. |
 | Swift      | `vX.Y.Z` (bare)     | `.github/workflows/publish-swift.yml` | SwiftPM resolves the tag directly. |
 | Go         | `clients/go/vX.Y.Z` | `.github/workflows/publish-go.yml` | Go module proxy resolves the tag directly. |
-| .NET       | `dotnet/vX.Y.Z`     | maintainer-owned pipeline (see below) | NuGet.org (`Microsoft.AgentHostProtocol`, `.Abstractions`). |
+| .NET       | `dotnet/vX.Y.Z`     | `clients/dotnet/pipeline.yml` (Azure DevOps) | NuGet.org (`Microsoft.VisualStudioCode.AgentHostProtocol`, `.Abstractions`). |
 
 > **Why Swift gets the bare semver tag namespace:** SwiftPM only resolves
 > packages by matching plain `X.Y.Z` / `vX.Y.Z` git tags at the manifest's
@@ -186,16 +186,12 @@ trigger started the run.
 3. Rotate `clients/dotnet/CHANGELOG.md`.
 4. Merge to `main`.
 5. Tag: `git tag dotnet/v0.X.Y && git push origin dotnet/v0.X.Y`.
-6. Publish the libraries (`Microsoft.AgentHostProtocol`,
-   `Microsoft.AgentHostProtocol.Abstractions`,
-   `Microsoft.AgentHostProtocol.Abstractions`) to NuGet.org. This client does
-   not ship its own publish automation — the maintainers wire the
-   `dotnet pack` + `dotnet nuget push` step into their own release pipeline,
-   the same way the Kotlin and TypeScript packages publish through the signed
-   Azure DevOps / ESRP pipelines rather than a GitHub Actions registry push.
-   The per-PR CI job already builds, tests, and runs the test-parity gate for
-   the solution; `npm run verify:changelog` guards the
-   `clients/dotnet/VERSION` ↔ `CHANGELOG.md` heading match.
+6. `clients/dotnet/pipeline.yml` validates the tag and release metadata,
+   builds and tests the solution, Authenticode-signs the assemblies through
+   ESRP, packs and author-signs
+   `Microsoft.VisualStudioCode.AgentHostProtocol` and
+   `Microsoft.VisualStudioCode.AgentHostProtocol.Abstractions`, and publishes
+   them to NuGet.org after approval.
 
 ### Spec (`spec/vX.Y.Z`)
 
