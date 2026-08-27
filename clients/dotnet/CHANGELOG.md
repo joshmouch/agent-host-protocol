@@ -1,7 +1,8 @@
 # Changelog
 
-All notable changes to the .NET client (`Microsoft.AgentHostProtocol*`
-NuGet packages) are documented here. The format follows
+All notable changes to the .NET client
+(`Microsoft.VisualStudioCode.AgentHostProtocol*` NuGet packages) are documented
+here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -475,6 +476,45 @@ this release negotiates.
 - A fragmented WebSocket text message whose frames exactly filled the 64 KiB
   receive buffer dropped a frame; the receive loop now grows the buffer after
   copying the previous frame rather than before.
+
+## [0.9.0] — 2026-08-27
+
+Implements AHP 1.0.0.
+
+### Added
+
+- Automation catalogue and automation-run channels, including self-contained host-defined event triggers and automation-origin messages, for shared trigger-based agent session workflows.
+- Turn errors are durable response parts, and resumable errors can reopen the same turn through `chat/turnResume`.
+- First-party .NET client with generated AHP 1.0 wire types, reducers, JSON-RPC and multi-host clients, and an integrated WebSocket transport targeting `netstandard2.0` and `net8.0`. (#206, #214)
+- `ClientConfig.TimeProvider` enables deterministic request timeout, keep-alive, reconnect scheduling, and host timestamps.
+- `InitializeResult._meta` for hosts to advertise implementation-specific extension capabilities in initialize responses.
+
+### Changed
+
+- Annotations now carry an `origin` with a required session URI and optional chat URI and turn ID.
+- Renamed the failed session lifecycle value from `creationFailed` to `failed`.
+- `TerminalSessionClaim` now requires the chat URI that owns the terminal.
+- Terminal state now uses an explicit `running`/`exited` lifecycle that preserves exits without an exit code.
+- The .NET client now supports trimming and Native AOT through generated JSON metadata, snapshots caller-owned configuration, freezes serializer options, validates protocol negotiation, restores live reconnect state correctly, enforces valid `StringOrMarkdown` values, and consistently uses value-semantic `HostId` APIs.
+- Generated clients now preserve unknown values for nonexhaustive protocol enums and their discriminated unions.
+- `SessionToolClientExecutionRequest.toolCall` is narrowed to a running tool-call state.
+- The .NET client now ships as the signed `Microsoft.VisualStudioCode.AgentHostProtocol` and `Microsoft.VisualStudioCode.AgentHostProtocol.Abstractions` NuGet packages.
+
+### Removed
+
+- Removed `error` from `changeset/contentChanged`; changeset failures are represented by `changeset/statusChanged`.
+- Removed session-level forking from `createSession`; use chat forking instead.
+- `ContentNotFound` is no longer an exported AHP error code; `-32006` remains reserved and unassigned.
+
+### Fixed
+
+- Chat reducers now derive `modifiedAt` from turn action data instead of local wall clocks.
+- The .NET client now preserves protocol wire settings with custom JSON metadata, serializes inbound request handler results without reflection, and validates packed packages through broader Native AOT flows.
+- The .NET multi-host runtime now publishes reconnect snapshots, installs replacement clients before replay, commits replay cursors per applied action, and cannot be wedged by a non-cooperative transport factory.
+
+### Security
+
+- The .NET `FileClientIdStore` now establishes owner-only Unix permissions before writing client-ID bytes and fails closed when it cannot do so.
 
 ## [0.3.0]
 

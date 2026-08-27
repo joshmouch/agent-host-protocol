@@ -1,7 +1,8 @@
 # Synchronization & concurrency primitives
 
 - **Status:** Accepted
-- **Scope:** `clients/dotnet` (the `Microsoft.AgentHostProtocol*` packages)
+- **Scope:** `clients/dotnet` (the
+  `Microsoft.VisualStudioCode.AgentHostProtocol*` packages)
 - **Audience:** maintainers of the .NET client. This document is repo-only; it
   is not shipped in any NuGet package.
 

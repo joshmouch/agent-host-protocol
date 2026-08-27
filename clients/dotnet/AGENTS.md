@@ -109,16 +109,17 @@ package (only `README.md` is).
 
 ## Releasing
 
-Sub-package releases publish the `Microsoft.AgentHostProtocol*` packages to
-NuGet.org. This client does not ship its own publish automation; the
-maintainers wire `dotnet pack` + `dotnet nuget push` into their own release
-pipeline (e.g. the signed Azure DevOps / ESRP pipeline used for the Kotlin and
-TypeScript packages). The `clients/dotnet/VERSION` ↔ `CHANGELOG.md` heading
-match is enforced for every PR by `npm run verify:changelog`.
+Sub-package releases publish the
+`Microsoft.VisualStudioCode.AgentHostProtocol*` packages to NuGet.org.
+`pipeline.yml` is the tag-driven Azure DevOps release pipeline: it signs the
+assemblies and packages through ESRP before publishing. The
+`clients/dotnet/VERSION` ↔ `CHANGELOG.md` heading match is enforced for every
+PR by `npm run verify:changelog`.
 
 ## Out of scope
 
-JSON-Schema validation (a `Microsoft.AgentHostProtocol.Validation` decorator
-over `IAhpSerializer`) and DI/extension helpers
-(`Microsoft.AgentHostProtocol.Extensions`) are planned follow-ups, not part of
-this client yet.
+JSON-Schema validation (a
+`Microsoft.VisualStudioCode.AgentHostProtocol.Validation` decorator over
+`IAhpSerializer`) and DI/extension helpers
+(`Microsoft.VisualStudioCode.AgentHostProtocol.Extensions`) are planned
+follow-ups, not part of this client yet.

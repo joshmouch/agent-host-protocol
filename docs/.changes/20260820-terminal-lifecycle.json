@@ -1,4 +1,7 @@
 {
   "type": "changed",
-  "message": "Terminal state now uses an explicit `running`/`exited` lifecycle that preserves exits without an exit code."
+  "message": "Terminal state now uses an explicit `running`/`exited` lifecycle that preserves exits without an exit code.",
+  "targets": [
+    "spec"
+  ]
 }

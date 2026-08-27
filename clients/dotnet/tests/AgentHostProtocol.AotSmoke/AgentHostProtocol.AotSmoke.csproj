@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(UsePackedPackages)' == 'true'">
-    <PackageReference Include="Microsoft.AgentHostProtocol" Version="$(Version)" />
+    <PackageReference Include="Microsoft.VisualStudioCode.AgentHostProtocol" Version="$(Version)" />
   </ItemGroup>
 
 </Project>

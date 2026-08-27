@@ -9,16 +9,17 @@ examples run on `net8.0`.
 ## Install
 
 ```bash
-dotnet add package Microsoft.AgentHostProtocol
+dotnet add package Microsoft.VisualStudioCode.AgentHostProtocol
 ```
 
 | Package | Use it for |
 | --- | --- |
-| `Microsoft.AgentHostProtocol.Abstractions` | Wire types + reducers' data contracts + the `ITransport` / `IAhpSerializer` interfaces. No I/O, no dependencies. Reference this alone to parse / construct AHP messages or implement a transport. |
-| `Microsoft.AgentHostProtocol` | The async `AhpClient`, pure reducers, default System.Text.Json serializer, `ClientWebSocket` transport, and `MultiHostClient`. |
+| `Microsoft.VisualStudioCode.AgentHostProtocol.Abstractions` | Wire types + reducers' data contracts + the `ITransport` / `IAhpSerializer` interfaces. No I/O, no dependencies. Reference this alone to parse / construct AHP messages or implement a transport. |
+| `Microsoft.VisualStudioCode.AgentHostProtocol` | The async `AhpClient`, pure reducers, default System.Text.Json serializer, `ClientWebSocket` transport, and `MultiHostClient`. |
 
-`Microsoft.AgentHostProtocol` references `.Abstractions` transitively, so most
-consumers only add the main package.
+`Microsoft.VisualStudioCode.AgentHostProtocol` references `.Abstractions`
+transitively, so most consumers only add the main package. The C# namespaces
+remain `Microsoft.AgentHostProtocol`.
 
 ## Quickstart
 
@@ -170,11 +171,10 @@ requests and notifications, and typed and raw inbound request handling.
    [`release-metadata.json`](release-metadata.json).
 3. Rotate the `## [Unreleased]` section of [`CHANGELOG.md`](CHANGELOG.md) to
    `## [X.Y.Z]`.
-4. Merge to `main`, then publish the `Microsoft.AgentHostProtocol*` packages
-   to NuGet.org. This client does not ship its own publish automation — wire
-   `dotnet pack` + `dotnet nuget push` into whichever release pipeline the
-   maintainers use for their other clients (e.g. the signed Azure DevOps /
-   ESRP pipeline that publishes the Kotlin and TypeScript packages).
+4. Merge to `main`, then tag and push `dotnet/vX.Y.Z`.
+5. [`pipeline.yml`](pipeline.yml) validates, builds, tests, Authenticode-signs
+   the assemblies, packs and author-signs both packages through ESRP, then
+   publishes them to NuGet.org after approval.
 
 ## License
 

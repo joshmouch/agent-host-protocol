@@ -1,6 +1,0 @@
-{
-  "type": "added",
-  "message": "First-party .NET client with generated AHP 1.0 wire types, reducers, JSON-RPC and multi-host clients, and an integrated WebSocket transport targeting `netstandard2.0` and `net8.0`.",
-  "targets": ["dotnet"],
-  "issues": [206, 214]
-}

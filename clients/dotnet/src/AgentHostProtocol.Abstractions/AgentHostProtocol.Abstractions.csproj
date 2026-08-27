@@ -5,7 +5,7 @@
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <AssemblyName>Microsoft.AgentHostProtocol.Abstractions</AssemblyName>
     <IsPackable>true</IsPackable>
-    <PackageId>Microsoft.AgentHostProtocol.Abstractions</PackageId>
+    <PackageId>Microsoft.VisualStudioCode.AgentHostProtocol.Abstractions</PackageId>
     <Description>
       Wire types, reducers' data contracts, and transport/serializer
       interfaces for the Agent Host Protocol (AHP) — the synchronized,

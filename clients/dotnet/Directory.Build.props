@@ -87,7 +87,7 @@
        <IsPackable>true</IsPackable>, so packages were published without
        Authors, License, ProjectUrl, Copyright, or the correct Version. -->
   <PropertyGroup>
-    <Authors>Microsoft Corporation</Authors>
+    <Authors>Microsoft</Authors>
     <Company>Microsoft Corporation</Company>
     <Product>Agent Host Protocol</Product>
     <Copyright>© Microsoft Corporation. All rights reserved.</Copyright>

@@ -5,7 +5,7 @@
     <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <AssemblyName>Microsoft.AgentHostProtocol</AssemblyName>
     <IsPackable>true</IsPackable>
-    <PackageId>Microsoft.AgentHostProtocol</PackageId>
+    <PackageId>Microsoft.VisualStudioCode.AgentHostProtocol</PackageId>
     <Description>The Agent Host Protocol (AHP) client for .NET: an async JSON-RPC client, the pure state reducers, the default System.Text.Json serializer, a ClientWebSocket transport, and the multi-host runtime.</Description>
     <!-- The net8 asset is validated under the trimming and Native AOT analyzers.
          The default serializer uses generated System.Text.Json metadata. -->
