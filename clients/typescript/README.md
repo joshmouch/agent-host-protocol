@@ -17,7 +17,7 @@ The package exposes five subpath exports:
 | `@microsoft/agent-host-protocol/client` | `AhpClient`, `Subscription`, `AhpStateMirror`, the `AhpTransport` interface, `InMemoryTransport`, and the error taxonomy. |
 | `@microsoft/agent-host-protocol/hosts`  | `MultiHostClient`, `HostClientHandle`, `ReconnectPolicy`, `ClientIdStore` (with `InMemoryClientIdStore`), `MultiHostStateMirror`, and the `Host*Error` family. Builds on `/client` to manage one or more host connections with reconnect, generation-checked handles, and fan-in events. |
 | `@microsoft/agent-host-protocol/ws`     | `WebSocketTransport` — an `AhpTransport` implementation backed by the global `WebSocket`. |
-| `@microsoft/agent-host-protocol/conformance/archive-state` | Data-driven archive/unarchive convergence contract and runner for host/provider adapters. |
+| `@microsoft/agent-host-protocol/conformance/archive-state` | Data-driven archive/unarchive convergence contract, runner, and batch-evidence summarizer for host/provider adapters. Recorded evidence keeps correlated action-settlement and fresh-reopen authority-durability denominators separate. |
 
 The split mirrors the Rust SDK (`ahp-types`, `ahp`, `ahp::hosts`,
 `ahp-ws`) — wire types and reducers are decoupled from the client,

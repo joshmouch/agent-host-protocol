@@ -7,6 +7,8 @@ import {
   classifyArchiveStateProtocolVersion,
   defineArchiveStateConformanceRow,
   runArchiveStateConformance,
+  summarizeArchiveStateBatchEvidence,
+  type ArchiveStateBatchEvidence,
   type ArchiveStateConformanceRow,
   type ArchiveStateEnvelopeObservation,
   type ArchiveStateFixture,
@@ -261,5 +263,126 @@ test('superseded replacement cycles fail instead of skipping', () => {
       capabilities: [],
     }),
     /replacement cycle/,
+  );
+});
+
+function codexPrefixBatchEvidence(): ArchiveStateBatchEvidence {
+  const timedOut = (deploymentId: string, newlyArchived: number) => ({
+    deploymentId,
+    settlement: {
+      kind: 'attempted' as const,
+      attempted: 25,
+      acceptedEnvelopes: 0,
+      rejectedEnvelopes: 0,
+      timedOut: 25,
+    },
+    providerDurability: {
+      newlyArchived,
+      previouslyArchived: 0,
+      unarchivedAfterFreshReopen: 0,
+    },
+  });
+  return {
+    identity: {
+      implementationId: 'microsoft/vscode:agent-host',
+      providerId: 'openai/codex-app-server',
+      writerClientImplementationId: 'microsoft/agent-host-protocol:typescript-client',
+    },
+    applicability: applicability(),
+    populationId: 'codex-prefix-archive-2026-08-27',
+    observedAt: '2026-08-27T00:00:00-04:00',
+    offeredVersion: '1.0.0',
+    negotiation: {
+      protocolVersion: '1.0.0',
+      capabilities: [],
+    },
+    deployments: [
+      timedOut('josh-name', 136),
+      timedOut('josh-gmail', 270),
+      {
+        deploymentId: 'joshua-gmail',
+        settlement: {
+          kind: 'unavailable',
+          affectedResources: 117,
+          stage: 'exact-channel-subscription',
+          reason: 'provider already archived while the pre-reopen AHP catalog remained stale',
+        },
+        providerDurability: {
+          newlyArchived: 117,
+          previouslyArchived: 361,
+          unarchivedAfterFreshReopen: 0,
+        },
+      },
+      timedOut('arielle-name', 135),
+      {
+        deploymentId: 'default',
+        settlement: {
+          kind: 'not-exercised',
+          reason: 'no matching unarchived resources',
+        },
+        providerDurability: {
+          newlyArchived: 0,
+          previouslyArchived: 0,
+          unarchivedAfterFreshReopen: 0,
+        },
+      },
+    ],
+  };
+}
+
+test('recorded batch evidence keeps action settlement and provider durability denominators separate', () => {
+  const summary = summarizeArchiveStateBatchEvidence(codexPrefixBatchEvidence());
+  assert.equal(summary.version.kind, 'run');
+  assert.deepEqual(summary.settlement, {
+    attempted: 75,
+    acceptedEnvelopes: 0,
+    rejectedEnvelopes: 0,
+    timedOut: 75,
+    unavailableAtExactChannelSubscription: 117,
+  });
+  assert.deepEqual(summary.providerDurability, {
+    newlyArchived: 658,
+    previouslyArchived: 361,
+    matchingResources: 1019,
+    archivedAfterFreshReopen: 1019,
+    unarchivedAfterFreshReopen: 0,
+  });
+});
+
+test('batch evidence fails closed for an unclassified negotiated protocol version', () => {
+  const evidence = codexPrefixBatchEvidence();
+  assert.throws(
+    () => summarizeArchiveStateBatchEvidence({
+      ...evidence,
+      negotiation: {
+        ...evidence.negotiation,
+        protocolVersion: '1.1.0',
+      },
+    }),
+    (error: unknown) => error instanceof UnclassifiedProtocolVersionError
+      && error.code === 'unclassified-protocol-version'
+      && error.negotiatedVersion === '1.1.0',
+  );
+});
+
+test('batch evidence requires a closed action-settlement denominator', () => {
+  const evidence = codexPrefixBatchEvidence();
+  assert.throws(
+    () => summarizeArchiveStateBatchEvidence({
+      ...evidence,
+      deployments: evidence.deployments.map((deployment, index) => index === 0
+        ? {
+            ...deployment,
+            settlement: {
+              kind: 'attempted',
+              attempted: 25,
+              acceptedEnvelopes: 0,
+              rejectedEnvelopes: 0,
+              timedOut: 24,
+            },
+          }
+        : deployment),
+    }),
+    /settlement outcomes 24 do not equal attempts 25/,
   );
 });

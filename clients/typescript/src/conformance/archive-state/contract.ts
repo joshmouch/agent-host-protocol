@@ -117,6 +117,14 @@ export interface ArchiveStateNegotiationResult {
   readonly capabilities: readonly string[];
 }
 
+/** Minimal protocol-owned subject shared by runnable rows and recorded evidence. */
+export interface ArchiveStateProtocolSubject {
+  readonly identity: {
+    readonly implementationId: string;
+  };
+  readonly applicability: ArchiveStateProtocolApplicability;
+}
+
 export interface ArchiveStateConformanceRow {
   readonly identity: ArchiveStateImplementationIdentity;
   readonly applicability: ArchiveStateProtocolApplicability;
@@ -194,7 +202,7 @@ function selectCapabilityDisposition(
 }
 
 function resolveApplicableVersion(
-  row: ArchiveStateConformanceRow,
+  row: ArchiveStateProtocolSubject,
   start: NegotiableProtocolVersion,
   capabilities: ReadonlySet<string>,
 ): NegotiableProtocolVersion {
@@ -226,7 +234,7 @@ function resolveApplicableVersion(
 }
 
 export function classifyArchiveStateProtocolVersion(
-  row: ArchiveStateConformanceRow,
+  row: ArchiveStateProtocolSubject,
   offeredVersion: NegotiableProtocolVersion,
   negotiation: ArchiveStateNegotiationResult,
 ): ArchiveStateVersionClassification {
