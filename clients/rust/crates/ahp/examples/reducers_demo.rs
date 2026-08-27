@@ -20,6 +20,7 @@ use ahp_types::state::{AgentInfo, RootState};
 fn main() {
     let mut root = RootState {
         agents: vec![],
+        capabilities: None,
         active_sessions: None,
         terminals: None,
         config: None,

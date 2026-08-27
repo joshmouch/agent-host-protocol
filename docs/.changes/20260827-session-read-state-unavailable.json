@@ -1,0 +1,4 @@
+{
+  "type": "added",
+  "message": "`SessionSummary.readState` distinguishes read, unread, and unavailable evidence on session catalog rows without adding catalog-only state to session or chat lifecycle."
+}

@@ -96,6 +96,7 @@ pub(super) fn spawn(
         automations: None,
         root_state: RootState {
             agents: vec![],
+            capabilities: None,
             active_sessions: None,
             terminals: None,
             config: None,
@@ -319,6 +320,9 @@ impl HostRuntime {
                 ListSessionsParams {
                     channel: ROOT_RESOURCE_URI.to_string(),
                     meta: None,
+                    providers: None,
+                    catalog_scope: None,
+                    operators: None,
                     limit: None,
                     cursor: None,
                 },

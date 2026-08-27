@@ -299,6 +299,15 @@ pub struct PartialSessionSummary {
     /// Session URI
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resource: Option<Uri>,
+    /// Authoritative read-state evidence for this catalog row.
+    ///
+    /// New producers SHOULD provide this field. Its absence preserves the
+    /// version-1 projection: clients derive `read` when
+    /// {@link SessionStatus.IsRead} is set in {@link SessionMetadata.status} and
+    /// `unread` otherwise. When present, this field is authoritative and its
+    /// `read` / `unread` values MUST agree with that legacy status bit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_state: Option<SessionReadState>,
     /// Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,

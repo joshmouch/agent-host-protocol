@@ -113,6 +113,7 @@
 //!
 //! let mut root = RootState {
 //!     agents: vec![],
+//!     capabilities: None,
 //!     active_sessions: None,
 //!     terminals: None,
 //!     config: None,

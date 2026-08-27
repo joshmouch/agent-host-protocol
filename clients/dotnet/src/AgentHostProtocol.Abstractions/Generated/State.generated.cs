@@ -69,6 +69,27 @@ public enum SessionStatus : uint
     IsPinned = 128,
 }
 
+/// <summary>Read-state evidence carried by one {@link SessionSummary} catalog row.
+///
+/// This is catalog projection state, not session lifecycle. A subscribed
+/// {@link SessionState} has a host-owned read value represented by
+/// {@link SessionStatus.IsRead}; a complete catalog query may additionally
+/// surface provider-native sessions that the host has not adopted and for
+/// which no client read value exists yet.</summary>
+[JsonConverter(typeof(WireEnumConverter<SessionReadState>))]
+public enum SessionReadState
+{
+    /// <summary>The client has viewed this session since its last modification.</summary>
+    [WireValue("read")]
+    Read,
+    /// <summary>The client has not viewed this session since its last modification.</summary>
+    [WireValue("unread")]
+    Unread,
+    /// <summary>The catalog authority cannot supply a client read value for this row.</summary>
+    [WireValue("unavailable")]
+    Unavailable,
+}
+
 /// <summary>Discriminant describing the durable provenance of a session.</summary>
 [JsonConverter(typeof(WireEnumConverter<SessionOriginKind>))]
 public enum SessionOriginKind
@@ -1899,6 +1920,16 @@ public sealed class SessionSummary
 
     /// <summary>Session URI</summary>
     public required string Resource { get; set; }
+
+    /// <summary>Authoritative read-state evidence for this catalog row.
+    ///
+    /// New producers SHOULD provide this field. Its absence preserves the
+    /// version-1 projection: clients derive `read` when
+    /// {@link SessionStatus.IsRead} is set in {@link SessionMetadata.status} and
+    /// `unread` otherwise. When present, this field is authoritative and its
+    /// `read` / `unread` values MUST agree with that legacy status bit.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SessionReadState? ReadState { get; set; }
 
     /// <summary>Creation timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`)</summary>
     public required string CreatedAt { get; set; }

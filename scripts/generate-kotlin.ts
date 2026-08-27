@@ -965,7 +965,7 @@ internal object ToolResultContentSerializer : KSerializer<ToolResultContent> {
 // ─── State File Generator ────────────────────────────────────────────────────
 
 const STATE_ENUMS = [
-  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
+  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus', 'SessionReadState',
   'ChatOriginKind', 'ChatInteractivity', 'ChatInputAnswerState', 'ChatInputAnswerValueKind', 'ChatInputQuestionKind',
   'ChatInputResponseKind', 'SessionInputRequestKind',
   'TurnState', 'MessageKind', 'MessageAttachmentKind', 'ResponsePartKind', 'ToolCallStatus',

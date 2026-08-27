@@ -3562,6 +3562,10 @@
           "$ref": "#/$defs/URI",
           "description": "Session URI"
         },
+        "readState": {
+          "$ref": "#/$defs/SessionReadState",
+          "description": "Authoritative read-state evidence for this catalog row.\n\nNew producers SHOULD provide this field. Its absence preserves the\nversion-1 projection: clients derive `read` when\n{@link SessionStatus.IsRead} is set in {@link SessionMetadata.status} and\n`unread` otherwise. When present, this field is authoritative and its\n`read` / `unread` values MUST agree with that legacy status bit."
+        },
         "createdAt": {
           "type": "string",
           "description": "Creation timestamp (ISO 8601, e.g. `\"2025-03-10T18:42:03.123Z\"`)"
@@ -8988,6 +8992,15 @@
       ],
       "type": "string",
       "description": "Session initialization state."
+    },
+    "SessionReadState": {
+      "enum": [
+        "read",
+        "unread",
+        "unavailable"
+      ],
+      "type": "string",
+      "description": "Read-state evidence carried by one {@link SessionSummary} catalog row.\n\nThis is catalog projection state, not session lifecycle. A subscribed\n{@link SessionState} has a host-owned read value represented by\n{@link SessionStatus.IsRead}; a complete catalog query may additionally\nsurface provider-native sessions that the host has not adopted and for\nwhich no client read value exists yet."
     },
     "McpAuthRequiredReason": {
       "enum": [

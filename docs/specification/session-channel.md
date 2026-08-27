@@ -65,6 +65,7 @@ The producer of the chat's own [`ChatState`](./chat-channel#state) is responsibl
 | Field | Derivation rule |
 |---|---|
 | `status` | Take the activity bits (`Idle` / `InProgress` / `InputNeeded` / `Error`) from the [`defaultChat`](#defaultchat) when set, else from the most recently modified chat. Promote `InputNeeded` if **any** chat needs input. Promote `Error` if **any** chat is in an error state. The orthogonal `IsRead` / `IsArchived` flags remain session-scoped and pass through unchanged. |
+| `readState` | For an adopted session, derive `read` / `unread` from the session-scoped `IsRead` flag. A complete catalog query may instead report `unavailable` for a provider-native row that has no host-owned client read value. This field belongs to the catalog projection and is not copied into nested chat state. |
 | `activity` | Mirror the activity string of the chat that contributes the activity bits — usually the default chat, but the chat that raised `InputNeeded` / `Error` when a non-default chat wins the promotion. |
 | `modifiedAt` | The maximum of every chat's `modifiedAt`. |
 | `workingDirectories` | The session-level set. Individual chats MAY restrict to a subset via [`ChatSummary.workingDirectories`](/reference/chat#chatsummary); aggregating per-chat subsets up is meaningless and SHOULD NOT be attempted. |

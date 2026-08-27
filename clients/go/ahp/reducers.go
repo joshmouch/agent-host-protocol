@@ -871,6 +871,9 @@ func ApplyActionToSession(state *ahptypes.SessionState, action ahptypes.StateAct
 	case *ahptypes.SessionIsArchivedChangedAction:
 		state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsArchived, a.IsArchived)
 		return ReduceOutcomeApplied
+	case *ahptypes.SessionIsPinnedChangedAction:
+		state.Status = withStatusFlag(state.Status, ahptypes.SessionStatusIsPinned, a.IsPinned)
+		return ReduceOutcomeApplied
 	case *ahptypes.SessionActivityChangedAction:
 		state.Activity = a.Activity
 		return ReduceOutcomeApplied

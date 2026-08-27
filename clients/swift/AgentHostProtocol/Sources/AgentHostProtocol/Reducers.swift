@@ -750,6 +750,11 @@ public func sessionReducer(state: SessionState, action: StateAction) -> SessionS
         next.status = withStatusFlag(next.status, .isArchived, a.isArchived)
         return next
 
+    case .sessionIsPinnedChanged(let a):
+        var next = state
+        next.status = withStatusFlag(next.status, .isPinned, a.isPinned)
+        return next
+
     case .sessionActivityChanged(let a):
         var next = state
         next.activity = a.activity
@@ -935,6 +940,7 @@ public let clientDispatchableActions: Set<String> = [
     "session/mcpServerStopRequested",
     "session/isReadChanged",
     "session/isArchivedChanged",
+    "session/isPinnedChanged",
     "automationRun/cancelRequested",
 ]
 
@@ -953,6 +959,7 @@ public func isClientDispatchable(_ action: StateAction) -> Bool {
          .sessionMcpServerStartRequested, .sessionMcpServerStopRequested,
          .sessionIsReadChanged,
          .sessionIsArchivedChanged,
+         .sessionIsPinnedChanged,
          .automationRunCancelRequested:
         return true
     default:

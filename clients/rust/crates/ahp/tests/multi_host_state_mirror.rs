@@ -37,6 +37,7 @@ fn root_snapshot(agents: Vec<AgentInfo>) -> Snapshot {
         resource: ROOT_RESOURCE_URI.to_string(),
         state: SnapshotState::Root(Box::new(RootState {
             agents,
+            capabilities: None,
             active_sessions: None,
             terminals: None,
             config: None,

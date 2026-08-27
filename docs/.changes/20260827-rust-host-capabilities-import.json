@@ -1,0 +1,5 @@
+{
+  "type": "fixed",
+  "message": "The generated Rust state module now imports the canonical host capability types from the commands module.",
+  "targets": ["rust"]
+}

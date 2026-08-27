@@ -350,6 +350,7 @@ namespace Microsoft.AgentHostProtocol;
 [JsonSerializable(typeof(SessionPendingMessageRemovedAction))]
 [JsonSerializable(typeof(SessionPendingMessageSetAction))]
 [JsonSerializable(typeof(SessionQueuedMessagesReorderedAction))]
+[JsonSerializable(typeof(SessionReadState))]
 [JsonSerializable(typeof(SessionReadyAction))]
 [JsonSerializable(typeof(SessionReasoningAction))]
 [JsonSerializable(typeof(SessionRemovedParams))]

@@ -631,7 +631,7 @@ function generateDiscriminatedUnion(cfg: UnionConfig): string {
 // ─── State File Generator ────────────────────────────────────────────────────
 
 const STATE_ENUMS = [
-  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus',
+  'PolicyState', 'PendingMessageKind', 'SessionLifecycle', 'SessionStatus', 'SessionReadState',
   'SessionOriginKind',
   'ChatOriginKind', 'ChatInteractivity', 'ChatInputAnswerState', 'ChatInputAnswerValueKind',
   'ChatInputQuestionKind', 'ChatInputResponseKind', 'SessionInputRequestKind',
