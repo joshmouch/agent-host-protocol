@@ -30,9 +30,7 @@ resources:
     - repository: templates
       type: github
       name: microsoft/vscode-engineering
-      # Temporary while the reusable NuGet template is under review. Switch
-      # this back to `main` before marking the AHP PR ready to merge.
-      ref: refs/heads/connor4312/nuget-package-template
+      ref: refs/heads/main
       endpoint: Monaco
 
 extends:
