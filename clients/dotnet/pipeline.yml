@@ -135,6 +135,33 @@ extends:
         displayName: 📦 Pack signed .NET libraries
 
       - pwsh: |
+          # Avoid NuGet's Windows path normalization bug for local-first
+          # repeated --source arguments (NuGet/Home#14624).
+          $configPath = Join-Path '$(Agent.TempDirectory)' 'ahp-aot-nuget.config'
+          $settings = [System.Xml.XmlWriterSettings]::new()
+          $settings.Indent = $true
+          $writer = [System.Xml.XmlWriter]::Create($configPath, $settings)
+          try {
+            $writer.WriteStartDocument()
+            $writer.WriteStartElement('configuration')
+            $writer.WriteStartElement('packageSources')
+            $writer.WriteStartElement('clear')
+            $writer.WriteEndElement()
+            $writer.WriteStartElement('add')
+            $writer.WriteAttributeString('key', 'signed-packages')
+            $writer.WriteAttributeString('value', '$(Build.ArtifactStagingDirectory)/nuget')
+            $writer.WriteEndElement()
+            $writer.WriteStartElement('add')
+            $writer.WriteAttributeString('key', 'vscode')
+            $writer.WriteAttributeString('value', '$(NUGET_RESTORE_SOURCE)')
+            $writer.WriteEndElement()
+            $writer.WriteEndElement()
+            $writer.WriteEndElement()
+            $writer.WriteEndDocument()
+          } finally {
+            $writer.Dispose()
+          }
+
           $arguments = @(
             'restore'
             'tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj'
@@ -142,10 +169,8 @@ extends:
             'win-x64'
             '--packages'
             'artifacts/package-consumer-cache'
-            '--source'
-            '$(Build.ArtifactStagingDirectory)/nuget'
-            '--source'
-            '$(NUGET_RESTORE_SOURCE)'
+            '--configfile'
+            $configPath
             '-p:UsePackedPackages=true'
           )
           & dotnet @arguments
