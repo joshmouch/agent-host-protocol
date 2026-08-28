@@ -30,9 +30,7 @@ resources:
     - repository: templates
       type: github
       name: microsoft/vscode-engineering
-      # Temporary while the reusable NuGet template is under review. Switch
-      # this back to `main` before marking the AHP PR ready to merge.
-      ref: refs/heads/connor4312/nuget-package-template
+      ref: refs/heads/main
       endpoint: Monaco
 
 extends:
@@ -134,13 +132,49 @@ extends:
         workingDirectory: clients/dotnet
         displayName: 📦 Pack signed .NET libraries
 
-      - script: >-
-          dotnet restore tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj
-          --runtime win-x64
-          --packages artifacts/package-consumer-cache
-          --source "$(Build.ArtifactStagingDirectory)/nuget"
-          --source "$(NUGET_RESTORE_SOURCE)"
-          -p:UsePackedPackages=true
+      - pwsh: |
+          # Avoid NuGet's Windows path normalization bug for local-first
+          # repeated --source arguments (NuGet/Home#14624).
+          $configPath = Join-Path '$(Agent.TempDirectory)' 'ahp-aot-nuget.config'
+          $settings = [System.Xml.XmlWriterSettings]::new()
+          $settings.Indent = $true
+          $writer = [System.Xml.XmlWriter]::Create($configPath, $settings)
+          try {
+            $writer.WriteStartDocument()
+            $writer.WriteStartElement('configuration')
+            $writer.WriteStartElement('packageSources')
+            $writer.WriteStartElement('clear')
+            $writer.WriteEndElement()
+            $writer.WriteStartElement('add')
+            $writer.WriteAttributeString('key', 'signed-packages')
+            $writer.WriteAttributeString('value', '$(Build.ArtifactStagingDirectory)/nuget')
+            $writer.WriteEndElement()
+            $writer.WriteStartElement('add')
+            $writer.WriteAttributeString('key', 'vscode')
+            $writer.WriteAttributeString('value', '$(NUGET_RESTORE_SOURCE)')
+            $writer.WriteEndElement()
+            $writer.WriteEndElement()
+            $writer.WriteEndElement()
+            $writer.WriteEndDocument()
+          } finally {
+            $writer.Dispose()
+          }
+
+          $arguments = @(
+            'restore'
+            'tests/AgentHostProtocol.AotSmoke/AgentHostProtocol.AotSmoke.csproj'
+            '--runtime'
+            'win-x64'
+            '--packages'
+            'artifacts/package-consumer-cache'
+            '--configfile'
+            $configPath
+            '-p:UsePackedPackages=true'
+          )
+          & dotnet @arguments
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
         workingDirectory: clients/dotnet
         displayName: 📦 Restore Native AOT smoke test from packages
 
