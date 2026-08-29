@@ -231,7 +231,9 @@ function main(): void {
     }
     const expected = computeReleaseMetadata(client, ROOT, registrySupported);
     const expectedSerialized = serializeReleaseMetadata(expected);
-    const actualSerialized = fs.readFileSync(metaPath, 'utf-8');
+    // Git may materialize text files with CRLF on Windows agents. Compare the
+    // JSON's canonical formatting independently of checkout line endings.
+    const actualSerialized = fs.readFileSync(metaPath, 'utf-8').replaceAll('\r\n', '\n');
 
     if (expectedSerialized !== actualSerialized) {
       // Parse the actual file for a more useful diff in the error message.
